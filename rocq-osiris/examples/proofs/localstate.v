@@ -145,7 +145,7 @@ Section verification.
     iApply (imp_EAnon_pers τ[ state; val ]); simpl.
     iIntros "!>" (init main A HencA spec) "Hspec".
     iApply imp_please; iNext.
-    iApply imp_fupd.
+    iApply fupd_imp.
     iMod (ghost_var_alloc (# init)) as (γ) "[Hstate Hpoints_to]"; iModIntro.
 
     (* Evaluate allocation of [init] *)
@@ -153,7 +153,7 @@ Section verification.
 
     (* Evaluating the let-bound expression *)
     { (* Allocate a new location with value [init] *)
-      iApply imp_ERef. imp_path. }
+      imp_ref. }
 
     (* Continuing with the rest of the computation *)
     iIntros (l) "Hl".
@@ -165,11 +165,8 @@ Section verification.
     iApply (imp_EHandler (A':=A) with "[Hspec Hpoints_to]").
 
     { (* 3A. Call to [main] in the handled expression *)
-      iApply (imp_EApp τ[unit] with "[Hspec]").
-      { imp_path. }
-      { iApply imp_EConstant. encode.
-        by instantiate (1 := (λ x, ⌜x = tt⌝)%I). }
-      simpl. iIntros (? -> m) "Hmain".
+      imp_app τ[unit] with "[Hspec]".
+      iIntros "Hmain".
       rewrite /main_spec /=.
       iSpecialize ("Hmain" $! _ _ _ (λ init, points_to γ #init) with "Hpoints_to").
       iApply "Hmain". }
@@ -184,9 +181,7 @@ Section verification.
       iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; last iIntros ([]).
       iIntros (? ->).
-      iApply (imp_EPair with "[Hl]").
-      { iApply (imp_ELoad with "Hl"). imp_path. }
-      { imp_path. }
+      iApply (imp_EPair with "[Hl]"); try imp_step.
       iIntros (? ?) "(-> & Hl) ->". iApply "Hspec". }
     (* Finally, we prove the specification over handler. *)
 
@@ -213,9 +208,7 @@ Section verification.
       iDestruct "H" as "(Hauth & Hx)".
       iSpecialize ("H_READ" with "Hx"). simpl.
       fold eval.
-      iApply (imp_EContinue (B:=state) with "[] [Hl]").
-      { imp_path. }
-      { iApply (imp_ELoad with "Hl"). imp_path. }
+      iApply (imp_EContinue (B:=state) with "[] [Hl]"); try imp_step.
 
       iIntros (? ? ->) "[-> Hl]".
       iApply "H_READ". iApply ("IH" with "Hauth Hl"). }
@@ -244,25 +237,17 @@ Section verification.
       iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
       { (* EWP Goal: [var := y; continue k ()]. *)
         iApply (imp_ESeq with "[Hl]").
-
-        { (* EWP Subgoal: [var := y]. *)
-          iApply (imp_EStore (A:=state) with "Hl").
-          { imp_path. }
-          { imp_path. } }
-
+        { (* EWP Subgoal: [var := y]. *) imp_store l y. }
         iIntros "Hl".
 
         (* EWP Subgoal: [continue k ()]. *)
         iDestruct "H" as "(Hauth & Hx)".
 
-        iApply imp_fupd.
+        iApply fupd_imp.
         iDestruct (ghost_var_update γ (# y) with "Hauth Hx") as ">(Hauth & Hx)".
         iModIntro.
 
-        iApply (imp_EContinue (B:=unit)).
-        { imp_path. }
-        { instantiate (1 := (λ u, ⌜u = tt⌝)%I).
-          iApply imp_EConstant; auto; encode. }
+        iApply (imp_EContinue (B:=unit)); try imp_step.
         iIntros (??) "-> -> !>".
         iApply ("H_WRITE" with "Hx").
         iApply ("IH" with "Hauth Hl"). } }

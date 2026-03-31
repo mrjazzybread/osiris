@@ -59,7 +59,7 @@ Section proof_pure.
       eapply pure_eval_match. { pure_path. }
       pure_match.
       - eapply pure_eval_raise.
-        simpl_eval. pure_ret.
+        simpl_eval. rewrite !bind_ret. pure_ret.
       - pure_path. eauto. }
     intros head Hhead.
 

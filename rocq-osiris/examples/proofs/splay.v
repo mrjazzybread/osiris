@@ -514,7 +514,7 @@ Local Hint Resolve
 (* -------------------------------------------------------------------------- *)
 
 Lemma invert_singleton {A} (a b : A) :
-  singleton a b ->
+  wp.singleton a b ->
   a = b.
 Proof. rewrite /singleton. by intros ->. Qed.
 
@@ -710,7 +710,8 @@ Proof.
           unfold tlt, tree_size; auto with arith. }
       intros [oy t'] [??]; simpl in *.
       split; [ | assumption ].
-      - apply bst_member_left; representable. }
+      apply bst_member_left; representable.
+      apply Hlt. lia. }
 
     { (* Case: [c >= 0] *)
       intros Cge0.
@@ -735,7 +736,7 @@ Proof.
         intros [oy t'] [??]; simpl in *.
         split.
         - apply bst_member_right; representable.
-          apply Hgt; apply Z.gt_lt; auto.
+          apply Hgt; apply Z.gt_lt; lia.
         - assumption. }
 
       { (* Subcase: [c <= 0] *)
@@ -750,7 +751,7 @@ Proof.
         intros ? ? -> <-.
         eapply pure_ret_mono. eapply Hsplay.
         intros. split; [ split | ].
-        - apply Heq. lia.
+        - apply Heq. simpl in Cge0, Cle0. lia.
         - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
         - assumption. } } }
 Qed.

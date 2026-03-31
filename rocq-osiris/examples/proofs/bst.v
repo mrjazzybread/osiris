@@ -4,6 +4,8 @@ From osiris Require Import osiris.
 From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_bst.
 
+Open Scope Z.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Boilerplate: reflect the algebraic data type ['a bst]. *)
@@ -285,7 +287,7 @@ Proof.
         destruct (a <? x) eqn:Hlx; try lia; done. }
 
       (* Subcase: [¬ (x > a)] . *)
-      intros. assert (x = a) by lia. subst.
+      intros. simpl in Hge, H. assert (x = a) by lia. subst.
       pure_data. intros x. cbn.
       destruct (x <? a) eqn:Hla.
       { assert (x =? a = false) by lia; rewrite H0; done. }
@@ -358,7 +360,7 @@ Proof.
       assert (y <? z = true) by lia; rewrite H0. done. }
 
     (* Subcase : [¬ (x > a)] *)
-    { intros Hle. pure_const.
+    { intros Hle. pure_const. simpl in Hge, Hle.
       assert (x = y) as -> by lia.
       cbn. rewrite Z.ltb_irrefl.
       by rewrite Z.eqb_refl. } }

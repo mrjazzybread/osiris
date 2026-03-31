@@ -141,6 +141,24 @@ Proof.
   eapply pure_ret; encode.
 Qed.
 
+Lemma pure_evals_cons `{Encode A}
+  η (hd : expr) tl (φ : list val -> Prop) Ψ :
+  pure (A := A) (eval η hd)
+    (fun x =>
+      pure (evals η tl) (fun v => φ (# x :: v)) Ψ) Ψ  ->
+  pure (evals η (hd :: tl)) φ Ψ.
+Proof.
+  intros. simpl_evals.
+  eapply pure_par_same_exn.
+  eapply pure_ret_mono; try done.
+  intros * ?.
+  eapply pure_mono; first eapply H1; eauto.
+  - intros * ?. unfold continue; simpl.
+    cbn in H2; eapply pure_ret; eauto.
+    cbn; f_equiv.
+  - intros; cbn. by apply pure_throw.
+Qed.
+
 (* The following [_eq] versions should be simpler to use in cases we know the
   final values *)
 
@@ -233,6 +251,58 @@ Proof.
     instantiate (1:= Build_Observe _ _ (λ '(a, b, c), [ #a; #b; #c ])).
     encode. }
   intros ((a1 & a2) & a3) Hψ.
+  eapply pure_ret; last apply Hψ.
+  encode.
+Qed.
+
+Lemma pure_eval_quadruple `{Encode A1, Encode A2, Encode A3, Encode A4}
+  η e1 e2 e3 e4 (ψ : A1 * A2 * A3 * A4 -> Prop) :
+  pure (eval η e1) (λ a1 : A1,
+      pure (eval η e2) (λ a2 : A2,
+          pure (eval η e3) (λ a3 : A3,
+              pure (eval η e4) (λ a4 : A4,
+                                  ψ (a1, a2, a3, a4)) ⊥) ⊥) ⊥) ⊥ ->
+  pure (eval η (ETuple [e1; e2; e3; e4])) ψ ⊥.
+Proof.
+  intros Hes. simpl_eval.
+  eapply pure_bind. instantiate (1:= ψ).
+  { eapply pure_bind. instantiate (1:= λ '(a1, (a2, (a3, a4))), ψ (a1, a2, a3, a4)).
+    { eapply pure_par_seq.
+      eapply pure_ret_mono. apply Hes.
+      intros a1 Hes2.
+      eapply pure_bind. instantiate (1:= λ '(a2, (a3, a4)), ψ (a1, a2, a3, a4)).
+      { eapply pure_par_seq.
+        eapply pure_ret_mono. apply Hes2.
+        intros a2 Hes3.
+        eapply pure_bind. instantiate (1:= λ '(a3, a4), ψ (a1, a2, a3, a4)).
+        { eapply pure_par_seq.
+          eapply pure_ret_mono. apply Hes3.
+          intros a3 Hes4.
+          eapply pure_bind. instantiate (1:= λ '(a4, l), l = @nil val ∧ ψ (a1, a2, a3, a4)).
+          { eapply pure_par. apply Hes4.
+            eapply pure_ret. encode. apply eq_refl.
+            intros ?? Hψ ->. split; auto. }
+          intros (a4 & ?) (-> & Hψ).
+          eapply pure_ret; last eassumption.
+          instantiate (1:= Build_Observe _ _ (λ (a : A4), [ (#a) ])).
+          encode. }
+        intros [??] Hψ.
+        eapply pure_ret.
+        instantiate (1:=(a, a0)).
+        instantiate (1:= Build_Observe _ _ (λ '(a, b), [ #a; #b ])).
+        encode.
+        assumption. }
+      intros (a2 & (a3 & a4)) Hψ.
+      eapply pure_ret. instantiate (1:=(a2, (a3, a4))).
+      instantiate (1:= Build_Observe _ _ (λ '(a, (b, c)), [ #a; #b; #c ])).
+      encode.
+      assumption. }
+
+    intros (a1 & (a2 & (a3 & a4))) Hψ.
+    eapply pure_ret; last eassumption.
+    instantiate (1:= Build_Observe _ _ (λ '(a, b, c, d), [ #a; #b; #c; #d ])).
+    encode. }
+  intros (((a1 & a2) & a3) & a4) Hψ.
   eapply pure_ret; last apply Hψ.
   encode.
 Qed.
@@ -1226,7 +1296,7 @@ Proof.
   cbn; intros * H. destruct a; eauto.
 Qed.
 
-Lemma pure_ifthenelse_bool `{EncA: Encode A}
+Lemma pure_eval_ifthenelse `{EncA: Encode A}
   η e e1 e2 (φ : A -> _) φb ψ :
   pure (eval η e) φb ψ →
   (φb true  → pure (eval η e1) φ ψ) →
@@ -1238,7 +1308,7 @@ Proof.
   intros [] ?; eauto with pure.
 Qed.
 
-Lemma pure_eval_ifthenelse `{EncA: Encode A}
+Lemma pure_eval_ifthenelse_prop `{EncA: Encode A}
   η e e1 e2 (P : Prop) (ψ : A → Prop) :
   pure (eval η e) (λ P', P' <-> P) ⊥ →
   (P → pure (eval η e1) ψ ⊥) →

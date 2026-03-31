@@ -244,8 +244,8 @@ Section verification.
         { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
           pattern_match. apply eq_refl. }
         iSplit; [ iIntros (? <-) | iIntros ([]) ].
-        iApply (imp_EConstant Nil); first encode.
-        done. }
+        iApply imp_wand. { iApply (imp_EConstant Nil); encode. }
+        iIntros (?) "->". done. }
 
       (* Exceptional case: *)
       { iIntros (? []). }
@@ -257,7 +257,7 @@ Section verification.
         iDestruct "HProt" as "(%Xs & %X & -> & [HiterView %Hpermitted] & HProt)".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         (* Update the handler and iterator views. *)
-        iApply imp_fupd;
+        iApply fupd_imp;
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
@@ -293,10 +293,7 @@ Section verification.
           iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
           (* [continue k ()] *)
-          iApply (imp_EContinue (B:=unit)).
-          { imp_path. }
-          { iApply imp_EConstant; first encode.
-            instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
+          iApply (imp_EContinue (B:=unit)); try imp_step.
           iIntros (?[] ->) "_".
           iSpecialize ("IH" with "HhandlerView").
           iApply ("HProt" with "HiterView IH"). }
@@ -331,7 +328,7 @@ Section verification.
       iSplit; [ iIntros (? <-) | iIntros ([]) ].
 
       (* Initialise handler view and iterator view. *)
-      iApply imp_fupd.
+      iApply fupd_imp.
       iMod (new_cell []) as (γ) "[HhandlerView HiterView]"; iModIntro.
 
       (* [let open struct ...] *)
@@ -373,7 +370,7 @@ Section verification.
         iIntros; iExists tt; iSplit; [ equality | iAssumption ]. }
       iIntros (yield) "#yield_spec".
 
-      iApply (imp_mono_ret with "[-]"); last first.
+      iApply (imp_wand with "[-]"); last first.
       { iIntros (k) "H".
         rewrite isSeq_unfold /isSeq_pre.
         iExact "H". }

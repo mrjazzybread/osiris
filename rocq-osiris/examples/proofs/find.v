@@ -163,7 +163,7 @@ Proof.
 
     (* Weaken the invariant specification to [listiter_spec]. *)
     intros iter Hiter.
-    eexists; split; first reflexivity.
+    eexists (_,_); split; first reflexivity.
     exists iter; split; [ apply eq_refl | ].
     eapply Spec_mono; [ apply Hiter | simpl ].
     intros f l m Hinvspec; unfold listiter_spec, tapp.

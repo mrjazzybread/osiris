@@ -129,11 +129,8 @@ Section verification.
     iApply imp_please; iNext.
 
     iApply (imp_EHandler (A':=val) with "[Hf]").
-    { iApply (imp_EApp τ[unit] with "[Hf]").
-      { iApply imp_EPath; auto.  }
-      { iApply imp_EConstant; first encode.
-        instantiate (1 := (λ u, ⌜u = tt⌝)%I). done. }
-      simpl. iIntros (?) "-> %m $". }
+    { imp_app τ[unit] with "[Hf]".
+      iIntros "$". }
 
     iLöb as "IH".
     iApply prove_deep_handler_spec.
@@ -143,7 +140,7 @@ Section verification.
     { iIntros (v) "Φ !>".
       iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
       iSplit; [ iIntros (? ->) | iIntros ([]) ].
-      iApply imp_EPath; auto. }
+      imp_path. }
 
     (* Handler case: an effect is being performed. *)
     iIntros (v k) "Hprot".
@@ -159,10 +156,7 @@ Section verification.
       eapply pat_PXData_eq; first eassumption.
       eapply pats_PCons_unary. pattern_match. }
     iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
-    iApply (imp_EApp τ[cont] with "[Hg] []").
-    { iApply imp_EPath; auto. }
-    { instantiate (1 := (λ k', ⌜k' = k⌝)%I).
-      iApply imp_EPath; auto. }
+    iApply (imp_EApp τ[cont] with "[Hg] []"); try imp_step.
     iIntros (? -> m) "Hwp".
     iApply "Hwp".
     iIntros (v) "HQ".

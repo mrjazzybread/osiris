@@ -213,7 +213,9 @@ Proof.
      split; [ encode | split ].
      + (* Subgoal: the output is sorted *)
        constructor; [ assumption | ].
-       eapply HdRel_Sorted_Permutation; eauto with zarith.
+       simpl in H.
+       eapply (HdRel_Sorted_Permutation l l2 (x0 :: xs'0)); eauto.
+       constructor. lia.
      + (* Subgoal: the output is a permutation of the inputs *)
        by rewrite_permutation l. }
 
