@@ -31,11 +31,14 @@ The Rocq development offers:
 - `osiris/rocq-osiris/theories/program_logic`
   - `thread_step.v` operational semantics from a "local" point of view, used by `ewp.v`
   - `ewp.v` the Iris instance over our language and operational semantics, and the effectful weakest precondition
-  - `osiris/rocq-osiris/theories/program_logic_rules/`: reasoning rules
-    - `basic_rules.v` reasoning rules over the effectful weakest precondition
-    - `impure_rules.v` reasoning rules over the constructs of the micro monad
+  - `osiris/rocq-osiris/theories/program_logic/rules/`: reasoning rules
+    - `basic_rules.v` core EWP definition and pure-step reasoning rules
+    - `micro_rules.v` EWP rules over the micro monad constructs (ret, throw, crash, bind, try, Par)
+    - `impure_rules.v` reasoning rules over impure/effectful combinators
+    - `auxiliary_rules.v` reasoning rules for evaluating modules and struct items (`imp_module`, `imp_sitems_*`, etc.)
     - `stop_rules.v` reasoning rules over the effects provided by `Stop`
     - `handler_rules.v` reasoning rules over handlers
+    - `atomic_rules.v` `Atomic` typeclass instances for load/store/CAS and invariant-based atomic rules
     - `expr_rules.v` reasoning rules over evaluation of expressions
   - `fun_spec.v` [iSpec] abstraction for reasoning about n-ary function calls
   - `orisis/rocq-osiris/theories/program_logic/pure/`: Horus
@@ -159,7 +162,7 @@ We give a correspondence between features the of the paper and their Rocq mechan
 ### Section 8: Osiris
 
 * Definition of impure -> theories/program_logic/ewp.v
-* Micro level rules -> theories/program_logic/rules/basic_rules.v
+* Micro level rules -> theories/program_logic/rules/micro_rules.v
 * Rules for Handle -> theories/program_logic/rules/handler_rules.v
 * Definition of impure__# -> theories/program_logic/ewp.v (lifting notation)
 * Find example -> examples/proofs/find.v

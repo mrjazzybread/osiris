@@ -3,13 +3,14 @@
 From osiris.program_logic Require Export
   thread_step
   ewp
-  basic_rules
   stop_rules
   handler_rules
   fun_spec
+  rules.auxiliary_rules
   rules.expr_rules
   impure_rules
   rules.array_rules
+  rules.atomic_rules
 .
 
 From osiris.program_logic.pure Require Export pure.

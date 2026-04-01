@@ -1,6 +1,6 @@
 From Ltac2 Require Import Ltac2 Printf.
 From osiris.tactics Require Export utils iris_bindings.
-From osiris.program_logic Require Import program_logic.
+From osiris.program_logic Require Import ewp.
 From stdpp Require Import strings.
 
 Ltac2 get_expr () :=
@@ -39,3 +39,19 @@ Ltac2 simple_intros () :=
   in
   go g.
 Tactic Notation "simple_intros" := ltac2:(simple_intros ()).
+
+(** *Set postcondition *)
+
+(* Force a postcondition, for example when the postcondition is an evar and one
+   wants to perform an induction *)
+Ltac2 set_postcondition_tac (φ : constr) : unit :=
+  lazy_match! strip_laters (get_iris_goal ()) with
+  | impure ?_e ?_m ?_Ψ ?_ζ ?Φ =>
+      Std.unify Φ φ
+  | _ => Control.zero
+           (Tactic_failure (Some (Message.of_string "Expected goal of the form [imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}]")))
+  end.
+Ltac2 Notation "set_postcondition" φ(open_constr) := set_postcondition_tac φ.
+Tactic Notation "set_postcondition" constr(φ) :=
+  let tac := ltac2:(φ |- set_postcondition_tac (Option.get (Ltac1.to_constr φ))) in
+  tac φ.

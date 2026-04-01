@@ -10,9 +10,15 @@ From osiris.program_logic Require Import thread_step ewp tactics basic_rules esc
 From osiris.semantics Require Import semantics.
 From osiris.logic Require Import big_opLZ.
 
-From osiris.program_logic.pure Require Export pure.
-From osiris.program_logic.rules Require Import impure_rules.
+From osiris.program_logic.rules Require Import impure_rules micro_rules.
 
+Import ewp_rules_tactics.
+
+(* ------------------------------------------------------------------------ *)
+
+(* The following lemmas offer reasoning rules for each of the system calls,
+   that is, for computations of the form [Stop c x y]. They are simple
+   consequences of the operational behavior of these system calls. *)
 
 Section imp_stop.
 
@@ -22,26 +28,31 @@ Section imp_stop.
   Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : Encoded → iProp Σ}.
 
   Implicit Type m : micro A X.
-  Import ewp_rules_tactics.
 
-  Lemma imp_stop_perform eff k :
-    Ψ allows perform eff << λ o, ▷ imp (k o) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} >> -∗
-    imp Stop CPerf eff k <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  (* ------------------------------------------------------------------------ *)
+  (* [CFlip]. *)
+
+  (* Non-deterministic choose: note the use of non-separating conjunction *)
+  Lemma imp_stop_flip u (k: _ → micro A X) :
+    ▷(imp continue k true @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp continue k false @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }})
+    ⊢ imp (Stop CFlip u k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hperf".
-    iApply (ewp_stop_perform with "Hperf").
+    iIntros "H".
+    ewp_unfold_head.
+    intro_state.
+    ewp_mask_intro "Hmod".
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn;
+      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+    destruct b.
+    { iApply (bi.and_elim_l with "H"). }
+    { iApply (bi.and_elim_r with "H"). }
   Qed.
 
   (* ------------------------------------------------------------------------ *)
-
-  (* The following lemmas offer reasoning rules for each of the system calls,
-     that is, for computations of the form [Stop c x y]. They are simple
-     consequences of the operational behavior of these system calls. *)
-
   (* [CAllocn]. *)
 
-  (* Memory allocation rule for [n] locations at once. *)
-  Lemma imp_allocn' vs (k : _ → micro A X) :
+    (* Memory allocation rule for [n] locations at once. *)
+  Lemma imp_stop_allocn' vs (k : _ → micro A X) :
     ▷ (∀ (ls : list loc),
           ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
           imp (continue k ls) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
@@ -97,14 +108,14 @@ Section imp_stop.
       iFrame.
   Qed.
 
-  Lemma imp_allocn vs (k : _ → micro A X) :
+  Lemma imp_stop_allocn vs (k : _ → micro A X) :
     ▷ (∀ ls,
           ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v)) -∗
           imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocn vs k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
-    iApply imp_allocn'; iNext.
+    iApply imp_stop_allocn'; iNext.
     iIntros (ls) "Hls".
     iPoseProof (big_sepLZ2_sep with "Hls") as "[Hls _]".
     iApply "H". iFrame.
@@ -116,7 +127,7 @@ Section imp_stop.
     imp (Stop CAllocn [v] k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
-    iApply imp_allocn.
+    iApply imp_stop_allocn.
     iIntros "!>" (ls) "Hls".
     iPoseProof (big_sepLZ2_length with "Hls") as "%Hlen".
     destruct ls; first discriminate Hlen.
@@ -125,9 +136,35 @@ Section imp_stop.
     iApply (big_sepLZ2_singleton (λ _ l v, l↦v)%I with "Hls").
   Qed.
 
-  (* [CStore]. *)
+  (* ------------------------------------------------------------------------ *)
+  (* [CLoad]. *)
 
-  (* The standard memory write rule of Separation Logic. *)
+  Lemma imp_stop_load l v dq (k: _ → micro A X) :
+    ▷ pointsto l dq (V v) ⊢
+    ▷ (
+        pointsto l dq (V v) -∗
+        imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    destruct Ψ.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct_thread_step.
+
+    rewrite /step_load_2 H0.
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CStore]. *)
 
   Lemma imp_stop_store l v v' (k : _ → micro A X) :
     ▷ pointsto l (DfracOwn 1) (V v) ⊢
@@ -152,10 +189,8 @@ Section imp_stop.
     iApply ("Hwp" with "Hl").
   Qed.
 
+  (* ------------------------------------------------------------------------ *)
   (* [CCAS]. *)
-
-  (* CAS success: the physical equality holds, so the store is updated from
-     [seen] to [v'], and the continuation receives [VTrue]. *)
 
   Class PhysEqDec A `{Encode A} : Prop :=
     phys_eq_dec :
@@ -187,6 +222,9 @@ Section imp_stop.
     reflexivity.
   Qed.
 
+  (* CAS success: the physical equality holds, so the store is updated from
+     [seen] to [v'], and the continuation receives [VTrue]. *)
+
   Lemma imp_stop_cas `{PhysEqDec B} l (seen v v' : B) (k : _ → micro A X) :
     ▷ pointsto l (DfracOwn 1) (V #v) ⊢
     ▷ (
@@ -211,33 +249,124 @@ Section imp_stop.
       iApply ("Hwp" with "Hl").
   Qed.
 
-  (* [CLoad]. *)
 
-  (* The standard memory load rule of Separation Logic. *)
+  (* ------------------------------------------------------------------------ *)
+  (* [CExchange]. *)
 
-  Lemma imp_stop_load l v dq (k: _ → micro A X) :
-    ▷ pointsto l dq (V v) ⊢
-    ▷ (
-        pointsto l dq (V v) -∗
-        imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
-      ) -∗
-    imp (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  (* ------------------------------------------------------------------------ *)
+  (* [CPerform]. *)
+
+  Lemma imp_stop_perform (v : val) (k : _ → micro A X) :
+    Ψ allows perform v << λ o, ▷ impure E (k o) Ψ ζ Φ >> -∗
+    imp (Stop CPerf v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    destruct Ψ.
+    iIntros "Hallows".
+    ewp_unfold (Stop CPerf v k).
+    iApply ("Hallows").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CResume] *)
+
+  (* Resuming a continuation from a location in the store. *)
+  Lemma imp_stop_resume l o sk (k: _ → micro A X) :
+    isCont l sk ⊢
+    (isShot l -∗ ▷ imp (try2 (sk o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Stop CResume (l, o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    iIntros "!> !>".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
-    rewrite /step_load_2 H0.
-    ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
+    (* Update the ghost heap. *)
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iSpecialize ("Hwp" with "Hl").
+    ewp_mask_elim.
+    rewrite /step_resume_1 /step_resume_2 H0. iFrame.
   Qed.
+
+  Lemma imp_stop_resume_crash l o (k: _ → micro A X) :
+    isShot l -∗
+    imp (crash "resume error: unbound location") @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp (Stop CResume (l, o) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hcrash".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct_thread_step.
+
+    (* Update the ghost heap. *)
+    ewp_mask_elim.
+    rewrite /step_resume_1 /step_resume_2 H0. by iFrame.
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CWrap] *)
+
+  (* Installing a handler with branches [bs] on top of a continuation
+     that is located in the store at location [l]. *)
+
+  Lemma imp_stop_wrap_deep l η bs (k: _ -> micro A X) :
+    (∀ l',
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) -∗
+     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* The reduction step must be a successful step. *)
+    destruct_thread_step.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
+    ewp_mask_elim. iFrame.
+  Qed.
+
+  Lemma imp_stop_wrap_shallow l η bs (k: _ -> micro A X) :
+    (∀ l',
+      isCont l'
+        (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
+     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Stop CWrap (false, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* The reduction step must be a successful step. *)
+    destruct_thread_step.
+
+    (* Allocate a new location in the heap. *)
+    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iSpecialize ("Hwp" with "Hl'").
+    ewp_mask_elim.
+    unfold step_wrap_2.
+    by iFrame.
+  Qed.
+
+End imp_stop.
+
+Section imp_stop_concurrent.
+
+  Context `{!osirisGS Σ}.
+
+  Context {A X : Type} `{Hobs : Observe Encoded A}.
+  Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : Encoded → iProp Σ}.
+
+  Implicit Type m : micro A X.
 
   (* When forking a thread, we must prove that the forked thread is
      safe, and that the parent thread is safe.
@@ -245,6 +374,19 @@ Section imp_stop.
 
   Definition isThread `{Observe B val} (ι : thread) ζ Φ : iProp Σ :=
     valid_thread ι (ilift ζ (ireturns Φ)).
+
+  (* [joinable ι φ] allows one to join on [ι] and to recover the non-necessarily
+     persistent postcondition [φ] (after opening and closing an invariant) *)
+
+  Definition joinN := nroot .@ "join".
+  (* We need the implicit [Encode] to be outside of the existential,
+     so that we know the return type when we join thread [ι]. *)
+  Definition joinable B `{Observe B val} ι φ :=
+    (∃ ζ (Φ : B → iProp Σ),
+        isThread ι ζ Φ ∗ ∀ o, ilift ζ Φ o ={↑joinN}=∗ ▷ φ)%I.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CFork]. *)
 
   Lemma imp_stop_fork' `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
     ▷ (∀ ι',
@@ -284,214 +426,159 @@ Section imp_stop.
     - iApply ("Hcontinue" with "Hvalid").
   Qed.
 
-  (* [CResume]. *)
+  (* ------------------------------------------------------------------------ *)
+  (* [CJoin]. *)
 
-  (* Resuming a continuation from a location in the store. *)
-  Lemma imp_resume l o sk (k: _ → micro A X) :
-    isCont l sk ⊢
-    (isShot l -∗ ▷ imp (try2 (sk o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CResume (l, o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Lemma imp_stop_join `{Observe B val} ι' (k : _ -> micro A X) φ μ :
+    isThread ι' μ φ -∗
+    ▷ (∀ x, □ φ x -∗ imp continue k ♯x @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    ▷ (∀ e, □ μ e -∗ imp discontinue k e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Stop CJoin ι' k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hl Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
-
-    (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    iSpecialize ("Hwp" with "Hl").
-    ewp_mask_elim.
-    rewrite /step_resume_1 /step_resume_2 H0. iFrame.
+    iIntros "Hι Hk".
+    ewp_unfold_head. intro_state.
+    ewp_mask_intro "Hmod".
+    iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
+    assert (ι' ∈ dom π) as Hdom by (apply (elem_of_dom π ι'); eexists; eassumption).
+    rewrite Hlookup.
+    iFrame.
+    iIntros "!> %o #Ho".
+    ewp_mask_elim. rewrite /continue /discontinue.
+    destruct o; [ iDestruct "Hk" as "[Hk _]" | iDestruct "Hk" as "[_ Hdk]" ].
+    - iDestruct "Ho" as "(%v & -> & Hφ)".
+      iSpecialize ("Hk" $! v with "Hφ").
+      iApply "Hk".
+    - iApply ("Hdk" with "Ho").
   Qed.
 
-  Lemma imp_resume_crash l o (k: _ → micro A X) :
-    isShot l -∗
-    imp (crash "resume error: unbound location") @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp (Stop CResume (l, o) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hl Hcrash".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
-    (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
-
-    (* Update the ghost heap. *)
-    ewp_mask_elim.
-    rewrite /step_resume_1 /step_resume_2 H0. by iFrame.
-  Qed.
-
-End imp_stop.
+End imp_stop_concurrent.
 
 Section imp_combinators.
 
   Context `{!osirisGS Σ}.
+  Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
 
-  Lemma imp_alloc' {E Ψ ζ} {Φ : loc → iProp Σ} v :
-    ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗ Φ l) -∗
-    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  (* ------------------------------------------------------------------------ *)
+  (* [CEval]. *)
+
+  Lemma imp_please `{Observe A val} {Φ : A → iProp Σ} η e :
+    ▷ imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp please_eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H".
-    iApply imp_stop_alloc.
-    iIntros "!> %l Hl".
-    iApply imp_ret; first encode.
-    iApply ("H" with "Hl").
-  Qed.
-
-  Lemma imp_alloc {E Ψ ζ} v :
-    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, pointsto l (DfracOwn 1) (V v) }}.
-  Proof.
-    iApply imp_alloc'.
-    iIntros "!> %l $".
-  Qed.
-
-  Lemma imp_load' `{Encode A} {E Ψ ζ} {Φ : A → iProp Σ} l a dq :
-    ▷ pointsto l dq (V #a) ⊢
-    ▷ (pointsto l dq (V #a) -∗ Φ a) -∗
-    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hl HΦ".
-    iApply (imp_stop_load with "Hl").
-    iIntros "!> Hl".
-    iApply imp_ret; first encode.
-    iApply ("HΦ" with "Hl").
-  Qed.
-
-  Lemma imp_load `{Encode A} {E Ψ ζ} l (a : A) dq :
-    ▷ pointsto l dq (V #a) ⊢
-    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ pointsto l dq (V #a) }}.
-  Proof.
-    iIntros "Hl".
-    iApply (imp_load' with "Hl").
-    by iIntros "!> $".
-  Qed.
-
-  Lemma imp_store' {E Ψ ζ} {Φ : unit → iProp Σ} l v v' :
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ ()) -∗
-    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hl HΦ".
-    iApply (imp_stop_store with "Hl").
-    iIntros "!> Hl".
-    iApply imp_ret; first encode.
-    iApply ("HΦ" with "Hl").
-  Qed.
-
-  Lemma imp_store {E Ψ ζ} l v v' :
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), pointsto l (DfracOwn 1) (V v') }}.
-  Proof.
-    iIntros "Hl".
-    iApply (imp_store' with "Hl").
-    iIntros "!> $".
-  Qed.
-
-  Lemma imp_cas `{PhysEqDec A} {E Ψ ζ} {Φ : bool → iProp Σ} l (seen v v' : A) :
-    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V (if phys_eq_val_ v seen then #v' else #v)) -∗
-       Φ (phys_eq_val_ v seen)) -∗
-    imp (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hl HΦ".
-    iApply (imp_stop_cas with "Hl").
-    iIntros "!> Hl".
-    iApply imp_ret; first encode.
-    iApply ("HΦ" with "Hl").
-  Qed.
-
-End imp_combinators.
-
-Section imp_wrap_flip.
-
-  Context `{!osirisGS Σ}.
-
-  Context {A X : Type} `{Hobs : Observe Encoded A}.
-  Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : Encoded → iProp Σ}.
-
-  Import ewp_rules_tactics.
-
-  (* [CWrap]. *)
-
-  (* Installing a handler with branches [bs] on top of a continuation
-     that is located in the store at location [l]. *)
-
-  Lemma imp_wrap_deep l η bs (k: _ -> micro A X) :
-    (∀ l',
-      isCont l'
-        (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) -∗
-     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* The reduction step must be a successful step. *)
-    destruct_thread_step.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
-    iSpecialize ("Hwp" with "Hl'").
-    ewp_mask_elim. iFrame.
-  Qed.
-
-  Lemma imp_wrap_shallow l η bs (k: _ -> micro A X) :
-    (∀ l',
-      isCont l'
-        (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
-     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CWrap (false, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hwp".
-    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
-    construct_wp_nonret.
-
-    (* The reduction step must be a successful step. *)
-    destruct_thread_step.
-
-    (* Allocate a new location in the heap. *)
-    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
-    iSpecialize ("Hwp" with "Hl'").
-    ewp_mask_elim.
-    unfold step_wrap_2.
-    by iFrame.
-  Qed.
-
-  (* Non-deterministic choose: note the use of non-separating conjunction *)
-  Lemma imp_stop_flip u (k: _ → micro A X) :
-      ▷(imp continue k true @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp continue k false @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }})
-      ⊢ imp (Stop CFlip u k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H".
+    iIntros "Himp".
+    rewrite /please_eval.
     ewp_unfold_head.
-    intro_state.
-    ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn;
-      ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
-    destruct b.
-    { iApply (bi.and_elim_l with "H"). }
-    { iApply (bi.and_elim_r with "H"). }
+    intro_state. ewp_mask_intro "Hclose".
+    construct_wp_nonret. thread_step.destruct_thread_step.
+    iModIntro. ewp_mask_elim.
+    rewrite try2_inject2_right. by iFrame.
   Qed.
 
-End imp_wrap_flip.
+  (* ------------------------------------------------------------------------ *)
+  (* [CLoop]. *)
 
-Section imp_flip.
+  Lemma imp_empty_loop (R : iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    ⌜(j < i)%Z⌝ -∗
+    R -∗
+    imp code.loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), R }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2 Hbounds) "HR".
+    rewrite /impure /=.
+    ewp_unfold_head.
+    intro_state. ewp_mask_intro "Hmod". rewrite /code.loop.
+    construct_wp_nonret. thread_step.destruct_thread_step.
+    ewp_mask_elim. iFrame.
+    rewrite try2_inject2_right.
+    rewrite /E.loop.
+    rewrite int.lt_repr_repr; try assumption.
+    rewrite int.eq_repr_repr; try assumption.
+    assert (i =? j = false)%Z as -> by lia.
+    assert (j <? i = true)%Z as -> by lia.
+    iApply (imp_ret VUnit ()); [ encode | auto ].
+  Qed.
 
-  Context `{!osirisGS Σ}.
+  Lemma imp_nonempty_loop (I : Z → iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    ⌜(i ≤ j)%Z⌝ -∗
+    I i -∗
+    □ (∀ i',
+         ⌜(i ≤ i' ≤ j)%Z⌝ -∗
+         I i' -∗
+         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
+    imp code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2 Hbounds) "HR #He".
+    iLöb as "IH" forall (i j Hrepr1 Hrepr2 Hbounds) "He".
+    rewrite /impure.
+    ewp_unfold_head.
+    intro_state. ewp_mask_intro "Hmod". rewrite /code.loop.
+    construct_wp_nonret. thread_step.destruct_thread_step.
+    ewp_mask_elim. iFrame.
+    rewrite try2_inject2_right.
+    rewrite /E.loop.
+    assert (int.lt (int.repr j) (int.repr i) = false) as ->.
+    { rewrite int.lt_repr_repr; first lia; assumption. }
+    iPoseProof ("He" $! i with "[] HR") as "Heapp". iPureIntro; lia.
+    rewrite int.eq_repr_repr; try assumption.
+    case (decide (i = j)%Z); intros Heq.
+    - assert (i =? j = true)%Z as -> by lia.
+      iApply ewp_bind.
+      iApply (ewp_mono with "Heapp").
+      iIntros ([|]) "Ho".
+      + iDestruct "Ho" as "(% & %Henc & HR)".
+        iApply (imp_ret VUnit ()); first encode.
+        rewrite Heq. iApply "HR".
+      + done.
+    - assert (i =? j = false)%Z as -> by lia.
+      iApply ewp_bind.
+      iApply (ewp_wand with "Heapp").
+      iIntros ([|]) "Ho".
+      + iDestruct "Ho" as "(% & %Henc & HR)".
+        iSpecialize ("IH" $! (i + 1)%Z j).
+        iSpecialize ("IH" with "[] [] [] HR").
+        { iPureIntro.
+          rewrite /int.representable in Hrepr1 Hrepr2 |- *.
+          lia. }
+        { iPureIntro; assumption. }
+        { iPureIntro; lia. }
+        replace (int.add (int.repr i) (int.one)) with (int.repr (i + 1)).
+        iApply "IH".
+        iIntros "!>" (?) "%Hbounds' HR".
+        iApply ("He" with "[] HR").
+        iPureIntro. lia.
+        by rewrite int.add_repr_repr.
+      + done.
+  Qed.
 
-  Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ} {Φ : bool → iProp Σ}.
+  Lemma imp_loop (I : Z → iProp Σ) i j e x η :
+    int.representable i →
+    int.representable j →
+    I i -∗
+    □ (∀ i',
+         ⌜(i ≤ i' ≤ j)%Z⌝ -∗
+         I i' -∗
+         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
+    imp code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ λ (_ : unit), I ((j + 1) `max` i)%Z }}.
+  Proof.
+    iIntros (Hrepr1 Hrepr2) "HI #He".
+    case (decide (j < i)%Z); intros Hlt.
+    - iApply imp_empty_loop; try assumption.
+      iPureIntro; assumption.
+      replace ((j + 1) `max` i)%Z with i by lia.
+      iAssumption.
+    - replace ((j + 1) `max` i)%Z with (j + 1)%Z by lia.
+      iApply (imp_nonempty_loop with "[] HI He"); try assumption.
+      iPureIntro; lia.
+  Qed.
 
-  Import ewp_rules_tactics.
+  (* [CFlip]. *)
 
   (* Non-deterministic choose: note the use of non-separating conjunction *)
-  Lemma imp_flip :
+  Lemma imp_flip {Φ : bool → iProp Σ} :
       ▷( Φ true ∧ Φ false)
       ⊢ imp code.flip @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -504,15 +591,218 @@ Section imp_flip.
       iApply (imp_ret _ false eq_refl). iFrame.
   Qed.
 
-End imp_flip.
+  Lemma imp_choose {V : Type} `{Observe A V} {Φ : A → iProp Σ} (m1 m2 : micro V exn) :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm". rewrite /code.choose.
+    iApply (imp_bind (λ (b : bool), True)%I).
+    { iApply imp_flip. auto. }
+    iIntros ([|] _) "/=".
+    - iDestruct "Hm" as "[$ _]".
+    - iDestruct "Hm" as "[_ $]".
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CAllocn]. *)
+
+  Local Instance notval_locs : NotVal (list loc) := {}.
+
+  Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
+    ▷ (∀ (ls : list loc), ([∗ listZ] l;x ∈ ls;xs, pointsto l (DfracOwn 1) (V #x)) -∗ Φ ls) -∗
+    imp (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iApply imp_stop_allocn.
+    iIntros "!> %ls Hls".
+    iApply imp_ret; first encode.
+    iApply "H".
+    iApply (big_sepLZ2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
+    iApply "Hls".
+  Qed.
+
+  Lemma imp_alloc' {Φ : loc → iProp Σ} v :
+    ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗ Φ l) -∗
+    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iApply imp_stop_alloc.
+    iIntros "!> %l Hl".
+    iApply imp_ret; first encode.
+    iApply ("H" with "Hl").
+  Qed.
+
+  Lemma imp_alloc v :
+    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, pointsto l (DfracOwn 1) (V v) }}.
+  Proof.
+    iApply imp_alloc'.
+    iIntros "!> %l $".
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CLoad]. *)
+
+  Lemma imp_load' `{Encode A} {Φ : A → iProp Σ} l a dq :
+    ▷ pointsto l dq (V #a) ⊢
+    ▷ (pointsto l dq (V #a) -∗ Φ a) -∗
+    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_load with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_load `{Encode A} l (a : A) dq :
+    ▷ pointsto l dq (V #a) ⊢
+    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ pointsto l dq (V #a) }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_load' with "Hl").
+    by iIntros "!> $".
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CStore]. *)
+
+  Lemma imp_store' {Φ : unit → iProp Σ} l v v' :
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ ()) -∗
+    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_store with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_store l v v' :
+    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), pointsto l (DfracOwn 1) (V v') }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_store' with "Hl").
+    iIntros "!> $".
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CCAS]. *)
+
+  Lemma imp_cas `{PhysEqDec A} {Φ : bool → iProp Σ} l (seen v v' : A) :
+    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V (if phys_eq_val_ v seen then #v' else #v)) -∗
+       Φ (phys_eq_val_ v seen)) -∗
+    imp (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_cas with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
 
 
-Section imp_concurrent.
+  (* ------------------------------------------------------------------------ *)
+  (* [CPerform]. *)
+
+  Lemma imp_perform `{Encode A} {Φ : A → iProp Σ} (v : val) :
+    Ψ allows perform v << (ilift ζ (ireturns Φ)) >> -∗
+    imp perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hallows".
+    iApply imp_stop_perform.
+    iApply (monotonic_prot with "[] Hallows").
+    iIntros (?) "H".
+    iApply (ewp_outcome2 with "H").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CResume]. *)
+
+  Lemma imp_resume `{Encode A} {Φ : A → iProp Σ} l o sk :
+    isCont l sk ⊢
+    (isShot l -∗ ▷ imp (sk o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (resume l o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    iApply (imp_stop_resume with "Hl").
+    iIntros "Hshot". rewrite try2_inject2_right.
+    iApply ("Hwp" with "Hshot").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CWrap]. *)
+
+  Lemma imp_wrap_deep {Φ : loc → iProp Σ} l η bs :
+    (∀ l',
+      isCont l' (λ o, Handle (resume l o) (wrap_eval_branches η bs)) -∗
+      ▷ Φ l') -∗
+    imp (wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply imp_stop_wrap_deep.
+    iIntros (l') "HisCont".
+    iApply imp_ret; first encode.
+    iApply ("Hwp" with "HisCont").
+  Qed.
+
+  Local Instance notval_outcome3 : NotVal (outcome3 val exn) := {}.
+
+  Lemma imp_wrap_eval_branches `{Encode A} {Φ : A → iProp Σ} l η bs e :
+    (∀ l',
+       isCont l' (λ o, Handle (resume l o) (wrap_eval_branches η bs)) -∗
+       ▷ impure E (eval_branches η (O3Perform e l') bs) Ψ ζ Φ) -∗
+    impure E (wrap_eval_branches η bs (O3Perform e l)) Ψ ζ Φ.
+  Proof.
+    iIntros "Hwp".
+    rewrite /wrap_eval_branches {2}seal_eq.
+    iApply (imp_bind with "[Hwp]").
+    { iApply (imp_bind with "[Hwp]").
+      iApply imp_wrap_deep. iIntros (l') "Hcont".
+      iSpecialize ("Hwp" with "Hcont").
+      iExact "Hwp".
+      iIntros (l') "Hwp".
+      iApply imp_ret; first encode.
+      instantiate (1:= (λ o, match o with
+                            | O3Perform ep lp =>
+                                ⌜ep = e⌝ ∗ impure E _ Ψ ζ Φ
+                            | _ => False
+                             end)%I).
+      by iFrame. }
+
+    iIntros ([ | | ]); try iIntros ([]).
+    iIntros "(-> & $)".
+  Qed.
+
+  Lemma imp_wrap_shallow {Φ : loc → iProp Σ} l η bs :
+    (∀ l',
+      isCont l' (λ o, Handle (resume l o) (shallow_eval_branches η bs bs)) -∗
+      ▷ Φ l') -∗
+    imp (shallow_wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hwp".
+    iApply imp_stop_wrap_shallow.
+    iIntros (l') "HisCont".
+    iApply imp_ret; first encode.
+    iApply ("Hwp" with "HisCont").
+  Qed.
+
+End imp_combinators.
+
+Section imp_concurrent_combinators.
 
   Context `{!osirisGS Σ}.
+
+  (* We don't provide a univesal [ζ] because we have some lemma reuse
+     where the postcondition varies. *)
   Context {E : coPset} {Ψ : iEff Σ}.
 
-  Lemma imp_fork `{Encode B} {ζ} {Φ : thread → iProp Σ} μ (φ : B → iProp Σ) v1 v2 :
+  (* ------------------------------------------------------------------------ *)
+  (* [CFork]. *)
+
+  Lemma imp_fork {ζ} `{Encode B} {Φ : thread → iProp Σ} μ (φ : B → iProp Σ) v1 v2 :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
          imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }} ∗
@@ -526,18 +816,8 @@ Section imp_concurrent.
     iExists ι'. auto.
   Qed.
 
-  (* [joinable ι φ] allows one to join on [ι] and to recover the non-necessarily
-  persistent postcondition [φ] (after opening and closing an invariant) *)
-
-  Definition joinN := nroot .@ "join".
-  (* We need the implicit [Encode] to be outside of the existential,
-     so that we know the return type when we join thread [ι]. *)
-  Definition joinable B `{Observe B val} ι φ :=
-    (∃ ζ (Φ : B → iProp Σ),
-        isThread ι ζ Φ ∗ ∀ o, ilift ζ Φ o ={↑joinN}=∗ ▷ φ)%I.
-
   (* Rule for fork when the postcondition of the spawned thread is persistent *)
-  Lemma imp_fork_persistent `{Encode B} {ζ : exn → iProp Σ} {Φ : thread → iProp Σ} φ v1 v2 :
+  Lemma imp_fork_persistent {ζ} `{Encode B} {Φ : thread → iProp Σ} φ v1 v2 :
     ▷ (∀ ι',
           □ joinable B ι' φ -∗
           imp call v1 v2 {{ λ (_ : B), □ φ }} ∗
@@ -557,7 +837,7 @@ Section imp_concurrent.
 
   (* Rule for fork when the postcondition of the spawned thread is a list of
   resources that other threads can recover when joining. *)
-  Lemma imp_fork_resourceful `{Encode B} {ζ : exn → iProp Σ} {Φ : thread → iProp Σ} φs v1 v2 :
+  Lemma imp_fork_resourceful {ζ} `{Encode B} {Φ : thread → iProp Σ} φs v1 v2 :
     ▷ (∀ ι',
           ([∗ list] φ ∈ φs, joinable B ι' φ) -∗
           imp call v1 v2 {{ λ (_ : B), [∗] φs }} ∗
@@ -606,49 +886,10 @@ Section imp_concurrent.
     iFrame.
   Qed.
 
-End imp_concurrent.
+  (* ------------------------------------------------------------------------ *)
+  (* [CJoin]. *)
 
-Section imp_join_self.
-
-  Context `{!osirisGS Σ}.
-
-  Context {A : Type} `{Hobs : Observe Encoded A}.
-  Context {E : coPset} {Ψ : iEff Σ} {Φ : Encoded → iProp Σ}.
-
-  Import ewp_rules_tactics.
-
-  Lemma imp_stop_join {X} `{Observe B val} {ζ : X → iProp Σ} ι' (k : _ -> micro A X) φ μ :
-    isThread ι' μ φ -∗
-    ▷ (∀ x, □ φ x -∗ imp continue k ♯x @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    ▷ (∀ e, □ μ e -∗ imp discontinue k e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CJoin ι' k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hι Hk".
-    ewp_unfold_head. intro_state.
-    ewp_mask_intro "Hmod".
-    iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
-    assert (ι' ∈ dom π) as Hdom by (apply (elem_of_dom π ι'); eexists; eassumption).
-    rewrite Hlookup.
-    iFrame.
-    iIntros "!> %o #Ho".
-    ewp_mask_elim. rewrite /continue /discontinue.
-    destruct o; [ iDestruct "Hk" as "[Hk _]" | iDestruct "Hk" as "[_ Hdk]" ].
-    - iDestruct "Ho" as "(%v & -> & Hφ)".
-      iSpecialize ("Hk" $! v with "Hφ").
-      iApply "Hk".
-    - iApply ("Hdk" with "Ho").
-  Qed.
-
-End imp_join_self.
-
-Section imp_exn.
-
-  Context `{!osirisGS Σ}.
-
-  Context `{Hobs : Observe A val}.
-  Context {E : coPset} {Ψ : iEff Σ} {Φ : A → iProp Σ} {ζ : exn → iProp Σ}.
-
-  Lemma imp_join ι' μ φ :
+  Lemma imp_join {ζ} `{Encode A} {Φ : A → iProp Σ} ι' μ φ :
     isThread ι' μ φ -∗
     ▷ (∀ x, □ φ x -∗ Φ x) ∧ ▷ (∀ e, □ μ e -∗ ζ e) -∗
     imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -663,19 +904,10 @@ Section imp_exn.
       iApply (@imp_throw Σ with "HΦ").
   Qed.
 
-End imp_exn.
-
-Section imp_exn.
-
-  Context `{!osirisGS Σ}.
-
-  Context `{Hobs : Observe A val}.
-  Context {E : coPset} {Ψ : iEff Σ} {Φ : A → iProp Σ} {ζ : exn → iProp Σ}.
-
   (* Does not actually need to transfer resources, [φ] could be persistent. To
      be renamed when [joinable] subsumes [valid_thread], i.e. when it can talk
      about the outcome *)
-  Lemma imp_join_resourceful ι' φ :
+  Lemma imp_join_resourceful {ζ} `{Encode A} {Φ : A → iProp Σ} ι' φ :
     ↑joinN ⊆ E →
     joinable A ι' φ -∗
     ▷ (▷ φ -∗ (∀ x, Φ x) ∧ (∀ e, ζ e)) -∗
@@ -702,293 +934,4 @@ Section imp_exn.
       iApply "Hφ".
   Qed.
 
-End imp_exn.
-
-Section imp_eval.
-
-  Context `{!osirisGS Σ}.
-  Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
-
-
-  Lemma imp_perform `{Encode A} {Φ : A → iProp Σ} (v : val) :
-    Ψ allows perform v << (ilift ζ (ireturns Φ)) >> -∗
-    imp perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hallows".
-    iApply (ewp_perform with "Hallows").
-  Qed.
-
-  Lemma imp_module sitems {Q : env -> iProp Σ} η :
-    imp (eval_sitems (η, []) sitems) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '((_, δ) : envs), Q δ }} -∗
-    imp (eval_mexpr η (MStruct sitems)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hsitems".
-    simpl_eval_mexpr.
-    iApply (imp_bind with "Hsitems").
-    iIntros ([η' δ']) "HQ".
-    iApply (imp_ret with "HQ"). encode.
-  Qed.
-
-  Lemma imp_sitems_cons {Q : envs → iProp Σ} (φ : envs → iProp Σ) sitem sitems (ηδ : envs) :
-    imp (eval_sitem ηδ sitem) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
-    (∀ ηδ, φ ηδ -∗ imp eval_sitems ηδ sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp (eval_sitems ηδ (sitem :: sitems)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hsitem Hcov".
-    simpl_eval_sitems. iApply (imp_bind with "Hsitem").
-    iIntros ([η' δ']) "Hφ".
-    iApply ("Hcov" with "Hφ").
-  Qed.
-
-  Lemma imp_sitems_nil Q ηδ :
-    Q ηδ -∗
-    imp eval_sitems ηδ [] @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    simpl_eval_sitems.
-    iIntros "HQ". destruct ηδ.
-    by iApply (imp_ret with "HQ").
-  Qed.
-
-  Lemma imp_sitem_letrec_singleton (spec : val → iProp Σ) x af (η δ : env) :
-    spec (VCloRec η [RecBinding x af] x) -∗
-    imp (eval_sitem (η, δ) (ILetRec [RecBinding x af])) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{
-          λ '(η0, δ0),
-            ∃ clo, spec clo ∧ ⌜η0 = (x, clo) :: η⌝ ∧ ⌜δ0 = (x, clo) :: δ⌝
-      }}.
-  Proof.
-    iIntros "Hspec".
-    simpl_eval_sitem.
-    iApply imp_ret. instantiate (1:=(_,_)). reflexivity.
-    iExists _. iFrame.
-    iSplit; iPureIntro; reflexivity.
-  Qed.
-
-  Lemma imp_sitems_letrec sitems (spec : val → iProp Σ) x af (η δ : env) Q :
-    spec (VCloRec η [RecBinding x af] x) -∗
-    (∀ v, spec v -∗ imp (eval_sitems ((x, v) :: η, (x, v) :: δ) sitems) @ E <|Ψ|>
-      ⟨⟨ζ⟩⟩ {{ Q }}) -∗
-    imp (eval_sitems (η, δ) ((ILetRec [RecBinding x af]) :: sitems)) @ E <|Ψ|>
-      ⟨⟨ζ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hspec Hcov".
-    iApply (imp_sitems_cons with "[Hspec]").
-    { iApply (imp_sitem_letrec_singleton with "Hspec"). }
-    iIntros ([??]) "(% & Hspec & [-> ->])".
-    iApply ("Hcov" with "Hspec").
-  Qed.
-
-  Local Instance observe_env : Observe env env := { observe := id }.
-
-  Lemma imp_struct_let bs (Q : envs → iProp Σ) (Q' : env → iProp Σ) η δ :
-    imp (eval_bindings η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q' }} -∗
-    (∀ η', Q' η' -∗ Q (η' ++ η, η' ++ δ)) -∗
-    imp (eval_sitem (η, δ) (ILet bs)) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hbindings Hmono".
-    simpl_eval_sitem.
-    iApply (imp_bind with "Hbindings").
-    iIntros (η') "HQ'".
-    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
-    iApply ("Hmono" with "HQ'").
-  Qed.
-
-  Lemma imp_bindings_cons `{Encode A} (Φ : A → iProp Σ) η e bs Q P p :
-    imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    (∀ (a : A), Φ a -∗ ⌜pattern η [] p #a (P a) False⌝) -∗
-    imp eval_bindings η bs @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }} -∗
-    imp eval_bindings η (Binding p e :: bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩
-      {{ λ η, ∃ a η' δ', ⌜η = η' ++ δ'⌝ ∗ Φ a ∗ ⌜P a η'⌝ ∗ Q δ' }}.
-  Proof.
-    iIntros "He Hpat Hbs".
-    simpl_eval_bindings.
-    iApply (imp_Par with "[He Hpat] Hbs").
-    { iApply (imp_bind with "He").
-      iIntros (?) "HΦ". iApply imp_widen.
-      iDestruct ("Hpat" with "HΦ") as "%Hpat".
-      unfold pattern in Hpat. simpl.
-      destruct (eval_pat η [] p #x).
-      - instantiate (1 := (λ η, ∃ x, Φ x ∗ ⌜P x η⌝)%I).
-        iFrame. iFrame "%". auto.
-      - contradiction. }
-    iSplit.
-    { iIntros (?) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
-    iIntros (x η') "(%a & HΦ & HP) Hη".
-    iNext. rewrite /continue. simpl.
-    iApply imp_ret. reflexivity.
-    iFrame. auto.
-  Qed.
-
-  Lemma imp_bindings_nil η :
-    ⊢ imp eval_bindings η [] @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ η, ⌜η = []⌝ }}.
-  Proof.
-    simpl_eval_bindings.
-    iApply imp_ret. reflexivity. auto.
-  Qed.
-
-  Lemma imp_bind_var `{Encode A} (Φ : A → iProp Σ) η e name :
-    imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval_bindings η [Binding (PVar name) e] @ E <| Ψ |> ⟨⟨ ζ ⟩⟩
-          {{ λ (η' : env), ∃ a : A, Φ a ∧ ⌜η' = [(name, #a)]⌝ }}.
-  Proof.
-    iIntros "HSpec".
-    iApply (imp_wand with "[HSpec]").
-    { iApply (imp_bindings_cons with "HSpec").
-      - iIntros (a) "HΦ".
-        iPureIntro; apply pat_PVar.
-        instantiate (1:=(λ a η, η = [(name, #a)])).
-        reflexivity.
-      - iApply imp_bindings_nil. }
-    iIntros (η') "(%a & % & % & -> & HΦ & -> & ->)".
-    iFrame. auto.
-  Qed.
-
-  Lemma imp_struct_let_single `{Encode A} (spec : A → iProp Σ) name e (η δ : env) :
-    imp (eval η e) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ spec }} -∗
-    imp (eval_sitem (η, δ) (ILet [Binding (PVar name) e])) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{
-          λ '(η', δ'),
-            ∃ a : A, spec a ∧ ⌜η' = (name, #a) :: η ∧ δ' = (name, #a) :: δ⌝
-      }}.
-  Proof.
-    iIntros "Hspec".
-    iApply (imp_struct_let with "[Hspec]").
-    { iApply (imp_bind_var with "Hspec"). }
-    iIntros (?) "(%a & Hspec & ->)".
-    iFrame. iPureIntro; split; reflexivity.
-  Qed.
-
-  Lemma imp_sitem_extend es (Q : envs -> iProp Σ) (η δ : env) :
-    imp eval_type_extensions es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (δ' : env), Q (δ' ++ η, δ' ++ δ) }} -∗
-    imp eval_sitem (η,δ) (IExtend es) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hes".
-    simpl_eval_sitem.
-    iApply (imp_bind _ _ (λ δ', ret (δ' ++ η, δ' ++ δ)) with "Hes").
-    iIntros (η') "HQ".
-    iApply (imp_ret with "HQ"); reflexivity.
-  Qed.
-
-  Lemma imp_sitems_extend sitems x Q η δ :
-    (∀ l, l ↦ #() -∗
-          imp eval_sitems ((x, VLoc l) :: η, (x, VLoc l) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η,δ) ((IExtend [x]) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hcov".
-    iApply (imp_sitems_cons).
-    { iApply (imp_sitem_extend).
-      iApply imp_bind. iApply imp_alloc.
-      iIntros (l) "Hl"; simpl; iApply imp_ret. reflexivity.
-      Unshelve.
-      2: (apply (λ ηδ,
-                   (∃ l, ⌜ηδ = ((x, VLoc l) :: η, (x, VLoc l):: δ)⌝ ∗ l ↦ VUnit)%I)).
-      simpl.
-      iExists l; iFrame. iPureIntro; reflexivity. }
-    iIntros ([??]) "(% & -> & Hl)".
-    iApply ("Hcov" with "Hl").
-  Qed.
-
-  Lemma imp_sitem_open me Q φ (η δ : env) :
-    imp eval_mexpr η me @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
-    ( ∀ δ', φ δ' -∗ Q (δ' ++ η, δ) ) -∗
-    imp eval_sitem (η, δ) (IOpen me) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hme Hcov". simpl_eval_sitem.
-    iApply (imp_bind with "[Hme]").
-    { iApply (imp_as_struct with "Hme"). }
-    iIntros (η') "Hφ".
-    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
-    iApply ("Hcov" with "Hφ").
-  Qed.
-
-  Lemma imp_sitem_module m me Q (φ : env → iProp Σ) (η δ : env) :
-    imp eval_mexpr η me @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
-    ( ∀ δ', φ δ' -∗ Q ((m, #δ') :: η, (m, #δ') :: δ) ) -∗
-    imp eval_sitem (η, δ) (IModule m me) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hme Hcov". simpl_eval_sitem.
-    iApply (imp_bind with "Hme").
-    iIntros (η') "Hφ".
-    iApply imp_ret; first (instantiate (1:=(_,_)); encode).
-    iApply ("Hcov" with "Hφ").
-  Qed.
-
-  Lemma imp_sitems_module {m me sitems Q} (φ : env → iProp Σ) (η δ : env) :
-    imp eval_mexpr η me @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ φ }} -∗
-    ( ∀ δ', φ δ' -∗ imp eval_sitems ((m, #δ') :: η, (m, #δ') :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) ((IModule m me) :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hme Hcov".
-    iApply (imp_sitems_cons with "[Hme]").
-    { iApply (imp_sitem_module with "Hme").
-      iIntros (δ') "Hφ".
-      instantiate (1 := (λ ηδ, ∃ δ', φ δ' ∗ ⌜ηδ = (_,_)⌝)%I).
-      iFrame. auto. }
-    iIntros (?) "(% & Hφ & ->)".
-    iApply ("Hcov" with "Hφ").
-  Qed.
-
-  Lemma imp_type_extension_cons e es Q :
-    ▷ (∀ l, l ↦ #() -∗
-            imp eval_type_extensions es @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ δ, Q ((e, VLoc l) :: δ) }}) -∗
-    imp eval_type_extensions (e :: es) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "Hes". simpl.
-    iApply (imp_bind with "[Hes]").
-    { iApply imp_alloc'. iIntros "!>" (l) "Hl".
-      iSpecialize ("Hes" with "Hl").
-      iExact "Hes". }
-    iIntros (l) "Hes".
-    iApply (imp_bind with "Hes").
-    iIntros (η) "HQ".
-    iApply (imp_ret with "HQ"). reflexivity.
-  Qed.
-
-  Lemma imp_type_extension_nil :
-    ⊢ imp eval_type_extensions [] @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ η, ⌜η = []⌝ }}.
-  Proof. simpl. by iApply imp_ret. Qed.
-
-  Lemma imp_let `{Encode A} (spec : A → iProp Σ) x e Q η δ :
-    imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ spec }} -∗
-    (∀ a, spec a -∗ Q ((x, #a) :: η, (x, #a) :: δ)) -∗
-    imp eval_sitem (η, δ) (ILet [Binding (PVar x) e]) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "He HQ".
-    iApply (imp_wand _ (eval_sitem (η, δ) (ILet [Binding (PVar x) e])) with "[He]").
-    iApply (imp_struct_let_single with "He").
-    iIntros ([η' δ']) "(%a & Ha & -> & ->)".
-    iApply ("HQ" with "Ha").
-  Qed.
-
-  Lemma imp_sitems_let `{Encode A} (spec : A → iProp Σ) sitems x e Q η δ :
-    imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ spec }} -∗
-      (∀ a, spec a -∗
-            imp eval_sitems ((x, #a) :: η, (x, #a) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-      imp eval_sitems (η, δ) ((ILet [Binding (PVar x) e])::sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "He Hcov".
-    iApply (imp_sitems_cons with "[He]").
-    iApply (imp_let with "He").
-    instantiate (1 := (λ ηδ, ∃ a, spec a ∗ ⌜ηδ = (x ~> #a; η, x ~> #a; δ)⌝)%I).
-    iIntros (a) "Ha". iFrame. auto.
-    iIntros (ηδ) "(%a & Ha & ->)".
-    iApply ("Hcov" with "Ha").
-  Qed.
-
-  Lemma imp_sitems_external Φ sitems x e Q η δ :
-    imp eval [] e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    (∀ v, Φ v -∗ imp eval_sitems ((x, v) :: η, (x, v) :: δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) ((IExternal x e)::sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
-  Proof.
-    iIntros "He Hcov".
-    iApply (imp_sitems_cons with "[He]").
-    { simpl_eval_sitem.
-      instantiate (1 := (λ ηδ, ∃ x0, ⌜ηδ = (x ~> x0; η, x ~> x0; δ)⌝ ∗ Φ x0)%I).
-      iApply (imp_bind with "He").
-      iIntros (?) "HΦ".
-      iApply imp_ret; first (instantiate (1:=(_,_)); encode).
-      by iFrame. }
-    iIntros (?) "(% & -> & HΦ)".
-    iApply ("Hcov" with "HΦ").
-  Qed.
-
-End imp_eval.
+End imp_concurrent_combinators.

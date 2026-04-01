@@ -107,21 +107,18 @@ Section array_reasoning.
     iIntros "[%Hleneq %Hlenbound] He". simpl_eval.
     iApply (imp_bind (A1:=list A) with "He").
     iIntros (xs) "HΦs".
-    iApply (imp_allocn).
-    iIntros "!>" (ls) "Hls".
-    rewrite /continue /=.
-    iApply (imp_ret _ ls); first encode.
+    iApply imp_bind.
+    { iApply imp_allocn. iIntros "!>" (ls) "Hls". iExact "Hls". }
+    iIntros (arr) "Hls". iApply imp_ret; first encode.
     iPoseProof (big_sepLZ2_length with "Hls") as "%Hlenls".
-    rewrite length_map in Hlenls.
     iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenxs".
-    iFrame.
+    iFrame. simpl.
     iSplitR.
     - iPureIntro.
       length_nonneg es; rewrite Hlenls Hlenxs Hleneq; lia.
     - iSplit. { iPureIntro; lia. }
-      rewrite -Hlenls. seg.
-      iApply (big_sepLZ2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
-      iApply "Hls".
+      rewrite -Hlenls.
+      by seg.
   Qed.
 
   Lemma imp_EArrayEmpty `{Encode A} {ζ} :
@@ -169,23 +166,16 @@ Section array_reasoning.
       rewrite signed_repr; last representable.
       case_decide; last contradiction.
       iApply imp_bind.
-      + iApply imp_allocn.
-        iIntros "!>" (ls) "Hpts".
-        iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
-        rewrite length_replicate in Hlen'.
-        rewrite /continue /=.
-        iApply imp_ret; first encode.
-        instantiate (1:= (λ ls, ⌜length ls = n⌝ ∗ _)%I).
-        iSplit; first (iPureIntro; lia).
-        iApply "Hpts".
-      + iIntros (arr) "(%Hlenls & Hpts)".
-        iApply imp_ret; first encode. iFrame.
-        simpl.
-        iSplitR. { iPureIntro; length; lia. }
-        iSplit. { iPureIntro; length; lia. }
-        seg.
-        rewrite -fmap_replicate big_sepLZ2_fmap_r.
-        iApply "Hpts".
+      { rewrite <- fmap_replicate. iApply imp_allocn.
+        iIntros "!>" (ls) "Hpts". iExact "Hpts". }
+      iIntros (arr) "Hpts".
+      iApply imp_ret; first encode.
+      iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
+      simpl. length in Hlen'.
+      iFrame.
+      iSplitR. { iPureIntro; length; lia. }
+      iSplit. { iPureIntro; length; lia. }
+      by seg.
   Qed.
 
   Global Instance inhabited_loc : Inhabited loc.

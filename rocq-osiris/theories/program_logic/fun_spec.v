@@ -4,7 +4,7 @@ From iris.bi Require Import interface.
 From osiris Require Import base.
 From osiris.lang Require Import locations lang.
 From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import ewp rules.impure_rules pure.fun_spec.
+From osiris.program_logic Require Import ewp rules.impure_rules rules.stop_rules pure.fun_spec.
 
 From iris.proofmode Require Import proofmode.
 

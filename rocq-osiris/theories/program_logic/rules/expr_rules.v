@@ -1,7 +1,9 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
 From osiris.program_logic Require Import ewp tactics fun_spec escrows.
-From osiris.program_logic.rules Require Import basic_rules impure_rules stop_rules handler_rules.
+From osiris.program_logic.rules Require Import
+  basic_rules impure_rules stop_rules
+  handler_rules auxiliary_rules atomic_rules.
 
 Section imp_rules_expr.
 
@@ -950,7 +952,7 @@ Section imp_rules_expr.
     imp eval η (EMatch e bs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He Hbs"; simpl_eval.
-    iApply (imp_deep_handler _ Ψ' ζ' Φ' Ψ ζ Φ η e bs with "He Hbs").
+    iApply (imp_deep_handler with "He Hbs").
   Qed.
 
   Lemma imp_EMatch2 `{Encode A, Encode A'} {Φ : A → iProp Σ} {ζ} ζ' (Φ' : A' → iProp Σ) η e bs :
@@ -1348,11 +1350,7 @@ Section imp_rules_expr.
     iIntros (??) "H1 H2".
     iSpecialize ("H3" with "H1 H2").
     iDestruct "H3" as (?) "(H1 & H2)".
-    iApply (imp_resume with "H1").
-    iNext.
-    iIntros "H1".
-    iSpecialize ("H2" with "H1").
-    by rewrite try2_inject2_right.
+    iApply (imp_resume with "H1 H2").
   Qed.
 
   Local Lemma imp_EFork' `{Encode A, Encode B} {ζ}
