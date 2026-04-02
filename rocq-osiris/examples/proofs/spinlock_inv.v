@@ -112,7 +112,7 @@ Proof.
       iIntros "!> _".
       iApply imp_EBoolNeg.
 
-      iApply (imp_CAS_atomic (A:=bool) with "Hinv"); try imp_step. set_solver.
+      iApply (imp_CAS_inv (A:=bool) with "Hinv"); try imp_step. set_solver.
       iIntros "!>" (???) "-> -> -> [Hl | (Hl & Htok & HR) ]".
 
       + (* Subcase: the CAS returned true. *)
