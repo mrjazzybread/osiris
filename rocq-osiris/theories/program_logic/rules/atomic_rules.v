@@ -33,13 +33,23 @@ Proof.
   apply _.
 Qed.
 
+Global Instance exchange_atomic l v' :
+  thread_step.Atomic (exchange l v').
+Proof.
+  unfold thread_step.Atomic. intros.
+
+  destruct_thread_step.
+  unfold step_exchange_2.
+  destruct (σ !! l0) as [ [| |] | ]; by econstructor.
+Qed.
+
 Global Instance store_atomic l v :
   thread_step.Atomic (code.store l v).
 Proof.
   unfold thread_step.Atomic. intros.
 
   destruct_thread_step.
-  unfold step_store_2.
+  unfold step_exchange_2.
   destruct (σ !! l0) as [ [| |] | ]; by econstructor.
 Qed.
 

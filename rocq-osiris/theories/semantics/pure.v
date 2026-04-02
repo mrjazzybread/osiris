@@ -52,10 +52,6 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CLoad lv k)
     (Crash)
-| MayStore l k :
-  may
-    (Stop CStore l k)
-    (Crash)
 | MayExchange l k :
   may
     (Stop CExchange l k)

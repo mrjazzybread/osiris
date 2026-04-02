@@ -162,15 +162,15 @@ Section imp_stop.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
-  (* [CStore]. *)
+  (* [CExchange]. *)
 
-  Lemma imp_stop_store l v v' (k : _ → micro A X) :
+  Lemma imp_stop_exchange l v v' (k : _ → micro A X) :
     ▷ pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (
         pointsto l (DfracOwn 1) (V v') -∗
-        imp (continue k #()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CStore (l, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (Stop CExchange (l, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -181,7 +181,7 @@ Section imp_stop.
     iDestruct (gen_heap_valid with "Hsi Hl") as "%".
     destruct_thread_step.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    rewrite /step_store_1 /step_store_2 H0.
+    rewrite /step_exchange_1 /step_exchange_2 H0.
     ewp_mask_elim. iFrame.
 
     iApply ("Hwp" with "Hl").
@@ -664,13 +664,36 @@ Section imp_combinators.
   (* ------------------------------------------------------------------------ *)
   (* [CStore]. *)
 
+  Lemma imp_exchange' `{Encode A} {Φ : A → iProp Σ} l a v' :
+    ▷ pointsto l (DfracOwn 1) (V #a) ⊢
+    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ a) -∗
+    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_exchange with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_exchange `{Encode A} {Φ : A → iProp Σ} l a v' :
+    ▷ pointsto l (DfracOwn 1) (V #a) ⊢
+    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a' : A), ⌜a' = a⌝ ∗ pointsto l (DfracOwn 1) (V v') }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_stop_exchange with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    by iFrame.
+  Qed.
+
   Lemma imp_store' {Φ : unit → iProp Σ} l v v' :
     ▷ pointsto l (DfracOwn 1) (V v) ⊢
     ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ ()) -∗
     imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "Hl HΦ".
-    iApply (imp_stop_store with "Hl").
+    iIntros "Hl HΦ". unfold code.store.
+    iApply (imp_stop_exchange with "Hl").
     iIntros "!> Hl".
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").

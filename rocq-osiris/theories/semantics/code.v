@@ -37,11 +37,11 @@ Definition eff := val.
 
 (* [Flip] is a request to flip a Boolean coin. *)
 
-(* [Allocn vs], [Load l], [Store (l, v)] are requests to allocate, read,
+(* [Allocn vs], [Load l], [Exchange (l, v)] are requests to allocate, read,
    and write a memory location in the heap.
-   The result of [CAllocn vs] is a list of memory locations.
+   The result of [Allocn vs] is a list of memory locations.
    The result of [Load l] is a value.
-   The result of [CStore (l, v)] is unit. *)
+   The result of [Exchange (l, v)] is the previously stored value. *)
 
 (* [CPerf e] is a request to perform a delimited control effect,
    carrying the value [e] as a payload.
@@ -73,7 +73,6 @@ Inductive code : Type → Type → Type → Type :=
 | CFlip : code unit bool exn
 | CAllocn : code (list val) (list loc) exn
 | CLoad  : code loc val exn
-| CStore : code (loc * val) val exn
 | CExchange : code (loc * val) val exn
 | CCAS : code (loc * val * val) val exn
 | CPerf  : code eff val exn
@@ -151,11 +150,6 @@ Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
 Definition load (l : loc) :=
   stop CLoad l.
 
-(* [store l v] updates the ref cell at location [l] with the value [v]. *)
-
-Definition store (l : loc) (v : val) :=
-  stop CStore (l, v).
-
 (* [exchange l v] updates the ref cell at location [l] with the value [v],
    and returns the previously stored value. *)
 
@@ -206,6 +200,13 @@ Definition alloc (v : val) : micro loc exn :=
   | [l] => ret l
   | _ => Crash
   end.
+
+(* [store l v] updates the ref cell at location [l] with the value [v],
+   and returns unit. *)
+
+Definition store (l : loc) (v : val) :=
+  _ ← exchange l v;
+  ret VUnit.
 
 (* ------------------------------------------------------------------------ *)
 

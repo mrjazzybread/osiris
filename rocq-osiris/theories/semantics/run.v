@@ -49,7 +49,7 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   (* Final micros do not step *)
   | Ret _ | Throw _ | Crash => None
   (* Most side effects are not confluent *)
-  | Stop (CFlip | CLoad | CStore | CExchange | CCAS | CPerf | CResume | CWrap | CFork | CJoin) _ _ => None
+  | Stop (CFlip | CLoad | CExchange | CCAS | CPerf | CResume | CWrap | CFork | CJoin) _ _ => None
   (* [CEval], [CLoop], [CAlloc], [Handle] have only one way to reduce *)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
@@ -126,7 +126,6 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
 
   (* [Stop] cases involving the store or flips typically break confluence *)
   | Stop CLoad l k => Step [step_load σ l k]
-  | Stop CStore (l, v') k => Step [step_store σ l v' k]
   | Stop CExchange (l, v') k => Step [step_exchange σ l v' k]
   | Stop CCAS (l, seen, v') k => Step [step_cas σ l seen v' k]
   | Stop CResume (l, o) k => Step [step_resume σ l o k]
@@ -447,7 +446,6 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CFlip => "CFlip"
   | CAllocn => "CAllocn"
   | CLoad => "CLoad"
-  | CStore => "CStore"
   | CExchange => "CExchange"
   | CCAS => "CCAS"
   | CPerf => "CPerf"
@@ -476,7 +474,6 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CFlip () k => "Stop(CFlip" ++ ", (), <cont>)"
   | Stop CAllocn vs k => "Stop(CAlloc" ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "]" ++ ", <cont>)"
   | Stop CLoad loc k => "Stop(CLoad" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
-  | Stop CStore (loc, v) k => "Stop(CStore" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CExchange (loc, v) k => "Stop(CExchange" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CCAS (loc, seen, v) k => "Stop(CCAS" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val seen ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CPerf v k => "Stop(CPerf" ++ ", " ++ string_of_val v ++ ", <cont>)"
