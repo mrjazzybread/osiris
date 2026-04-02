@@ -6,6 +6,8 @@ From osiris.program_logic.rules Require Import impure_rules stop_rules.
 
 From osiris.program_logic.pure Require Import pattern_rules.
 
+(** This file contains [imp] rules for module and binding evaluation. *)
+
 Section imp_eval.
 
   Context `{!osirisGS Σ}.

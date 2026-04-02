@@ -5,6 +5,8 @@ From osiris.program_logic.rules Require Import
   basic_rules impure_rules stop_rules
   handler_rules auxiliary_rules atomic_rules.
 
+(** This file contains [imp] rules for OCaml expression forms. *)
+
 Section imp_rules_expr.
 
   Context `{!osirisGS Σ}.
@@ -28,7 +30,7 @@ Section imp_rules_expr.
 
   (** * EAnonFun : anonfun → expr *)
   (** * EApp : expr → expr → expr *)
-  (* See [funspec.v] *)
+  (* See [fun_spec.v] *)
 
   Lemma imp_EApp_exn `{Encode B} {ζ} η e1 e2 ζ1 Φ1 ζ2 (Φ2 : B → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗

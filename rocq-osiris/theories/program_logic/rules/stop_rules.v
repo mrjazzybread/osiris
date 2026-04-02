@@ -16,9 +16,7 @@ Import ewp_rules_tactics.
 
 (* ------------------------------------------------------------------------ *)
 
-(* The following lemmas offer reasoning rules for each of the system calls,
-   that is, for computations of the form [Stop c x y]. They are simple
-   consequences of the operational behavior of these system calls. *)
+(** This file contains [imp] rules for [Stop] system calls, concurrency primitives, and loop combinators. *)
 
 Section imp_stop.
 

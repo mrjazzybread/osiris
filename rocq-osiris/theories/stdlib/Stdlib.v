@@ -140,9 +140,7 @@ Definition toplevel me (φ : env -> Prop) :=
 (* A specification for a pure function [decide] that decides a relation [R],
    subject to a precondition [P], producing a Boolean outcome. *)
 
-(* This specification is nondeterministic: it uses [pure] and a relation [R]
-   of type [A → A → Prop]. One could prefer a deterministic specification
-   that uses [simp] and a function of type [A → A → bool]. *)
+(* This specification uses [pure] and a relation [R] of type [A → A → Prop]. *)
 
 Definition decide_spec `{Encode A}
   (decide : val) (P : A → Prop) (R : A → A → bool)

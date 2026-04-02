@@ -8,6 +8,8 @@ From osiris.program_logic.rules Require Import impure_rules stop_rules.
 
 Import ewp_rules_tactics.
 
+(** This file provides atomicity instances for memory operations and derived [imp] rules for atomic access. *)
+
 Instance crash_atomic {V X} :
   thread_step.Atomic (@Crash V X).
 Proof. constructor. inversion H; subst. inversion H1. Qed.

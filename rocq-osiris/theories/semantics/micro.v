@@ -790,8 +790,6 @@ Ltac invert_try2_eq_handle :=
 (* The auxiliary functions [join1 a1] and [join2 a2] transform a two-armed
    handler that expects a pair into one that expects a single component. *)
 
-(* They are used in the definition of the [simp] relation (simplification.v). *)
-
 Definition join1 {A1 A2 B E E'} (a1 : A1)
   (k : outcome2 (A1 * A2) E' → micro B E)
      : outcome2       A2  E' → micro B E

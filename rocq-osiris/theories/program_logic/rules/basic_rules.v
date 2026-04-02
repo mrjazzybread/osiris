@@ -12,14 +12,7 @@ From osiris.program_logic Require Import thread_step ewp tactics.
 
 From osiris.program_logic.pure Require Export pure.
 
-(** *Basic rules on the program logic
-
-  This file contains the "basic" rules of how to use the program logic.
-
-  i.e.
-  (1) How to reason about expressions at the [micro] monad level and
-  (2) Proof that the weakest precondition is closed under [simp]
-      (see [ewp_simp]). *)
+(** This file contains basic structural rules for [ewp_def]. *)
 
 (* ------------------------------------------------------------------------ *)
 Section ewp.

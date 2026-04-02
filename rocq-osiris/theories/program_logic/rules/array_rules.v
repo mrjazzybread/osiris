@@ -4,6 +4,8 @@ From osiris.program_logic Require Import ewp.
 From osiris.program_logic.rules Require Import impure_rules stop_rules.
 From osiris.logic Require Import list_z big_opLZ.
 
+(** This file defines array resource predicates and [imp] rules for array expressions. *)
+
 Definition array : Type := list loc.
 
 Global Instance : Encode array := { encode arr := VArray arr }.

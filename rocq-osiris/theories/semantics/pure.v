@@ -9,30 +9,20 @@ computations. It is similar to [step] reductions that do not mention the store,
 and reduces impure computations to [crash].
 
 The resulting WP, called [pure] is a pure reasoning mode simpler than full
-separation logic. In this way it is similar to the [total] predicate based on
-the [simp] relation, but as opposed to [simp], [may] is small-step and allows
-non-deterministic choices. The price to pay when reasoning about computations is
-the quantification over all possible [may] paths, rather than simply the
-existence of a [simp] simplification. This nondeterminism is the reason this
-relation was originally called [may]. It would be reasonable to call it
-[pure_step], though the correspondence between [may m m'] and [∀ σ, step (σ, m)
-(σ, m')] is not perfect.
+separation logic. [may] is small-step and allows non-deterministic choices. The
+price to pay when reasoning about computations is the quantification over all
+possible [may] paths. This nondeterminism is the reason this relation was
+originally called [may]. It would be reasonable to call it [pure_step], though
+the correspondence between [may m m'] and [∀ σ, step (σ, m) (σ, m')] is not
+perfect.
 
-Compared to the [simp] relation, [may] is able to bypass some steps, for example
-[Par m1 (throw e) k] reduces to [k (Throw e)], which is one example of
-non-determinism, since [m1] could throw a different exception.
-
-Other differences with [simp]:
+Properties of [may]:
 
 - [may] is not reflexive, otherwise the main construct of the [pure]
-  predicate would have its conclusion as a premise. For the same reason, one
-  should not directly include [simp] in [may] (maybe [simplify (S _)] could be
-  fine).
+  predicate would have its conclusion as a premise.
 
 - transitivity is not included, which makes the relation simpler to reason
-  about. Transitivity is necessary for [simp] to be able to ignore intermediate
-  steps in case of temporary nondeterminism, for example in the different
-  continuations of a [Stop CFlip].
+  about.
 
 - if [m] is impure it can reach [crash] in some number of [may] steps, and so
   [pure] computations are guaranteed to be pure. *)
@@ -122,9 +112,6 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
 | MayParRight {A1 A2 E'} m1 m2 m'2 (k : outcome2 (A1 * A2) E' → _) :
   may m2 m'2 →
   may (Par m1 m2 k) (Par m1 m'2 k)
-(* For the same reason [may] does not need transitivity, the constructors for
-   [Handle] are slightly simpler than for [simp] as there is no need to resolve
-   temporary nondeterminism *)
 | MayHandleRet v h :
   may
     (Handle (Ret v) h)

@@ -8,6 +8,8 @@ From osiris.program_logic.rules Require Import basic_rules micro_rules.
 
 From iris.proofmode Require Import proofmode.
 
+(** This file contains structural rules for [imp]. *)
+
 Section monotonicity.
 
   Context `{!osirisGS Σ}.

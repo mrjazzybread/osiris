@@ -10,6 +10,8 @@ From osiris.program_logic.rules Require Import basic_rules.
 
 Import ewp_rules_tactics.
 
+(** This file contains introduction and elimination rules for terminal [micro] computations, at the [ewp_def] level. *)
+
 (* ------------------------------------------------------------------------ *)
 
 Section ewp_basic_rules.
@@ -79,17 +81,17 @@ End ewp_basic_rules.
 
 (* ------------------------------------------------------------------------ *)
 (* Invert cases where there are premises of the form
-          [EWP (ret _) _] [EWP crash _] or [EWP (throw _) _] *)
+          [ewp_def _ (ret _) _ _], [ewp_def _ Crash _ _], or [ewp_def _ (throw _) _ _] *)
 
 Ltac ewp_invert :=
   lazymatch goal with
-  (* EWP throw *)
+  (* ewp_def throw *)
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (throw _) _ _)] =>
       iPoseProof (ewp_throw_inv with "[$]") as "HΦ"
-  (* EWP ret *)
+  (* ewp_def ret *)
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (ret _) _ _)] =>
       iPoseProof (ewp_ret_inv with "[$]") as "HΦ"
-  (* EWP crash *)
+  (* ewp_def crash *)
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ Crash _ _)] =>
       iMod (ewp_crash_inv with "[$]") as "%"
   | |- context [environments.Esnoc _ ?Hwp (ewp_def _ (crash _) _ _)] =>

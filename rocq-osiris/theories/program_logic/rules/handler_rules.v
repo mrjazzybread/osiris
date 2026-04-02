@@ -14,7 +14,7 @@ From Stdlib Require Import FunctionalExtensionality.
 Import ewp_rules_tactics.
 
 (* -------------------------------------------------------------------------- *)
-(** *Shallow and deep handlers *)
+(** This file defines shallow and deep handlers and provides [imp] specifications for them. *)
 
 (* Shallow handlers are use-once handlers;
     If the handled expression performs an effect caught by the handler,
@@ -44,8 +44,8 @@ Section handler_specifications.
 
   (* -------------------------------------------------------------------------- *)
   (** * Shallow handler specification. *)
-  (* The shallow handler specification is defined over the [Handle] primitive in
-   [basic_rules.v] *)
+  (* The shallow handler specification is defined over the [Handle] primitive
+   from [micro.v]. *)
   (* -------------------------------------------------------------------------- *)
 
   (* -------------------------------------------------------------------------- *)
