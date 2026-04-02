@@ -1,5 +1,6 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From osiris Require Import lang.
+From osiris.tactics Require Import osiris_utils.
 From osiris.program_logic Require Import ewp tactics fun_spec escrows.
 From osiris.program_logic.rules Require Import
   basic_rules impure_rules stop_rules
@@ -1279,6 +1280,45 @@ Section imp_rules_expr.
     iIntros (seen ?) "HΦ2 ->".
     iIntros "!> !> $".
     by iFrame.
+  Qed.
+
+  (** * EFAA : expr → expr → expr *)
+
+  Lemma imp_EFAA' {Φ : Z → iProp Σ} {ζ} (l : loc) (j : Z) η e1 e2 (Φ2 : Z → iProp Σ) :
+    l ↦ #j -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ i,
+       Φ2 i -∗
+       ▷ ▷ (l ↦ #(j + i) -∗ Φ j)) -∗
+    imp eval η (EFAA e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 H2 P". simpl_eval.
+    iApply (imp_bind with "[H1 H2 P]").
+    { iApply (imp_Par with "[H1] [H2] [P]").
+      { iApply (imp_as_loc with "H1"). }
+      { iApply (imp_as_int with "H2"). }
+      iSplit.
+      - iIntros (e) "Hζ !>".
+        iApply (imp_throw with "Hζ").
+      - iIntros (? i) "-> H2".
+        set_postcondition (λ '(l', i), ⌜l' = l⌝ ∗ ▷ (l ↦ #(j + i) -∗ Φ j))%I.
+        iSpecialize ("P" with "H2").
+        iApply (imp_ret _ (l, i)); first encode.
+        by iFrame "P". }
+    iIntros ((? & i)) "(-> & P)".
+    iApply (imp_faa with "Hl P").
+  Qed.
+
+  Lemma imp_EFAA {Φ : Z → iProp Σ} {ζ} (l : loc) (i j : Z) η e1 e2 :
+    l ↦ #j -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
+    imp eval η (EFAA e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ j', ⌜j' = j⌝ ∗ l ↦ #(j + i) }}.
+  Proof.
+    iIntros "Hl H1 H2".
+    iApply (imp_EFAA' with "Hl H1 H2").
+    iIntros (?) "-> !> !> $ //".
   Qed.
 
   (** * EPerform : expr -> expr *)

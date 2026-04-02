@@ -64,6 +64,18 @@ Proof.
   destruct (phys_eq_val _ _) as [ [|] | ]; by econstructor.
 Qed.
 
+Global Instance faa_atomic l i :
+  thread_step.Atomic (faa l i).
+Proof.
+  unfold thread_step.Atomic. intros.
+
+  destruct_thread_step.
+  unfold step_faa_2.
+  destruct (σ !! l0) as [ [| |] | ]; try by econstructor.
+  rewrite /continue /=.
+  destruct v; try by constructor.
+  by econstructor.
+Qed.
 
 Section imp_atomic_rules.
 

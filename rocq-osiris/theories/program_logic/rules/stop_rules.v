@@ -249,7 +249,27 @@ Section imp_stop.
 
 
   (* ------------------------------------------------------------------------ *)
-  (* [CExchange]. *)
+  (* [CFAA]. *)
+
+  Lemma imp_stop_faa l (i j : int) (k : _ → micro A X) :
+    ▷ pointsto l (DfracOwn 1) (V #j) ⊢
+    ▷ (
+        l ↦ #(int.add j i) -∗
+        imp (continue k #j) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CFAA (l, i) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
+    destruct_thread_step.
+    iMod (gen_heap_update σ l (V #j) (V #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
+    rewrite /step_faa_1 /step_faa_2 Hvalid /=.
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
 
   (* ------------------------------------------------------------------------ *)
   (* [CPerform]. *)
@@ -662,7 +682,7 @@ Section imp_combinators.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
-  (* [CStore]. *)
+  (* [CExchange]. *)
 
   Lemma imp_exchange' `{Encode A} {Φ : A → iProp Σ} l a v' :
     ▷ pointsto l (DfracOwn 1) (V #a) ⊢
@@ -724,6 +744,22 @@ Section imp_combinators.
     iApply ("HΦ" with "Hl").
   Qed.
 
+  (* ------------------------------------------------------------------------ *)
+  (* [CFAA]. *)
+
+  Lemma imp_faa {Φ : Z → iProp Σ} l (i j : Z) :
+    ▷ l ↦ #j ⊢
+    ▷ (l ↦ #(j + i) -∗ Φ j) -∗
+    imp (faa l ♯i) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_faa with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply "HΦ".
+    rewrite add_repr_repr.
+    iApply "Hl".
+  Qed.
 
   (* ------------------------------------------------------------------------ *)
   (* [CPerform]. *)

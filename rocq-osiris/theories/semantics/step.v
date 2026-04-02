@@ -230,7 +230,7 @@ Qed.
 Definition step_faa_1 σ l (i : int) : store :=
   match σ !! l with
   | Some (V (VInt j)) =>
-      <[ l := V (VInt (int.add i j)) ]> σ
+      <[ l := V (VInt (int.add j i)) ]> σ
   | _           => σ
   end.
 
