@@ -362,6 +362,9 @@ let rec expr (e : expr) =
   | ECAS (e1, e2, e3) ->
       c "ECAS" [ expr e1; expr e2; expr e3 ]
 
+  | EFAA (e1, e2) ->
+      c "EFAA" [ expr e1; expr e2 ]
+
   | EIgnore e ->
       c "EIgnore" [ expr e ]
 

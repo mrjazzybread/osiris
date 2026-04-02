@@ -291,6 +291,8 @@ type expr =
   | EExchange of expr * expr
   (* Compare-and-set: [Atomic.compare_and_set e1 e2 e3]. *)
   | ECAS of expr * expr * expr
+  (* Fetch-and-add: [Atomic.fetch_and_and e1 e2]. *)
+  | EFAA of expr * expr
 
   | EIgnore of expr
 

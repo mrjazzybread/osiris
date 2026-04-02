@@ -60,6 +60,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CCAS l k)
     (Crash)
+| MayFAA l k :
+  may
+    (Stop CFAA l k)
+    (Crash)
 | MayResume lo k :
   may
     (Stop CResume lo k)

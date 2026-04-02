@@ -1435,6 +1435,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ECAS e1 e2 e3 =>
       '(l, seen, v) ← par (par (as_loc (eval η e1)) (eval η e2)) (eval η e3);
       cas l seen v
+  | EFAA e1 e2 =>
+      '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
+      faa l i
   | EIgnore e =>
       _ ← eval η e ;
       ok

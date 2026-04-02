@@ -220,6 +220,45 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* [step_faa σ l i k] is the right-hand side of the reduction rule [StepFAA].
+
+   This rule loads a value [j] from the store [σ] at location [l], overwrites
+   it with the value [i + j], and returns [j] to the continuation [k].
+   It fails if the location [l] is not in the domain of [σ] or contains
+   something other than an int. *)
+
+Definition step_faa_1 σ l (i : int) : store :=
+  match σ !! l with
+  | Some (V (VInt j)) =>
+      <[ l := V (VInt (int.add i j)) ]> σ
+  | _           => σ
+  end.
+
+Definition step_faa_2 {A E} σ l (i : int) (k : outcome2 val exn → _) : micro A E :=
+  match σ !! l with
+  | Some (V (VInt j)) =>
+      continue k (VInt j)
+  | _          => crash "store error: unbound location or not int"
+  end.
+
+Notation step_faa σ l i k :=
+  (step_faa_1 σ l i, step_faa_2 σ l i k).
+
+(* Fetching-and-adding is an algebraic effect. *)
+
+Lemma try2_step_faa_2 {A B E F} σ l i
+  (k : outcome2 val exn → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_faa_2 σ l i (pftry2 k k') = try2 (step_faa_2 σ l i k) k'.
+Proof.
+  unfold step_faa_2. intros.
+  case_location_lookup; simplify_eq; eauto.
+  destruct v; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [step_resume σ l o] is the right-hand side of the rule [StepResume].
 
    This rule loads a continuation [sk] from the store [σ] at location [l],
@@ -294,6 +333,7 @@ Global Hint Resolve
   try2_step_load_2
   try2_step_exchange_2
   try2_step_cas_2
+  try2_step_faa_2
   try2_step_resume_2
   try2_step_wrap_2
 : try2_algebraic.
@@ -379,6 +419,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
       c' = step_cas σ l seen v k →
       step
         (σ, Stop CCAS (l, seen, v) k)
+        c'
+
+  | StepFAA :
+      ∀ σ l i k c',
+      c' = step_faa σ l i k →
+      step
+        (σ, Stop CFAA (l, i) k)
         c'
 
   (* If [Handle _ h] observes a normal result [ret v] then it reduces to an

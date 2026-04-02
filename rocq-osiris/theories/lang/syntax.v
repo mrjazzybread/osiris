@@ -297,6 +297,8 @@ Inductive expr :=
   | EExchange (e1 e2 : expr)
   (* Compare-and-set: [Atomic.compare_and_set e1 e2 e3]. *)
   | ECAS (e1 e2 e3 : expr)
+  (* Fetch-and-add: [Atomic.fetch_and_add e1 e2]. *)
+  | EFAA (e1 e2 : expr)
 
   | EIgnore (e : expr)
 

@@ -143,6 +143,7 @@ let rec expr : E.expr -> O.expr = function
   | EStore (e1, e2) -> EStore (expr e1, expr e2)
   | EExchange (e1, e2) -> EExchange (expr e1, expr e2)
   | ECAS (e1, e2, e3) -> ECAS (expr e1, expr e2, expr e3)
+  | EFAA (e1, e2) -> EFAA (expr e1, expr e2)
   | EIgnore e -> EIgnore (expr e)
   | EFork (e1, e2) -> EFork (expr e1, expr e2)
   | EJoin e -> EJoin (expr e)

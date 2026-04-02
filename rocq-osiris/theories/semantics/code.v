@@ -22,7 +22,7 @@ Definition eff := val.
    call is allowed to throw an exception of type [exn]. Some system
    calls can indeed throw such an exception: this includes [CEval],
    [CLoop], [CPerf], [CContinue], and [CDiscontinue]. Some system
-   calls, such as [CFlip], [CAllocn], [CLoad], and [CStore], cannot
+   calls, such as [CFlip], [CAllocn], [CLoad], and [CExchange], cannot
    throw an exception. Describing them with the type [exn], as opposed
    to [void], is a (convenient) over-approximation. *)
 
@@ -42,6 +42,8 @@ Definition eff := val.
    The result of [Allocn vs] is a list of memory locations.
    The result of [Load l] is a value.
    The result of [Exchange (l, v)] is the previously stored value. *)
+
+(* TODO: comment CAS and FAA. *)
 
 (* [CPerf e] is a request to perform a delimited control effect,
    carrying the value [e] as a payload.
@@ -75,6 +77,7 @@ Inductive code : Type → Type → Type → Type :=
 | CLoad  : code loc val exn
 | CExchange : code (loc * val) val exn
 | CCAS : code (loc * val * val) val exn
+| CFAA : code (loc * int) val exn
 | CPerf  : code eff val exn
 | CResume : code (cont * outcome2 val exn) val exn
 | CWrap : code (bool * cont * env * handler) loc exn
@@ -161,6 +164,12 @@ Definition exchange (l : loc) (v : val) :=
 
 Definition cas (l : loc) (seen : val) (v : val) :=
   stop CCAS (l, seen, v).
+
+(* [faa l i] increments the integer stored in the ref cell at location [l]
+   by [i], and returns the previously stored value (before incrementing). *)
+
+Definition faa (l : loc) (i : int) :=
+  stop CFAA (l, i).
 
 (* ------------------------------------------------------------------------ *)
 
