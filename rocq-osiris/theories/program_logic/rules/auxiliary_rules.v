@@ -94,7 +94,7 @@ Section imp_eval.
   Proof.
     iIntros "He Hpat Hbs".
     simpl_eval_bindings.
-    iApply (imp_Par with "[He Hpat] Hbs").
+    iApply (imp_bind_par with "[He Hpat] Hbs").
     { iApply (imp_bind with "He").
       iIntros (?) "HΦ". iApply imp_widen.
       iDestruct ("Hpat" with "HΦ") as "%Hpat".
@@ -103,11 +103,7 @@ Section imp_eval.
       - instantiate (1 := (λ η, ∃ x, Φ x ∗ ⌜P x η⌝)%I).
         iFrame. iFrame "%". auto.
       - contradiction. }
-    iSplit.
-    { iIntros (?) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
-    iIntros (x η') "(%a & HΦ & HP) Hη".
-    iNext. rewrite /continue. simpl.
+    iIntros (η' δ) "(%a & HΦ & HP) Hη".
     iApply imp_ret. reflexivity.
     iFrame. auto.
   Qed.

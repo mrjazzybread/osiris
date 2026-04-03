@@ -323,10 +323,7 @@ Section imp_spec.
     imp eval η (EApp e e1) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, ∃ (x : X), iSpec τ c (P x) }}.
   Proof.
     iIntros "He He1". simpl_eval.
-    iApply (imp_Par with "He He1").
-    iSplit.
-    { iIntros (ex) "Hζ !>".
-      iApply (imp_throw with "Hζ"). }
+    iApply (imp_bind_par with "He He1").
     iIntros (c v1) "HSpec [%x ->]". simpl. simp iSpec.
     iSpecialize ("HSpec" $! x).
     iApply (imp_mono_prot with "[HSpec]"); [ | iApply iEff_le_bottom ].
@@ -460,11 +457,8 @@ Section imp_EApp_def.
       iIntros (η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex"; cbn zeta.
       iIntros "Hmono".
       simpl_eval.
-      iApply (imp_Par with "HSpec Hex").
-      iSplit.
-      { iIntros (?) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
-      iIntros (c v) "HSpec' Hφx". simpl. simp iSpec.
+      iApply (imp_bind_par with "HSpec Hex").
+      iIntros (c x) "HSpec' Hφx". simpl. simp iSpec.
       iApply ("Hmono" with "Hφx HSpec'").
 
     - (* Inductive case: multi-argument function *)
@@ -485,10 +479,7 @@ Section imp_EApp_def.
     unfold imp_EApp_prop.
     iSpecialize ("HIH" $! η (EApp e ex) _ _ _ P' with "[HSpec Hex]").
     { simpl_eval.
-      iApply (imp_Par with "HSpec Hex").
-      iSplit.
-      { iIntros (?) "Hζ !>".
-        iApply (imp_throw with "Hζ"). }
+      iApply (imp_bind_par with "HSpec Hex").
       iIntros (??) "HSpec Hφx /=".
       simp iSpec.
       iPoseProof (imp_mono_prot with "HSpec []") as "HSpec"; first iApply iEff_le_bottom.
@@ -566,17 +557,14 @@ Section transparent_funs.
  Proof.
    iIntros (Hlookup) "He Hbody".
    simpl_eval.
-   iApply (imp_Par (A1:=val) (A2:=B) with "[] He").
+   iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He").
    { iApply imp_widen.
      instantiate (1 := (λ f, ⌜f = (VClo η' (Anon (v => e)))⌝)%I).
      rewrite Hlookup. iExists _; auto. }
-   iSplit.
-   - iIntros (?) "Hζ".
-     iApply (imp_throw with "Hζ").
-   - iIntros (??) "-> HΦ".
-     rewrite /continue /=.
-     iApply imp_please.
-     iApply ("Hbody" with "HΦ").
+   iIntros (??) "-> HΦ".
+   rewrite /continue /=.
+   iApply imp_please.
+   iApply ("Hbody" with "HΦ").
  Qed.
 
  Lemma imp_EApp_literal2 B C `{Encode A, Encode B, Encode C} {Φ : A → iProp Σ} Φ1 Φ2 η' v1 v2 e η p e1 e2 :
@@ -588,29 +576,23 @@ Section transparent_funs.
    imp (eval η (EApp (EApp (EPath p) e1) e2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
  Proof.
    iIntros (Hlookup) "He1 He2 Hbody". simpl_eval.
-   iApply (imp_Par (A1:=val) (A2:=C) with "[He1] He2").
-   { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
+   iApply (imp_bind_par (A1:=val) (A2:=C) with "[He1] He2").
+   { iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He1").
      { iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto. }
-     iSplit.
-     - iIntros (?) "Hζ".
-       iApply (imp_throw with "Hζ").
-     - iIntros (??) "-> HΦ".
-       rewrite /continue /=.
-       iApply imp_please.
-       iApply imp_wand. iApply imp_EAnon_literal.
-       iIntros "!> !>" (v) "Hv". iCombine "Hv HΦ" as "Hv".
-       instantiate (1 := (λ v, ∃ y, ⌜v = VClo (v1 ~> #y;
-                    η') (Anon (v2 => e))⌝ ∗ Φ1 y)%I).
-       simpl. iFrame. }
-   iSplit.
-   - iIntros (?) "Hζ".
-     iApply (imp_throw with "Hζ").
-   - iIntros (??) "(% & -> & HΦ1) HΦ2".
+     iIntros (??) "-> HΦ".
      rewrite /continue /=.
      iApply imp_please.
-     iApply ("Hbody" with "HΦ1 HΦ2").
+     iApply imp_wand. iApply imp_EAnon_literal.
+     iIntros "!> !>" (v) "Hv". iCombine "Hv HΦ" as "Hv".
+     instantiate (1 := (λ v, ∃ y, ⌜v = VClo (v1 ~> #y;
+                    η') (Anon (v2 => e))⌝ ∗ Φ1 y)%I).
+       simpl. iFrame. }
+   iIntros (??) "(% & -> & HΦ1) HΦ2".
+   rewrite /continue /=.
+   iApply imp_please.
+   iApply ("Hbody" with "HΦ1 HΦ2").
  Qed.
 
  Lemma imp_EApp_literal3 B C D `{Encode A, Encode B, Encode C, Encode D} {Φ : A → iProp Σ}
@@ -624,39 +606,30 @@ Section transparent_funs.
    imp (eval η (EApp (EApp (EApp (EPath p) e1) e2) e3)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
  Proof.
    iIntros (Hlookup) "He1 He2 He3 Hbody". simpl_eval.
-   iApply (imp_Par (A1:=val) (A2:=D) with "[He1 He2] He3").
-   { iApply (imp_Par (A1:=val) (A2:=C) with "[He1] He2").
-     { iApply (imp_Par (A1:=val) (A2:=B) with "[] He1").
+   iApply (imp_bind_par (A1:=val) (A2:=D) with "[He1 He2] He3").
+   { iApply (imp_bind_par (A1:=val) (A2:=C) with "[He1] He2").
+     { iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He1").
        iApply imp_widen.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto.
-       iSplit.
-       - iIntros (?) "Hζ".
-         iApply (imp_throw with "Hζ").
-       - iIntros (??) "-> HΦ".
-         rewrite /continue /=.
-         iApply imp_please.
-         iApply imp_wand. iApply imp_EAnon_literal.
-         iIntros "!> !>" (v) "Hv".
-         instantiate (1 := (λ v, ∃ y, ⌜v = VClo _ _⌝ ∗ Φ1 y)%I).
-         simpl. iFrame. }
-     iSplit.
-     - iIntros (?) "Hζ".
-       iApply (imp_throw with "Hζ").
-     - iIntros (??) "(% & -> & HΦ1) HΦ2".
+       iIntros (??) "-> HΦ".
        rewrite /continue /=.
        iApply imp_please.
        iApply imp_wand. iApply imp_EAnon_literal.
-       iIntros "!> !>" (v) "->".
-       instantiate (1 := (λ v, ∃ y z, ⌜v = VClo _ _⌝ ∗ Φ1 y ∗ Φ2 z)%I).
-       simpl. iFrame. iPureIntro. reflexivity. }
-   iSplit.
-   - iIntros (?) "Hζ".
-     iApply (imp_throw with "Hζ").
-   - iIntros (??) "(% & % & -> & HΦ1 & HΦ2) HΦ3".
+       iIntros "!> !>" (v) "Hv".
+       instantiate (1 := (λ v, ∃ y, ⌜v = VClo _ _⌝ ∗ Φ1 y)%I).
+       simpl. iFrame. }
+     iIntros (??) "(% & -> & HΦ1) HΦ2".
      rewrite /continue /=.
      iApply imp_please.
-     iApply ("Hbody" with "HΦ1 HΦ2 HΦ3").
+     iApply imp_wand. iApply imp_EAnon_literal.
+     iIntros "!> !>" (v) "->".
+     instantiate (1 := (λ v, ∃ y z, ⌜v = VClo _ _⌝ ∗ Φ1 y ∗ Φ2 z)%I).
+     simpl. iFrame. iPureIntro. reflexivity. }
+   iIntros (??) "(% & % & -> & HΦ1 & HΦ2) HΦ3".
+   rewrite /continue /=.
+   iApply imp_please.
+   iApply ("Hbody" with "HΦ1 HΦ2 HΦ3").
  Qed.
 
 End transparent_funs.

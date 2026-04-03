@@ -93,22 +93,11 @@ Section imp_atomic_rules.
   Proof.
     iIntros "He1 He2 Hstore".
     simpl_eval.
-    iApply (imp_bind (A1:=loc * A) with "[-]").
-    set_postcondition
-      (λ '((l, x) : loc * A),
-         |={E1,E2}=> ∃ v, ▷ l ↦ v ∗
-                          ▷ (l ↦ #x -∗ |={E2,E1}=> Φ ()))%I.
-    { iApply (imp_Par with "[He1] He2").
-      { iApply (imp_as_loc with "He1"). }
-      iSplit.
-      - iIntros (e) "He !>". iApply (imp_throw with "He").
-      - iIntros (l x) "HΦ1 HΦ2 !>".
-        iApply imp_ret. instantiate (1:=(_,_)). encode.
-        iMod "Hstore". iModIntro.
-        iDestruct ("Hstore" with "HΦ1 HΦ2") as "(%v & $ & $)". }
-    iIntros ((l & x)) "Hl /=".
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iIntros (l x) "HΦ1 HΦ2 !>".
     iApply (imp_atomic' E1 E2).
-    iMod "Hl" as "(%v & Hl & Hstore)".
+    iMod ("Hstore" with "HΦ1 HΦ2") as "(%v & Hl & Hstore)".
     iApply (imp_store' with "Hl").
     iApply "Hstore".
   Qed.
@@ -127,30 +116,12 @@ Section imp_atomic_rules.
   Proof.
     iIntros "He1 He2 He3 Hcas".
     simpl_eval.
-    iApply (imp_bind (A1:=loc * A * A) with "[-]").
-    set_postcondition
-      (λ '((l, seen, v') : loc * A * A),
-         |={E1,E2}=> ∃ v, ▷ l ↦ #v ∗
-                          ▷ (l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
-                             |={E2,E1}=> Φ (phys_eq_val_ v seen)))%I.
-    { iApply (imp_Par (A1:=loc * A) with "[He1 He2] He3").
-      { iApply (imp_Par with "[He1] He2").
-        { iApply (imp_as_loc with "He1"). }
-        iSplit.
-        - iIntros (e) "He !>". iApply (imp_throw with "He").
-        - iIntros (l x) "HΦ1 HΦ2 !>".
-          set_postcondition (λ '(l, x), Φ1 l ∗ Φ2 x)%I.
-          iApply imp_ret. instantiate (1:=(_,_)). encode.
-          iFrame. }
-      iSplit.
-      - iIntros (e) "He !>". iApply (imp_throw with "He").
-      - iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3".
-        iApply imp_ret. instantiate (1:=((_,_),_)). encode.
-        iNext. iMod "Hcas". iModIntro.
-        iDestruct ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%v & $ & $)". }
-    iIntros (((l & seen) & x)) "Hcas /=".
+    iApply (imp_bind_par (A1:=loc * A) with "[He1 He2] He3").
+    { iApply (imp_par with "[He1] He2").
+      iApply (imp_as_loc with "He1"). }
+    iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3 !>".
     iApply (imp_atomic' E1 E2).
-    iMod "Hcas" as "(%v & Hl & Hcas)".
+    iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%v & Hl & Hcas)".
     iApply (imp_cas with "Hl Hcas").
   Qed.
 

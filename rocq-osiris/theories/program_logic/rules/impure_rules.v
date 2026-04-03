@@ -325,7 +325,7 @@ Section proofmode_classes.
 
 End proofmode_classes.
 
-Section micro_combinators.
+Section micro_constructors.
 
   Context `{!osirisGS Σ}.
 
@@ -377,6 +377,82 @@ Section micro_combinators.
     iPoseProof (ewp_crash_inv with "Himp") as ">False".
     auto.
   Qed.
+
+  Lemma imp_Par2 `{Observe A1 V1} `{Observe A2 V2} {X'}
+    Φ1 ζ1 Φ2 ζ2 m1 m2 (k : outcome2 (V1 * V2) X' → micro V X) :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
+    imp m2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
+    (∀ e, ζ1 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ e, ζ2 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 Hjoin".
+    iApply (ewp_Par with "H1 H2").
+    iSplit; last iSplit.
+    - iDestruct "Hjoin" as "[$ _]".
+    - iDestruct "Hjoin" as "[_ [$ _]]".
+    - iIntros (v1 v2) "(%x & -> & HΦ1) (%y & -> & HΦ2)".
+      iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+  Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2}
+    Φ1 Φ2 m1 m2 (k : outcome2 (V1 * V2) X → micro V X) :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ e, ζ e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 Hjoin".
+    iApply (ewp_Par with "H1 H2").
+    iSplit; last iSplit.
+    - iDestruct "Hjoin" as "[$ _]".
+    - iDestruct "Hjoin" as "[$ _]".
+    - iIntros (v1 v2) "(%x & -> & HΦ1) (%y & -> & HΦ2)".
+      iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+End micro_constructors.
+
+Section micro_combinators.
+
+  Context `{!osirisGS Σ}.
+  Context {E : coPset} {Ψ : iEff Σ}.
+
+  Lemma imp_par' {ζ : exn → iProp Σ} `{Observe A1 V1} `{Observe A2 V2} {Φ : A1 * A2 → iProp Σ}
+    Φ1 Φ2 m1 m2 :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ Φ (x, y)) -∗
+    imp (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 Hjoin".
+    iApply (imp_Par with "H1 H2").
+    iSplit.
+    - iIntros (e) "Hζ".
+      iApply (imp_throw with "Hζ").
+    - iIntros (v1 v2) "HΦ1 HΦ2".
+      iApply (imp_ret _ (v1, v2)); first encode.
+      iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+  Lemma imp_par {ζ : exn → iProp Σ} `{Observe A1 V1} `{Observe A2 V2}
+    (Φ1 : A1 → iProp Σ) (Φ2 : A2 → iProp Σ) m1 m2 :
+    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    imp (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(x, y), Φ1 x ∗ Φ2 y }}.
+  Proof.
+    iIntros "H1 H2".
+    iApply (imp_par' with "H1 H2").
+    iIntros (??) "$ $".
+  Qed.
+
+  Context {A X V : Type} `{Observe A V}.
+  Context {ζ : X → iProp Σ} {Φ : A → iProp Σ}.
+  Implicit Types P Q : iProp Σ.
+  Implicit Types Φ : A → iProp Σ.
+  Implicit Types m : micro V X.
 
   Lemma imp_try2 `{Observe A1 V1} {X1}
     (Φ' : A1 → iProp Σ) (ζ' : X1 → iProp Σ) (m : micro V1 X1)
@@ -454,42 +530,26 @@ Section micro_combinators.
     - done.
   Qed.
 
-  Lemma imp_Par2 `{Observe A1 V1} `{Observe A2 V2} {X'}
-    Φ1 ζ1 Φ2 ζ2 m1 m2 (k : outcome2 (V1 * V2) X' → micro V X) :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
-    (∀ e, ζ1 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ e, ζ2 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H1 H2 Hjoin".
-    iApply (ewp_Par with "H1 H2").
-    iSplit; last iSplit.
-    - iDestruct "Hjoin" as "[$ _]".
-    - iDestruct "Hjoin" as "[_ [$ _]]".
-    - iIntros (v1 v2) "(%x & -> & HΦ1) (%y & -> & HΦ2)".
-      iApply ("Hjoin" with "HΦ1 HΦ2").
-  Qed.
-
-  Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2}
-    Φ1 Φ2 m1 m2 (k : outcome2 (V1 * V2) X → micro V X) :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-    (∀ e, ζ e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H1 H2 Hjoin".
-    iApply (ewp_Par with "H1 H2").
-    iSplit; last iSplit.
-    - iDestruct "Hjoin" as "[$ _]".
-    - iDestruct "Hjoin" as "[$ _]".
-    - iIntros (v1 v2) "(%x & -> & HΦ1) (%y & -> & HΦ2)".
-      iApply ("Hjoin" with "HΦ1 HΦ2").
-  Qed.
 
 End micro_combinators.
+
+Lemma imp_bind_par `{!osirisGS Σ} {V : Type} {E Ψ ζ} `{Observe A V} `{Observe A1 V1} `{Observe A2 V2}
+  {Φ : A → iProp Σ}
+  (Φ1 : A1 → iProp Σ) (Φ2 : A2 → iProp Σ) m1 m2 (f : (V1 * V2) → micro V exn) :
+  imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+  imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+  (∀ a1 a2, Φ1 a1 -∗ Φ2 a2 -∗
+            ▷ imp (f (♯a1, ♯a2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+  imp (bind (par m1 m2) f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+Proof.
+  iIntros "H1 H2 P".
+  iApply (imp_bind with "[-]").
+  iApply (imp_par' with "H1 H2").
+  iIntros (??) "HΦ1 HΦ2".
+  instantiate (1:=λ '(x, y), impure E (f (♯x, ♯y)) _ _ _).
+  iApply ("P" with "HΦ1 HΦ2").
+  iIntros ([??]) "$".
+Qed.
 
 Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} (m : micro V X) ζ Φ :
   pure m Φ ζ →
