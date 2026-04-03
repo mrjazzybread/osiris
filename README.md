@@ -41,7 +41,7 @@ It is known to compile with the following versions of the packages:
 | `pprint`        | -       | -                                            |
 | `ocaml-compiler-libs` | - | -                                            |
 | `dune`          | 3.21.0  | -                                            |
-| `rocq`          | 9.0.0   | https://rocq-prover.org/opam/released        |
+| `rocq`          | 9.1.0   | https://rocq-prover.org/opam/released        |
 | `rocq-iris`     | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `rocq-stdpp`    | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `rocq-equations`| 1.3.1+9.1 | -                                         |
