@@ -21,7 +21,7 @@ Section monotonicity.
     E1 ⊆ E2 →
     impure E1 m Ψ1 ζ1 Φ1 -∗
     (Ψ1 ⊑ Ψ2)%ieff -∗
-    (∀ e, ζ1 e ={E2}=∗ ζ2 e) ∧ (∀ o, Φ1 o ={E2}=∗ Φ2 o) -∗
+    (∀ e, ζ1 e ={E2}=∗ ζ2 e) ∧ (∀ (a : A), Φ1 a ={E2}=∗ Φ2 a) -∗
     impure E2 m Ψ2 ζ2 Φ2.
   Proof.
     iIntros (HE) "Himp Hprot H".

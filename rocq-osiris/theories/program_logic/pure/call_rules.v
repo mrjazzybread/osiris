@@ -134,8 +134,8 @@ Proof.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_inject2_right. subst.
-  apply Hrec. intros; subst.
-  specialize (IH _ H1). eapply IH; done.
+  apply Hrec. intros y Hwf; subst.
+  specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
 Lemma pure_rec_call_measure_gen `{Encode X, Encode Y} {M}
@@ -154,8 +154,8 @@ Proof.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_inject2_right. subst.
-  apply Hrec. intros; subst.
-  specialize (IH _ H1). eapply IH; done.
+  apply Hrec. intros y Hwf; subst.
+  specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
 Lemma pure_rec_call_measure' `{Encode X, Encode Y} {M}
@@ -175,8 +175,8 @@ Proof.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_inject2_right. subst.
-  apply Hrec. intros; subst.
-  specialize (IH _ H1). eapply IH; done.
+  apply Hrec. intros y Hwf HPy; subst.
+  specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
 Lemma pure_rec_call_measure_gen' `{Encode X, Encode Y} {M}
@@ -196,8 +196,8 @@ Proof.
   simpl; rewrite String.eqb_refl.
   apply pure_wp_bind, pure_wp_ret. simpl.
   apply pure_CEval; rewrite try2_inject2_right. subst.
-  apply Hrec. intros; subst.
-  specialize (IH _ H1). eapply IH; done. done.
+  apply Hrec. intros y Hwf HPy; subst.
+  specialize (IH _ Hwf). eapply IH; done. done.
 Qed.
 
 Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=

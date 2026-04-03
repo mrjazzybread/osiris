@@ -215,8 +215,8 @@ Section pattern_rules.
     pattern η δ p1 #x1 (λ δ', pattern η δ' p2 #x2 φ (ζ2)) (ζ1) ->
     pattern η δ (PPair p1 p2) (VPair v1 v2) φ (ζ1 \/ ζ2).
   Proof.
-    intros; subst.
-    unfold pattern in H3 |- *. simpl_eval_pat.
+    intros Heq1 Heq2 Hpat; subst.
+    unfold pattern in Hpat |- *. simpl_eval_pat.
     destruct (eval_pat η δ p1 #x1); simpl; last auto.
     destruct (eval_pat η e p2 #x2); simpl; auto.
   Qed.

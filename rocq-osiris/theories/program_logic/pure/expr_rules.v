@@ -151,10 +151,10 @@ Proof.
   intros. simpl_evals.
   eapply pure_par_same_exn.
   eapply pure_ret_mono; try done.
-  intros * ?.
-  eapply pure_mono; first eapply H1; eauto.
-  - intros * ?. unfold continue; simpl.
-    cbn in H2; eapply pure_ret; eauto.
+  intros * Hevals.
+  eapply pure_mono; first eapply Hevals; eauto.
+  - intros * Hφ. unfold continue; simpl.
+    cbn in Hφ; eapply pure_ret; eauto.
     cbn; f_equiv.
   - intros; cbn. by apply pure_throw.
 Qed.
@@ -193,14 +193,14 @@ Lemma pure_eval_pair `{Encode A1, Encode A2}
     (λ a1 : A1, pure (eval η e2) (λ a2 : A2, ψ (a1, a2)) ⊥) ⊥ →
   pure (eval η (EPair e1 e2)) ψ ⊥.
 Proof.
-  intros. simpl_eval.
+  intros He1. simpl_eval.
   eapply pure_bind. instantiate (1:= ψ).
   { eapply pure_bind. instantiate (1:= ψ).
     { eapply pure_par_seq.
-      eapply pure_ret_mono. apply H1.
-      intros ? H2.
+      eapply pure_ret_mono. apply He1.
+      intros ? He2.
       eapply pure_bind. instantiate (1:= λ '(a2, l), l = @nil val ∧ ψ (a, a2)).
-      { eapply pure_par. apply H2.
+      { eapply pure_par. apply He2.
         eapply pure_ret. encode. apply eq_refl.
         intros ?? Hψ ->. split; auto. }
       intros [??] (-> & Hψ). simpl.
@@ -222,18 +222,18 @@ Lemma pure_eval_triple `{Encode A1, Encode A2, Encode A3}
               ψ (a1, a2, a3)) ⊥) ⊥) ⊥ ->
   pure (eval η (ETuple [e1; e2; e3])) ψ ⊥.
 Proof.
-  intros. simpl_eval.
+  intros He1. simpl_eval.
   eapply pure_bind. instantiate (1:= ψ).
   { eapply pure_bind. instantiate (1:= λ '(a1, (a2, a3)), ψ (a1, a2, a3)).
     { eapply pure_par_seq.
-      eapply pure_ret_mono. apply H2.
-      intros a1 H3.
+      eapply pure_ret_mono. apply He1.
+      intros a1 He2.
       eapply pure_bind. instantiate (1:= λ '(a2, a3), ψ (a1, a2, a3)).
       { eapply pure_par_seq.
-        eapply pure_ret_mono. apply H3.
-        intros a2 H4.
+        eapply pure_ret_mono. apply He2.
+        intros a2 He3.
         eapply pure_bind. instantiate (1:= λ '(a3, l), l = @nil val ∧ ψ (a1, a2, a3)).
-        { eapply pure_par. apply H4.
+        { eapply pure_par. apply He3.
           eapply pure_ret. encode. apply eq_refl.
           intros ?? Hψ ->. split; auto. }
         intros (a3 & ?) (-> & Hψ).
@@ -874,11 +874,11 @@ Proof.
   eapply pure_bind. instantiate (1:=λ '(v1, v2), v1 = x1 ∧ v2 = x2).
   { eapply pure_par; eauto. }
   intros [??] (-> & ->).
-  eapply pure_bind.
-  { unfold observe, observe_encode. rewrite Ef.
-    eapply pure_ret. reflexivity. apply eq_refl. }
-  intros ? ->.
-  eapply pure_ret. encode. apply Ha.
+  eapply (pure_bind (A1:=bool)).
+  { simpl. rewrite Ef.
+    eapply pure_ret. encode. apply Ha. }
+  intros ? Hφ.
+  eapply pure_ret. encode. apply Hφ.
 Qed.
 
 (* Boolean operations *)
@@ -1338,7 +1338,7 @@ Definition branches `{Encode A}
   (η : env) (o : outcome3 val exn) bs (φ : A -> Prop) Ψ :=
   pure (eval_branches η o bs) φ Ψ.
 
-Arguments branches {A} {H} _ _ _ _.
+Arguments branches {A} {EncodeA} _ _ _ _ : rename.
 
 (* Properties about [branches] *)
 
@@ -1349,7 +1349,7 @@ Lemma branches_cons_unary `{Encode A} η o cp e bs (φ : A -> Prop) ψ :
   branches η o (Branch cp e :: bs) φ ψ.
 Proof.
   unfold branches.
-  intros; simpl_eval_branches. unfold cpattern in H0.
+  intros Hcpat; simpl_eval_branches. unfold cpattern in Hcpat.
   destruct (eval_cpat η η cp o); auto.
 Qed.
 

@@ -239,9 +239,9 @@ Section pure_rules.
     (φ : A3 → Prop) ψ
   :
     pure (E := E) m1
-      (λ a1,
+      (λ (a1 : A1),
         pure m2
-          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ψ)
+          (λ (a2 : A2), pure (continue k (♯ a1, ♯ a2)) φ ψ)
           (λ e : E, pure (discontinue k e) φ ψ))
       ⊥ →
     pure (E := E') (Par m1 m2 k) φ ψ.
@@ -259,8 +259,8 @@ Section pure_rules.
     φ ψ
   :
     pure (E := E) m1
-      (λ a1,
-        pure m2 (λ a2, φ (a1, a2)) ψ)
+      (λ (a1 : A1),
+        pure m2 (λ (a2 : A2), φ (a1, a2)) ψ)
       ⊥ →
     pure (E := E) (par m1 m2) φ ψ.
   Proof.
@@ -280,9 +280,9 @@ Section pure_rules.
     (φ : A3 → Prop) ζ
     :
      pure (E := E) m1
-      (λ a1,
+      (λ (a1 : A1),
         pure m2
-          (λ a2, pure (continue k (♯ a1, ♯ a2)) φ ζ)
+          (λ (a2 : A2), pure (continue k (♯ a1, ♯ a2)) φ ζ)
           (λ e : E, pure (discontinue k e) φ ζ))
       ζ →
      pure (Par m1 m2 k) φ ζ.
