@@ -4,7 +4,7 @@ From iris.base_logic.lib Require Import gen_heap invariants.
 From osiris.lang Require Import lang.
 From osiris.tactics Require Import osiris_utils.
 From osiris.program_logic Require Import thread_step ewp tactics.
-From osiris.program_logic.rules Require Import impure_rules stop_rules.
+From osiris.program_logic.rules Require Import basic_rules impure_rules stop_rules.
 
 Import ewp_rules_tactics.
 
@@ -76,6 +76,39 @@ Proof.
   destruct v; try by constructor.
   by econstructor.
 Qed.
+
+(* TCEq instances for to_eff and to_join: all concrete atomic operations
+   are neither [Stop CPerf] nor [Stop CJoin], so both projections return [None]. *)
+
+Global Instance to_eff_crash {V X} : TCEq (to_eff (@Crash V X)) None.
+Proof. constructor. Qed.
+Global Instance to_join_crash {V X} : TCEq (to_join (@Crash V X)) None.
+Proof. constructor. Qed.
+
+Global Instance to_eff_load l : TCEq (to_eff (load l)) None.
+Proof. constructor. Qed.
+Global Instance to_join_load l : TCEq (to_join (load l)) None.
+Proof. constructor. Qed.
+
+Global Instance to_eff_exchange l v : TCEq (to_eff (exchange l v)) None.
+Proof. constructor. Qed.
+Global Instance to_join_exchange l v : TCEq (to_join (exchange l v)) None.
+Proof. constructor. Qed.
+
+Global Instance to_eff_store l v : TCEq (to_eff (code.store l v)) None.
+Proof. constructor. Qed.
+Global Instance to_join_store l v : TCEq (to_join (code.store l v)) None.
+Proof. constructor. Qed.
+
+Global Instance to_eff_cas l seen v : TCEq (to_eff (cas l seen v)) None.
+Proof. constructor. Qed.
+Global Instance to_join_cas l seen v : TCEq (to_join (cas l seen v)) None.
+Proof. constructor. Qed.
+
+Global Instance to_eff_faa l i : TCEq (to_eff (faa l i)) None.
+Proof. constructor. Qed.
+Global Instance to_join_faa l i : TCEq (to_join (faa l i)) None.
+Proof. constructor. Qed.
 
 Section imp_atomic_rules.
 

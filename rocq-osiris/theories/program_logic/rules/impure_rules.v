@@ -179,9 +179,10 @@ Section updates.
 
   Import ewp_rules_tactics.
 
-  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!thread_step.Atomic m} :
-    (* TCEq (to_eff m) None → *)
-    (* TCEq (to_join m) None → *)
+  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!thread_step.Atomic m}
+    `{TCEq (option val) (to_eff m) None}
+    `{TCEq (option thread) (to_join m) None}
+    :
     (|={E,E2}=> impure E2 m Ψ (λ e, |={E2,E}=> ζ e) (λ o, |={E2,E}=> Φ o)) ⊢ impure E m Ψ ζ Φ.
   Proof.
     iIntros "He".
@@ -192,9 +193,10 @@ Section updates.
     - by iMod "H" as "$".
   Qed.
 
-  Lemma imp_atomic E E2 m Ψ Φ `{!thread_step.Atomic m} :
-    (* TCEq (to_eff m) None → *)
-    (* TCEq (to_join m) None → *)
+  Lemma imp_atomic E E2 m Ψ Φ `{!thread_step.Atomic m}
+    `{TCEq (option val) (to_eff m) None}
+    `{TCEq (option thread) (to_join m) None}
+      :
     (|={E,E2}=> impure E2 m Ψ ⊥ (λ o, |={E2,E}=> Φ o)) ⊢ impure E m Ψ ⊥ Φ.
   Proof.
     iIntros "He".
@@ -246,20 +248,28 @@ Section proofmode_classes.
       (|={E2}=> P) False (impure E1 m Ψ ζ Φ) False | 100.
   Proof. intros []. Qed.
 
-  Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ :
-    ElimModal (thread_step.Atomic m) p false
+  Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ
+      `{!thread_step.Atomic m}
+      `{TCEq (option val) (to_eff m) None}
+      `{TCEq (option thread) (to_join m) None}
+    :
+    ElimModal True p false
             (|={E1,E2}=> P) P
             (impure E1 m Ψ ⊥ Φ) (impure E2 m Ψ ⊥ (λ o, |={E2,E1}=> Φ o))%I | 99.
   Proof.
-    intros ?. by rewrite bi.intuitionistically_if_elim
+    intros _. by rewrite bi.intuitionistically_if_elim
       fupd_frame_r bi.wand_elim_r imp_atomic.
   Qed.
-  Global Instance elim_modal_fupd_imp_atomic' p E1 E2 m Ψ ζ P Φ :
-    ElimModal (thread_step.Atomic m) p false
+  Global Instance elim_modal_fupd_imp_atomic' p E1 E2 m Ψ ζ P Φ
+      `{!thread_step.Atomic m}
+      `{TCEq (option val) (to_eff m) None}
+      `{TCEq (option thread) (to_join m) None}
+    :
+    ElimModal True p false
             (|={E1,E2}=> P) P
             (impure E1 m Ψ ζ Φ) (impure E2 m Ψ (λ e, |={E2,E1}=> ζ e) (λ o, |={E2,E1}=> Φ o))%I | 100.
   Proof.
-    intros ?. by rewrite bi.intuitionistically_if_elim
+    intros _. by rewrite bi.intuitionistically_if_elim
       fupd_frame_r bi.wand_elim_r imp_atomic'.
   Qed.
   (* Error message instance for mask-changing view shifts. *)
@@ -276,24 +286,32 @@ Section proofmode_classes.
   Proof. by rewrite /AddModal fupd_frame_r bi.wand_elim_r fupd_imp. Qed.
 
 
-  Global Instance elim_acc_imp_atomic {Y} E1 E2 α β γ m Ψ Φ :
-    ElimAcc (X:=Y) (thread_step.Atomic m)
+  Global Instance elim_acc_imp_atomic {Y} E1 E2 α β γ m Ψ Φ
+      `{!thread_step.Atomic m}
+      `{TCEq (option val) (to_eff m) None}
+      `{TCEq (option thread) (to_join m) None}
+    :
+    ElimAcc (X:=Y) True
             (fupd E1 E2) (fupd E2 E1)
             α β γ (impure E1 m Ψ ⊥ Φ)
             (λ x, impure E2 m Ψ ⊥ (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 99.
   Proof.
-    iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iIntros (_) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
     iApply (imp_mono_exn _ _ _ ⊥). iIntros (? []).
     iApply (imp_wand with "(Hinner Hα)").
     iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
   Qed.
-  Global Instance elim_acc_imp_atomic' {Y} E1 E2 α β γ m Ψ ζ Φ :
-    ElimAcc (X:=Y) (thread_step.Atomic m)
+  Global Instance elim_acc_imp_atomic' {Y} E1 E2 α β γ m Ψ ζ Φ
+      `{!thread_step.Atomic m}
+      `{TCEq (option val) (to_eff m) None}
+      `{TCEq (option thread) (to_join m) None}
+    :
+    ElimAcc (X:=Y) True
             (fupd E1 E2) (fupd E2 E1)
             α β γ (impure E1 m Ψ ζ Φ)
             (λ x, impure E2 m Ψ (λ e, |={E2}=> β x ∗ (γ x -∗? ζ e)) (λ v, |={E2}=> β x ∗ (γ x -∗? Φ v)))%I | 100.
   Proof.
-    iIntros (?) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
+    iIntros (_) "Hinner >Hacc". iDestruct "Hacc" as (x) "[Hα Hclose]".
     iApply (imp_wand' with "(Hinner Hα)").
     iSplit.
     - iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".

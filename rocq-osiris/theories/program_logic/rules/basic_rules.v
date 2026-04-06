@@ -122,17 +122,29 @@ Section ewp.
     ewp_def E m Ψ Q.
   Proof. iIntros "He". ewp_mono with "He". Qed.
 
+  Definition to_eff m :=
+    match m with
+    | Stop CPerf e k => Some e
+    | _ => None
+    end.
+
+  Definition to_join m :=
+    match m with
+    | Stop CJoin ι k => Some ι
+    | _ => None
+    end.
+
   Lemma ewp_atomic E E2 m Ψ Q `{!thread_step.Atomic m} :
-    (* TCEq (to_eff m) None → *)
-    (* TCEq (to_join m) None → *)
+    TCEq (to_eff m) None →
+    TCEq (to_join m) None →
     (|={E,E2}=> ewp_def E2 m Ψ (λ o, |={E2,E}=> Q o)) ⊢ ewp_def E m Ψ Q.
   Proof.
-    iIntros "Hm".
+    iIntros "%Heff %Hjoin Hm".
     ewp_unfold_all.
     ewp_case m.
     { by iDestruct "Hm" as ">>> $". }
     { by iDestruct "Hm" as ">> []". }
-    { admit. }
+    { inversion Heff. }
     { intro_state.
       iMod "Hm".
 
@@ -150,21 +162,8 @@ Section ewp.
       - ewp_unfold_all.
         by iDestruct "Hewp" as ">[]". }
 
-    { intro_state.
-      iMod "Hm".
-
-      spec_state. iMod "Hm". iModIntro.
-
-      inversion Hhm; subst.
-      destruct (π !! t).
-      - iDestruct "Hm" as "(%φ' & $ & Hm)".
-        iIntros "!>" (o) "Hφ'".
-        iSpecialize ("Hm" with "Hφ'").
-        ewp_mask_elim. iMod "Hm" as "(Hewp & $)".
-        (* Use atomicity. *)
-        admit.
-      - iMod "Hm" as ">[]". }
-  Admitted.
+    { inversion Hjoin. }
+  Qed.
 
   (** Derived rules *)
 
