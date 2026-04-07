@@ -83,6 +83,18 @@ pin:
 	$(PIN) ppx_sexp_conv v0.17.1
 	$(PIN) ppx_deriving 6.1.1
 
+.PHONY: create-mcp-json
+create-mpc-json:
+	$(file > .mcp.json, {"mcpServers": {"rocq-mcp": {"command": "$(PWD)/osirisvenv/bin/rocq-mcp","env": {"ROCQ_WORKSPACE": "$(PWD)"}}}})
+
+# We leave it up to the user to install rocq-mcp into the osirisvenv virtual environment
+
+.PHONY: install-rocq-mcp-deps
+install-rocq-mcp:
+	$(INSTALL) logs lwt coq-lsp
+	python3 -m venv osirisvenv
+	$(MAKE) create-mcp-json
+
 .PHONY: emacs
 emacs:
 	$(INSTALL) tuareg merlin ocp-indent
