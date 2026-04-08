@@ -241,6 +241,15 @@ Section imp_rules_expr.
     by iApply imp_ret.
   Qed.
 
+  Lemma imp_EConstant' `{Encode A} {Φ : A → iProp Σ} {ζ} (a : A) η c :
+    VConstant c = #a →
+    Φ a -∗
+    imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Henc) "HΦ". simpl_eval.
+    by iApply (imp_ret with "HΦ").
+  Qed.
+
   (** * EXData : data → expr → expr *)
   Lemma imp_EXData `{Encode A} {ζ} η π l es (Φs : list (val → iProp Σ)) (Φ : A → iProp Σ) :
     lookup_path η π = Some #l →

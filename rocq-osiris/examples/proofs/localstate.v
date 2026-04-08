@@ -293,9 +293,7 @@ Section verification.
     { iApply (imp_EAnon_pers τ[unit]).
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
-      iApply (imp_EMatch (A':=unit)).
-      { imp_path. }
-      iIntros (? ->) "!>".
+      imp_match unit.
       next_branch.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).

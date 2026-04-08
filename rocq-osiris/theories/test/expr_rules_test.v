@@ -147,10 +147,10 @@ Lemma simple_PAny_match η :
       [Branch (CVal PAny) (EConstant "true")])
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
-  iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
-  iIntros (?) "-> !>".
+  iStartProof.
+  imp_match Z.
   next_branch.
-  iApply imp_EConstant; auto; encode.
+  imp_constant.
 Qed.
 
 (* match 1 with 1 -> true | _ -> false *)
@@ -162,10 +162,10 @@ Lemma simple_PInt_eq_match η :
        Branch (CVal  PAny   ) (EConstant "false")])
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
-  iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
-  iIntros (?) "-> !>".
+  iStartProof.
+  imp_match Z.
   next_branch.
-  - iApply imp_EConstant; auto; encode.
+  - imp_constant.
   - auto.
 Qed.
 
@@ -179,15 +179,12 @@ Lemma simple_true_true_match `{Encode A} η :
        Branch (CVal (PConstant "[]")) (EInt 2)])
     {{ λ i, ⌜i = 2%Z⌝ }}.
 Proof.
-  iApply (imp_EMatch (A':=list A)).
-  instantiate (1 := (λ l, ⌜l=[]⌝)%I).
-  iApply imp_EConstant; last done. encode.
-
-  iIntros (?) "-> !>".
+  iStartProof.
+  imp_match (list A).
   next_branch.
   next_branch.
-  - iApply imp_EInt.
-  - auto.
+  imp_int.
+  auto.
 Qed.
 
 End test_expr_rules.

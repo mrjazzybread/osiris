@@ -305,6 +305,87 @@ Tactic Notation "imp_if" "with" constr(sel) :=
   tac sel.
 Tactic Notation "imp_if" := ltac2:(imp_if_tac None).
 
+(* [imp_constant_tac v sel] applies either [imp_EConstant ?v] or
+   [imp_EConstant' ?v], depending on whether resources were passed via
+   [sel] or not. *)
+
+Ltac2 imp_constant_tac (v : constr option) (sel : constr option) :=
+  let specialized_const :=
+    match v, sel with
+    | None, None => 'imp_EConstant
+    | None, Some _ => '(imp_EConstant')
+    | Some a, None => '(imp_EConstant $a)
+    | Some a, Some _ => '(imp_EConstant' $a)
+    end
+  in
+  match sel with
+  | None =>
+      iApply $specialized_const; ltac1:(encode)
+  | Some s =>
+      iApply ($specialized_const with $s) >
+        [ ltac1:(encode) | ]
+  end.
+
+Tactic Notation "imp_constant" constr(a) "with" constr(sel) :=
+  let tac := ltac2:(a sel |- imp_constant_tac (Ltac1.to_constr a) (Ltac1.to_constr sel)) in
+  tac a sel.
+Tactic Notation "imp_constant" "with" constr(sel) :=
+  let tac := ltac2:(sel |- imp_constant_tac None (Ltac1.to_constr sel)) in
+  tac sel.
+Tactic Notation "imp_constant" constr(a) :=
+  let tac := ltac2:(a |- imp_constant_tac (Ltac1.to_constr a) None) in
+  tac a.
+Tactic Notation "imp_constant" := ltac2:(imp_constant_tac None None).
+
+(* [imp_match] applies the [imp_EMatch] rule to a goal of the form
+   [imp eval η (EMatch e bs) ...].  It dispatches two subgoals:
+     1. the scrutinee expression [imp eval η e {{ Φ' }}], which [imp_step]
+        is tried on automatically;
+     2. the continuation [∀ a : A', Φ' a -∗ ▷ imp eval_branches η (O2Ret #a) bs ...],
+        left for the user to handle with [iIntros] and [next_branch].
+   Optionally, the intermediate type [A'] of the scrutinee can be given as
+   an argument to fix the [Encode A'] instance.  If omitted, Rocq leaves it
+   as an evar to be resolved from the scrutinee goal. *)
+
+Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
+  let e := get_expr () in
+  lazy_match! eval hnf in $e with
+  | EMatch _ _ =>
+      let specialized_match :=
+        match a' with
+        | Some a => open_constr:(imp_EMatch (A':=$a))
+        | None => 'imp_EMatch
+        end
+      in
+      (match selpat with
+       | None => iApply $specialized_match
+       | Some sel => iApply ($specialized_match with $sel)
+       end) >
+        [ try (imp_step) | simple_intros () ]
+  | _ =>
+      Control.zero (Tactic_failure
+        (Some (fprintf "[imp_match] Expected EMatch expression, got %t" e)))
+  end.
+
+Ltac2 Notation "imp_match" a'(constr) := imp_match_tac (Some a') None.
+Ltac2 Notation "imp_match" := imp_match_tac None None.
+Ltac2 Notation "imp_match" a'(constr) "with" sel(constr) :=
+  imp_match_tac (Some a') (Some sel).
+Ltac2 Notation "imp_match" "with" sel(constr) :=
+  imp_match_tac None (Some sel).
+
+Tactic Notation "imp_match" constr(a') :=
+  let tac := ltac2:(a' |- imp_match_tac (Ltac1.to_constr a') None) in
+  tac a'.
+Tactic Notation "imp_match" := ltac2:(imp_match_tac None None).
+Tactic Notation "imp_match" constr(a') "with" constr(sel) :=
+  let tac := ltac2:(a' sel |-
+                      imp_match_tac (Ltac1.to_constr a') (Ltac1.to_constr sel)) in
+  tac a' sel.
+Tactic Notation "imp_match" "with" constr(sel) :=
+  let tac := ltac2:(sel |- imp_match_tac None (Ltac1.to_constr sel)) in
+  tac sel.
+
 From iris.proofmode Require Import ltac_tactics.
 
 Set Default Proof Mode "Classic".

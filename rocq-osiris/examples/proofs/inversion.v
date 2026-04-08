@@ -241,8 +241,8 @@ Section verification.
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
         next_branch.
-        iApply imp_wand. { iApply (imp_EConstant Nil); encode. }
-        iIntros (?) "->". done. }
+        imp_constant (@Nil A) with "[]".
+        iPureIntro; apply Hcomplete. }
 
       (* Exceptional case: *)
       { iIntros (? []). }
@@ -272,11 +272,11 @@ Section verification.
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
-          iApply (imp_EMatch (A':=unit)).
-          { instantiate (1 := (λ v, ⌜v = tt⌝)%I). (* imp_path. *)
+          imp_match unit.
+          { set_postcondition (λ v, @bi_pure (iProp Σ) (v = tt))%I. (* imp_path. *)
             iApply imp_EPath; auto. reflexivity. }
 
-          iIntros ([]) "_ !>".
+          iIntros "->".
           next_branch.
 
           (* [continue k ()] *)
@@ -306,9 +306,7 @@ Section verification.
     Proof.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
-      iApply (imp_EMatch (A':=val)).
-      { imp_path. }
-      iIntros (?) "-> !>".
+      imp_match val.
       next_branch.
 
       (* Initialise handler view and iterator view. *)
@@ -363,9 +361,7 @@ Section verification.
       iApply imp_please; iNext.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
-      iApply (imp_EMatch (A' := unit)).
-      { imp_path. }
-      iIntros ([]) "_ !>".
+      imp_match unit.
       next_branch.
 
       (* [match_with iter yield { ...] *)
