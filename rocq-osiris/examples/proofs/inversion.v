@@ -258,12 +258,7 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        next_branch.
-        iApply deep_handle_cons.
-        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-          apply pat_PXData_eq. assumption.
-          apply pats_PCons_unary. pattern_match. }
-        iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
+        next_branch. next_branch.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         iApply (imp_EData _ _ _ [_;_] with "[-]").

@@ -207,12 +207,14 @@ Ltac2 rec solve_lookup_name () :=
   end;
   (* We now have two cases:
      - Using a hypothesis or simplification has produced a goal of
-       the form [ret v = ret v].
-     - Using a hypothesis has led us to a new lookup *)
-  match! goal with
-  | [ |- ?_a = ?_a ] => reflexivity
-  | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
-  end.
+       the form [Some v = Some v] (possibly up to definitional equality).
+     - Using a hypothesis has led us to a new lookup.
+     We try [reflexivity] first (handles definitional equality), then recurse. *)
+  Control.plus
+    (fun _ => reflexivity)
+    (fun _ => lazy_match! goal with
+              | [ |- lookup_name _ _ = _ ] => solve_lookup_name ()
+              end).
 
 (* LATER: Move? *)
 

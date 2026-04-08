@@ -205,8 +205,7 @@ Section verification.
         iApply (imp_EContinue (B:=state) with "[] [Hl]"); try imp_step.
 
         iIntros (? ? ->) "[-> Hl]".
-        iApply "H_READ". iApply ("IH" with "Hauth Hl").
-      - tauto. }
+        iApply "H_READ". iApply ("IH" with "Hauth Hl"). }
 
     (* -------------------------------------------------------------------------- *)
     { (* WRITE case *)
@@ -242,8 +241,7 @@ Section verification.
         iApply (imp_EContinue (B:=unit)); try imp_step.
         iIntros (??) "-> -> !>".
         iApply ("H_WRITE" with "Hx").
-        iApply ("IH" with "Hauth Hl"). }
-      tauto. }
+        iApply ("IH" with "Hauth Hl"). } }
   Qed.
 
   End alloc_effects.

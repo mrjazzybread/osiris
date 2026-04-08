@@ -79,7 +79,10 @@ Ltac2 do_iintros () :=
              with [auto]/[reflexivity] when P is a tautology (e.g. [1 = 1]). *)
           ltac1:(iIntros ([]))
       | ⌜_⌝%I =>
-          ltac1:(_iIntros0 (intro_patterns.IPure (intro_patterns.IGallinaAnon)))
+          ltac1:(_iIntros0 (intro_patterns.IPure (intro_patterns.IGallinaAnon)));
+          (* If the introduced hypothesis is False-valued (e.g. [(False ∨ False) ∨ False]
+             from a no-match branch), close the goal immediately via exfalso. *)
+          try ltac1:(exfalso; tauto)
       | _ => iIntros "?"
       end
   | _ => ()

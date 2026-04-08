@@ -148,12 +148,7 @@ Section verification.
 
     unfold is_shift.
 
-    iModIntro. next_branch.
-    iApply deep_handle_cons.
-    { iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
-      eapply pat_PXData_eq; first eassumption.
-      eapply pats_PCons_unary. pattern_match. }
-    iSplit; [ iIntros (? ->) | iIntros (Hf); tauto ].
+    iModIntro. next_branch. next_branch.
     iApply (imp_EApp τ[cont] with "[Hg] []"); try imp_step.
     iIntros (? -> m) "Hwp".
     iApply "Hwp".
