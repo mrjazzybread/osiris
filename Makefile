@@ -1,9 +1,17 @@
 PWD := $(shell pwd)
 
+.PHONY: theory
+theory:
+	@ make --no-print-directory -C rocq-osiris
+
+.PHONY: translator
+translator:
+	@ make --no-print-directory -C osiris
+
 .PHONY: all
 all:
 # Build the Osiris translator.
-	@ make --no-print-directory -C osiris
+	$(MAKE) translator
 # Compile the OCaml source code of the OCaml standard library.
 	@ cd rocq-osiris/theories/stdlib/src && dune build .
 # Compile the OCaml source code of our examples.
@@ -23,7 +31,7 @@ all:
 #	@ cd rocq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
 	@ cd rocq-osiris/examples && mv src/*.v .
 # Now compile all of the rocq code.
-	@ make --no-print-directory -C rocq-osiris
+	$(MAKE) theory
 
 .PHONY: clean
 clean:
@@ -85,7 +93,7 @@ pin:
 
 .PHONY: create-mcp-json
 create-mpc-json:
-	$(file > .mcp.json, {"mcpServers": {"rocq-mcp": {"command": "$(PWD)/osirisvenv/bin/rocq-mcp","env": {"ROCQ_WORKSPACE": "$(PWD)"}}}})
+	@ $(file > .mcp.json, {"mcpServers": {"rocq-mcp": {"command": "$(PWD)/osirisvenv/bin/rocq-mcp","env": {"ROCQ_WORKSPACE": "$(PWD)"}}}})
 
 # We leave it up to the user to install rocq-mcp into the osirisvenv virtual environment
 
