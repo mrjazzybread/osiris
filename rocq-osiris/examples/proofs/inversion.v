@@ -240,10 +240,7 @@ Section verification.
       { iIntros ([]) "(%Xs & HiterView & %Hcomplete)".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
-        iApply deep_handle_cons.
-        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-          pattern_match. apply eq_refl. }
-        iSplit; [ iIntros (? <-) | iIntros ([]) ].
+        next_branch.
         iApply imp_wand. { iApply (imp_EConstant Nil); encode. }
         iIntros (?) "->". done. }
 
@@ -261,9 +258,7 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        iApply deep_handle_cons.
-        { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). }
-        iSplit; [ iIntros (? []) | iIntros (_) ].
+        next_branch.
         iApply deep_handle_cons.
         { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
           apply pat_PXData_eq. assumption.
@@ -287,10 +282,7 @@ Section verification.
             iApply imp_EPath; auto. reflexivity. }
 
           iIntros ([]) "_ !>".
-          iApply deep_handle_cons.
-          { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-            pattern_match. apply eq_refl. }
-          iSplit; [ iIntros (? <-) | iIntros ([]) ].
+          next_branch.
 
           (* [continue k ()] *)
           iApply (imp_EContinue (B:=unit)); try imp_step.
@@ -322,10 +314,7 @@ Section verification.
       iApply (imp_EMatch (A':=val)).
       { imp_path. }
       iIntros (?) "-> !>".
-      iApply deep_handle_cons.
-      { iPureIntro.
-        ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
-      iSplit; [ iIntros (? <-) | iIntros ([]) ].
+      next_branch.
 
       (* Initialise handler view and iterator view. *)
       iApply fupd_imp.
@@ -382,10 +371,7 @@ Section verification.
       iApply (imp_EMatch (A' := unit)).
       { imp_path. }
       iIntros ([]) "_ !>".
-      iApply deep_handle_cons.
-      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-        pattern_match. apply eq_refl. }
-      iSplit; [ iIntros (? <-) | iIntros ([]) ].
+      next_branch.
 
       (* [match_with iter yield { ...] *)
       iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").

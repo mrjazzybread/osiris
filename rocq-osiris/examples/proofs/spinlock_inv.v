@@ -75,10 +75,7 @@ Proof.
     iApply (imp_EMatch (A':=unit)).
     { imp_path. }
     iIntros (? ->) "!>".
-    iApply deep_handle_cons.
-    { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
-    iSplit; last iIntros ([]).
-    iIntros (?) "<-".
+    next_branch.
     (* After [ref false] we have [l ↦ #false]; use it to build the invariant. *)
     iApply (imp_wand).
     { imp_ref false. }

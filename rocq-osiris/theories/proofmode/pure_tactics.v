@@ -491,11 +491,19 @@ Local Ltac2 rec pattern_match_aux () :=
           eapply pat_pNil > [ solve [ ltac1:(encode) ]
                             | continue_matching () ]
       | pCons _ _ =>
-          eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                             | continue_matching () ]
+          (* Try [pat_PData_neq] first: if the value is a known non-cons
+             constructor (e.g. [VNil = VData "[]" []]), this closes the
+             no-match subgoal as [True] without leaving behind any ζ evars.
+             Fall back to [pat_pCons] for actual cons values or unknowns. *)
+          Control.plus
+            (fun _ => eapply pat_PData_neq > [ ltac1:(congruence) ])
+            (fun _ => eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                                         | continue_matching () ])
       | PData "::" _ =>
-          eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                             | continue_matching () ]
+          Control.plus
+            (fun _ => eapply pat_PData_neq > [ ltac1:(congruence) ])
+            (fun _ => eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                                         | continue_matching () ])
       | PXData _ _ =>
           Control.plus
             (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])

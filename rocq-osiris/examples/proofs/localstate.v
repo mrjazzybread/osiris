@@ -178,9 +178,7 @@ Section verification.
 
     { (* Value case *)
       iIntros (?) "Hspec"; iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
-      iSplit; last iIntros ([]).
-      iIntros (? ->).
+      next_branch.
       iApply (imp_EPair with "[Hl]"); try imp_step.
       iIntros (? ?) "(-> & Hl) ->". iApply "Hspec". }
     (* Finally, we prove the specification over handler. *)
@@ -198,20 +196,17 @@ Section verification.
       iDestruct (ghost_var_agree with "H") as %->.
 
       iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-      iSplit; [ iIntros (? []) | iIntros (_) ].
-      iApply deep_handle_cons.
-      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
-      iSplit ; [ iIntros (? ->) | iIntros ([[] | []]) ].
+      next_branch.
+      next_branch.
+      - (* EWP Goal: [continue k (!var : t)]. *)
+        iDestruct "H" as "(Hauth & Hx)".
+        iSpecialize ("H_READ" with "Hx"). simpl.
+        fold eval.
+        iApply (imp_EContinue (B:=state) with "[] [Hl]"); try imp_step.
 
-      (* EWP Goal: [continue k (!var : t)]. *)
-      iDestruct "H" as "(Hauth & Hx)".
-      iSpecialize ("H_READ" with "Hx"). simpl.
-      fold eval.
-      iApply (imp_EContinue (B:=state) with "[] [Hl]"); try imp_step.
-
-      iIntros (? ? ->) "[-> Hl]".
-      iApply "H_READ". iApply ("IH" with "Hauth Hl"). }
+        iIntros (? ? ->) "[-> Hl]".
+        iApply "H_READ". iApply ("IH" with "Hauth Hl").
+      - tauto. }
 
     (* -------------------------------------------------------------------------- *)
     { (* WRITE case *)
@@ -222,9 +217,7 @@ Section verification.
 
       (* Skip the return, exception, and [Get] branches. *)
       iNext.
-      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-      iSplit; first iIntros (? []).
-      iIntros (_).
+      next_branch.
       iApply deep_handle_cons.
       { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
         (* This causes a Match_failure, why?
@@ -233,8 +226,7 @@ Section verification.
         assumption. }
       iSplit; first iIntros (? []).
       instantiate (1 := False). iIntros "%no_match2".
-      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
-      iSplit; [ iIntros (? ->) | iIntros "%Hf"; tauto ].
+      next_branch.
       { (* EWP Goal: [var := y; continue k ()]. *)
         iApply (imp_ESeq with "[Hl]").
         { (* EWP Subgoal: [var := y]. *) imp_store l y. }
@@ -250,7 +242,8 @@ Section verification.
         iApply (imp_EContinue (B:=unit)); try imp_step.
         iIntros (??) "-> -> !>".
         iApply ("H_WRITE" with "Hx").
-        iApply ("IH" with "Hauth Hl"). } }
+        iApply ("IH" with "Hauth Hl"). }
+      tauto. }
   Qed.
 
   End alloc_effects.
@@ -305,11 +298,7 @@ Section verification.
       iApply (imp_EMatch (A':=unit)).
       { imp_path. }
       iIntros (? ->) "!>".
-      iApply deep_handle_cons.
-      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
-        apply eq_refl. }
-      iSplit; last iIntros ([]).
-      iIntros (? <-).
+      next_branch.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).
         iApply imp_ret; last done. encode. }

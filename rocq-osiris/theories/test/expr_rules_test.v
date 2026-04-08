@@ -149,9 +149,7 @@ Lemma simple_PAny_match η :
 Proof.
   iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
   iIntros (?) "-> !>".
-  iApply deep_handle_cons.
-  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
-  iSplit; [ iIntros (? ->) | iIntros ([]) ].
+  next_branch.
   iApply imp_EConstant; auto; encode.
 Qed.
 
@@ -166,10 +164,7 @@ Lemma simple_PInt_eq_match η :
 Proof.
   iApply (imp_EMatch (A':=Z)). iApply imp_EInt.
   iIntros (?) "-> !>".
-
-  iApply deep_handle_cons.
-  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
-  iSplit; [ iIntros (? ->) | iIntros ([]) ].
+  next_branch.
   - iApply imp_EConstant; auto; encode.
   - auto.
 Qed.
@@ -189,15 +184,10 @@ Proof.
   iApply imp_EConstant; last done. encode.
 
   iIntros (?) "-> !>".
-  iApply deep_handle_cons.
-  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. }
-  iSplit; [ iIntros (? []) | iIntros "%no_match1" ].
-  iApply deep_handle_cons.
-  { iPureIntro; ltac2:(let _ := specify_cpattern () in ()). pattern_match. apply eq_refl. }
-  iSplit; [ iIntros (? ->) | iIntros ([]); auto ].
-  iApply imp_EInt.
-  Unshelve.
-  refine (λ _, False). refine (λ _, False).
+  next_branch.
+  next_branch.
+  - iApply imp_EInt.
+  - auto.
 Qed.
 
 End test_expr_rules.

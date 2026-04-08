@@ -60,12 +60,24 @@ Ltac prove_handler_spec :=
 Ltac2 do_iintros () :=
   try (iModIntro);
   lazy_match! get_iris_goal () with
+  | bi_forall _ =>
+      (* Match case: [∀ η', ⌜Hη η'⌝ -∗ imp (eval η' e) ...].
+         When [Hη] is a concrete equality [λ η', η' = δ], rewrite with it.
+         When [Hη] is still an evar (unreachable branch), close via [False]. *)
+      Control.plus
+        (fun _ => ltac1:(iIntros (? ->)))
+        (fun _ => ltac1:(iIntros (? [])))
   | bi_wand ?h _ =>
       lazy_match! h with
       | ⌜True⌝%I => iIntros "_"
       | True => iIntros "_"
       | ⌜False⌝%I => iIntros "[]"
       | False => iIntros "[]"
+      | ⌜not _⌝%I =>
+          (* [⌜¬P⌝ -∗ Q]: introduce [H : ¬P] and apply [([])], leaving
+             sub-goal [P].  This lets the user close the no-match case
+             with [auto]/[reflexivity] when P is a tautology (e.g. [1 = 1]). *)
+          ltac1:(iIntros ([]))
       | ⌜_⌝%I =>
           ltac1:(_iIntros0 (intro_patterns.IPure (intro_patterns.IGallinaAnon)))
       | _ => iIntros "?"
@@ -102,10 +114,22 @@ Ltac2 apply_deep_handle_cons () :=
                        if Constr.is_evar g then
                          apply I
                        else
-                         iStartProof
+                         (* [?Hη δ] — the match postcondition evar applied to the
+                            matched environment.  Instantiate [?Hη := λ η', η' = δ]
+                            by proving the goal via [apply eq_refl] (Ltac1, which
+                            uses full higher-order unification), so the continuation's
+                            match case becomes [∀ η', ⌜η' = δ⌝ -∗ imp …].
+                            If this fails the cleanup is simply skipped. *)
+                         Control.plus
+                           (fun _ => ltac1:(apply eq_refl))
+                           (fun _ => ())
                    end))
        else ());
-  last (iSplit; do_iintros).
+  (* Beta-reduce any redexes introduced by evar instantiation
+     (e.g. [⌜(λ η', η' = δ) η'⌝] → [⌜η' = δ⌝]) so that [do_iintros]
+     can recognise the equality and apply [iIntros (? ->)]. *)
+  try (last (fun _ => ltac1:(cbn beta)));
+  last (fun _ => iSplit; Control.enter do_iintros).
 
 
 Ltac2 Notation "next_branch" := apply_deep_handle_cons ().

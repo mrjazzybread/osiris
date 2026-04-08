@@ -138,8 +138,7 @@ Section verification.
 
     (* Base case: we just return the value. *)
     { iIntros (v) "Φ !>".
-      iApply deep_handle_cons. iPureIntro. ltac2:(let _ := specify_cpattern () in ()). pattern_match.
-      iSplit; [ iIntros (? ->) | iIntros ([]) ].
+      next_branch.
       imp_path. }
 
     (* Handler case: an effect is being performed. *)
@@ -149,8 +148,7 @@ Section verification.
 
     unfold is_shift.
 
-    iModIntro. iApply deep_handle_cons. iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
-    iSplit; [ iIntros (? []) | iIntros (_) ].
+    iModIntro. next_branch.
     iApply deep_handle_cons.
     { iPureIntro; ltac2:(let _ := specify_cpattern () in ()).
       eapply pat_PXData_eq; first eassumption.
