@@ -149,7 +149,6 @@ Lemma simple_PAny_match η :
 Proof.
   iStartProof.
   imp_match Z.
-  next_branch.
   imp_constant.
 Qed.
 
@@ -164,7 +163,6 @@ Lemma simple_PInt_eq_match η :
 Proof.
   iStartProof.
   imp_match Z.
-  next_branch.
   - imp_constant.
   - auto.
 Qed.
@@ -181,10 +179,34 @@ Lemma simple_true_true_match `{Encode A} η :
 Proof.
   iStartProof.
   imp_match (list A).
-  next_branch.
-  next_branch.
-  imp_int.
-  auto.
+  - imp_int.
+  - auto.
+Qed.
+
+(* Testing imp_branches: automatically process all match branches *)
+
+Lemma imp_branches_PAny η :
+  ⊢ imp eval η
+    (EMatch (EInt 1)
+      [Branch (CVal PAny) (EConstant "true")])
+    {{ λ b, ⌜b = true⌝ }}.
+Proof.
+  iStartProof.
+  imp_match Z.
+  imp_constant.
+Qed.
+
+Lemma imp_branches_two_branches η :
+  ⊢ imp eval η
+    (EMatch (EInt 1)
+      [Branch (CVal (PInt 1)) (EConstant "true");
+       Branch (CVal  PAny   ) (EConstant "false")])
+    {{ λ b, ⌜b = true⌝ }}.
+Proof.
+  iStartProof.
+  imp_match Z.
+  - imp_constant.
+  - auto.
 Qed.
 
 End test_expr_rules.

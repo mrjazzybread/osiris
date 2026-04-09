@@ -198,7 +198,7 @@ Section imp_rules_expr.
     iApply (imp_bind (A1:=(A * B)) with "[-]").
     { iApply (imp_bind_par (A2:=list B) with "H1 [H2]").
       { iApply (imp_bind_par (A2:=list val) with "H2").
-        { set_postcondition (λ (l : list val), @bi_pure (iProp Σ) (l = [])).
+        { set_postcondition (λ l, ⌜l=[]⌝)%I.
           iApply imp_ret. encode. auto. }
         iIntros (b ?) "HΦ2 -> !>".
         set_postcondition (λ (l : list B), ∃ b, ⌜l = [b]⌝ ∗ Φ2 b)%I.

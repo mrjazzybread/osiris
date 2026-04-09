@@ -474,13 +474,13 @@ Section pattern_rules.
     - destruct (eval_cpat η δ cp2 o); simpl; tauto.
   Qed.
 
-  Lemma cpat_CEff η δ peff pk v k φ ζ1 ζ2 :
-    pattern η δ peff v (λ δ, pattern η δ pk (VCont k) φ ζ2) ζ1 ->
-    cpattern η δ (CEff peff pk) (O3Perform v k) φ (ζ1 \/ ζ2).
+  Lemma cpat_CEff η δ peff pk v k φ ζ1 :
+    pattern η δ peff v (λ δ, pattern η δ pk (VCont k) φ False) ζ1 ->
+    cpattern η δ (CEff peff pk) (O3Perform v k) φ ζ1.
   Proof.
     unfold cpattern, pattern; intros. simpl.
     destruct (eval_pat η δ peff v); simpl.
-    - eapply pattern_mono_exn; eauto.
+    - eapply pattern_mono_exn; eauto. tauto.
     - tauto.
   Qed.
 

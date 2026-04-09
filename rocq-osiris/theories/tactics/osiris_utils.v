@@ -52,6 +52,6 @@ Ltac2 set_postcondition_tac (φ : constr) : unit :=
            (Tactic_failure (Some (Message.of_string "Expected goal of the form [imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}]")))
   end.
 Ltac2 Notation "set_postcondition" φ(open_constr) := set_postcondition_tac φ.
-Tactic Notation "set_postcondition" constr(φ) :=
+Tactic Notation "set_postcondition" open_constr(φ) :=
   let tac := ltac2:(φ |- set_postcondition_tac (Option.get (Ltac1.to_constr φ))) in
   tac φ.

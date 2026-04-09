@@ -240,7 +240,7 @@ Section verification.
       { iIntros ([]) "(%Xs & HiterView & %Hcomplete)".
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
-        next_branch.
+        imp_branches.
         imp_constant (@Nil A) with "[]".
         iPureIntro; apply Hcomplete. }
 
@@ -258,7 +258,7 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
-        next_branch. next_branch.
+        imp_branches.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
         iApply (imp_EData _ _ _ [_;_] with "[-]").
@@ -269,15 +269,11 @@ Section verification.
           iApply (imp_EAnon τ[unit]
                     (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
+          change VUnit with (#()).
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
           imp_match unit.
-          { set_postcondition (λ v, @bi_pure (iProp Σ) (v = tt))%I. (* imp_path. *)
-            iApply imp_EPath; auto. reflexivity. }
-
-          iIntros "->".
-          next_branch.
 
           (* [continue k ()] *)
           iApply (imp_EContinue (B:=unit)); try imp_step.
@@ -307,7 +303,6 @@ Section verification.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
       imp_match val.
-      next_branch.
 
       (* Initialise handler view and iterator view. *)
       iApply fupd_imp.
@@ -362,14 +357,14 @@ Section verification.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
       imp_match unit.
-      next_branch.
+      change (encode' Encode_unit ()) with (#()).
+      change (encode' Encode_val iter) with (#iter).
+      simpl.
 
       (* [match_with iter yield { ...] *)
       iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").
-      { iApply (imp_EApp τ[val] with "[Hiter]").
-        { iApply imp_EPath; auto. } (* TODO: should just be a call to imp_path. *)
-        { imp_path. }
-        iIntros (? -> m) "Hiter !>".
+      { imp_app τ[val] with "[Hiter]".
+        iIntros "Hiter".
         rewrite /Iter_spec /tapp.
         iApply ("Hiter" with "yield_spec HiterView"). }
 

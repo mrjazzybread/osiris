@@ -138,7 +138,7 @@ Section verification.
 
     (* Base case: we just return the value. *)
     { iIntros (v) "Φ !>".
-      next_branch.
+      imp_branches.
       imp_path. }
 
     (* Handler case: an effect is being performed. *)
@@ -148,7 +148,7 @@ Section verification.
 
     unfold is_shift.
 
-    iModIntro. next_branch. next_branch.
+    iModIntro. imp_branches.
     iApply (imp_EApp τ[cont] with "[Hg] []"); try imp_step.
     iIntros (? -> m) "Hwp".
     iApply "Hwp".

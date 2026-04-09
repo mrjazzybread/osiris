@@ -141,27 +141,20 @@ Section init_proof.
     iApply (imp_ESeq with "[Hslice HΦx]").
     { (* Subgoal: [for i = 1 to ... done]. *)
       imp_for 1 to (n - 1) $!
-        (λ i,
-           isSlice (DfracOwn 1) res i (replicate (n - i) x) ∗
-           ∃ xs, ⌜length xs = i⌝ ∗ isSlice (DfracOwn 1) res 0 xs ∗ I xs)%I
+        (λ i, ∃ xs,
+            ⌜length xs = i⌝ ∗
+            isSlice (DfracOwn 1) res 0 (xs ++ replicate (n - i) x) ∗
+            I xs)%I
         with "[] [] [Hslice HΦx]".
       { (* Prove that the loop invariant holds at index [1]. *)
-        iPoseProof (split_Slice 1 with "Hslice")
-          as "[Hslice1 Hslice2]"; first (length; lia).
-        seg. length. iFrame.
-        iPureIntro; length; reflexivity. }
+        iFrame. iSplitR; first (iPureIntro; length; lia).
+        rewrite (split_replicate x n 1); last lia.
+        replicate. iFrame. }
 
       (* Prove the loop's body produces the loop invariant at index
          [i' + 1], assuming that the loop invariant holds at index
          [i']. *)
-      iIntros (i Hbound) "(Hslice2 & %xs & %Hlenxs & Hslice1 & HI)".
-
-      (* Transfer the head of slice2 to the tail of slice1. *)
-      iPoseProof (split_Slice 1 with "Hslice2")
-        as "[Hslice Hslice2]"; first (length; lia).
-      seg. length. replicate.
-      iCombine ("Hslice1 Hslice") as "Hslice1".
-      iPoseProof (Slice_app with "Hslice1") as "Hslice1"; first lia.
+      iIntros (i Hbound) "(%xs & %Hlenxs & Hslice & HI)".
 
       (* Subgoal: [unsafe_set res i (f i)]. *)
       imp_app τ[array;Z;A] with "[] [] [] [HI]".
@@ -172,18 +165,20 @@ Section init_proof.
         iIntros "Hm".
         iApply ("Hm" with "[] [] HI"); iPureIntro; length; lia. }
       iIntros "HI Hm".
-      iSpecialize ("Hm" with "Harr Hslice1 [HI] [] []").
+      iSpecialize ("Hm" with "Harr Hslice [HI] [] []").
       { instantiate (1:=(λ y, I (xs ++ singleton y))). iFrame. }
       { iPureIntro; lia. }
       { iPureIntro; length; lia. }
       iApply (imp_wand with "Hm").
-      iIntros (_) "(% & HI & Hslice1)".
+      iIntros (_) "(% & $ & Hslice)".
+      rewrite Z.sub_0_r -app_assoc.
+      rewrite (split_replicate x (n - i) 1); last lia.
       update. replace (n - (i + 1)) with (n - i - 1) by lia.
       iFrame. iPureIntro; length; lia. }
 
-    iIntros "(Hslempty & %xs & %Hlen & Hslice & HI)".
+    iIntros "(%xs & %Hlen & Hslice & HI)".
     imp_path.
-    unfold ownArray. length.
+    replicate. unfold ownArray.
     iFrame. rewrite Hlen.
     replace (n - 1 + 1) with n by lia.
     assert (n `max` 1 = n) as -> by lia.
@@ -543,8 +538,8 @@ Section map_inplace_spec.
       imp_app τ[array; Z; A] with "[] [] [] [Hslice HΦs]".
       { (* unsafe_set *) iSpecialize ("ha" $! A HencA HinhA). iAssumption. }
       { (* arg 3: f (unsafe_get a i) *)
-        set_postcondition (λ y, isSlice (DfracOwn 1) a 0 (ys ++ seg i (length xs) xs) ∗
-                                Φ ((ys ++ seg i (length xs) xs) !!! i) y ∗
+        set_postcondition (λ (y : A), isSlice (DfracOwn 1) a 0 (ys ++ seg i (length xs) xs) ∗
+                                Φ _ y ∗
                                 [∗ listZ] x;y ∈ (seg 0 i xs);ys, Φ x y)%I.
         imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
@@ -649,7 +644,7 @@ Section mapi_inplace_spec.
       { (* arg 3: f i (unsafe_get a i) *)
         set_postcondition
           (λ y, isSlice (DfracOwn 1) a 0 (ys ++ seg i (length xs) xs) ∗
-                Φ i ((ys ++ seg i (length xs) xs) !!! i) y ∗
+                Φ i _ y ∗
                 [∗ listZ] j↦x;y ∈ (seg 0 i xs);ys, Φ j x y)%I.
         imp_app τ[Z; A] with "[] [] [Hslice]".
         (* function: f *)

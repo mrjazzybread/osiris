@@ -73,7 +73,6 @@ Proof.
     iIntros "!>" ([]).
     iApply imp_please; iNext.
     imp_match unit.
-    next_branch.
     (* After [ref false] we have [l ↦ #false]; use it to build the invariant. *)
     iApply (imp_wand).
     { imp_ref false. }

@@ -178,7 +178,7 @@ Section verification.
 
     { (* Value case *)
       iIntros (?) "Hspec"; iNext.
-      next_branch.
+      imp_branches.
       iApply (imp_EPair with "[Hl]"); try imp_step.
       iIntros (? ?) "(-> & Hl) ->". iApply "Hspec". }
     (* Finally, we prove the specification over handler. *)
@@ -196,8 +196,7 @@ Section verification.
       iDestruct (ghost_var_agree with "H") as %->.
 
       iNext.
-      next_branch.
-      next_branch.
+      imp_branches.
       - (* EWP Goal: [continue k (!var : t)]. *)
         iDestruct "H" as "(Hauth & Hx)".
         iSpecialize ("H_READ" with "Hx"). simpl.
@@ -214,18 +213,8 @@ Section verification.
       iCombine "Hstate Hx" as "H".
       iDestruct (ghost_var_agree with "H") as %Hag.
 
-      (* Skip the return, exception, and [Get] branches. *)
       iNext.
-      next_branch.
-      iApply deep_handle_cons.
-      { iPureIntro. ltac2:(let _ := specify_cpattern () in ()).
-        (* This causes a Match_failure, why?
-           pattern_match. *)
-        eapply pat_PXData_neq. simpl. eassumption.
-        assumption. }
-      iSplit; first iIntros (? []).
-      instantiate (1 := False). iIntros "%no_match2".
-      next_branch.
+      imp_branches.
       { (* EWP Goal: [var := y; continue k ()]. *)
         iApply (imp_ESeq with "[Hl]").
         { (* EWP Subgoal: [var := y]. *) imp_store l y. }
@@ -294,7 +283,6 @@ Section verification.
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
       imp_match unit.
-      next_branch.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).
         iApply imp_ret; last done. encode. }
