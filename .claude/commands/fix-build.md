@@ -12,12 +12,17 @@ Use this diff only to understand the scope of the change — which files were
 touched and what was renamed, removed, or restructured — so you can anticipate
 which callers are likely broken.
 
-## Step 2 — Build
+## Step 2 — Choose the local build command
 
-Run `make` from the repo root (this compiles the full pipeline: translator,
-translations, and Rocq development).
+Pick the narrowest build command that covers the changed files:
 
-If the build succeeds with no errors, report success and stop.
+- **Translator only** (`osiris/src/` changes): `make translator` from the repo root.
+- **Rocq theory only** (`rocq-osiris/` changes): `make theory` from the repo root
+  (equivalent to `dune build` inside `rocq-osiris/`).
+- **Both** (changes to both, or generated `og_*.v` files need refreshing): `make`
+  from the repo root (full pipeline).
+
+Run that local command first. If the build succeeds with no errors, skip to Step 5.
 
 ## Step 3 — Fix errors
 
@@ -29,11 +34,17 @@ For each compiler error:
 3. Apply the minimal fix — update the call site to match the new name or
    interface. Do not refactor surrounding code.
 
-Fix all errors from the current build output before re-running `make`.
+Fix all errors from the current build output before re-running.
 
-## Step 4 — Repeat
+## Step 4 — Repeat locally
 
-Run `make` again. Repeat Steps 3–4 until the build is clean.
+Re-run the same local build command from Step 2. Repeat Steps 3–4 until it is
+clean.
 
 If the same error recurs after a fix attempt, re-examine the diff and the file
 before trying again — do not apply the same incorrect fix twice.
+
+## Step 5 — Full build verification
+
+Once the local build is clean, run `make` from the repo root to verify the full
+pipeline (translator → translations → Rocq theory) is clean end-to-end.

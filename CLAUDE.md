@@ -13,11 +13,14 @@ The repository has two main components:
 ## Build Commands
 
 ```bash
-cd rocq-osiris && dune build #Compile the rocq development
+make translator  # Build only the OCaml translator (osiris/)
+make theory      # Build only the Rocq development (rocq-osiris/)
 make             # Full build: translator → translate examples → compile Rocq
-make -C osiris   # Build only the OCaml translator
-make -C rocq-osiris  # Build only the Rocq development
 ```
+
+Use the narrowest command that covers your changes, then run `make` at the end
+for full-pipeline verification. When working only on `.v` files, `make theory`
+is sufficient and much faster than `make`.
 
 The full build pipeline:
 1. Compile the Osiris translator (OCaml/Dune)
@@ -96,7 +99,7 @@ When fixing broken proofs, follow this sequence:
 3. `rocq_query` — search for relevant lemmas as needed
 4. Write the working proof back to the `.v` file
 5. `dune build theories/path/to/file.vo` — validate the single file compiles
-6. `dune build` (or `make -C rocq-osiris`) — verify the full Rocq development builds
+6. `make theory` — verify the full Rocq development builds
 7. `make` — run the full pipeline if translator or generated files were affected
 
 ## Instructions
