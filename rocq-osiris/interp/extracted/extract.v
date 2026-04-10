@@ -5,7 +5,9 @@ From osiris.stdlib Require Import Stdlib Externals.
 
 (* Suppress warnings of the form "Warning: The identifier Externals__eq contains
    __ which is reserved for the extraction" *)
-Set Warnings "-extraction-reserved-identifier".
+Set Warnings "-extraction-reserved-identifier -extraction-opaque-accessed -extraction-default-directory".
+
+Set Extraction Output Directory ".".
 
 (* Suppress warnings that are typical to extracted code *)
 Set Extraction File Comment "*) [@@@warning ""-4-33-67""] (*".
