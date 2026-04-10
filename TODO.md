@@ -1,12 +1,6 @@
 # TODO
 
-## TODO for artifact submission
-
-- README for more detailed instructions
-  - Mention that the validation needs `ocamlwc`
-- VM?
-
-## TODO
+## Feats
 
 * In the semantics, represent environments using `gmap` instead of
   association lists. This should make the executable interpreter
@@ -14,7 +8,7 @@
 
 * Add support for shallow handlers (translator, semantics, reasoning rules).
 
-* Add support for concurrency (SC first; weak memory later).
+* Add support for concurrency (towards weak memory).
 
 * Annotate `VData` and `PData` with a data type identifier. During pattern
   matching, check that the data type identifiers are equal; otherwise crash.
@@ -52,19 +46,7 @@
 * Design satisfactory Hoare-style rules for structure items
   and for module expressions.
 
-* Clean up the reasoning rules in Osiris;
-  introduce a `Spec` predicate in Osiris.
-
 * Distinguish undefined behavior and undesirable behavior.
-
-## Cleanup
-
-* Remove dead branches.
-
-## Iris machinery
-
-* Make sure the adequacy statement(s) and proof
-  are clean and well-understood.
 
 ## Translator
 
@@ -75,7 +57,6 @@
   + `%andint`, `%orint`, `%xorint`, `%lslint`, `%lsrint`, `%asrint`
   + `%raise`, `%raise_notrace`
   + `%negfloat`, `%addfloat`, `%subfloat`, `%mulfloat`, `%divfloat`, `%absfloat`, `%floatofint`, `%intoffloat`, and more
-  + operations on arrays (`array.mli`)
 
 ## Tutorial
 
@@ -90,14 +71,10 @@
   - Check that we are able to reason about terminating loops using induction
   - Check that we are able to frame out an assertion during
     the execution of the rest of the loop
-  - Check that we are able to use Iris invariants
   - Port Arthur's imperative pairing heaps and compare with CFML.
 
 * Suggested examples for different features:
-  - pure code: searching in a BST
   - mutually recursive definitions: List.sort
-  - exceptions: List.mem using List.iter
-  - mutable state: sum of a list using List.iter and a reference
   - try-with catching one exception but not another
 
 ## Features of OCaml that we want to support (at some point)
@@ -115,9 +92,9 @@
 * `let` operators
 * `Obj.magic`
   + see discussion of unsafe type casts in the Osiris paper (ICFP 2025)
-* Arrays
-  + allow ownership of individual array cells (or slices)
-  + see array-based trees in CPP 2024 [Mechanised Reasoning about Array-Based Trees in Separation Logic](https://dl.acm.org/doi/abs/10.1145/3636501.3636944)
+  + consider supporting the use of `Obj.magic` to "freeze" records with mutable fields/arrays
+* Arrays ✓
+  + still missing support for `blit` and dependent defs in `stdlib/proofs/arrays.v`
 * Characters and strings
   + decide how they should be represented in Rocq;
     Rocq's `char` type seems needlessly inefficient,
@@ -163,12 +140,8 @@
     `Fun.protect` seems OK because it is effect-polymorphic
 * The module `Lazy`
 * Effect handlers ✓
-* Shared-memory concurrency (SC)
-  + Must allow spurious CAS failures
-    or restrict CAS to simple values (VBool, VInt, VLoc);
-    what does HeapLang do?
+* Shared-memory concurrency (SC) ✓
   + Weak memory (Cosmo)
-  + Thread-local storage
   + Should we distinguish between threads and domains?
     - Domain-local storage
   + Should we model [the subtle semantics of safe points](https://discuss.ocaml.org/t/using-poll-error-attribute-to-implement-systhread-safe-data-structures/12804)?
