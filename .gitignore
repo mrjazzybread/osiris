@@ -3,6 +3,7 @@
 .\#*
 _build
 .lia.cache
+*.aux
 *.html
 osiris-archive*
 osirisvenv
