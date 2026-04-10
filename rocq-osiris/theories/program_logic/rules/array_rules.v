@@ -23,9 +23,34 @@ Section array_resources.
 
   Definition isSlice `{Encode A} dq (ls : array) (i : Z) (xs : list A) : iProp Σ :=
     ⌜0 ≤ i ∧ i + length xs ≤ length ls⌝ ∗
-    [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, pointsto l dq (V #x).
+    [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, l ↦{dq} #x.
 
   Arguments isSlice {_ _} dq a i xs : rename.
+
+  Definition isArrayCell `{Encode A} dq (a : array) (i : nat) (x : A) : iProp Σ :=
+    isSlice dq a i (singleton x).
+
+  Definition ownArray `{Encode A} (a : array) (xs : list A) : iProp Σ :=
+    isArray a (length xs) ∗ isSlice (DfracOwn 1) a 0 xs.
+
+End array_resources.
+
+Notation "a '↦∗' xs" :=
+    (isSlice (DfracOwn 1) a 0 xs)
+      (at level 20, format "a  '↦∗'  xs") : bi_scope.
+Notation "a [ i ] '↦∗' xs" :=
+  (isSlice (DfracOwn 1) a i xs)
+    (at level 20, i at level 1, format "a [ i ]  '↦∗'  xs") : bi_scope.
+Notation "a [ i ] '↦∗{' dq } xs" :=
+  (isSlice dq a i xs)
+    (at level 20, dq at level 1, i at level 1, format "a [ i ]  '↦∗{' dq }  xs") : bi_scope.
+Notation "a [ i ] '↦∗{#' dq } xs" :=
+  (isSlice (DfracOwn dq) a i xs)
+    (at level 20, i at level 1, dq at level 1, format "a [ i ]  '↦∗{#' dq }  xs") : bi_scope.
+
+Section array_resources.
+
+  Context `{!osirisGS Σ}.
 
   Lemma Slice_app `{Encode A} j dq a i (xs ys : list A) :
     j = i + length xs →
@@ -71,18 +96,13 @@ Section array_resources.
     f_equiv. f_equiv. length. lia.
   Qed.
 
-  Definition isArrayCell `{Encode A} dq (a : array) (i : nat) (x : A) : iProp Σ :=
-    isSlice dq a i (singleton x).
-
-  Definition ownArray `{Encode A} (a : array) (xs : list A) : iProp Σ :=
-    isArray a (length xs) ∗ isSlice (DfracOwn 1) a 0 xs.
-
   Lemma slice_of_own `{Encode A} (a : array) (xs : list A) n :
     n = length xs →
-    ownArray a xs ⊣⊢ isArray a n ∗ isSlice (DfracOwn 1) a 0 xs.
+    ownArray a xs ⊣⊢ isArray a n ∗ a ↦∗ xs.
    Proof. intros ->. done. Qed.
 
 End array_resources.
+
 
 Section array_reasoning.
 

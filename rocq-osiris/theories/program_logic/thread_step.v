@@ -144,7 +144,7 @@ Section can_progress.
   Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) m' μ (l : loc) (o : outcome2 val exn)
     (k : outcome2 val exn → micro A E)
     (sk : outcome2 val exn → microvx) :
-    σ !! l = Some (K sk) →
+    σ !! l = Some (Kont sk) →
     thread_step (σ, Stop CResume (l, o) k, π) (σ', m', μ) →
       σ' = <[l:=Shot]> σ ∧
       m' = try2 (sk o) k ∧

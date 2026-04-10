@@ -1033,7 +1033,7 @@ Section imp_rules_expr.
 
   Lemma imp_ELoad2 `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : loc → iProp Σ) η e :
     imp (eval η e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    (∀ l, Φ1 l -∗ ∃ q a, ▷ pointsto l q (V #a) ∗ ▷ (pointsto l q (V #a) -∗ Φ a)) -∗
+    (∀ l, Φ1 l -∗ ∃ q a, ▷ l ↦{q} #a ∗ ▷ (l ↦{q} #a -∗ Φ a)) -∗
     imp eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He P". simpl_eval.
@@ -1046,9 +1046,9 @@ Section imp_rules_expr.
   Qed.
 
   Lemma imp_ELoad `{Encode A} {ζ} η e l q (a : A) :
-    ▷ pointsto l q (V #a) -∗
+    ▷ l ↦{q} #a -∗
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l', ⌜l' = l⌝ }} -∗
-    imp eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, ⌜v = a⌝ ∗ pointsto l q (V #a) }}.
+    imp eval η (ELoad e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, ⌜v = a⌝ ∗ l ↦{q} #a }}.
   Proof.
     iIntros "Hl He /=".
     iApply (imp_ELoad2 with "He").
@@ -1062,7 +1062,7 @@ Section imp_rules_expr.
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ l a, Φ1 l -∗ Φ2 a -∗
-      ▷ ∃ v1, pointsto l (DfracOwn 1) (V v1) ∗ ▷ (l ↦ #a -∗ Φ ())) -∗
+      ▷ ∃ v1, l ↦ v1 ∗ ▷ (l ↦ #a -∗ Φ ())) -∗
     imp eval η (EStore e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 P /=". simpl_eval.
@@ -1125,7 +1125,7 @@ Section imp_rules_expr.
     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
     (∀ l seen a,
        Φ1 l -∗ Φ2 seen -∗ Φ3 a -∗
-       ▷ ∃ v1, pointsto l (DfracOwn 1) (V #v1) ∗
+       ▷ ∃ v1, l ↦ #v1 ∗
                ▷ (l ↦ (if phys_eq_val_ v1 seen then #a else #v1) -∗ Φ (phys_eq_val_ v1 seen))) -∗
     imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -1146,7 +1146,7 @@ Section imp_rules_expr.
     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
     (∀ seen a,
        Φ2 seen -∗ Φ3 a -∗
-       ▷ ∃ v1, pointsto l (DfracOwn 1) (V #v1) ∗
+       ▷ ∃ v1, l ↦ #v1 ∗
                ▷ (l ↦ (if phys_eq_val_ v1 seen then #a else #v1) -∗ Φ (phys_eq_val_ v1 seen))) -∗
     imp eval η (ECAS e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.

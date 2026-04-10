@@ -41,7 +41,7 @@ Fixpoint insert_fresh vs (σ : store) ls :=
   match vs with
   | [] => (σ, ls)
   | v :: vs => let l := fresh (dom σ) in
-           insert_fresh vs (<[l:=V v]> σ) (l :: ls)
+           insert_fresh vs (<[l:=Val v]> σ) (l :: ls)
   end.
 
 Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E) :=
@@ -110,7 +110,7 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   (* Handlers do not introduce nondeterminism *)
   | Handle m1 h =>
       match stepto σ m1 with
-      | Final (FPerform e k) => let l := fresh (dom σ) in Step [(<[l:=K k]> σ, h (O3Perform e l))]
+      | Final (FPerform e k) => let l := fresh (dom σ) in Step [(<[l:=Kont k]> σ, h (O3Perform e l))]
       | Final (FRet v)   => Step [(σ, h (O3Ret v))]
       | Final (FThrow e) => Step [(σ, h (O3Throw e))]
       | Final (FCrash) => Step [(σ, Crash)]
@@ -246,7 +246,7 @@ Definition clo_io_perform (name : string) : val :=
     AnonFun "x" (EPerform (EXData ["E"] [EString name; EPath ["x"]])).
 
 (* Store with I/O effect allocated *)
-Definition io_store : store := {[ Loc io_loc := V VUnit ]}.
+Definition io_store : store := {[ Loc io_loc := Val VUnit ]}.
 
 (* Environment with some I/O primitives *)
 Definition io_env : env :=
@@ -496,8 +496,9 @@ Definition string_of_microvx := string_of_micro string_of_val string_of_val.
 
 Definition string_of_block (b : step.block) : string :=
   match b with
-  | V v => "V(" ++ string_of_val v ++ ")"
-  | K _ => "K(<cont>)"
+  | Val v => "Val(" ++ string_of_val v ++ ")"
+  | Dict t ls => "Dict(<tag>,<locs>)"
+  | Kont _ => "Kont(<cont>)"
   | Shot => "Shot"
   end.
 

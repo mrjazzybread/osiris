@@ -52,7 +52,7 @@ Section imp_stop.
     (* Memory allocation rule for [n] locations at once. *)
   Lemma imp_stop_allocn' vs (k : _ → micro A X) :
     ▷ (∀ (ls : list loc),
-          ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v) ∗ meta_token l ⊤) -∗
+          ([∗ listZ] l;v ∈ ls;vs, l ↦ v ∗ meta_token l ⊤) -∗
           imp (continue k ls) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
       imp (Stop CAllocn vs k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -63,7 +63,7 @@ Section imp_stop.
     destruct_thread_step. destruct H as (Hlen & Hdup & Hfresh).
     iDestruct (gen_heap_alloc_big with "Hsi") as ">(Hsi & Hpts & Hmt)".
     { apply map_disjoint_spec. intros l x y.
-      instantiate (1 := (list_to_map ((λ '(l, v), (l, V v)) <$> zip ls vs))).
+      instantiate (1 := (list_to_map ((λ '(l, v), (l, Val v)) <$> zip ls vs))).
       intros HF Hlookup.
       apply elem_of_dom_2 in HF. rewrite dom_list_to_map in HF.
       apply elem_of_list_to_set in HF.
@@ -72,7 +72,7 @@ Section imp_stop.
       apply elem_of_zip_l in HF.
       apply Hfresh in HF.
       rewrite Hlookup in HF. discriminate HF. }
-    assert (ls = ((λ '(l,v), (l, V v)) <$> zip ls vs).*1) as Heqls.
+    assert (ls = ((λ '(l,v), (l, Val v)) <$> zip ls vs).*1) as Heqls.
     { clear Hdup Hfresh. generalize dependent vs. induction ls; intros ??. reflexivity.
       simpl.
       destruct vs; first discriminate Hlen.
@@ -93,7 +93,7 @@ Section imp_stop.
         iFrame.
         iApply ("IH" with "[] Hpts Hmt"). iPureIntro. by inversion Hlen.
     -
-      assert (insertn ls vs σ = list_to_map ((λ '(l, v), (l, V v)) <$> zip ls vs) ∪ σ) as ->.
+      assert (insertn ls vs σ = list_to_map ((λ '(l, v), (l, Val v)) <$> zip ls vs) ∪ σ) as ->.
       { generalize dependent vs.
         induction ls as [|l ls IH]; intros vs Hlen.
         - simpl.
@@ -108,7 +108,7 @@ Section imp_stop.
 
   Lemma imp_stop_allocn vs (k : _ → micro A X) :
     ▷ (∀ ls,
-          ([∗ listZ] l;v ∈ ls;vs, pointsto l (DfracOwn 1) (V v)) -∗
+          ([∗ listZ] l;v ∈ ls;vs, l ↦ v) -∗
           imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocn vs k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -120,7 +120,7 @@ Section imp_stop.
   Qed.
 
   Lemma imp_stop_alloc v (k : _ → micro A X) :
-    ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗
+    ▷ (∀ (l : loc), l ↦ v -∗
             imp (continue k [l]) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocn [v] k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -137,10 +137,10 @@ Section imp_stop.
   (* ------------------------------------------------------------------------ *)
   (* [CLoad]. *)
 
-  Lemma imp_stop_load l v dq (k: _ → micro A X) :
-    ▷ pointsto l dq (V v) ⊢
+  Lemma imp_stop_load l v (dq : dfrac) (k: _ → micro A X) :
+    ▷ l ↦{dq} v ⊢
     ▷ (
-        pointsto l dq (V v) -∗
+        l ↦{dq} v -∗
         imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -165,9 +165,9 @@ Section imp_stop.
   (* [CExchange]. *)
 
   Lemma imp_stop_exchange l v v' (k : _ → micro A X) :
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
+    ▷ l ↦ v ⊢
     ▷ (
-        pointsto l (DfracOwn 1) (V v') -∗
+        l ↦ v' -∗
         imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CExchange (l, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -224,7 +224,7 @@ Section imp_stop.
      [seen] to [v'], and the continuation receives [VTrue]. *)
 
   Lemma imp_stop_cas `{PhysEqDec B} l (seen v v' : B) (k : _ → micro A X) :
-    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
+    ▷ l ↦ #v ⊢
     ▷ (
           l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
           imp (continue k #(phys_eq_val_ v seen)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
@@ -238,7 +238,7 @@ Section imp_stop.
     iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
-    - iMod (gen_heap_update σ l (V #v) (V #v') with "Hsi Hl") as "[Hsi Hl]".
+    - iMod (gen_heap_update σ l (Val #v) (Val #v') with "Hsi Hl") as "[Hsi Hl]".
       rewrite /step_cas_1 /step_cas_2 Hvalid phys_eq_val_proj Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
@@ -252,7 +252,7 @@ Section imp_stop.
   (* [CFAA]. *)
 
   Lemma imp_stop_faa l (i j : int) (k : _ → micro A X) :
-    ▷ pointsto l (DfracOwn 1) (V #j) ⊢
+    ▷ l ↦ #j ⊢
     ▷ (
         l ↦ #(int.add j i) -∗
         imp (continue k #j) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
@@ -265,7 +265,7 @@ Section imp_stop.
     iIntros "!> !>".
     iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
-    iMod (gen_heap_update σ l (V #j) (V #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
+    iMod (gen_heap_update σ l (Val #j) (Val #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
@@ -627,7 +627,7 @@ Section imp_combinators.
   Local Instance notval_locs : NotVal (list loc) := {}.
 
   Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
-    ▷ (∀ (ls : list loc), ([∗ listZ] l;x ∈ ls;xs, pointsto l (DfracOwn 1) (V #x)) -∗ Φ ls) -∗
+    ▷ (∀ (ls : list loc), ([∗ listZ] l;x ∈ ls;xs, l ↦ #x) -∗ Φ ls) -∗
     imp (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
@@ -640,7 +640,7 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_alloc' {Φ : loc → iProp Σ} v :
-    ▷ (∀ (l : loc), pointsto l (DfracOwn 1) (V v) -∗ Φ l) -∗
+    ▷ (∀ (l : loc), l ↦ v -∗ Φ l) -∗
     imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
@@ -651,7 +651,7 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_alloc v :
-    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, pointsto l (DfracOwn 1) (V v) }}.
+    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ v }}.
   Proof.
     iApply imp_alloc'.
     iIntros "!> %l $".
@@ -661,8 +661,8 @@ Section imp_combinators.
   (* [CLoad]. *)
 
   Lemma imp_load' `{Encode A} {Φ : A → iProp Σ} l a dq :
-    ▷ pointsto l dq (V #a) ⊢
-    ▷ (pointsto l dq (V #a) -∗ Φ a) -∗
+    ▷ l ↦{dq} #a ⊢
+    ▷ (l ↦{dq} #a -∗ Φ a) -∗
     imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -673,8 +673,8 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_load `{Encode A} l (a : A) dq :
-    ▷ pointsto l dq (V #a) ⊢
-    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ pointsto l dq (V #a) }}.
+    ▷ l ↦{dq} #a ⊢
+    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ l ↦{dq} #a }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load' with "Hl").
@@ -685,8 +685,8 @@ Section imp_combinators.
   (* [CExchange]. *)
 
   Lemma imp_exchange' `{Encode A} {Φ : A → iProp Σ} l a v' :
-    ▷ pointsto l (DfracOwn 1) (V #a) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ a) -∗
+    ▷ l ↦ #a ⊢
+    ▷ (l ↦ v' -∗ Φ a) -∗
     imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -697,8 +697,8 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_exchange `{Encode A} {Φ : A → iProp Σ} l a v' :
-    ▷ pointsto l (DfracOwn 1) (V #a) ⊢
-    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a' : A), ⌜a' = a⌝ ∗ pointsto l (DfracOwn 1) (V v') }}.
+    ▷ l ↦ #a ⊢
+    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a' : A), ⌜a' = a⌝ ∗ l ↦ v' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_stop_exchange with "Hl").
@@ -708,8 +708,8 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_store' {Φ : unit → iProp Σ} l v v' :
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V v') -∗ Φ ()) -∗
+    ▷ l ↦ v ⊢
+    ▷ (l ↦ v' -∗ Φ ()) -∗
     imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ". unfold code.store.
@@ -720,8 +720,8 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_store l v v' :
-    ▷ pointsto l (DfracOwn 1) (V v) ⊢
-    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), pointsto l (DfracOwn 1) (V v') }}.
+    ▷ l ↦ v ⊢
+    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ↦ v' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_store' with "Hl").
@@ -732,8 +732,8 @@ Section imp_combinators.
   (* [CCAS]. *)
 
   Lemma imp_cas `{PhysEqDec A} {Φ : bool → iProp Σ} l (seen v v' : A) :
-    ▷ pointsto l (DfracOwn 1) (V #v) ⊢
-    ▷ (pointsto l (DfracOwn 1) (V (if phys_eq_val_ v seen then #v' else #v)) -∗
+    ▷ l ↦ #v ⊢
+    ▷ (l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
        Φ (phys_eq_val_ v seen)) -∗
     imp (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.

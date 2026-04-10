@@ -136,8 +136,14 @@ Proof. solve_inG. Qed.
 (* Notations for ghost resouces. *)
 
 Notation "l ↦ v" :=
-  (pointsto l (DfracOwn 1) (V v))
+  (pointsto l (DfracOwn 1) (Val v))
     (at level 20, format "l  ↦  v") : bi_scope.
+Notation "l '↦{#' dq '}' v" := (pointsto l (DfracOwn dq) (Val v))
+    (at level 20, dq at level 1, format "l  '↦{#' dq }  v") : bi_scope.
+Notation "l '↦{' dq '}' v" := (pointsto l dq (Val v))
+    (at level 20, dq at level 1, format "l  '↦{' dq }  v") : bi_scope.
+Notation "l '↦□' v" := (pointsto l DfracDiscarded (Val v))
+  (at level 20, format "l  '↦□'  v") : bi_scope.
 
 (* We declare that [cont] can be used as keys for pointstos. *)
 Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont block Σ.
@@ -145,7 +151,7 @@ Proof. unfold cont; simpl. apply (osiris_genGS Σ). Defined.
 
 Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
   : iProp Σ :=
-  gen_heap.pointsto k (DfracOwn 1) (K sk).
+  gen_heap.pointsto k (DfracOwn 1) (Kont sk).
 
 Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
   pointsto k (DfracOwn 1) Shot.

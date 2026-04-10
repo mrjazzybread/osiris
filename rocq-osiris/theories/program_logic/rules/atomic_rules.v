@@ -21,7 +21,7 @@ Proof.
 
   destruct_thread_step.
   unfold step_load_2.
-  destruct (σ' !! l) as [ [| |] | ]; by econstructor.
+  case_location_lookup; by econstructor.
 Qed.
 
 Global Instance eload_atomic η p :
@@ -40,7 +40,7 @@ Proof.
 
   destruct_thread_step.
   unfold step_exchange_2.
-  destruct (σ !! l0) as [ [| |] | ]; by econstructor.
+  case_location_lookup; by econstructor.
 Qed.
 
 Global Instance store_atomic l v :
@@ -50,7 +50,7 @@ Proof.
 
   destruct_thread_step.
   unfold step_exchange_2.
-  destruct (σ !! l0) as [ [| |] | ]; by econstructor.
+  case_location_lookup; by econstructor.
 Qed.
 
 Global Instance cas_atomic l seen v' :
@@ -60,7 +60,7 @@ Proof.
 
   destruct_thread_step.
   unfold step_cas_2.
-  destruct (σ !! l0) as [ [| |] | ]; try by econstructor.
+  case_location_lookup; try by econstructor.
   destruct (phys_eq_val _ _) as [ [|] | ]; by econstructor.
 Qed.
 
@@ -71,7 +71,7 @@ Proof.
 
   destruct_thread_step.
   unfold step_faa_2.
-  destruct (σ !! l0) as [ [| |] | ]; try by econstructor.
+  case_location_lookup; try by econstructor.
   rewrite /continue /=.
   destruct v; try by constructor.
   by econstructor.

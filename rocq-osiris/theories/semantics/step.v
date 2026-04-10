@@ -22,9 +22,12 @@ From osiris.semantics Require Import code eval.
    This gives rise to three cases: [V] for values, [K] for continuations,
    and [Shot] for already-shot continuations.  *)
 
+Inductive mut_tag : Type := Mut | Immut.
+
 Inductive block : Type :=
-| V (v : val)
-| K (k : outcome2 val exn → microvx)
+| Val (v : val)
+| Dict (t : mut_tag) (ls : list loc)
+| Kont (k : outcome2 val exn → microvx)
 | Shot.
 
 (* A store (or heap) is a finite map of locations to memory blocks. *)
@@ -93,16 +96,14 @@ Local Ltac exploit_location_lookup :=
    cases (value block; ordinary continuation block; shot continuation block;
    nonexistent address). *)
 
-Local Ltac case_location_lookup :=
+Ltac case_location_lookup :=
   match goal with
   |- context[?σ !! ?l] =>
-      let block := fresh "block" in
       let Hσ := fresh in
-      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+      destruct (σ !! l) as [ [ | | | ] |] eqn:Hσ
   | h: context[?σ !! ?l] |- _ =>
-      let block := fresh "block" in
       let Hσ := fresh in
-      destruct (σ !! l) as [ [ | | ] |] eqn:Hσ
+      destruct (σ !! l) as [ [ | | | ] |] eqn:Hσ
   end.
 
 Local Hint Extern 1 (_ = _) =>
@@ -119,7 +120,7 @@ Local Hint Extern 1 (_ = _) =>
 
 Definition step_load_2 {A E} σ (l : loc) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (V v) => continue k v
+  | Some (Val v) => continue k v
   | _          => crash "load error: unbound location"
   end.
 
@@ -148,13 +149,13 @@ Qed.
 
 Definition step_exchange_1 σ l v' : store :=
   match σ !! l with
-  | Some (V v) => <[ l := V v' ]> σ
+  | Some (Val v) => <[ l := Val v' ]> σ
   | _          => σ
   end.
 
 Definition step_exchange_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (V v) => continue k v
+  | Some (Val v) => continue k v
   | _          => crash "exchange error: unbound location"
   end.
 
@@ -184,8 +185,8 @@ Qed.
 
 Definition step_cas_1 σ l seen (v' : val) : store :=
   match σ !! l with
-  | Some (V v) => match phys_eq_val v seen with
-                   | Some true => <[ l := V v' ]> σ
+  | Some (Val v) => match phys_eq_val v seen with
+                   | Some true => <[ l := Val v' ]> σ
                    | _ => σ
                    end
   | _           => σ
@@ -193,7 +194,7 @@ Definition step_cas_1 σ l seen (v' : val) : store :=
 
 Definition step_cas_2 {A E} σ l seen (v' : val) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (V v) => match phys_eq_val v seen with
+  | Some (Val v) => match phys_eq_val v seen with
                   | Some true => continue k VTrue
                   | Some false => continue k VFalse
                   | None => physical_equality_error "invalid or unsupported arguments"
@@ -229,14 +230,14 @@ Qed.
 
 Definition step_faa_1 σ l (i : int) : store :=
   match σ !! l with
-  | Some (V (VInt j)) =>
-      <[ l := V (VInt (int.add j i)) ]> σ
+  | Some (Val (VInt j)) =>
+      <[ l := Val (VInt (int.add j i)) ]> σ
   | _           => σ
   end.
 
 Definition step_faa_2 {A E} σ l (i : int) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (V (VInt j)) =>
+  | Some (Val (VInt j)) =>
       continue k (VInt j)
   | _          => crash "store error: unbound location or not int"
   end.
@@ -269,13 +270,13 @@ Qed.
 
 Definition step_resume_1 σ l :=
   match σ !! l with
-  | Some (K sk) => <[l := Shot]> σ
+  | Some (Kont sk) => <[l := Shot]> σ
   | _           => σ
   end.
 
 Definition step_resume_2 {A E} σ l o k : micro A E :=
   match σ !! l with
-  | Some (K sk) => try2 (sk o) k
+  | Some (Kont sk) => try2 (sk o) k
   | _           => crash "resume error: unbound location"
   end.
 
@@ -300,7 +301,7 @@ Qed.
    rule [StepWrap]. *)
 
 Definition step_wrap_1 σ l η bs l' :=
-  <[l' := K (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ.
+  <[l' := Kont (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs))]> σ.
 
 Definition step_wrap_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
@@ -309,7 +310,7 @@ Notation step_wrap σ l η bs l' k :=
   (step_wrap_1 σ l η bs l', step_wrap_2 l' k).
 
 Definition step_shallow_wrap_1 σ l η bs l' :=
-  <[l' := K (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs))]> σ.
+  <[l' := Kont (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs))]> σ.
 
 Notation step_shallow_wrap σ l η bs l' k :=
   (step_shallow_wrap_1 σ l η bs l', step_wrap_2 l' k).
@@ -343,7 +344,7 @@ Global Hint Resolve
 Fixpoint insertn ls vs σ :=
   match ls, vs with
   | [], [] => σ
-  | l :: ls, v :: vs => <[ l := V v]> (insertn ls vs σ)
+  | l :: ls, v :: vs => <[ l := Val v]> (insertn ls vs σ)
   | _, _ => σ
   end.
 
@@ -453,7 +454,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
       σ !! l = None →
       step
         (σ, Handle (Stop CPerf e k) h)
-        (<[l := K k]>σ, h (O3Perform e l))
+        (<[l := Kont k]>σ, h (O3Perform e l))
 
   | StepHandleFork :
     ∀ σ x k h,
@@ -667,7 +668,7 @@ End threadpool.
 (* Some derived rules. *)
 
 Lemma StepLoadSuccess {A E} σ (l : loc) (k : outcome2 val exn → micro A E) v :
-  σ !! l = Some (V v) →
+  σ !! l = Some (Val v) →
   step
     (σ, Stop CLoad l k)
     (σ, continue k v).
@@ -677,10 +678,10 @@ Proof.
 Qed.
 
 Lemma StepExchangeSuccess {A E} σ (l : loc) v v' (k : outcome2 val exn → micro A E) :
-  σ !! l = Some (V v) →
+  σ !! l = Some (Val v) →
   step
     (σ, Stop CExchange (l, v') k)
-    (<[ l := V v' ]> σ, continue k v).
+    (<[ l := Val v' ]> σ, continue k v).
 Proof.
   intros Heq. econstructor. unfold step_exchange_1, step_exchange_2.
   rewrite Heq. eauto.
@@ -879,7 +880,7 @@ Global Hint Resolve
    then [stop CLoad l] can step in only one way. *)
 
 Lemma invert_step_load {A E} σ σ' l v k m' :
-  σ !! l = Some (V v) →
+  σ !! l = Some (Val v) →
   @step A E (σ, Stop CLoad l k) (σ', m') →
   σ' = σ ∧
   m' = continue k v.
@@ -893,9 +894,9 @@ Qed.
    then [stop CExchange (l, v')] can step in only one way. *)
 
 Lemma invert_step_exchange {A E} σ l v' v k σ' m' :
-  σ !! l = Some (V v) →
+  σ !! l = Some (Val v) →
   @step A E (σ, Stop CExchange (l, v') k) (σ', m') →
-  σ' = <[ l := V v' ]> σ ∧
+  σ' = <[ l := Val v' ]> σ ∧
   m' = continue k v.
 Proof.
   intros Heq Hstep. destruct_step.
@@ -907,7 +908,7 @@ Qed.
    then [stop CResume (l, o)] can step in only one way. *)
 
 Lemma invert_step_resume {A E} (σ σ' : cont_store) (l : cont) o k sk m' :
-  σ !! l = Some (K sk) →
+  σ !! l = Some (Kont sk) →
   @step A E (σ, Stop CResume (l, o) k) (σ', m') →
   σ' = <[ l := Shot ]> σ ∧
   m' = try2 (sk o) k.
@@ -945,7 +946,7 @@ Lemma invert_step_wrap_deep {A E} σ σ' l η bs k m' :
   @step A E (σ, Stop CWrap (true, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-    σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
+    σ' = <[ l' := Kont (λ o, Handle (stop CResume (l, o))
                             (wrap_eval_branches η bs)) ]> σ ∧
   m' = continue k l'.
 Proof.
@@ -958,7 +959,7 @@ Lemma invert_step_wrap_shallow {A E} σ σ' l η bs k m' :
   @step A E (σ, Stop CWrap (false, l, η, bs) k) (σ', m') →
   ∃ l',
   σ !! l' = None ∧
-    σ' = <[ l' := K (λ o, Handle (stop CResume (l, o))
+    σ' = <[ l' := Kont (λ o, Handle (stop CResume (l, o))
                             (shallow_eval_branches η bs bs)) ]> σ ∧
   m' = continue k l'.
 Proof.

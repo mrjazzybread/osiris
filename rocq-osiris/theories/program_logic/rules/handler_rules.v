@@ -261,7 +261,7 @@ Section handle_rules.
       ewp_unfold (Stop CPerf e0 k).
       iMod "He" as "HP".
 
-      iDestruct (gen_heap_alloc _ _ (K k) with "Hsi") as ">[Hsi [HH _]]";
+      iDestruct (gen_heap_alloc _ _ (Kont k) with "Hsi") as ">[Hsi [HH _]]";
         [ exact H | ].
 
       iAssert (Ψ allows perform e0
@@ -451,7 +451,7 @@ Section handler_proof.
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
 
       (* We allocate a new location that contains the continuation *)
-      iDestruct (gen_heap.gen_heap_alloc _ _ (K k) with "Hsi")
+      iDestruct (gen_heap.gen_heap_alloc _ _ (Kont k) with "Hsi")
         as ">[Hsi [HH _]]"; [ eassumption | ].
 
       iFrame.
