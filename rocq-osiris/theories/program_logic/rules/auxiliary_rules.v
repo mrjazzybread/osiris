@@ -223,7 +223,7 @@ Section imp_eval.
   Proof.
     iIntros "Hes". simpl.
     iApply (imp_bind with "[Hes]").
-    { iApply imp_alloc'. iIntros "!>" (l) "Hl".
+    { iApply imp_alloc2. iIntros "!>" (l) "Hl".
       iSpecialize ("Hes" with "Hl").
       iExact "Hes". }
     iIntros (l) "Hes".

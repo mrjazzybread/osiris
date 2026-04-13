@@ -6,29 +6,26 @@ From osiris.logic Require Import list_z big_opLZ.
 
 (** This file defines array resource predicates and [imp] rules for array expressions. *)
 
-Definition array : Type := list loc.
+Definition array : Type := loc.
 
-Global Instance : Encode array := { encode arr := VArray arr }.
-Global Instance : Observe array (list loc) := { observe a := a }.
+Global Instance : Encode array := _.
+Global Instance : Observe array loc := _.
 
 Section array_resources.
 
   Context `{!osirisGS Σ}.
 
   Definition isArray (a : array) (n : Z) : iProp Σ :=
-      ⌜length a = n⌝ ∗ ⌜0 ≤ n ≤ max_array⌝.
+    ∃ t ls, pointsto a DfracDiscarded (Dict t ls) ∗
+            ⌜length ls = n⌝ ∗ ⌜0 ≤ n ≤ max_array⌝.
 
   Global Instance is_array_persistent a n : Persistent (isArray a n).
   Proof. apply _. Qed.
 
-  Definition isSlice `{Encode A} dq (ls : array) (i : Z) (xs : list A) : iProp Σ :=
-    ⌜0 ≤ i ∧ i + length xs ≤ length ls⌝ ∗
-    [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, l ↦{dq} #x.
-
-  Arguments isSlice {_ _} dq a i xs : rename.
-
-  Definition isArrayCell `{Encode A} dq (a : array) (i : nat) (x : A) : iProp Σ :=
-    isSlice dq a i (singleton x).
+  Definition isSlice `{Encode A} dq (a : array) (i : Z) (xs : list A) : iProp Σ :=
+    ∃ t ls, pointsto a DfracDiscarded (Dict t ls) ∗
+            ⌜0 ≤ i⌝ ∧ ⌜i + length xs ≤ length ls⌝ ∗
+            [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, l ↦{dq} #x.
 
   Definition ownArray `{Encode A} (a : array) (xs : list A) : iProp Σ :=
     isArray a (length xs) ∗ isSlice (DfracOwn 1) a 0 xs.
@@ -51,26 +48,30 @@ Section array_resources.
     a ↦∗[i]{dq} (xs ++ ys) ⊣⊢ (a ↦∗[i]{dq} xs ∗ a ↦∗[j]{dq} ys).
   Proof.
     intros ->.
-    length_nonneg xs; length_nonneg ys; length_nonneg a.
+    lengths.
     iStartProof; iSplit; iIntros "Hslice".
-    - unfold isSlice. length.
-      iDestruct "Hslice" as "([%Hpos %Hlen] & Hseg)".
-      rewrite -(assoc bi_sep).
-      iSplitR. { iPureIntro; lia. }
-      rewrite (comm bi_sep) -(assoc bi_sep).
-      iSplitR. { iPureIntro; lia. }
-      rewrite (comm bi_sep). iApply big_sepLZ2_app_inv; first (length; lia).
+    - iDestruct "Hslice" as "(%t & %ls & #Ha & %Hpos & %Hlen & Hls)".
+      iFrame "#". length in Hlen. length.
       rewrite (split_seg (i + length xs)); try lia.
-      rewrite (assoc Z.add). iFrame.
+      iPoseProof (big_sepLZ2_app_inv with "Hls")
+        as "($ & Hslice2)"; first (length; lia).
+      replace (i + (length xs + length ys)) with (i + length xs + length ys) by lia.
+      iFrame.
+      iPureIntro. lia.
 
     - iDestruct "Hslice" as "(Hslice1 & Hslice2)".
-      iDestruct "Hslice1" as "([%Hpos %Hlen] & Hslice1)".
-      iDestruct "Hslice2" as "([%Hpos' %Hlen'] & Hslice2)".
-      iSplit. { iPureIntro; length; lia. }
+      iDestruct "Hslice1" as "(%t & %ls & #Ha & %Hpos & %Hlen & Hslice1)".
+      iDestruct "Hslice2" as "(%t' & %ls' & #Ha' & %Hpos' & %Hlen' & Hslice2)".
+
+      iPoseProof (pointsto_valid_2 with "Ha Ha'") as "(_ & %Heq)".
+      inversion_clear Heq.
+
+      unfold isSlice. length.
+
       iPoseProof (big_sepLZ2_app with "Hslice1 Hslice2") as "Hslice".
       rewrite -(split_seg (i + length xs)); try lia.
-      length; rewrite (assoc Z.add).
-      iApply "Hslice".
+      replace (i + (length xs + length ys)) with (i + length xs + length ys) by lia.
+      iFrame "∗#%".
   Qed.
 
   (* We can split a slice on an index [j] of the model [xs].
@@ -82,12 +83,11 @@ Section array_resources.
     0 ≤ j ≤ length xs →
     a ↦∗[i]{dq} xs ⊣⊢ a ↦∗[i]{dq} (seg 0 j xs) ∗ a ↦∗[i + j]{dq} (seg j (length xs) xs).
   Proof.
-    length_nonneg xs; length_nonneg a.
-    intros Hbound.
+    lengths.
     rewrite -{1}(seg_all 0 (length xs) xs); try lia.
     rewrite (split_seg j); try lia.
-    rewrite Slice_app.
-    f_equiv. f_equiv. length. lia.
+    rewrite (Slice_app (i + j)).
+    reflexivity. length. lia.
   Qed.
 
   Lemma slice_of_own `{Encode A} (a : array) (xs : list A) n :
