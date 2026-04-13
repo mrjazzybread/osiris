@@ -239,8 +239,8 @@ Definition as_record (m : microvx) : micro env exn :=
 
 Definition val_as_array (v : val) : micro (list loc) exn :=
   match v with
-  | VArray l =>
-      ret l
+  | VLoc l =>
+      load_block l
   | _ =>
       type_mismatch "array expected"
   end.
@@ -1224,8 +1224,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       widen (lookup_name fvs f)
   | EArrayLit es =>
       vs ← evals η es ;
-      ls ← allocn vs;
-      ret (VArray ls)
+      ls ← allocn vs ;
+      l ← alloc_block ls ;
+      ret (VLoc l)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (length ls)))
@@ -1246,8 +1247,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
       let n : Z := signed n in
       if decide (0 ≤ n ≤ max_array) then
-        ls ← allocn (replicate n v);
-        ret (VArray ls)
+        ls ← allocn (replicate n v) ;
+        l ← alloc_block ls ;
+        ret (VLoc l)
       else crash "invalid_argument: Array.make"
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;

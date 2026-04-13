@@ -138,6 +138,32 @@ Proof.
   unfold step_load_2. intros. case_location_lookup; simplify_eq; eauto.
 Qed.
 
+(* [step_load_block σ l k] is the right-hand side of the reduction rule [StepLoadBlock].
+
+   The rule loads a value from the store [σ] at location [l] and returns it to
+   the continuation [k]. It fails if this location is not in the domain of [σ]
+   or contains something other than a value. *)
+
+Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (list loc) exn → _) : micro A E :=
+  match σ !! l with
+  | Some (Dict _ ls) => continue k ls
+  | _          => crash "load error: unbound location"
+  end.
+
+Notation step_load_block σ l k :=
+  (σ, step_load_block_2 σ l k).
+
+(* [step_load_2] commutes with [try2]. This expresses the intuition that
+   [step_load_2 σ l k] is parametric in the continuation [k]: it applies
+   [k] without inspecting it. In other words, loading is an "algebraic"
+   effect. *)
+
+Lemma try2_step_load_block_2 {A E B F} σ l k (k' : outcome2 A E → micro B F) :
+  try2 (step_load_block_2 σ l k) k' = step_load_block_2 σ l (pftry2 k k').
+Proof.
+  unfold step_load_block_2. intros. case_location_lookup; simplify_eq; eauto.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* [step_exchange σ l v k] is the right-hand side of the reduction rule [StepStore].
@@ -332,6 +358,7 @@ Qed.
 
 Global Hint Resolve
   try2_step_load_2
+  try2_step_load_block_2
   try2_step_exchange_2
   try2_step_cas_2
   try2_step_faa_2
@@ -387,14 +414,21 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CFlip x k)
         (σ, continue k b)
 
-  (* [stop CAllocn v] allocates [n] fresh locations in the heap,
-     initializes them with the value [v], and returns the locations. *)
+  (* [stop CAlloc v] allocates a fresh location in the heap,
+     initializes it with the value [v], and returns the location. *)
   | StepAlloc :
-      ∀ σ vs ls k,
-      List.length ls = List.length vs ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) →
+      ∀ σ v l k,
+      σ !! l = None →
       step
-        (σ, Stop CAllocn vs k)
-        (insertn ls vs σ, continue k ls)
+        (σ, Stop CAlloc v k)
+        (<[ l := Val v ]> σ, continue k l)
+
+  | StepAllocBlock :
+    ∀ σ ls l k,
+      σ !! l = None →
+      step
+        (σ, Stop CAllocBlock ls k)
+        (<[ l := Dict Mut ls ]> σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -404,6 +438,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Stop CLoad l k)
         c'
+
+  | StepLoadBlock :
+    ∀ σ l k c',
+    c' = step_load_block σ l k →
+    step
+      (σ, Stop CLoadBlock l k)
+      c'
 
   (* If the location [l] exists and contains a value [v], then
      [stop CExchange (l, v')] overwrites this value with [v'];
@@ -968,14 +1009,25 @@ Proof.
   eauto.
 Qed.
 
-Lemma invert_step_allocn {A E} σ σ' vs k m' :
-  @step A E (σ, Stop CAllocn vs k) (σ', m') →
-  ∃ ls,
-  List.length ls = List.length vs ∧ NoDup ls ∧ (∀ l, l ∈ ls → σ !! l = None) ∧
-  σ' = insertn ls vs σ ∧
-  m' = continue k ls.
+Lemma invert_step_alloc {A E} σ σ' v k m' :
+  @step A E (σ, Stop CAlloc v k) (σ', m') →
+  ∃ l,
+    σ !! l = None ∧
+    σ' = <[ l := Val v ]> σ ∧
+    m' = continue k l.
   Proof.
-    intros Hstep. destruct_step. destruct H as (Hlen & Hdup & Hfresh).
+    intros Hstep. destruct_step.
+    eexists. eauto.
+  Qed.
+
+Lemma invert_step_alloc_block {A E} σ σ' ls k m' :
+  @step A E (σ, Stop CAllocBlock ls k) (σ', m') →
+  ∃ l,
+    σ !! l = None ∧
+    σ' = <[ l := Dict Mut ls ]> σ ∧
+    m' = continue k l.
+  Proof.
+    intros Hstep. destruct_step.
     eexists. eauto.
   Qed.
 
@@ -1005,34 +1057,18 @@ Proof.
   { econstructor. apply (StepFlip true). }
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
-  { induction x as [| v vs IH ].
-    - eexists. apply StepAlloc.
-      refine (conj length_nil (conj NoDup_nil_2 _)).
-      intros l Helem_in. by apply not_elem_of_nil in Helem_in.
-    - destruct IH as ([σ' m'], Hstep).
-      apply invert_step_allocn in Hstep as
-          (ls & Hlen & Hdup & Hmem & -> & ->).
-      set (l := fresh (dom σ ∪ list_to_set ls)).
-      assert (lookup l σ = None ∧ l ∉ @list_to_set _ (gset _) _ _ _ ls) as Hfresh.
-      { rewrite <- (not_elem_of_dom σ l).
-        apply not_elem_of_union.
-        apply is_fresh. }
-      eexists. apply StepAlloc. split; last split.
-      + rewrite length_cons. simpl. by rewrite Hlen.
-      + apply NoDup_cons. split; last assumption.
-        eapply not_elem_of_list_to_set.
-        destruct Hfresh as [_ Hfresh]; apply Hfresh.
-      + intros l' Hmem'.
-        apply elem_of_cons in Hmem' as [ Heq | Hmem' ].
-        * rewrite Heq. apply Hfresh.
-        * apply Hmem, Hmem'. }
+  { eexists. apply StepAlloc.
+    apply not_elem_of_dom.
+    apply is_fresh. }
+  { eexists. apply StepAllocBlock.
+    apply not_elem_of_dom.
+    apply is_fresh. }
   (* In the case of wrap, we must also exhibit an address [l]
      that is not in the domain of [σ]. *)
   { set (l' := fresh (dom σ)).
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
     destruct x;
       eauto using StepWrap, StepShallowWrap with step. }
-  Unshelve. apply _.
 Qed.
 
 Global Hint Resolve can_step_stop : step.

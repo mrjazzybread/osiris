@@ -46,11 +46,19 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
     (continue k false)
 | MayAlloc vs k :
   may
-    (Stop CAllocn vs k)
+    (Stop CAlloc vs k)
+    (Crash)
+| MayAllocBlock vs k :
+  may
+    (Stop CAllocBlock vs k)
     (Crash)
 | MayLoad lv k :
   may
     (Stop CLoad lv k)
+    (Crash)
+| MayLoadBlock lv k :
+  may
+    (Stop CLoadBlock lv k)
     (Crash)
 | MayExchange l k :
   may

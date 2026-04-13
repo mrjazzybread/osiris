@@ -432,8 +432,7 @@ Inductive val : Type :=
   (* The fields in a record are always pairwise distinct (this is checked
      by OCaml, not by us) and alphabetically sorted. *)
   | VRecord (fvs : list (var * val))
-  (* An array is represented as the list of locations of its elements. *)
-  | VArray (l : list loc)
+  (* An array is represented as a pointer to the list of locations of its elements. *)
   (* A location. *)
   | VLoc (l: loc)
   (* A thread id. *)

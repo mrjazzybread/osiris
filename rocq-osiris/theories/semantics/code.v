@@ -73,8 +73,10 @@ Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
-| CAllocn : code (list val) (list loc) exn
+| CAlloc : code val loc exn
+| CAllocBlock : code (list loc) loc exn
 | CLoad  : code loc val exn
+| CLoadBlock : code loc (list loc) exn
 | CExchange : code (loc * val) val exn
 | CCAS : code (loc * val * val) val exn
 | CFAA : code (loc * int) val exn
@@ -153,6 +155,11 @@ Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
 Definition load (l : loc) :=
   stop CLoad l.
 
+(* [load_block l] loads the locations stored in the block at location [l]. *)
+
+Definition load_block (l : loc) :=
+  stop CLoadBlock l.
+
 (* [exchange l v] updates the ref cell at location [l] with the value [v],
    and returns the previously stored value. *)
 
@@ -194,21 +201,29 @@ Notation "' x ← y ; z" :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [allocn n v] allocates [n] new ref cells with initial value [v] and
-   returns the ref cells' locations. *)
-
-Definition allocn (vs : list val) : micro (list loc) exn :=
-  stop CAllocn (vs).
-
 (* [alloc v] allocates a new ref cell with initial value [v] and returns the
    ref cell's location. *)
 
 Definition alloc (v : val) : micro loc exn :=
-  ls ← allocn [v] ;
-  match ls with
-  | [l] => ret l
-  | _ => Crash
+  stop CAlloc v.
+
+(* [allocn n v] allocates [n] new ref cells with initial value [v] and
+   returns the ref cells' locations. *)
+
+Fixpoint allocn (vs : list val) : micro (list loc) exn :=
+  match vs with
+  | [] => ret []
+  | v :: vs =>
+      l ← alloc v ;
+      ls ← allocn vs ;
+      ret (l :: ls)
   end.
+
+(* [alloc_block ls] allocates [n] new ref cells with initial value [v] and
+   returns the ref cells' locations. *)
+
+Definition alloc_block (ls : list loc) : micro loc exn :=
+  stop CAllocBlock ls.
 
 (* [store l v] updates the ref cell at location [l] with the value [v],
    and returns unit. *)

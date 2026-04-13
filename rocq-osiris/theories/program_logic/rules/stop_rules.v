@@ -5,6 +5,7 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
+From osiris.tactics Require Import osiris_utils.
 From osiris.lang Require Import lang.
 From osiris.program_logic Require Import thread_step ewp tactics basic_rules escrows.
 From osiris.semantics Require Import semantics.
@@ -47,91 +48,57 @@ Section imp_stop.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
-  (* [CAllocn]. *)
+  (* [CAlloc]. *)
 
-    (* Memory allocation rule for [n] locations at once. *)
-  Lemma imp_stop_allocn' vs (k : _ → micro A X) :
-    ▷ (∀ (ls : list loc),
-          ([∗ listZ] l;v ∈ ls;vs, l ↦ v ∗ meta_token l ⊤) -∗
-          imp (continue k ls) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-      imp (Stop CAllocn vs k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Lemma imp_stop_alloc' v (k : _ → micro A X) :
+    ▷ (∀ (l : loc),
+          (l ↦ v ∗ meta_token l ⊤) -∗
+          imp (continue k l) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    imp (Stop CAlloc v k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    destruct_thread_step. destruct H as (Hlen & Hdup & Hfresh).
-    iDestruct (gen_heap_alloc_big with "Hsi") as ">(Hsi & Hpts & Hmt)".
-    { apply map_disjoint_spec. intros l x y.
-      instantiate (1 := (list_to_map ((λ '(l, v), (l, Val v)) <$> zip ls vs))).
-      intros HF Hlookup.
-      apply elem_of_dom_2 in HF. rewrite dom_list_to_map in HF.
-      apply elem_of_list_to_set in HF.
-      rewrite <- list_fmap_compose in HF.
-      apply list_elem_of_fmap_1 in HF as ([l' v'] & -> & HF).
-      apply elem_of_zip_l in HF.
-      apply Hfresh in HF.
-      rewrite Hlookup in HF. discriminate HF. }
-    assert (ls = ((λ '(l,v), (l, Val v)) <$> zip ls vs).*1) as Heqls.
-    { clear Hdup Hfresh. generalize dependent vs. induction ls; intros ??. reflexivity.
-      simpl.
-      destruct vs; first discriminate Hlen.
-      rewrite -> IHls at 1.
-      reflexivity. by inversion Hlen. }
-    rewrite Heqls in Hdup.
-    iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hpts") as "Hpts".
-    iPoseProof (big_sepM_list_to_map _ _ Hdup with "Hmt") as "Hmt".
-    clear Heqls Hdup Hfresh.
-    ewp_mask_elim. iFrame. iSplitR "Hsi".
-    - iApply "H". iFrame "%".
-      iInduction ls as [|l ls IH] forall (vs Hlen).
-      + destruct vs; last discriminate Hlen. done.
-      + destruct vs; first discriminate Hlen.
-        iApply big_sepLZ2_cons.
-        iDestruct "Hpts" as "(Hl & Hpts)".
-        iDestruct "Hmt" as "(Htok & Hmt)".
-        iFrame.
-        iApply ("IH" with "[] Hpts Hmt"). iPureIntro. by inversion Hlen.
-    -
-      assert (insertn ls vs σ = list_to_map ((λ '(l, v), (l, Val v)) <$> zip ls vs) ∪ σ) as ->.
-      { generalize dependent vs.
-        induction ls as [|l ls IH]; intros vs Hlen.
-        - simpl.
-          destruct vs; last discriminate Hlen.
-          by rewrite map_empty_union.
-        - simpl.
-          destruct vs; first discriminate Hlen.
-          rewrite IH. rewrite insert_union_l.
-          reflexivity. by inversion Hlen. }
-      iFrame.
-  Qed.
+    destruct_thread_step.
 
-  Lemma imp_stop_allocn vs (k : _ → micro A X) :
-    ▷ (∀ ls,
-          ([∗ listZ] l;v ∈ ls;vs, l ↦ v) -∗
-          imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAllocn vs k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H".
-    iApply imp_stop_allocn'; iNext.
-    iIntros (ls) "Hls".
-    iPoseProof (big_sepLZ2_sep with "Hls") as "[Hls _]".
-    iApply "H". iFrame.
+    iDestruct (gen_heap_alloc with "Hsi") as ">(Hsi & Hl)".
+    { eassumption. }
+
+    iIntros "!> !>". iSpecialize ("H" with "Hl").
+    ewp_mask_elim. iFrame.
   Qed.
 
   Lemma imp_stop_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), l ↦ v -∗
-            imp (continue k [l]) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAllocn [v] k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+            imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    imp (Stop CAlloc v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
-    iApply imp_stop_allocn.
-    iIntros "!>" (ls) "Hls".
-    iPoseProof (big_sepLZ2_length with "Hls") as "%Hlen".
-    destruct ls; first discriminate Hlen.
-    destruct ls; last (revert Hlen; length; length_nonneg ls; lia).
-    iApply "H".
-    iApply (big_sepLZ2_singleton (λ _ l v, l↦v)%I with "Hls").
+    iApply imp_stop_alloc'.
+    iIntros "!>" (l) "(Hpts & _)".
+    iApply ("H" with "Hpts").
+  Qed.
+
+  (* [CAllocBlock]. *)
+
+  Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
+    ▷ (∀ (l : loc),
+         pointsto l (DfracOwn 1) (Dict Mut ls) -∗
+         imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    destruct_thread_step.
+
+    iDestruct (gen_heap_alloc with "Hsi") as ">(Hsi & Hl & _)".
+    { eassumption. }
+
+    iIntros "!> !>". iSpecialize ("H" with "Hl").
+    ewp_mask_elim. iFrame.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -145,7 +112,6 @@ Section imp_stop.
       ) -∗
     imp (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    destruct Ψ.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
@@ -157,6 +123,31 @@ Section imp_stop.
     destruct_thread_step.
 
     rewrite /step_load_2 H0.
+    ewp_mask_elim. iFrame.
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* [CLoadBlock]. *)
+
+  Lemma imp_stop_load_block (l : loc) t ls (dq : dfrac) (k: _ → micro A X) :
+    ▷ pointsto l dq (Dict t ls) ⊢
+    ▷ (
+        pointsto l dq (Dict t ls) -∗
+        imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    (* Thus, the reduction step must be a successful step. *)
+    destruct_thread_step.
+
+    rewrite /step_load_block_2 H0.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
@@ -624,37 +615,104 @@ Section imp_combinators.
   (* ------------------------------------------------------------------------ *)
   (* [CAllocn]. *)
 
-  Local Instance notval_locs : NotVal (list loc) := {}.
-
-  Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
-    ▷ (∀ (ls : list loc), ([∗ listZ] l;x ∈ ls;xs, l ↦ #x) -∗ Φ ls) -∗
-    imp (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H".
-    iApply imp_stop_allocn.
-    iIntros "!> %ls Hls".
-    iApply imp_ret; first encode.
-    iApply "H".
-    iApply (big_sepLZ2_fmap_r encode.encode (λ _ l v, l ↦ v)%I).
-    iApply "Hls".
-  Qed.
-
-  Lemma imp_alloc' {Φ : loc → iProp Σ} v :
-    ▷ (∀ (l : loc), l ↦ v -∗ Φ l) -∗
+  Lemma imp_alloc2' {Φ : loc → iProp Σ} v :
+    ▷ (∀ (l : loc), l ↦ v ∗ meta_token l ⊤ -∗ Φ l) -∗
     imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
-    iApply imp_stop_alloc.
+    iApply imp_stop_alloc'.
     iIntros "!> %l Hl".
     iApply imp_ret; first encode.
     iApply ("H" with "Hl").
   Qed.
 
+  Lemma imp_alloc2 {Φ : loc → iProp Σ} v :
+    ▷ (∀ (l : loc), l ↦ v -∗ Φ l) -∗
+    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iApply imp_alloc2'.
+    iIntros "!> %l (Hl & _)".
+    iApply ("H" with "Hl").
+  Qed.
+
+  Lemma imp_alloc' v :
+    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ v ∗ meta_token l ⊤ }}.
+  Proof.
+    iApply (imp_alloc2').
+    iIntros "!> %l $".
+  Qed.
+
   Lemma imp_alloc v :
     ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ v }}.
   Proof.
-    iApply imp_alloc'.
+    iApply imp_alloc2.
     iIntros "!> %l $".
+  Qed.
+
+  Local Instance notval_locs : NotVal (list loc) := {}.
+
+  (* Memory allocation rule for [n] locations at once. *)
+  Lemma imp_allocn' {Φ : list loc → iProp Σ} vs :
+    (▷^(List.length vs) ∀ (ls : list loc),
+       ([∗ listZ] l;v ∈ ls;vs, l ↦ v ∗ meta_token l ⊤) -∗
+       Φ ls) ⊢
+    imp (allocn vs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iInduction vs as [|v vs] forall (Φ).
+    - iApply imp_ret. reflexivity.
+      iApply "H".
+      by iApply (big_sepLZ2_nil).
+    - simpl.
+      iApply (imp_bind with "[H]").
+      { set_postcondition (λ l, (l ↦ v ∗ meta_token l ⊤) ∗ (▷^_ _))%I.
+        iApply imp_alloc2'. iNext. iIntros (l) "$".
+        iExact "H". }
+      iIntros (l) "(Hl & H)".
+      iApply (imp_bind with "[H]").
+      {
+        iApply "IHvs".
+        iNext.
+        iIntros (ls) "Hls".
+        iCombine "H Hls" as "H".
+        iExact "H". }
+      iIntros (ls) "(H & Hls)".
+      iApply imp_ret. encode.
+      iApply "H".
+      iApply big_sepLZ2_cons. iFrame.
+  Qed.
+
+  Lemma imp_allocn {Φ : list loc → iProp Σ} vs :
+    ▷^(List.length vs) (∀ ls,
+       ([∗ listZ] l;v ∈ ls;vs, l ↦ v) -∗ Φ ls) ⊢
+    imp (allocn vs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H".
+    iApply imp_allocn'.
+    iIntros "!>" (ls) "Hls".
+    iPoseProof (big_sepLZ2_sep with "Hls") as "[Hls _]".
+    iApply "H". iFrame.
+  Qed.
+
+  (* [CAllocBlock]. *)
+
+  Lemma imp_alloc_block2 {Φ : loc → iProp Σ} ls :
+    ▷ (∀ l, pointsto l (DfracOwn 1) (Dict Mut ls) -∗ Φ l) ⊢
+    impure E (alloc_block ls) Ψ ζ Φ.
+  Proof.
+    iIntros "H".
+    iApply imp_stop_alloc_block.
+    iIntros "!>" (l) "Hl".
+    iApply imp_ret; first encode.
+    iApply ("H" with "Hl").
+  Qed.
+
+  Lemma imp_alloc_block ls :
+    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l (DfracOwn 1) (Dict Mut ls)).
+  Proof.
+    iApply imp_alloc_block2.
+    iIntros "!>" (l) "$".
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -678,6 +736,29 @@ Section imp_combinators.
   Proof.
     iIntros "Hl".
     iApply (imp_load' with "Hl").
+    by iIntros "!> $".
+  Qed.
+
+  (* [CLoadBlock]. *)
+
+  Lemma imp_load_block' {Φ : list loc → iProp Σ} l dq t ls :
+    ▷ pointsto l dq (Dict t ls) ⊢
+    ▷ (pointsto l dq (Dict t ls) -∗ Φ ls) -∗
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_load_block with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_load_block l dq t ls :
+    ▷ pointsto l dq (Dict t ls) ⊢
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ls', ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_load_block' with "Hl").
     by iIntros "!> $".
   Qed.
 
