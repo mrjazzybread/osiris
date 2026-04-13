@@ -15,7 +15,7 @@ From osiris.semantics Require Import code eval.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A memory block stores either a value or a captured continuation.
+(* A memory block stores either a value, a block of memory, or a captured continuation.
 
    A continuation is either not-yet-shot or already shot.
 
