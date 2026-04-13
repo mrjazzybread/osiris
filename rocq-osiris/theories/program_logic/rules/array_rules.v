@@ -35,18 +35,12 @@ Section array_resources.
 
 End array_resources.
 
-Notation "a '↦∗' xs" :=
-    (isSlice (DfracOwn 1) a 0 xs)
-      (at level 20, format "a  '↦∗'  xs") : bi_scope.
-Notation "a [ i ] '↦∗' xs" :=
-  (isSlice (DfracOwn 1) a i xs)
-    (at level 20, i at level 1, format "a [ i ]  '↦∗'  xs") : bi_scope.
-Notation "a [ i ] '↦∗{' dq } xs" :=
+Notation "a ↦∗ dq xs" :=
+    (isSlice dq a 0 xs)
+      (at level 20, dq custom dfrac at level 1, format "a  ↦∗ dq  xs") : bi_scope.
+Notation "a ↦∗[ i ] dq xs" :=
   (isSlice dq a i xs)
-    (at level 20, dq at level 1, i at level 1, format "a [ i ]  '↦∗{' dq }  xs") : bi_scope.
-Notation "a [ i ] '↦∗{#' dq } xs" :=
-  (isSlice (DfracOwn dq) a i xs)
-    (at level 20, i at level 1, dq at level 1, format "a [ i ]  '↦∗{#' dq }  xs") : bi_scope.
+    (at level 20, dq custom dfrac at level 1, i at level 200, format "a  ↦∗[ i ] dq  xs") : bi_scope.
 
 Section array_resources.
 
@@ -54,7 +48,7 @@ Section array_resources.
 
   Lemma Slice_app `{Encode A} j dq a i (xs ys : list A) :
     j = i + length xs →
-    isSlice dq a i (xs ++ ys) ⊣⊢ (isSlice dq a i xs ∗ isSlice dq a j ys).
+    a ↦∗[i]{dq} (xs ++ ys) ⊣⊢ (a ↦∗[i]{dq} xs ∗ a ↦∗[j]{dq} ys).
   Proof.
     intros ->.
     length_nonneg xs; length_nonneg ys; length_nonneg a.
@@ -86,7 +80,7 @@ Section array_resources.
 
   Lemma split_Slice `{Encode A} (j : Z) dq a i (xs : list A) :
     0 ≤ j ≤ length xs →
-    isSlice dq a i xs ⊣⊢ isSlice dq a i (seg 0 j xs) ∗ isSlice dq a (i + j) (seg j (length xs) xs).
+    a ↦∗[i]{dq} xs ⊣⊢ a ↦∗[i]{dq} (seg 0 j xs) ∗ a ↦∗[i + j]{dq} (seg j (length xs) xs).
   Proof.
     length_nonneg xs; length_nonneg a.
     intros Hbound.
@@ -240,8 +234,8 @@ Section array_reasoning.
     (∀ a i, Φ1 a -∗ Φ2 i -∗
             ∃ n, isArray a n ∗
                  ∃ dq j xs,
-                   ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ isSlice dq a j xs) ∗
-                   ▷ (isSlice dq a j xs -∗ Φ (xs !!! (i - j)))) -∗
+                   ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ a ↦∗[j]{dq} xs) ∗
+                   ▷ (a ↦∗[j]{dq} xs -∗ Φ (xs !!! (i - j)))) -∗
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 P". simpl_eval.
@@ -271,17 +265,14 @@ Section array_reasoning.
     ⌜i - j < length xs⌝ -∗
     ⌜xs !!! (i - j) = x⌝ -∗
     isArray a n -∗
-    ▷ isSlice dq a j xs -∗
+    ▷ a ↦∗[j]{dq} xs -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ v, ⌜v = x⌝ ∗ isSlice dq a j xs }}.
+      {{ λ v, ⌜v = x⌝ ∗ a ↦∗[j]{dq} xs }}.
   Proof.
     iIntros (Hi Hlookup Hlen) "#Harr Hslice He1 He2".
-    iApply (imp_EArrayGet2 with "[He1] He2").
-    { iApply (imp_wand with "He1").
-      iIntros (?) "->". iFrame "#".
-      instantiate (1 := (λ a', ⌜a' = a⌝)%I). done. }
+    iApply (imp_EArrayGet2 with "He1 He2").
     iIntros (? ?) "-> ->".
     iFrame "#".
     iFrame "%". iFrame.
@@ -296,8 +287,8 @@ Section array_reasoning.
     (∀ a i y, Φ1 a -∗ Φ2 i -∗ Φ3 y -∗
               ∃ n, isArray a n ∗
                    ∃ j xs,
-                     ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ isSlice (DfracOwn 1) a j xs) ∗
-                     ▷ (isSlice (DfracOwn 1) a j (<[i - j := y]> xs) -∗ Φ ())) -∗
+                     ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ a ↦∗[j] xs) ∗
+                     ▷ (a ↦∗[j] (<[i - j := y]> xs) -∗ Φ ())) -∗
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 He3 P". simpl_eval.
@@ -331,12 +322,12 @@ Section array_reasoning.
     ⌜j ≤ i⌝ -∗
     ⌜i - j < length xs⌝ -∗
     isArray a n -∗
-    ▷ isSlice (DfracOwn 1) a j xs -∗
+    ▷ a ↦∗[j] xs -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i'=i⌝ }} -∗
     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (_ : unit), ∃ y, Φ y ∗ isSlice (DfracOwn 1) a j (<[i-j:=y]> xs) }}.
+      {{ λ (_ : unit), ∃ y, Φ y ∗ a ↦∗[j] (<[i-j:=y]> xs) }}.
   Proof.
     iIntros (Hbound Hlen) "#Harr Hslice He1 He2 He3".
     iApply (imp_EArraySet2 with "He1 He2 He3").
