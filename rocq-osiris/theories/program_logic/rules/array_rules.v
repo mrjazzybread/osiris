@@ -16,6 +16,9 @@ Section array_resources.
 
   Context `{!osirisGS Σ}.
 
+  (* [isArray a ls] asserts that the array [a] points to a block in
+     memory represented by the locations [ls]. *)
+
   Definition isArray (a : array) (ls : list loc) : iProp Σ :=
     ∃ t, pointsto a DfracDiscarded (Dict t ls) ∗
          ⌜length ls ≤ max_array⌝.
@@ -31,10 +34,18 @@ Section array_resources.
     by inversion_clear Heq.
   Qed.
 
+  Lemma isArray_length a ls :
+    isArray a ls -∗ ⌜length ls ≤ max_array⌝.
+  Proof. iIntros "(%y & _ & $)". Qed.
+
+  (* Ownership over a segment of the array. *)
+
   Definition isSlice `{Encode A} a dq (i : Z) (xs : list A) : iProp Σ :=
     ∃ ls, isArray a ls ∗
     ⌜0 ≤ i⌝ ∧ ⌜i + length xs ≤ length ls⌝ ∗
     [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, l ↦{dq} #x.
+
+  (* Ownership of the whole array. *)
 
   Definition ownArray `{Encode A} (a : array) dq (xs : list A) : iProp Σ :=
     ∃ ls, isArray a ls ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
@@ -42,6 +53,16 @@ Section array_resources.
   Lemma ownArray_isArray `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ ∃ ls, isArray a ls ∗ ⌜length ls = length xs⌝.
   Proof. iIntros "(%ls & #$ & _ & $)". Qed.
+
+  Lemma ownArray_length `{Encode A} a dq (xs : list A) :
+    ownArray a dq xs -∗ ⌜0 ≤ length xs ≤ max_array⌝.
+  Proof.
+    iIntros "Hown".
+    iPoseProof (ownArray_isArray with "Hown") as "(%ls & Ha & %Hlenls)".
+    iPoseProof (isArray_length with "Ha") as "%Hboundls".
+    iPureIntro. rewrite Hlenls in Hboundls.
+    split; [ by length_nonneg xs | apply Hboundls ].
+  Qed.
 
   Lemma ownArray_isSlice `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ isSlice a dq 0 xs.

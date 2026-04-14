@@ -92,8 +92,7 @@ Section verification.
     iPoseProof (fold_left_spec_pure_spec with "Hm") as "Hm".
 
     unfold fold_left_pure_spec.
-    iPoseProof (slice_of_own with "HownArr") as "(#Harr & Hslice)"; first reflexivity.
-    iSpecialize ("Hm" $! Z with "Harr Hslice Hadd_").
+    iSpecialize ("Hm" $! Z with "HownArr Hadd_").
     iApply (imp_wand with "Hm").
     iIntros (acc) "(-> & _)".
     iPureIntro.
