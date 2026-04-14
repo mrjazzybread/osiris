@@ -1,4 +1,4 @@
-From osiris.lang Require Import type_nel encode notations int.
+From osiris.lang Require Import type_nel encode notations int locations.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import proofmode.
 
@@ -24,7 +24,7 @@ Section init_proof.
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
          I [] -∗
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ ownArray a xs ∗ I xs }})%I.
+         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ I xs }})%I.
 
   Definition init_spec' : Z → val → microvx → iProp Σ :=
     λ n f m,
@@ -34,7 +34,7 @@ Section init_proof.
          □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, Φ i x }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ ownArray a xs ∗ [∗ listZ] i↦x ∈ xs, Φ i x }})%I.
+         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ [∗ listZ] i↦x ∈ xs, Φ i x }})%I.
 
   Definition init_pure_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
@@ -44,7 +44,7 @@ Section init_proof.
          □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, ⌜x = Φ i⌝ }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
-         imp m {{ λ a, ownArray a (init n Φ) }})%I.
+         imp m {{ λ a, a ↦∗ (init n Φ) }})%I.
 
   Lemma init_spec_spec' n f m :
     init_spec n f m -∗ init_spec' n f m.
@@ -72,8 +72,8 @@ Section init_proof.
     iApply ("Hinit" $! A HencA HinhA (λ i x, ⌜x = Φ i⌝)%I Hbounds with "Hf").
     iIntros (a) "(%xs & %Hlen & Hown & HlistZ)".
     iPoseProof (big_sepLZ_pure_1 with "HlistZ") as "%Hlist".
-    iDestruct "Hown" as "(%Harray & Hslice)".
-    iSplitR. { iPureIntro. length. lia. }
+    iDestruct "Hown" as "(% & #$ & Hslice & %Hlenls)".
+    iSplitL; last first. { iPureIntro. length. lia. }
     iAssert (⌜init n Φ = xs⌝)%I as "->".
     { iPureIntro.
       eapply list_eq_same_length.
@@ -135,17 +135,16 @@ Section init_proof.
         iApply ("Hm" with "[] HI"). iPureIntro; lia. }
 
     iIntros (res) "(%x & HΦx & HownArr)".
-    iDestruct "HownArr" as "(#Harr & Hslice)". length.
 
     (* Subgoal: [for i = 1 to ... done; res]. *)
-    iApply (imp_ESeq with "[Hslice HΦx]").
+    iApply (imp_ESeq with "[HownArr HΦx]").
     { (* Subgoal: [for i = 1 to ... done]. *)
       imp_for 1 to (n - 1) $!
         (λ i, ∃ xs,
             ⌜length xs = i⌝ ∗
-            isSlice (DfracOwn 1) res 0 (xs ++ replicate (n - i) x) ∗
+            res ↦∗ (xs ++ replicate (n - i) x) ∗
             I xs)%I
-        with "[] [] [Hslice HΦx]".
+        with "[] [] [HownArr HΦx]".
       { (* Prove that the loop invariant holds at index [1]. *)
         iFrame. iSplitR; first (iPureIntro; length; lia).
         rewrite (split_replicate x n 1); last lia.
@@ -197,15 +196,15 @@ Section iter_proof.
   Definition iter_spec : val → array → microvx → iProp Σ :=
     λ f a m,
       (∀ (A : Type) (_ : Encode A) (_ : Inhabited A) dq (xs : list A) (I : list A → iProp Σ),
-         isArray a (length xs) -∗
-         isSlice dq a 0 xs -∗
+         a ↦∗{dq} xs -∗
+         isSlice dq ls 0 xs -∗
          □ iSpec τ[A] f (λ (X : A) m,
                            ∀ (Xs : list A),
                            ⌜Xs ++ singleton X `prefix_of` xs⌝ -∗
                            I Xs -∗
                            imp m {{ λ (_ : unit), I (Xs ++ singleton X) }}) -∗
          I [] -∗
-         imp m {{ λ (_ : unit), I xs ∗ isSlice dq a 0 xs }})%I.
+         imp m {{ λ (_ : unit), I xs ∗ isSlice dq ls 0 xs }})%I.
 
 
   Definition iter := (EAnonFun __fun74).
@@ -253,11 +252,12 @@ Section iter_proof.
   Proof.
     iIntros "#Hlength #Hget".
     iApply imp_EAnon_pers.
-    iIntros "!>" (f a A HencA HinhA dq xs I) "(%Hlen & %Hbound) Hslice #Hf HI".
+    iIntros "!>" (f a A HencA HinhA dq ls xs I) "#Harr Hslice #Hf HI".
+    iDestruct "Harr" as "(% & Ha & %Hlenls)".
     iApply imp_please; iNext.
     iApply (imp_wand with "[-]").
     - imp_for 0 to (length xs - 1) $!
-        (λ i, isSlice dq a 0 xs ∗
+        (λ i, isSlice dq ls 0 xs ∗
               ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
         with "[] [] [HI Hslice]".
       { imp_arith.

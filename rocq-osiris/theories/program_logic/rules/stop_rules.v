@@ -653,26 +653,26 @@ Section imp_combinators.
   Local Instance notval_locs : NotVal (list loc) := {}.
 
   (* Memory allocation rule for [n] locations at once. *)
-  Lemma imp_allocn' {Φ : list loc → iProp Σ} vs :
-    (▷^(List.length vs) ∀ (ls : list loc),
-       ([∗ listZ] l;v ∈ ls;vs, l ↦ v ∗ meta_token l ⊤) -∗
+  Lemma imp_allocn' `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
+    (▷^(List.length xs) ∀ (ls : list loc),
+       ([∗ listZ] l;x ∈ ls;xs, l ↦ #x ∗ meta_token l ⊤) -∗
        Φ ls) ⊢
-    imp (allocn vs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (allocn ♯xs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
-    iInduction vs as [|v vs] forall (Φ).
+    iInduction xs as [|x xs] forall (Φ).
     - iApply imp_ret. reflexivity.
       iApply "H".
       by iApply (big_sepLZ2_nil).
     - simpl.
       iApply (imp_bind with "[H]").
-      { set_postcondition (λ l, (l ↦ v ∗ meta_token l ⊤) ∗ (▷^_ _))%I.
+      { set_postcondition (λ l, (l ↦ #x ∗ meta_token l ⊤) ∗ (▷^_ _))%I.
         iApply imp_alloc2'. iNext. iIntros (l) "$".
         iExact "H". }
       iIntros (l) "(Hl & H)".
       iApply (imp_bind with "[H]").
       {
-        iApply "IHvs".
+        iApply "IHxs".
         iNext.
         iIntros (ls) "Hls".
         iCombine "H Hls" as "H".
@@ -683,10 +683,10 @@ Section imp_combinators.
       iApply big_sepLZ2_cons. iFrame.
   Qed.
 
-  Lemma imp_allocn {Φ : list loc → iProp Σ} vs :
-    ▷^(List.length vs) (∀ ls,
-       ([∗ listZ] l;v ∈ ls;vs, l ↦ v) -∗ Φ ls) ⊢
-    imp (allocn vs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
+    ▷^(List.length xs) (∀ ls,
+       ([∗ listZ] l;x ∈ ls;xs, l ↦ #x) -∗ Φ ls) ⊢
+    imp (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_allocn'.
@@ -698,18 +698,19 @@ Section imp_combinators.
   (* [CAllocBlock]. *)
 
   Lemma imp_alloc_block2 {Φ : loc → iProp Σ} ls :
-    ▷ (∀ l, pointsto l (DfracOwn 1) (Dict Mut ls) -∗ Φ l) ⊢
+    ▷ (∀ l, pointsto l DfracDiscarded (Dict Mut ls) -∗ Φ l) ⊢
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
     iIntros "H".
     iApply imp_stop_alloc_block.
     iIntros "!>" (l) "Hl".
+    iPoseProof (pointsto_persist with "Hl") as ">Hl".
     iApply imp_ret; first encode.
     iApply ("H" with "Hl").
   Qed.
 
   Lemma imp_alloc_block ls :
-    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l (DfracOwn 1) (Dict Mut ls)).
+    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l DfracDiscarded (Dict Mut ls)).
   Proof.
     iApply imp_alloc_block2.
     iIntros "!>" (l) "$".

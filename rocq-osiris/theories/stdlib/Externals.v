@@ -4,7 +4,7 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-From osiris.lang Require Import type_nel encode int notations.
+From osiris.lang Require Import type_nel encode int notations locations.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import env_lookups.
 From osiris.logic Require Import list_z.
@@ -176,7 +176,7 @@ Section ExternalsDef.
   Definition Externals__array_length_expr := EEta1 EArrayLength.
 
   Definition array_length_spec length : iProp Σ :=
-    iSpec τ[array] length (λ a m, ∀ n, isArray a n -∗ imp m {{ λ n', ⌜n' = n⌝ }})%I.
+    iSpec τ[array] length (λ a m, ∀ (ls : list loc), isArray a ls -∗ imp m {{ λ n', ⌜n' = list_z.length ls⌝ }})%I.
 
   Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ length,
@@ -192,7 +192,7 @@ Section ExternalsDef.
     - iApply (imp_EAnon_pers τ[array]).
       iIntros "!>" (a n) "Harr".
       iApply imp_please; iNext.
-      iApply imp_EArrayLength. imp_path.
+      iApply imp_EArrayLength'. imp_path.
     - iIntros (? []).
   Qed.
 
@@ -204,12 +204,12 @@ Section ExternalsDef.
   Definition array_get_spec get : iProp Σ :=
     iSpec τ[array;Z] get
       (λ a i m,
-         ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) n dq j (xs : list A),
-         isArray a n -∗
-         ▷ isSlice dq a j xs -∗
+         ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) ls dq j (xs : list A),
+         isArray a ls -∗
+         ▷ a ↦∗[j]{dq} xs -∗
          ⌜j ≤ i⌝ -∗
          ⌜i - j < length xs⌝ -∗
-         imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ isSlice dq a j xs }})%I.
+         imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }})%I.
 
   Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ get,
@@ -225,10 +225,9 @@ Section ExternalsDef.
     - iApply (imp_EAnon_pers).
       iIntros "!>" (a i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
       iApply imp_please; iNext.
-      iApply (imp_EArrayGet with "[] [] [] Harr Hslice"); try imp_path.
+      iApply (imp_EArrayGet' with "[] [] Harr Hslice"); try imp_path.
       + iPureIntro; eassumption.
       + iPureIntro; assumption.
-      + auto.
     - iIntros (? []).
   Qed.
 
@@ -241,13 +240,13 @@ Section ExternalsDef.
     ∀ `(Encode A, Inhabited A),
     iSpec τ[array;Z;A] set
       (λ a i x m,
-         ∀ n j (xs : list A) Φ,
-         isArray a n -∗
-         ▷ isSlice (DfracOwn 1) a j xs -∗
+         ∀ ls j (xs : list A) Φ,
+         isArray a ls -∗
+         ▷ a ↦∗[j] xs -∗
          Φ x -∗
          ⌜j ≤ i⌝ -∗
          ⌜i - j < length xs⌝ -∗
-         imp m {{ λ (_ : unit), ∃ x, Φ x ∗ isSlice (DfracOwn 1) a j (<[i - j:=x]> xs) }})%I.
+         imp m {{ λ (_ : unit), ∃ x, Φ x ∗ a ↦∗[j] (<[i - j:=x]> xs) }})%I.
 
   Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ set,
@@ -263,7 +262,7 @@ Section ExternalsDef.
     - iApply imp_EAnon_poly_inh_pers.
       iIntros (A ??) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
       iApply imp_please; iNext.
-      iApply (imp_EArraySet with "[] [] Harr Hslice"); try imp_path.
+      iApply (imp_EArraySet' with "[] [] Harr Hslice"); try imp_path.
       + iPureIntro; eassumption.
       + iPureIntro; assumption.
     - iIntros (? []).
@@ -280,7 +279,7 @@ Section ExternalsDef.
       (λ n x m,
            ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
                 Φ x -∗
-                imp m {{ λ a, ∃ x, Φ x ∗ ownArray a (replicate n x) }}).
+                imp m {{ λ a, ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}).
 
   Lemma imp_externals_make {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ make,
