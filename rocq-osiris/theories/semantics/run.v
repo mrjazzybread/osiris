@@ -37,23 +37,17 @@ Module M := EvalF Strat. Import M.
 is no trivially confluent step. It can eliminate a large part of the
 nondeterminism introduced by [Par] constructs *)
 
-Fixpoint insert_fresh vs (σ : store) ls :=
-  match vs with
-  | [] => (σ, ls)
-  | v :: vs => let l := fresh (dom σ) in
-           insert_fresh vs (<[l:=Val v]> σ) (l :: ls)
-  end.
-
 Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E) :=
   match m with
   (* Final micros do not step *)
   | Ret _ | Throw _ | Crash => None
   (* Most side effects are not confluent *)
-  | Stop (CFlip | CLoad | CExchange | CCAS | CFAA | CPerf | CResume | CWrap | CFork | CJoin) _ _ => None
+  | Stop (CFlip | CLoad | CLoadBlock | CExchange | CCAS | CFAA | CPerf | CResume | CWrap | CFork | CJoin) _ _ => None
   (* [CEval], [CLoop], [CAlloc], [Handle] have only one way to reduce *)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
-  | Stop CAllocn vs k => Some (let '(σ, ls) := insert_fresh vs σ [] in (σ, continue k ls))
+  | Stop CAlloc v k => Some (let l := fresh (dom σ) in (<[l:=Val v]>σ, continue k l))
+  | Stop CAllocBlock ls k => Some (let l := fresh (dom σ) in (<[l:=Dict Mut ls]>σ, continue k l))
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
   | Handle Crash h => Some (σ, Crash)
@@ -121,11 +115,14 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   (* Some [Stop] cases are confluent and covered in the same way as in [confluent_step] *)
   | Stop CEval (η, e) k => Step [(σ, try2 (pre_eval η e) k)]
   | Stop CLoop (η, x, i1, i2, e) k => Step [(σ, try2 (loop η x i1 i2 e) k)]
-  | Stop CAllocn vs k => let l := fresh (dom σ) in
-                       Step [(let '(σ, ls) := insert_fresh vs σ [] in (σ, continue k ls))]
+  | Stop CAlloc v k => let l := fresh (dom σ) in
+                       Step [(<[l:=Val v]>σ, continue k l)]
+  | Stop CAllocBlock ls k => let l := fresh (dom σ) in
+                             Step [(<[l:=Dict Mut ls]>σ, continue k l)]
 
   (* [Stop] cases involving the store or flips typically break confluence *)
   | Stop CLoad l k => Step [step_load σ l k]
+  | Stop CLoadBlock l k => Step [step_load_block σ l k]
   | Stop CExchange (l, v') k => Step [step_exchange σ l v' k]
   | Stop CCAS (l, seen, v') k => Step [step_cas σ l seen v' k]
   | Stop CFAA (l, i) k => Step [step_faa σ l i k]
@@ -430,7 +427,6 @@ Fixpoint string_of_val (v : val) : string :=
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
-  | VArray l => "VArray(" ++ String.concat "; " (map (fun l => string_of_Z l.(address)) l) ++ ")"
   end.
 
 Definition string_of_outcome2 (o : outcome2 val exn) : string :=
@@ -446,8 +442,10 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CEval => "CEval"
   | CLoop => "CLoop"
   | CFlip => "CFlip"
-  | CAllocn => "CAllocn"
+  | CAlloc => "CAlloc"
+  | CAllocBlock => "CAllocBlock"
   | CLoad => "CLoad"
+  | CLoadBlock => "CLoadBlock"
   | CExchange => "CExchange"
   | CCAS => "CCAS"
   | CFAA => "CFAA"
@@ -475,8 +473,11 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CEval (η, e) k => "Stop(CEval, " ++ string_of_env η ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CLoop (η, x, a, b, e) k => "Stop(CLoop, (<env>, " ++ x ++ ", " ++ string_of_int a ++ ", " ++ string_of_int b ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CFlip () k => "Stop(CFlip" ++ ", (), <cont>)"
-  | Stop CAllocn vs k => "Stop(CAlloc" ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "]" ++ ", <cont>)"
+  | Stop CAlloc v k => "Stop(CAlloc" ++ ", " ++ string_of_val v ++ ", <cont>)"
+  | Stop CAllocBlock ls k =>
+      "Stop(CAllocBlock" ++ ", " ++ "[" ++ String.concat ";" (List.map (fun l => string_of_Z l.(address)) ls) ++ "], <cont>)"
   | Stop CLoad loc k => "Stop(CLoad" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
+  | Stop CLoadBlock loc k => "Stop(CLoadBlock" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
   | Stop CExchange (loc, v) k => "Stop(CExchange" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CCAS (loc, seen, v) k => "Stop(CCAS" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val seen ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Stop CFAA (loc, i) k => "Stop(CFAA" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_int i ++ ", <cont>)"
@@ -497,7 +498,7 @@ Definition string_of_microvx := string_of_micro string_of_val string_of_val.
 Definition string_of_block (b : step.block) : string :=
   match b with
   | Val v => "Val(" ++ string_of_val v ++ ")"
-  | Dict t ls => "Dict(<tag>,<locs>)"
+  | Dict t ls => "Dict(<tag>, " ++ "[" ++ String.concat ";" (map (fun l => string_of_Z l.(address)) ls) ++ "])"
   | Kont _ => "Kont(<cont>)"
   | Shot => "Shot"
   end.
