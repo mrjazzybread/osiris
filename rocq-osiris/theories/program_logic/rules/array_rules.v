@@ -20,8 +20,8 @@ Section array_resources.
      memory represented by the locations [ls]. *)
 
   Definition isArray (a : array) (ls : list loc) : iProp Σ :=
-    ∃ t, pointsto a DfracDiscarded (Dict t ls) ∗
-         ⌜length ls ≤ max_array⌝.
+    pointsto a DfracDiscarded (Dict ls) ∗
+    ⌜length ls ≤ max_array⌝.
 
   Global Instance is_array_persistent a ls : Persistent (isArray a ls).
   Proof. apply _. Qed.
@@ -29,14 +29,14 @@ Section array_resources.
   Lemma isArray_valid a ls1 ls2 :
     isArray a ls1 -∗ isArray a ls2 -∗ ⌜ls2 = ls1⌝.
   Proof.
-    iIntros "(%t & #Ha & _) (% & #Ha' & _)".
+    iIntros "(#Ha & _) (#Ha' & _)".
     iPoseProof (pointsto_valid_2 with "Ha Ha'") as "[_ %Heq]".
     by inversion_clear Heq.
   Qed.
 
   Lemma isArray_length a ls :
     isArray a ls -∗ ⌜length ls ≤ max_array⌝.
-  Proof. iIntros "(%y & _ & $)". Qed.
+  Proof. iIntros "(_ & $)". Qed.
 
   (* Ownership over a segment of the array. *)
 
@@ -152,7 +152,7 @@ Section array_reasoning.
     iIntros "Hm H".
     iApply (imp_bind with "Hm").
     iIntros (a) "HΦ1".
-    iDestruct ("H" with "HΦ1") as "(%ls & (%t & #Hpts & %Hbound) & HΦ)".
+    iDestruct ("H" with "HΦ1") as "(%ls & (#Hpts & %Hbound) & HΦ)".
     iApply (imp_load_block' with "Hpts").
     iIntros "!> _". iExact "HΦ".
   Qed.
@@ -344,7 +344,7 @@ Section array_reasoning.
         "(%dq & %j & %xs & >(%le & %Hlt & Hslice) & Hlookup)".
       iDestruct "Hslice" as "(% & #Ha' & %Hbound & %Hle & Hslice)".
       iPoseProof (isArray_valid with "Ha Ha'") as "->".
-      iDestruct "Ha" as "(%t & Ha & %Hlen)".
+      iDestruct "Ha" as "(Ha & %Hlen)".
 
       simpl.
       rewrite signed_repr; last representable.
@@ -419,7 +419,7 @@ Section array_reasoning.
     iDestruct "Hslice" as "(% & #Ha' & %Hpos & %Hlen & Hslice)".
     iPoseProof (isArray_valid with "Ha Ha'") as "->".
 
-    iDestruct "Ha" as "(% & _ & %Hlen')".
+    iDestruct "Ha" as "(_ & %Hlen')".
     simpl.
     rewrite signed_repr; last representable.
     rewrite list_lookup_lookup_total_valid; last lia.

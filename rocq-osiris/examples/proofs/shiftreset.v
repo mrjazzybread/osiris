@@ -54,7 +54,7 @@ End shift_protocol.
 Section reasoning_rules.
   Context `{!osirisGS Σ}.
 
-  Definition env shift_eff := ("Shift", (VLoc shift_eff)) :: stdlib_env.
+  Definition env (shift_eff : loc) := ("Shift", #shift_eff) :: stdlib_env.
 
   (* Mapping of translated function declaration names *)
   Definition shift_f := (EAnonFun __fun0).

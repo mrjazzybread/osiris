@@ -1004,6 +1004,14 @@ and translate_primitive_expr prim_name args =
       EArraySet (e1, e2, e3)
   | "caml_array_make", [e1; e2] ->
       EArrayMake (e1, e2)
+  (* TODO: for testing purposes, we naively translate all applications of "opaque" to freeze.
+     This is of course incorrect, and should rely on type-level information for more precise translation. *)
+  | "%opaque", [e] ->
+      EFreeze e
+  | "%freeze", [e] ->
+      EFreeze e
+  | "%unfreeze", [e] ->
+      EUnfreeze e
 
   (* Exceptions. *)
 

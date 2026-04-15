@@ -135,7 +135,7 @@ Definition as_bool (m : microvx) : micro bool exn :=
 
 Definition val_as_loc {E} (v : val) : micro loc E :=
   match v with
-  | VLoc l =>
+  | VLoc l _ =>
       ret l
   | _ =>
       type_mismatch "location value expected"
@@ -143,7 +143,7 @@ Definition val_as_loc {E} (v : val) : micro loc E :=
 
 Definition val_as_loc_opt (v : val) : option loc :=
   match v with
-  | VLoc l =>
+  | VLoc l _ =>
       Some l
   | _ =>
       None
@@ -239,7 +239,7 @@ Definition as_record (m : microvx) : micro env exn :=
 
 Definition val_as_array (v : val) : micro (list loc) exn :=
   match v with
-  | VLoc l =>
+  | VLoc l _ =>
       load_block l
   | _ =>
       type_mismatch "array expected"
@@ -649,12 +649,18 @@ Definition call v1 v2 : microvx :=
 
 (* [phys_eq_val v1 v2] implements OCaml's physical equality operator [==]. *)
 
-(* This operator can be applied to memory locations. *)
+(* This operator can be applied to:
+   - memory locations (as long as at least one of them is mutable),
+   - constructors with no arguments *)
 
 Definition phys_eq_val v1 v2 : option bool :=
   match v1, v2 with
-  | VLoc l1, VLoc l2 =>
-      Some (locations.eqb l1 l2)
+  | VLoc l1 t1, VLoc l2 t2 =>
+      match t1, t2 with
+      | Immut, Immut => None
+      | _, _ =>
+          Some (locations.eqb l1 l2)
+      end
   | VCont k1, VCont k2 =>
       Some (locations.eqb k1 k2)
   | VData c1 [], VData c2 [] =>
@@ -827,7 +833,7 @@ Fixpoint eval_type_extensions (cs : list name) :=
   | c :: cs =>
       l ← alloc VUnit;
       η ← eval_type_extensions cs;
-      ret ((c, VLoc l) :: η)
+      ret ((c, VLoc l Mut) :: η)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -1226,7 +1232,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       vs ← evals η es ;
       ls ← allocn vs ;
       l ← alloc_block ls ;
-      ret (VLoc l)
+      ret (VLoc l Mut)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (length ls)))
@@ -1249,8 +1255,14 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       if decide (0 ≤ n ≤ max_array) then
         ls ← allocn (replicate n v) ;
         l ← alloc_block ls ;
-        ret (VLoc l)
+        ret (VLoc l Mut)
       else crash "invalid_argument: Array.make"
+  | EFreeze e =>
+      l ← as_loc (eval η e) ;
+      ret (VLoc l Immut)
+  | EUnfreeze e =>
+      l ← as_loc (eval η e) ;
+      ret (VLoc l Mut)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse
@@ -1424,7 +1436,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ERef e =>
       v ← eval η e ;
       l ← alloc v ;
-      ret (VLoc l)
+      ret (VLoc l Mut)
   | ELoad e =>
       l ← as_loc (eval η e) ;
       load l

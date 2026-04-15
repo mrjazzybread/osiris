@@ -84,7 +84,7 @@ Section imp_stop.
 
   Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
     ▷ (∀ (l : loc),
-         pointsto l (DfracOwn 1) (Dict Mut ls) -∗
+         pointsto l (DfracOwn 1) (Dict ls) -∗
          imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -129,10 +129,10 @@ Section imp_stop.
 
   (* [CLoadBlock]. *)
 
-  Lemma imp_stop_load_block (l : loc) t ls (dq : dfrac) (k: _ → micro A X) :
-    ▷ pointsto l dq (Dict t ls) ⊢
+  Lemma imp_stop_load_block (l : loc) ls (dq : dfrac) (k: _ → micro A X) :
+    ▷ pointsto l dq (Dict ls) ⊢
     ▷ (
-        pointsto l dq (Dict t ls) -∗
+        pointsto l dq (Dict ls) -∗
         imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -698,7 +698,7 @@ Section imp_combinators.
   (* [CAllocBlock]. *)
 
   Lemma imp_alloc_block2 {Φ : loc → iProp Σ} ls :
-    ▷ (∀ l, pointsto l DfracDiscarded (Dict Mut ls) -∗ Φ l) ⊢
+    ▷ (∀ l, pointsto l DfracDiscarded (Dict ls) -∗ Φ l) ⊢
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
     iIntros "H".
@@ -710,7 +710,7 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_alloc_block ls :
-    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l DfracDiscarded (Dict Mut ls)).
+    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l DfracDiscarded (Dict ls)).
   Proof.
     iApply imp_alloc_block2.
     iIntros "!>" (l) "$".
@@ -742,9 +742,9 @@ Section imp_combinators.
 
   (* [CLoadBlock]. *)
 
-  Lemma imp_load_block' {Φ : list loc → iProp Σ} l dq t ls :
-    ▷ pointsto l dq (Dict t ls) ⊢
-    ▷ (pointsto l dq (Dict t ls) -∗ Φ ls) -∗
+  Lemma imp_load_block' {Φ : list loc → iProp Σ} l dq ls :
+    ▷ pointsto l dq (Dict ls) ⊢
+    ▷ (pointsto l dq (Dict ls) -∗ Φ ls) -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -754,9 +754,9 @@ Section imp_combinators.
     iApply ("HΦ" with "Hl").
   Qed.
 
-  Lemma imp_load_block l dq t ls :
-    ▷ pointsto l dq (Dict t ls) ⊢
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ls', ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
+  Lemma imp_load_block l dq ls :
+    ▷ pointsto l dq (Dict ls) ⊢
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ls', ⌜ls' = ls⌝ ∗ pointsto l dq (Dict ls) }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load_block' with "Hl").

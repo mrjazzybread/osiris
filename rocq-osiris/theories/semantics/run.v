@@ -47,7 +47,7 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
   | Stop CAlloc v k => Some (let l := fresh (dom σ) in (<[l:=Val v]>σ, continue k l))
-  | Stop CAllocBlock ls k => Some (let l := fresh (dom σ) in (<[l:=Dict Mut ls]>σ, continue k l))
+  | Stop CAllocBlock ls k => Some (let l := fresh (dom σ) in (<[l:=Dict ls]>σ, continue k l))
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
   | Handle Crash h => Some (σ, Crash)
@@ -118,7 +118,7 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CAlloc v k => let l := fresh (dom σ) in
                        Step [(<[l:=Val v]>σ, continue k l)]
   | Stop CAllocBlock ls k => let l := fresh (dom σ) in
-                             Step [(<[l:=Dict Mut ls]>σ, continue k l)]
+                             Step [(<[l:=Dict ls]>σ, continue k l)]
 
   (* [Stop] cases involving the store or flips typically break confluence *)
   | Stop CLoad l k => Step [step_load σ l k]
@@ -238,7 +238,7 @@ Definition io_loc := 0%Z.
    the pair of arguments [(name, arg)] *)
 Definition clo_io_perform (name : string) : val :=
   (* closure with environment mapping [E] to [io_loc] *)
-  VClo [("E", VLoc (Loc io_loc))] $
+  VClo [("E", VLoc (Loc io_loc) Mut)] $
     (* [λ x, perform (E (name, x))] *)
     AnonFun "x" (EPerform (EXData ["E"] [EString name; EPath ["x"]])).
 
@@ -313,6 +313,8 @@ Fixpoint string_of_expr (e : expr) : string :=
   | EArrayGet e1 e2 => "EArrayGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EArraySet e1 e2 e3 => "EArraySet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ", " ++ string_of_expr e3 ++ ")"
   | EArrayMake e1 e2 => "EArrayMake(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | EFreeze e => "EFreeze(" ++ string_of_expr e ++ ")"
+  | EUnfreeze e => "EUnfreeze(" ++ string_of_expr e ++ ")"
   | EBoolConj e1 e2 => "EBoolConj(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EBoolDisj e1 e2 => "EBoolDisj(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EBoolNeg e => "EBoolNeg(" ++ string_of_expr e ++ ")"
@@ -410,6 +412,12 @@ Fixpoint string_of_expr (e : expr) : string :=
 
 Definition string_of_int (i : int.int) : string := string_of_Z (int.M.intval i).
 
+Definition string_of_tag (t : mut_tag) : string :=
+  match t with
+  | Mut => "Mut"
+  | Immut => "Immut"
+  end.
+
 Fixpoint string_of_val (v : val) : string :=
   match v with
   | VClo env anonfun => "<clo>"
@@ -420,7 +428,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VTuple l => "VTuple(" ++ String.concat "; " (map string_of_val l) ++ ")"
   | VData data vs => "VData(" ++ data ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
   | VXData loc vs => "VXData(" ++ string_of_Z loc.(address) ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
-  | VLoc loc => "VLoc(" ++ string_of_Z loc.(address) ++ ")"
+  | VLoc l t => "VLoc(" ++ string_of_Z l.(address) ++ ", " ++ string_of_tag t ++ ")"
   | VThread thread => "VLoc(" ++ string_of_Z thread.(tid) ++ ")"
   | VCont loc => "VCont(" ++ string_of_Z loc.(address) ++ ")"
   | VRecord fields => "VRecord(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
@@ -498,7 +506,7 @@ Definition string_of_microvx := string_of_micro string_of_val string_of_val.
 Definition string_of_block (b : step.block) : string :=
   match b with
   | Val v => "Val(" ++ string_of_val v ++ ")"
-  | Dict t ls => "Dict(<tag>, " ++ "[" ++ String.concat ";" (map (fun l => string_of_Z l.(address)) ls) ++ "])"
+  | Dict ls => "Dict(" ++ "[" ++ String.concat ";" (map (fun l => string_of_Z l.(address)) ls) ++ "])"
   | Kont _ => "Kont(<cont>)"
   | Shot => "Shot"
   end.

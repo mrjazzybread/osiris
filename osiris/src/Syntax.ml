@@ -193,6 +193,9 @@ type expr =
   (* Array literal: [| e1; e2; ... |] *)
   | EArrayLit of expr list
 
+  | EFreeze of expr
+  | EUnfreeze of expr
+
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj of expr * expr
   | EBoolDisj of expr * expr

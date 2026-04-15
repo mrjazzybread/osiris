@@ -3,6 +3,8 @@ From osiris.lang Require Import float int char locations thread_ids.
 
 (* This file should be in sync with osiris/src/Syntax.ml. *)
 
+Inductive mut_tag : Type := Mut | Immut.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Variables. *)
@@ -197,6 +199,9 @@ Inductive expr :=
   | EArraySet (e1 e2 e3 : expr)
   (* Array creation: [Array.make n v] *)
   | EArrayMake (e1 e2 : expr)
+
+  | EFreeze (e : expr)
+  | EUnfreeze (e : expr)
 
   (* Boolean conjunction, disjunction, and negation. *)
   | EBoolConj (e1 e2 : expr)
@@ -434,7 +439,7 @@ Inductive val : Type :=
   | VRecord (fvs : list (var * val))
   (* An array is represented as a pointer to the list of locations of its elements. *)
   (* A location. *)
-  | VLoc (l: loc)
+  | VLoc (l: loc) (tag : mut_tag)
   (* A thread id. *)
   | VThread (t: thread)
   (* A continuation; more precisely, a location which stores a continuation. *)

@@ -10,7 +10,7 @@ From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_exception.
 
 Definition stdlib_with_notfound :=
-  ("Not_found", (VLoc (Loc 0))) :: stdlib_env.
+  ("Not_found", (VLoc (Loc 0) Mut)) :: stdlib_env.
 
 Section proof_pure.
 

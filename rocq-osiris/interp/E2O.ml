@@ -92,6 +92,8 @@ let rec expr : E.expr -> O.expr = function
   | EArrayGet (e1, e2) -> EArrayGet (expr e1, expr e2)
   | EArraySet (e1, e2, e3) -> EArraySet (expr e1, expr e2, expr e3)
   | EArrayMake (e1, e2) -> EArrayMake (expr e1, expr e2)
+  | EFreeze e -> EFreeze (expr e)
+  | EUnfreeze e -> EUnfreeze (expr e)
   | EBoolConj (e1, e2) -> EBoolConj (expr e1, expr e2)
   | EBoolDisj (e1, e2) -> EBoolDisj (expr e1, expr e2)
   | EBoolNeg e -> EBoolNeg (expr e)

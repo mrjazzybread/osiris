@@ -22,11 +22,9 @@ From osiris.semantics Require Import code eval.
    This gives rise to three cases: [V] for values, [K] for continuations,
    and [Shot] for already-shot continuations.  *)
 
-Inductive mut_tag : Type := Mut | Immut.
-
 Inductive block : Type :=
 | Val (v : val)
-| Dict (t : mut_tag) (ls : list loc)
+| Dict (ls : list loc)
 | Kont (k : outcome2 val exn → microvx)
 | Shot.
 
@@ -146,7 +144,7 @@ Qed.
 
 Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (list loc) exn → _) : micro A E :=
   match σ !! l with
-  | Some (Dict _ ls) => continue k ls
+  | Some (Dict ls) => continue k ls
   | _          => crash "load error: unbound location"
   end.
 
@@ -428,7 +426,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
       σ !! l = None →
       step
         (σ, Stop CAllocBlock ls k)
-        (<[ l := Dict Mut ls ]> σ, continue k l)
+        (<[ l := Dict ls ]> σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -1024,7 +1022,7 @@ Lemma invert_step_alloc_block {A E} σ σ' ls k m' :
   @step A E (σ, Stop CAllocBlock ls k) (σ', m') →
   ∃ l,
     σ !! l = None ∧
-    σ' = <[ l := Dict Mut ls ]> σ ∧
+    σ' = <[ l := Dict ls ]> σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.
