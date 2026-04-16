@@ -135,7 +135,7 @@ Definition as_bool (m : microvx) : micro bool exn :=
 
 Definition val_as_loc {E} (v : val) : micro loc E :=
   match v with
-  | VLoc l _ =>
+  | VLoc l =>
       ret l
   | _ =>
       type_mismatch "location value expected"
@@ -143,7 +143,7 @@ Definition val_as_loc {E} (v : val) : micro loc E :=
 
 Definition val_as_loc_opt (v : val) : option loc :=
   match v with
-  | VLoc l _ =>
+  | VLoc l =>
       Some l
   | _ =>
       None
@@ -152,6 +152,32 @@ Definition val_as_loc_opt (v : val) : option loc :=
 Definition as_loc {E} (m : micro val E) : micro loc E :=
   v ← m ;
   val_as_loc v.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_block v] checks that the value [v] is a language-level pointer
+   to a block and returns its meta-level value. *)
+
+Definition val_as_block {E} (v : val) : micro block E :=
+  match v with
+  | VBlock l =>
+      ret l
+  | _ =>
+      type_mismatch "location value expected"
+  end.
+
+Definition val_as_block_opt (v : val) : option block :=
+  match v with
+  | VBlock l =>
+      Some l
+  | _ =>
+      None
+  end.
+
+Definition as_block {E} (m : micro val E) : micro block E :=
+  v ← m ;
+  val_as_block v.
+
 
 (* ------------------------------------------------------------------------ *)
 
@@ -239,8 +265,9 @@ Definition as_record (m : microvx) : micro env exn :=
 
 Definition val_as_array (v : val) : micro (list loc) exn :=
   match v with
-  | VLoc l _ =>
-      load_block l
+  | VBlock l =>
+      '(_, ls) ← load_block l ;
+      ret ls
   | _ =>
       type_mismatch "array expected"
   end.
@@ -653,20 +680,22 @@ Definition call v1 v2 : microvx :=
    - memory locations (as long as at least one of them is mutable),
    - constructors with no arguments *)
 
-Definition phys_eq_val v1 v2 : option bool :=
+Definition phys_eq_val v1 v2 : micro bool exn :=
   match v1, v2 with
-  | VLoc l1 t1, VLoc l2 t2 =>
+  | VLoc l1, VLoc l2 =>
+      ret (locations.eqb l1 l2)
+  | VBlock l1, VBlock l2 =>
+      '((t1, _), (t2, _)) ← par (load_block l1) (load_block l2) ;
       match t1, t2 with
-      | Immut, Immut => None
-      | _, _ =>
-          Some (locations.eqb l1 l2)
+      | Mut, _ | _, Mut => ret (locations.eqb l1 l2)
+      | _, _ => physical_equality_error "invalid or unsupported arguments"
       end
   | VCont k1, VCont k2 =>
-      Some (locations.eqb k1 k2)
+      ret (locations.eqb k1 k2)
   | VData c1 [], VData c2 [] =>
-      Some (c1 =? c2)
+      ret (c1 =? c2)
   | _, _ =>
-      None
+      physical_equality_error "invalid or unsupported arguments"
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -833,7 +862,7 @@ Fixpoint eval_type_extensions (cs : list name) :=
   | c :: cs =>
       l ← alloc VUnit;
       η ← eval_type_extensions cs;
-      ret ((c, VLoc l Mut) :: η)
+      ret ((c, VLoc l) :: η)
   end.
 
 (* ------------------------------------------------------------------------ *)
@@ -1232,7 +1261,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       vs ← evals η es ;
       ls ← allocn vs ;
       l ← alloc_block ls ;
-      ret (VLoc l Mut)
+      ret (VBlock l)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
       ret (VInt (repr (length ls)))
@@ -1255,7 +1284,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       if decide (0 ≤ n ≤ max_array) then
         ls ← allocn (replicate n v) ;
         l ← alloc_block ls ;
-        ret (VLoc l Mut)
+        ret (VBlock l)
       else crash "invalid_argument: Array.make"
   | EFreeze e =>
       l ← as_loc (eval η e) ;
@@ -1324,10 +1353,8 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       ret (VFloat f)
   | EOpPhysEq e1 e2 =>
       '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
-      match phys_eq_val v1 v2 with
-      | Some b => ret (VBool b)
-      | None => physical_equality_error "invalid or unsupported arguments"
-      end
+      b ← phys_eq_val v1 v2 ;
+      ret (VBool b)
   | EOpEq e1 e2 =>
       '(v1, v2) ← pair_op Strat.fun_app_order (eval η e1) (eval η e2) ;
       b ← eq_val v1 v2 ;
@@ -1436,7 +1463,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ERef e =>
       v ← eval η e ;
       l ← alloc v ;
-      ret (VLoc l Mut)
+      ret (VLoc l)
   | ELoad e =>
       l ← as_loc (eval η e) ;
       load l

@@ -622,6 +622,16 @@ Section dynamic_checks.
     iApply (imp_ret with "HΦ"); first encode.
   Qed.
 
+  Lemma imp_as_block (m : microvx) (Φ : syntax.block → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_block m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (l) "HΦ".
+    iApply (imp_ret with "HΦ"); first encode.
+  Qed.
+
   Lemma imp_as_bool (m : microvx) (Φ : bool → iProp Σ) :
     imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp as_bool m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.

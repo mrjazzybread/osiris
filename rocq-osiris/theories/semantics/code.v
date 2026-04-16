@@ -74,9 +74,9 @@ Inductive code : Type → Type → Type → Type :=
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
 | CAlloc : code val loc exn
-| CAllocBlock : code (list loc) loc exn
+| CAllocBlock : code (list loc) block exn
 | CLoad  : code loc val exn
-| CLoadBlock : code loc (list loc) exn
+| CLoadBlock : code block (mut_tag * list loc) exn
 | CExchange : code (loc * val) val exn
 | CCAS : code (loc * val * val) val exn
 | CFAA : code (loc * int) val exn
@@ -157,7 +157,7 @@ Definition load (l : loc) :=
 
 (* [load_block l] loads the locations stored in the block at location [l]. *)
 
-Definition load_block (l : loc) :=
+Definition load_block (l : block) :=
   stop CLoadBlock l.
 
 (* [exchange l v] updates the ref cell at location [l] with the value [v],
@@ -222,7 +222,7 @@ Fixpoint allocn (vs : list val) : micro (list loc) exn :=
 (* [alloc_block ls] allocates [n] new ref cells with initial value [v] and
    returns the ref cells' locations. *)
 
-Definition alloc_block (ls : list loc) : micro loc exn :=
+Definition alloc_block (ls : list loc) : micro block exn :=
   stop CAllocBlock ls.
 
 (* [store l v] updates the ref cell at location [l] with the value [v],

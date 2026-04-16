@@ -61,7 +61,7 @@ Proof.
   destruct_thread_step.
   unfold step_cas_2.
   case_location_lookup; try by econstructor.
-  destruct (phys_eq_val _ _) as [ [|] | ]; by econstructor.
+  destruct (phys_eq_val_store _ _ _) as [ [|] | ]; by econstructor.
 Qed.
 
 Global Instance faa_atomic l i :

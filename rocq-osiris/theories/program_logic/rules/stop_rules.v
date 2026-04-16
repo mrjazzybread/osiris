@@ -15,6 +15,33 @@ From osiris.program_logic.rules Require Import impure_rules micro_rules.
 
 Import ewp_rules_tactics.
 
+Definition is_Ret {A X} (m : micro A X) := ∃ a, m = ret a.
+
+Lemma is_Ret_Throw {A X} (e : X) : ¬ is_Ret (@Throw A X e).
+Proof. intros (a & H). discriminate H. Qed.
+
+Lemma is_Ret_Crash {A X} : ¬ is_Ret (@Crash A X).
+Proof. intros (a & H). discriminate H. Qed.
+
+Lemma is_Ret_Handle {A X} m k : ¬ is_Ret (@Handle A X m k).
+Proof. intros (a & H). discriminate H. Qed.
+
+Lemma is_Ret_Stop {A E X Y E'} c x k : ¬ is_Ret (@Stop A E X Y E' c x k).
+Proof. intros (a & H). discriminate H. Qed.
+
+Lemma is_Ret_Par {A E A1 A2 E'} m1 m2 k : ¬ is_Ret (@Par A E A1 A2 E' m1 m2 k).
+Proof. intros (a & H). discriminate H. Qed.
+
+Definition is_Ret_proj {A X} (m : micro A X) :=
+  match m as mx0 return (is_Ret mx0 → A) with
+  | Ret x => λ _ : is_Ret (ret x), x
+  | Throw e => False_rect A ∘ (is_Ret_Throw e)
+  | Crash => False_rect A ∘ is_Ret_Crash
+  | Handle m k => False_rect A ∘ (is_Ret_Handle m k)
+  | Stop c x k => False_rect A ∘ (is_Ret_Stop c x k)
+  | Par m1 m2 k => False_rect A ∘ (is_Ret_Par m1 m2 k)
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (** This file contains [imp] rules for [Stop] system calls, concurrency primitives, and loop combinators. *)
@@ -83,8 +110,8 @@ Section imp_stop.
   (* [CAllocBlock]. *)
 
   Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
-    ▷ (∀ (l : loc),
-         pointsto l (DfracOwn 1) (Dict ls) -∗
+    ▷ (∀ (l : syntax.block),
+         isBlock l (DfracOwn 1) Mut ls -∗
          imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
     imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -129,11 +156,11 @@ Section imp_stop.
 
   (* [CLoadBlock]. *)
 
-  Lemma imp_stop_load_block (l : loc) ls (dq : dfrac) (k: _ → micro A X) :
-    ▷ pointsto l dq (Dict ls) ⊢
+  Lemma imp_stop_load_block (l : loc) t ls (dq : dfrac) (k: _ → micro A X) :
+    ▷ pointsto l dq (Dict t ls) ⊢
     ▷ (
-        pointsto l dq (Dict ls) -∗
-        imp (continue k ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        pointsto l dq (Dict t ls) -∗
+        imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -179,36 +206,86 @@ Section imp_stop.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
+  (* [CSetBlockTag]. *)
+
+  Lemma imp_stop_set_tag l t ls t' (k : _ → micro A X) :
+    ▷ isBlock l (DfracOwn 1) t ls ⊢
+    ▷ (
+        isBlock l (DfracOwn 1) t' ls -∗
+        imp (continue k ()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CSetBlockTag (l, t') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+
+    (* Argue that [l] must be in the domain of the ghost heap. *)
+    iIntros "!> !>".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    destruct_thread_step.
+    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    rewrite /step_set_tag_1 /step_set_tag_2 H0.
+    ewp_mask_elim. iFrame.
+
+    iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
   (* [CCAS]. *)
 
   Class PhysEqDec A `{Encode A} : Prop :=
     phys_eq_dec :
-      ∀ (a b : A), is_Some (phys_eq_val #a #b).
+      ∀ (a b : A), is_Ret (phys_eq_val #a #b).
 
   Global Instance phys_eq_dec_loc : PhysEqDec loc.
   Proof.
-    intros i j. eauto.
+    intros i j. simpl. eexists; eauto.
   Qed.
 
   Global Instance phys_eq_dec_cont : PhysEqDec cont.
   Proof.
-    intros i j. eauto.
+    intros i j. simpl. eexists. eauto.
   Qed.
 
   Global Instance phys_eq_dec_bool : PhysEqDec bool.
   Proof.
-    intros [|] [|]; eauto.
+    intros [|] [|]; simpl; eexists; eauto.
   Qed.
 
   Definition phys_eq_val_ `{Hped : PhysEqDec B} : B → B → bool :=
     λ a b,
-      @is_Some_proj bool (phys_eq_val #a #b) (Hped a b).
+      @is_Ret_proj bool exn (phys_eq_val #a #b) (Hped a b).
+
 
   Lemma phys_eq_val_proj `{Hped : PhysEqDec B} a b :
-    phys_eq_val #a #b = Some (phys_eq_val_ a b).
+    phys_eq_val #a #b = ret (phys_eq_val_ a b).
   Proof.
     unfold phys_eq_val_. destruct Hped as [decision ->].
     reflexivity.
+  Qed.
+
+  Lemma phys_eq_val__store `{Hped : PhysEqDec B} a b :
+    ∀ σ, phys_eq_val_store #a #b σ = Some (phys_eq_val_ a b).
+  Proof.
+    intros σ.
+    pose proof (phys_eq_val_proj a b) as Hproj.
+    unfold phys_eq_val in Hproj.
+    unfold phys_eq_val_store.
+    destruct (#a); try discriminate Hproj.
+    (* VData case *)
+    { destruct v; try (cbn in Hproj; discriminate Hproj).
+      destruct (#b); try (cbn in Hproj; discriminate Hproj).
+      destruct v; try (cbn in Hproj; discriminate Hproj).
+      cbn in Hproj. injection Hproj as <-. reflexivity. }
+    (* VLoc case *)
+    { destruct (#b); try (cbn in Hproj; discriminate Hproj).
+      cbn in Hproj. injection Hproj as <-. reflexivity. }
+    (* VBlock case: par creates Par constructor, which is never ret *)
+    { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
+    (* VCont case *)
+    { destruct (#b); try (cbn in Hproj; discriminate Hproj).
+      cbn in Hproj. injection Hproj as <-. reflexivity. }
   Qed.
 
   (* CAS success: the physical equality holds, so the store is updated from
@@ -230,10 +307,10 @@ Section imp_stop.
     destruct_thread_step.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
     - iMod (gen_heap_update σ l (Val #v) (Val #v') with "Hsi Hl") as "[Hsi Hl]".
-      rewrite /step_cas_1 /step_cas_2 Hvalid phys_eq_val_proj Hpeq /=.
+      rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
-    - rewrite /step_cas_1 /step_cas_2 Hvalid phys_eq_val_proj Hpeq /=.
+    - rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
   Qed.
@@ -697,20 +774,19 @@ Section imp_combinators.
 
   (* [CAllocBlock]. *)
 
-  Lemma imp_alloc_block2 {Φ : loc → iProp Σ} ls :
-    ▷ (∀ l, pointsto l DfracDiscarded (Dict ls) -∗ Φ l) ⊢
+  Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} ls :
+    ▷ (∀ l, isBlock l (DfracOwn 1) Mut ls -∗ Φ l) ⊢
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
     iIntros "H".
     iApply imp_stop_alloc_block.
     iIntros "!>" (l) "Hl".
-    iPoseProof (pointsto_persist with "Hl") as ">Hl".
     iApply imp_ret; first encode.
     iApply ("H" with "Hl").
   Qed.
 
   Lemma imp_alloc_block ls :
-    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, pointsto l DfracDiscarded (Dict ls)).
+    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, isBlock l (DfracOwn 1) Mut ls).
   Proof.
     iApply imp_alloc_block2.
     iIntros "!>" (l) "$".
@@ -742,9 +818,11 @@ Section imp_combinators.
 
   (* [CLoadBlock]. *)
 
-  Lemma imp_load_block' {Φ : list loc → iProp Σ} l dq ls :
-    ▷ pointsto l dq (Dict ls) ⊢
-    ▷ (pointsto l dq (Dict ls) -∗ Φ ls) -∗
+  Instance notval_dict : NotVal (mut_tag * list loc) := {}.
+
+  Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} l dq t ls :
+    ▷ pointsto l dq (Dict t ls) ⊢
+    ▷ (pointsto l dq (Dict t ls) -∗ Φ (t, ls)) -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -754,9 +832,9 @@ Section imp_combinators.
     iApply ("HΦ" with "Hl").
   Qed.
 
-  Lemma imp_load_block l dq ls :
-    ▷ pointsto l dq (Dict ls) ⊢
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ ls', ⌜ls' = ls⌝ ∗ pointsto l dq (Dict ls) }}.
+  Lemma imp_load_block l dq t ls :
+    ▷ pointsto l dq (Dict t ls) ⊢
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load_block' with "Hl").
@@ -807,6 +885,30 @@ Section imp_combinators.
   Proof.
     iIntros "Hl".
     iApply (imp_store' with "Hl").
+    iIntros "!> $".
+  Qed.
+
+  (* ------------------------------------------------------------------------ *)
+  (* [CSetBlockTag]. *)
+
+  Lemma imp_set_tag' {Φ : unit → iProp Σ} l t ls t' :
+    ▷ isBlock l (DfracOwn 1) t ls ⊢
+    ▷ (isBlock l (DfracOwn 1) t' ls -∗ Φ ()) -∗
+    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl HΦ".
+    iApply (imp_stop_set_tag with "Hl").
+    iIntros "!> Hl".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl").
+  Qed.
+
+  Lemma imp_set_tag l t ls t' :
+    ▷ isBlock l (DfracOwn 1) t ls ⊢
+    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), isBlock l (DfracOwn 1) t' ls }}.
+  Proof.
+    iIntros "Hl".
+    iApply (imp_set_tag' with "Hl").
     iIntros "!> $".
   Qed.
 

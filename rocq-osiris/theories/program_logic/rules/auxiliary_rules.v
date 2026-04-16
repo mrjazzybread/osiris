@@ -280,4 +280,18 @@ Section imp_eval.
     iApply ("Hcov" with "HΦ").
   Qed.
 
+  Lemma imp_sitems_open Φ sitems me Q η δ :
+    impure E (eval_mexpr η me) Ψ ζ Φ -∗
+    (∀ δ', Φ δ' -∗ impure E (eval_sitems (δ' ++ η, δ) sitems) Ψ ζ Q) -∗
+    impure E (eval_sitems (η, δ) ((IOpen me) :: sitems)) Ψ ζ Q.
+  Proof.
+    iIntros "Hme Hcov".
+    iApply (imp_sitems_cons with "[Hme]").
+    { iApply (imp_sitem_open with "Hme").
+      instantiate (1 := (λ ηδ, ∃ δ', ⌜ηδ = (δ' ++ η, δ)⌝ ∗ Φ δ')%I).
+      iIntros (δ') "$ //". }
+    iIntros (?) "(%δ' & -> & HΦ)".
+    iApply ("Hcov" with "HΦ").
+  Qed.
+
 End imp_eval.

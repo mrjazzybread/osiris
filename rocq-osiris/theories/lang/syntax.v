@@ -60,6 +60,15 @@ Definition field :=
 Definition cont :=
   tc_opaque loc.
 
+(* Pointers to blocks of memory. *)
+
+Definition block :=
+  tc_opaque loc.
+
+(* Without this, the typeclass engine unfolds both [cont] and [block] to the
+   same [tc_opaque loc] body, making Encode/Observe instances ambiguous. *)
+Global Typeclasses Opaque cont block.
+
 (* ------------------------------------------------------------------------ *)
 
 (* Machine integers. *)
@@ -437,13 +446,14 @@ Inductive val : Type :=
   (* The fields in a record are always pairwise distinct (this is checked
      by OCaml, not by us) and alphabetically sorted. *)
   | VRecord (fvs : list (var * val))
-  (* An array is represented as a pointer to the list of locations of its elements. *)
   (* A location. *)
-  | VLoc (l: loc) (tag : mut_tag)
-  (* A thread id. *)
-  | VThread (t: thread)
+  | VLoc (l: loc)
+  (* A pointer to a block. *)
+  | VBlock (l: loc)
   (* A continuation; more precisely, a location which stores a continuation. *)
   | VCont (k: cont)
+  (* A thread id. *)
+  | VThread (t: thread)
   (* A module. *)
   | VStruct (xvs : list (var * val))
   (* A functor. *)

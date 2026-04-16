@@ -7,10 +7,7 @@ From osiris.logic Require Import list_z big_opLZ.
 
 (** This file defines array resource predicates and [imp] rules for array expressions. *)
 
-Definition array : Type := loc.
-
-Global Instance : Encode array := _.
-Global Instance : Observe array loc := _.
+Definition array : Type := syntax.block.
 
 Section array_resources.
 
@@ -20,23 +17,23 @@ Section array_resources.
      memory represented by the locations [ls]. *)
 
   Definition isArray (a : array) (ls : list loc) : iProp Σ :=
-    pointsto a DfracDiscarded (Dict ls) ∗
+    ∃ t, isBlock a DfracDiscarded t ls ∗
     ⌜length ls ≤ max_array⌝.
 
-  Global Instance is_array_persistent a ls : Persistent (isArray a ls).
+  Global Instance is_array_pers a ls : Persistent (isArray a ls).
   Proof. apply _. Qed.
 
   Lemma isArray_valid a ls1 ls2 :
     isArray a ls1 -∗ isArray a ls2 -∗ ⌜ls2 = ls1⌝.
   Proof.
-    iIntros "(#Ha & _) (#Ha' & _)".
+    iIntros "(% & #Ha & _) (% & #Ha' & _)".
     iPoseProof (pointsto_valid_2 with "Ha Ha'") as "[_ %Heq]".
     by inversion_clear Heq.
   Qed.
 
   Lemma isArray_length a ls :
     isArray a ls -∗ ⌜length ls ≤ max_array⌝.
-  Proof. iIntros "(_ & $)". Qed.
+  Proof. iIntros "(% & _ & $)". Qed.
 
   (* Ownership over a segment of the array. *)
 
@@ -139,22 +136,25 @@ Section array_reasoning.
 
   Context {η : env} {E : coPset} {Ψ : iEff Σ}.
 
+  Global Instance notval_dict : NotVal (mut_tag * list loc) := {}.
   Global Instance notval_listloc : NotVal (list loc) := {}.
 
   (** General [as_array] rule.  Given that the postcondition of [m] implies
       [isArray a ls] for some [a] and [ls], the [load_block] step is
       discharged automatically and [Φ ls] is delivered. *)
-  Lemma imp_as_array {ζ} {Φ : list loc → iProp Σ} (Φ1 : loc → iProp Σ) (m : microvx) :
+  Lemma imp_as_array {ζ} {Φ : list loc → iProp Σ} (Φ1 : array → iProp Σ) (m : microvx) :
     imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    (∀ a, Φ1 a -∗ ∃ ls, isArray a ls ∗ Φ ls) -∗
+    (∀ (a : array), Φ1 a -∗ ∃ ls, isArray a ls ∗ Φ ls) -∗
     imp as_array m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm H".
     iApply (imp_bind with "Hm").
     iIntros (a) "HΦ1".
-    iDestruct ("H" with "HΦ1") as "(%ls & (#Hpts & %Hbound) & HΦ)".
-    iApply (imp_load_block' with "Hpts").
-    iIntros "!> _". iExact "HΦ".
+    iDestruct ("H" with "HΦ1") as "(%ls & (% & #Hpts & %Hbound) & HΦ)".
+    iApply (imp_bind with "[Hpts]").
+    { iApply (imp_load_block with "Hpts"). }
+    iIntros ([? ?]) "(-> & -> & _)".
+    iApply (imp_ret with "HΦ"). encode.
   Qed.
 
   (** [as_array] rule for a pre-existing array.  Use when [isArray a ls] is
@@ -202,7 +202,8 @@ Section array_reasoning.
     iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenxs".
     iApply imp_bind.
     { iApply imp_alloc_block. }
-    iIntros (a) "#Ha".
+    iIntros (a) "Ha".
+    iPoseProof (pointsto_persist with "Ha") as ">#Ha".
     iApply imp_ret; first encode.
     iFrame "HΦs".
 
@@ -275,7 +276,8 @@ Section array_reasoning.
       iIntros "!>" (ls) "Hpts". iExact "Hpts". }
     iIntros (arr) "!> Hpts".
     iApply imp_bind. { iApply imp_alloc_block. }
-    iIntros (a) "#Ha".
+    iIntros (a) "Ha".
+    iPoseProof (pointsto_persist with "Ha") as ">#Ha".
 
     iApply imp_ret; first encode.
     iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
@@ -344,7 +346,7 @@ Section array_reasoning.
         "(%dq & %j & %xs & >(%le & %Hlt & Hslice) & Hlookup)".
       iDestruct "Hslice" as "(% & #Ha' & %Hbound & %Hle & Hslice)".
       iPoseProof (isArray_valid with "Ha Ha'") as "->".
-      iDestruct "Ha" as "(Ha & %Hlen)".
+      iDestruct "Ha" as "(%t & Ha & %Hlen)".
 
       simpl.
       rewrite signed_repr; last representable.
@@ -418,8 +420,8 @@ Section array_reasoning.
 
     iDestruct "Hslice" as "(% & #Ha' & %Hpos & %Hlen & Hslice)".
     iPoseProof (isArray_valid with "Ha Ha'") as "->".
+    iPoseProof (isArray_length with "Ha") as "%Hlen'".
 
-    iDestruct "Ha" as "(_ & %Hlen')".
     simpl.
     rewrite signed_repr; last representable.
     rewrite list_lookup_lookup_total_valid; last lia.

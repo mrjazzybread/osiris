@@ -22,16 +22,16 @@ From osiris.semantics Require Import code eval.
    This gives rise to three cases: [V] for values, [K] for continuations,
    and [Shot] for already-shot continuations.  *)
 
-Inductive block : Type :=
+Inductive mem_block : Type :=
 | Val (v : val)
-| Dict (ls : list loc)
+| Dict (t : mut_tag) (ls : list loc)
 | Kont (k : outcome2 val exn → microvx)
 | Shot.
 
 (* A store (or heap) is a finite map of locations to memory blocks. *)
 
 Definition store : Type :=
-  gmap loc block.
+  gmap loc mem_block.
 
 Implicit Type σ : store.
 
@@ -42,12 +42,12 @@ Global Instance cont_countable : Countable cont.
 Proof. unfold cont; simpl. apply locations.loc_countable. Defined.
 
 Definition cont_store : Type :=
-  tc_opaque (gmap cont block).
+  tc_opaque (gmap cont mem_block).
 
-Global Instance lookup_cont : Lookup cont block cont_store :=
-  (@gmap_lookup cont cont_eq_decision cont_countable block).
+Global Instance lookup_cont : Lookup cont mem_block cont_store :=
+  (@gmap_lookup cont cont_eq_decision cont_countable mem_block).
 
-Global Instance insert_cont : Insert cont block cont_store.
+Global Instance insert_cont : Insert cont mem_block cont_store.
 Proof.
   unfold cont_store; simpl. unfold cont; simpl.
   change cont_eq_decision with loc_eq_decision.
@@ -56,6 +56,29 @@ Proof.
 Defined.
 
 Lemma store_conversion : cont_store = store.
+Proof. reflexivity. Qed.
+
+Global Instance block_eq_decision : EqDecision block.
+Proof. solve_decision. Defined.
+
+Global Instance block_countable : Countable block.
+Proof. unfold block; simpl. apply locations.loc_countable. Defined.
+
+Definition block_store : Type :=
+  tc_opaque (gmap block mem_block).
+
+Definition lookup_block : Lookup block mem_block store :=
+  (@gmap_lookup loc loc_eq_decision loc_countable mem_block).
+
+Definition insert_block : Insert block mem_block store.
+Proof.
+  unfold block_store; simpl. unfold block; simpl.
+  change block_eq_decision with loc_eq_decision.
+  change block_countable with loc_countable.
+  apply map_insert.
+Defined.
+
+Lemma store_conversion' : block_store = store.
 Proof. reflexivity. Qed.
 
 (* A configuration is a pair of a computation and a store. *)
@@ -142,9 +165,9 @@ Qed.
    the continuation [k]. It fails if this location is not in the domain of [σ]
    or contains something other than a value. *)
 
-Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (list loc) exn → _) : micro A E :=
-  match σ !! l with
-  | Some (Dict ls) => continue k ls
+Definition step_load_block_2 {A E} σ (l : block) (k : outcome2 (mut_tag * list loc) exn → _) : micro A E :=
+  match lookup (Lookup:=lookup_block) l σ with
+  | Some (Dict t ls) => continue k (t, ls)
   | _          => crash "load error: unbound location"
   end.
 
@@ -207,18 +230,37 @@ Qed.
    It fails if the location [l] is not in the domain of [σ] or contains
    something other than a value. *)
 
+Definition phys_eq_val_store v1 v2 σ : option bool :=
+  match v1, v2 with
+  | VLoc l1, VLoc l2 =>
+      Some (locations.eqb l1 l2)
+  | VBlock l1, VBlock l2 =>
+      match σ !! l1, σ !! l2 with
+      | Some (Dict Mut _), Some (Dict _ _)
+      | Some (Dict _ _), Some (Dict Mut _) => Some (locations.eqb l1 l2)
+      | _, _ => None
+      end
+  | VCont k1, VCont k2 =>
+      Some (locations.eqb k1 k2)
+  | VData c1 [], VData c2 [] =>
+      Some (c1 =? c2)%string
+  | _, _ =>
+      None
+  end.
+
 Definition step_cas_1 σ l seen (v' : val) : store :=
   match σ !! l with
-  | Some (Val v) => match phys_eq_val v seen with
-                   | Some true => <[ l := Val v' ]> σ
-                   | _ => σ
-                   end
+  | Some (Val v) =>
+      match phys_eq_val_store v seen σ with
+      | Some true => <[ l := Val v' ]> σ
+      | _ => σ
+      end
   | _           => σ
   end.
 
 Definition step_cas_2 {A E} σ l seen (v' : val) (k : outcome2 val exn → _) : micro A E :=
   match σ !! l with
-  | Some (Val v) => match phys_eq_val v seen with
+  | Some (Val v) => match phys_eq_val_store v seen σ with
                   | Some true => continue k VTrue
                   | Some false => continue k VFalse
                   | None => physical_equality_error "invalid or unsupported arguments"
@@ -239,7 +281,7 @@ Lemma try2_step_cas_2 {A B E F} σ l seen v'
 Proof.
   unfold step_cas_2. intros.
   case_location_lookup; simplify_eq; eauto.
-  destruct (phys_eq_val v seen); eauto.
+  destruct (phys_eq_val_store v seen σ); eauto.
   destruct b; eauto.
 Qed.
 
@@ -423,10 +465,10 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   | StepAllocBlock :
     ∀ σ ls l k,
-      σ !! l = None →
+      lookup (Lookup:=lookup_block) l σ = None →
       step
         (σ, Stop CAllocBlock ls k)
-        (<[ l := Dict ls ]> σ, continue k l)
+        (insert (Insert:=insert_block) l (Dict Mut ls) σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -1021,8 +1063,8 @@ Lemma invert_step_alloc {A E} σ σ' v k m' :
 Lemma invert_step_alloc_block {A E} σ σ' ls k m' :
   @step A E (σ, Stop CAllocBlock ls k) (σ', m') →
   ∃ l,
-    σ !! l = None ∧
-    σ' = <[ l := Dict ls ]> σ ∧
+    lookup (Lookup:=lookup_block) l σ = None ∧
+    σ' = insert (Insert:=insert_block) l (Dict Mut ls) σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.
@@ -1059,7 +1101,8 @@ Proof.
     apply not_elem_of_dom.
     apply is_fresh. }
   { eexists. apply StepAllocBlock.
-    apply not_elem_of_dom.
+    unfold block. simpl.
+    eapply not_elem_of_dom.
     apply is_fresh. }
   (* In the case of wrap, we must also exhibit an address [l]
      that is not in the domain of [σ]. *)

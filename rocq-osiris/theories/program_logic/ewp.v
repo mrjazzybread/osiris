@@ -91,7 +91,7 @@ Section ghost_instances.
 
   Class osirisGpreS := {
       #[global] osirisGpreS_iris :: invGpreS Σ;
-      #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc step.block Σ;
+      #[global] osiris_gen_GpreS :: gen_heapGpreS locations.loc mem_block Σ;
       #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread gname Σ;
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
       osiris_tokenG :: tokenG Σ;
@@ -109,7 +109,7 @@ Section ghost_instances.
       (* This gives us fancy updates (without allowing Later Credits). *)
       osiris_invGS :: invGS_gen HasNoLc Σ;
       (* This gives us a heap, which maps locations to values. *)
-      osiris_genGS :: gen_heapGS locations.loc step.block Σ;
+      osiris_genGS :: gen_heapGS locations.loc mem_block Σ;
       (* This gives us a ghost map for thread postconditions (stored as gnames). *)
       osiris_thread_postGS :: gen_heapGS thread gname Σ;
       (* savedPropG is inherited from osirisGpreS via osiris_inG *)
@@ -121,7 +121,7 @@ End ghost_instances.
 (* Provide a minimal gFunctors for invariants, the store, and named postconditions for threads. *)
 Definition osirisΣ : gFunctors :=
   #[ invΣ;
-     gen_heapΣ locations.loc step.block;
+     gen_heapΣ locations.loc mem_block;
      gen_heapΣ thread gname;
      savedPredΣ (outcome2 val exn);
      tokenΣ
@@ -135,18 +135,12 @@ Proof. solve_inG. Qed.
 
 (* Notations for ghost resouces. *)
 
-Notation "l ↦ v" :=
-  (pointsto l (DfracOwn 1) (Val v))
-    (at level 20, format "l  ↦  v") : bi_scope.
-Notation "l '↦{#' dq '}' v" := (pointsto l (DfracOwn dq) (Val v))
-    (at level 20, dq at level 1, format "l  '↦{#' dq }  v") : bi_scope.
-Notation "l '↦{' dq '}' v" := (pointsto l dq (Val v))
-    (at level 20, dq at level 1, format "l  '↦{' dq }  v") : bi_scope.
-Notation "l '↦□' v" := (pointsto l DfracDiscarded (Val v))
-  (at level 20, format "l  '↦□'  v") : bi_scope.
+Notation "l ↦ dq v" :=
+  (pointsto l dq (Val v))
+    (at level 20, dq custom dfrac at level 1, format "l  ↦ dq  v") : bi_scope.
 
 (* We declare that [cont] can be used as keys for pointstos. *)
-Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont block Σ.
+Global Instance osiris_cont_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS cont mem_block Σ.
 Proof. unfold cont; simpl. apply (osiris_genGS Σ). Defined.
 
 Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
@@ -156,12 +150,26 @@ Definition isCont `{osirisGS Σ} (k : cont) (sk : outcome2 val exn -> microvx)
 Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
   pointsto k (DfracOwn 1) Shot.
 
+(* We declare that [block] can be used as keys for pointstos. *)
+Global Instance osiris_block_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS syntax.block mem_block Σ.
+Proof. unfold block; simpl. apply (osiris_genGS Σ). Defined.
+
+(* TODO: we want to assert ownership over the tag [t] which is mutable, but the list [ls]
+   is going to be constant, so we can discard the ownership over this. *)
+
+Definition isBlock `{osirisGS Σ} (b : block) dq t ls : iProp Σ :=
+  gen_heap.pointsto b dq (Dict t ls).
+
+Notation "b ⤇ dq t ls" :=
+  (isBlock b dq t ls)
+    (at level 20, dq custom dfrac at level 1, format "b ⤇ dq t  ls") : bi_scope.
+
 Section ghost_resources.
 
   Context `{!osirisGS Σ}.
 
   Definition osiris_state_interp (σ : store) :=
-    @gen_heap_interp locations.loc _ _ step.block Σ _ σ.
+    @gen_heap_interp locations.loc _ _ mem_block Σ _ σ.
 
   Definition osiris_thread_interp π : iProp Σ :=
     @gen_heap_interp thread _ _ gname Σ _ π.

@@ -1,5 +1,7 @@
 PWD := $(shell pwd)
 
+default: all
+
 .PHONY: theory
 theory:
 	@ make --no-print-directory -C rocq-osiris
