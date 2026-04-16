@@ -300,4 +300,32 @@ Section ExternalsDef.
     - iIntros (? []).
   Qed.
 
+  Definition Externals__freeze : val := VEta1 EFreeze.
+  Definition Externals__freeze_expr : expr := EEta1 EFreeze.
+
+  Definition freeze_spec freeze : iProp Σ :=
+    iSpec τ[block] freeze
+      (λ l m, ∀ ls t,
+         isBlock l (DfracOwn 1) t ls -∗
+         imp m {{ λ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut ls }})%I.
+
+  Lemma imp_externals_freeze {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
+    (∀ freeze,
+       □ freeze_spec freeze -∗
+       imp eval_sitems (x ~> freeze;
+                        η, x ~> freeze;
+                        δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
+    imp eval_sitems (η, δ) (IExternal x Externals__freeze_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+  Proof.
+    iIntros "Hsitems".
+    iApply (imp_sitems_external with "[] Hsitems").
+    iApply imp_wand_exn.
+    - iApply imp_EAnon_pers.
+      iIntros "!> %l %ls %t Hblock".
+      iApply imp_please; iNext.
+      iApply (imp_EFreeze with "Hblock"); imp_path.
+    - iIntros (? []).
+  Qed.
+
+
 End ExternalsDef.

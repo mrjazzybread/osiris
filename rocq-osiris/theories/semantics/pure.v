@@ -64,6 +64,10 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CExchange l k)
     (Crash)
+| MaySetTag l k :
+  may
+    (Stop CSetBlockTag l k)
+    (Crash)
 | MayCAS l k :
   may
     (Stop CCAS l k)

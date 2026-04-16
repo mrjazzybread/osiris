@@ -78,6 +78,7 @@ Inductive code : Type → Type → Type → Type :=
 | CLoad  : code loc val exn
 | CLoadBlock : code block (mut_tag * list loc) exn
 | CExchange : code (loc * val) val exn
+| CSetBlockTag : code (loc * mut_tag) unit exn
 | CCAS : code (loc * val * val) val exn
 | CFAA : code (loc * int) val exn
 | CPerf  : code eff val exn
@@ -165,6 +166,11 @@ Definition load_block (l : block) :=
 
 Definition exchange (l : loc) (v : val) :=
   stop CExchange (l, v).
+
+(* [set_tag l t] updates the tag of a block to [t], and returns the location of the block. *)
+
+Definition set_tag (l : loc) (t : mut_tag) :=
+  stop CSetBlockTag (l, t).
 
 (* [cas l seen v] updates the ref cell at location [l] with the value [v],
    only if that value currently contains [seen]. *)

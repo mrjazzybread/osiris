@@ -1287,11 +1287,13 @@ Fixpoint pre_eval η e {struct e} : microvx :=
         ret (VBlock l)
       else crash "invalid_argument: Array.make"
   | EFreeze e =>
-      l ← as_loc (eval η e) ;
-      ret (VLoc l Immut)
+      l ← as_block (eval η e) ;
+      '() ← set_tag l Immut ;
+      ret (VBlock l)
   | EUnfreeze e =>
-      l ← as_loc (eval η e) ;
-      ret (VLoc l Mut)
+      l ← as_block (eval η e) ;
+      '() ← set_tag l Mut ;
+      ret (VBlock l)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse

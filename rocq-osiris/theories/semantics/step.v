@@ -220,6 +220,40 @@ Proof.
   unfold step_exchange_2. intros. case_location_lookup; simplify_eq; eauto.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
+
+(* [step_exchange σ l v k] is the right-hand side of the reduction rule [StepStore].
+
+   This rule loads a value [v] from the store [σ] at location [l], overwrites
+   it with the value [v'], and returns a unit value to the continuation [k].
+   It fails if the location [l] is not in the domain of [σ] or contains
+   something other than a value. *)
+
+Definition step_set_tag_1 σ l t : store :=
+  match σ !! l with
+  | Some (Dict _ ls) => <[ l := Dict t ls ]> σ
+  | _          => σ
+  end.
+
+Definition step_set_tag_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :=
+  match σ !! l with
+  | Some (Dict _ _) => continue k ()
+  | _          => crash "set_tag error: unbound location"
+  end.
+
+Notation step_set_tag σ l t k :=
+  (step_set_tag_1 σ l t, step_set_tag_2 σ l k).
+
+(* Storing is an algebraic effect. *)
+
+Lemma try2_step_set_tag_2 {A B E F} σ l
+  (k : outcome2 unit exn → micro A E)
+  (k' : outcome2 A E → micro B F)
+:
+  step_set_tag_2 σ l (pftry2 k k') = try2 (step_set_tag_2 σ l k) k'.
+Proof.
+  unfold step_set_tag_2. intros. case_location_lookup; simplify_eq; eauto.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -400,6 +434,7 @@ Global Hint Resolve
   try2_step_load_2
   try2_step_load_block_2
   try2_step_exchange_2
+  try2_step_set_tag_2
   try2_step_cas_2
   try2_step_faa_2
   try2_step_resume_2
@@ -494,6 +529,13 @@ Inductive step {A E} : config A E → config A E → Prop :=
       c' = step_exchange σ l v' k →
       step
         (σ, Stop CExchange (l, v') k)
+        c'
+
+  | StepSetTag :
+      ∀ σ l t k c',
+      c' = step_set_tag σ l t k →
+      step
+        (σ, Stop CSetBlockTag (l, t) k)
         c'
 
   | StepCAS :

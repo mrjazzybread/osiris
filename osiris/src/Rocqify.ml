@@ -206,6 +206,12 @@ let rec expr (e : expr) =
   | EArrayMake (e1, e2) ->
       c "EArrayMake" [ expr e1; expr e2 ]
 
+  | EFreeze e ->
+      c "EFreeze" [ expr e ]
+
+  | EUnfreeze e ->
+      c "EUnfreeze" [ expr e ]
+
   | EArrayLit es ->
       c "EArrayLit" [ list (map expr es) ]
 
