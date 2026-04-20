@@ -79,7 +79,7 @@ Section init_proof.
   Definition init_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (I : list A → iProp Σ),
-         ⌜0 ≤ n ≤ max_array⌝ -∗
+         ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], such that [f i] preserves
             an invariant [I] over the results of all calls to [f i] so far. *)
          □ iSpec τ[Z] f (λ i m, ∀ xs, ⌜0 ≤ i < n⌝ -∗ ⌜length xs = i⌝ -∗ I xs -∗

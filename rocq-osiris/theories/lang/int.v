@@ -90,9 +90,9 @@ Definition max_unsigned := M.max_unsigned.
 
 (* This constant corresponds to [Sys.max_array_length] in OCaml. *)
 
-Parameter max_array : Z.
-Parameter max_array_positive : (0 < max_array).
-Parameter max_array_length : (max_array < max_signed).
+Parameter max_array_length : Z.
+Parameter max_array_positive : (0 < max_array_length).
+Parameter max_array_representable : (max_array_length < max_signed).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -328,7 +328,7 @@ Proof. apply M.shr_repr_repr. Qed.
    numbers are representable. *)
 
 Lemma array_size_representable i :
-  0 <= i <= max_array ->
+  0 <= i <= max_array_length ->
   representable i.
 Proof.
   intros (Hpos & Hle).
@@ -337,8 +337,8 @@ Proof.
     transitivity 0; auto.
     apply Z.opp_nonpos_nonneg. apply Z.lt_le_incl, Z.gt_lt.
     apply Coqlib.two_power_nat_pos.
-  - transitivity (max_array); auto.
-    apply Z.lt_le_incl, max_array_length.
+  - transitivity (max_array_length); auto.
+    apply Z.lt_le_incl, max_array_representable.
 Qed.
 
 Ltac prove_representable_array :=

@@ -39,7 +39,7 @@ Section array_resources.
   Proof. iIntros "(%ls & #$ & _ & _ & $)". Qed.
 
   Lemma ownArray_length `{Encode A} a dq (xs : list A) :
-    ownArray a dq xs -∗ ⌜0 ≤ length xs ≤ max_array⌝.
+    ownArray a dq xs -∗ ⌜0 ≤ length xs ≤ max_array_length⌝.
   Proof.
     iIntros "Hown".
     iPoseProof (ownArray_isArray with "Hown") as "(%ls & Ha & %Hlenls)".
@@ -176,7 +176,7 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayLit `{Encode A} {ζ} (Φs : list (A → iProp Σ)) es :
-    ⌜length Φs = length es ∧ length es ≤ max_array⌝ -∗
+    ⌜length Φs = length es ∧ length es ≤ max_array_length⌝ -∗
     imp evals η es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ xs, [∗ listZ] x;Φ ∈ xs;Φs, Φ x }} -∗
     imp eval η (EArrayLit es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
       {{ λ a, ∃ xs, a ↦∗ xs ∗ [∗ listZ] x;Φ ∈ xs;Φs, Φ x }}.
@@ -244,7 +244,7 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayMake `{Encode A} {ζ} {e1 e2} (n : Z) (Φ : A → iProp Σ) :
-    ⌜0 ≤ n ≤ max_array⌝ -∗
+    ⌜0 ≤ n ≤ max_array_length⌝ -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩

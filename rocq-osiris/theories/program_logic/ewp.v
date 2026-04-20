@@ -215,7 +215,7 @@ Section ghost_resources.
   Qed.
 
   Lemma isArray_length a ls :
-    isArray a ls -∗ ⌜(list_z.length ls ≤ int.max_array)%Z⌝.
+    isArray a ls -∗ ⌜(list_z.length ls ≤ int.max_array_length)%Z⌝.
   Proof. iIntros "(_ & $)". Qed.
 
   (* Helper: coherence is preserved when updating only the tag of a block. *)

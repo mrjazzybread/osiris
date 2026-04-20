@@ -16,7 +16,7 @@ Section init_proof.
   Definition init_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (I : list A → iProp Σ),
-         ⌜0 ≤ n ≤ max_array⌝ -∗
+         ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], such that [f i] preserves
             an invariant [I] over the results of all calls to [f i] so far. *)
          □ iSpec τ[Z] f (λ i m, ∀ xs, ⌜0 ≤ i < n⌝ -∗ ⌜length xs = i⌝ -∗ I xs -∗
@@ -29,7 +29,7 @@ Section init_proof.
   Definition init_spec' : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (Φ : Z → A → iProp Σ),
-         ⌜0 ≤ n ≤ max_array⌝ -∗
+         ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], such that [f i] satisfies [Φ i]. *)
          □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, Φ i x }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
@@ -39,7 +39,7 @@ Section init_proof.
   Definition init_pure_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (Φ : Z → A),
-         ⌜0 ≤ n ≤ max_array⌝ -∗
+         ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], which has a pure model [Φ]. *)
          □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, ⌜x = Φ i⌝ }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
@@ -844,7 +844,7 @@ Section of_list_spec.
     λ l m,
       (∀ (A : Type) (_ : Encode A) (xs : list A),
          ⌜l = #xs⌝ -∗
-         ⌜length xs ≤ max_array⌝ -∗
+         ⌜length xs ≤ max_array_length⌝ -∗
          imp m {{ λ a, a ↦∗ xs }})%I.
 
 End of_list_spec.

@@ -49,12 +49,12 @@ Section verification.
   Qed.
 
   (* The specification of our function:
-     the precondition is [0 ≤ n ≤ max_array]
+     the precondition is [0 ≤ n ≤ max_array_length]
      the postcondition is [λ i, ⌜i = gaus_summation n⌝]. *)
 
   Definition sum_spec : Z → microvx → iProp Σ :=
     λ n m,
-      (⌜0 ≤ n ≤ max_array⌝ -∗
+      (⌜0 ≤ n ≤ max_array_length⌝ -∗
        imp m {{ λ i, ⌜i = gauss_summation n⌝ }})%I.
 
   Definition esum := EAnonFun __fun2.

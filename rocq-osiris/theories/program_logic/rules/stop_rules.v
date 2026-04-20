@@ -111,7 +111,7 @@ Section imp_stop.
   (* [CAllocBlock]. *)
 
   Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
-    ⌜length ls ≤ max_array⌝ -∗
+    ⌜length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : syntax.block),
          l ⤇ Mut -∗
          isArray l ls -∗
@@ -781,7 +781,7 @@ Section imp_combinators.
   Qed.
   (* [CAllocBlock]. *)
   Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} ls :
-    ⌜length ls ≤ max_array⌝ -∗
+    ⌜length ls ≤ max_array_length⌝ -∗
     ▷ (∀ l, l ⤇ Mut -∗ isArray l ls -∗ Φ l) -∗
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
@@ -792,7 +792,7 @@ Section imp_combinators.
     iApply ("H" with "Hl Harr").
   Qed.
   Lemma imp_alloc_block ls :
-    ⌜length ls ≤ max_array⌝ -∗
+    ⌜length ls ≤ max_array_length⌝ -∗
     impure E (alloc_block ls) Ψ ζ (λ l, l ⤇ Mut ∗ isArray l ls).
   Proof.
     iIntros "%Hbound".

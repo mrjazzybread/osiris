@@ -271,7 +271,7 @@ Section ExternalsDef.
     ∀ `(Encode A),
     iSpec τ[Z; A] make
       (λ n x m,
-           ∀ Φ, ⌜0 ≤ n ≤ max_array⌝ -∗
+           ∀ Φ, ⌜0 ≤ n ≤ max_array_length⌝ -∗
                 Φ x -∗
                 imp m {{ λ a, ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}).
 

@@ -1281,7 +1281,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EArrayMake e1 e2 =>
       '(n, v) ← par (as_int (eval η e1)) (eval η e2) ;
       let n : Z := signed n in
-      if decide (0 ≤ n ≤ max_array) then
+      if decide (0 ≤ n ≤ max_array_length) then
         ls ← allocn (replicate n v) ;
         l ← alloc_block ls ;
         ret (VBlock l)
