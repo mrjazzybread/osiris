@@ -27,7 +27,7 @@ Section iarray_resources.
 
   Lemma ownArray_isArray `{Encode A} (a : iarray) (xs : list A) :
     owniArray a xs -∗ ∃ ls, isArray a ls.
-  Proof. iIntros "(% & $ & _)". Qed.
+  Proof. iIntros "(%ls & $ & _)". Qed.
 
 End iarray_resources.
 
@@ -42,7 +42,7 @@ Section freeze_iarray.
       (λ (a : array) m,
          ∀ `(Encode A) (xs : list A),
          a ↦∗ xs -∗
-         imp m {{ λ (a' : iarray), a' ↦□∗ xs }})%I.
+         imp m {{ λ (a' : iarray), a' ↦□∗ xs ∗ a' ⤇ Immut  }})%I.
 
   Lemma imp_freeze_array freeze :
     freeze_spec freeze -∗
@@ -51,14 +51,23 @@ Section freeze_iarray.
     iIntros "Hspec".
     iApply (iSpec_mono with "Hspec").
     iIntros (b m) "Hm %A %HencA %xs Hown".
-    iDestruct "Hown" as "(%ls & #Harr & Hslice & %Hlenls)".
-    iDestruct "Hslice" as "(% & #Harr' & %Hpos & %Hle & Hown)".
-
+    (* Unfold ownArray: extracts isArray, isBlock (DfracOwn 1 Mut), isSlice, length-eq *)
+    iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".
+    (* Extract the slice contents for persistence later *)
+    iDestruct "Hslice" as "(%ls' & #Harr' & %Hle & Hown)".
     iPoseProof (isArray_valid with "Harr Harr'") as "->".
-    seg.
-    iDestruct "Harr" as "(%t & Hblock & %Hlen')".
-
-  Admitted.
+    (* Now apply freeze to the physical block *)
+    iSpecialize ("Hm" with "Hblock").
+    iPoseProof (big_sepLZ2_mono with "Hown") as "Hown".
+    { iIntros (k ?? Hlookup1 Hlookup2) "Hpointsto".
+      iApply (gen_heap.pointsto_persist with "Hpointsto"). }
+    iPoseProof (big_sepLZ2_bupd with "Hown") as ">Hown".
+    iApply (imp_wand with "Hm").
+    iIntros (a') "(-> & $)".
+    (* Build owniArray *)
+    iExists ls. iFrame "#".
+    seg. iApply "Hown".
+  Qed.
 
 
 End freeze_iarray.
@@ -78,7 +87,7 @@ Section init_proof.
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
          I [] -∗
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ I xs }})%I.
+         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ a ⤇ Immut ∗ I xs }})%I.
 
   Definition init := (EAnonFun __fun8).
 
@@ -105,7 +114,7 @@ Section init_proof.
     iIntros "(%xs & %Hlenxs & Hown & HI) Hm".
     iSpecialize ("Hm" with "Hown").
     iApply (imp_wand with "Hm").
-    iIntros (a) "$". iFrame "∗%".
+    iIntros (a) "($ & $)". iFrame "∗%".
   Qed.
 
 End init_proof.

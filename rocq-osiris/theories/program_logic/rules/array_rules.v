@@ -13,43 +13,30 @@ Section array_resources.
 
   Context `{!osirisGS Σ}.
 
-  (* [isArray a ls] asserts that the array [a] points to a block in
-     memory represented by the locations [ls]. *)
-
-  Definition isArray (a : array) (ls : list loc) : iProp Σ :=
-    ∃ t, isBlock a DfracDiscarded t ls ∗
-    ⌜length ls ≤ max_array⌝.
-
-  Global Instance is_array_pers a ls : Persistent (isArray a ls).
-  Proof. apply _. Qed.
-
-  Lemma isArray_valid a ls1 ls2 :
-    isArray a ls1 -∗ isArray a ls2 -∗ ⌜ls2 = ls1⌝.
-  Proof.
-    iIntros "(% & #Ha & _) (% & #Ha' & _)".
-    iPoseProof (pointsto_valid_2 with "Ha Ha'") as "[_ %Heq]".
-    by inversion_clear Heq.
-  Qed.
-
-  Lemma isArray_length a ls :
-    isArray a ls -∗ ⌜length ls ≤ max_array⌝.
-  Proof. iIntros "(% & _ & $)". Qed.
+  (* [isArray a ls] is now defined in ewp.v as a persistent ghost map entry.
+     The definition, [isArray_pers], [isArray_valid], and [isArray_length] lemmas
+     are all there. *)
 
   (* Ownership over a segment of the array. *)
 
   Definition isSlice `{Encode A} a dq (i : Z) (xs : list A) : iProp Σ :=
     ∃ ls, isArray a ls ∗
-    ⌜0 ≤ i⌝ ∧ ⌜i + length xs ≤ length ls⌝ ∗
+    ⌜0 ≤ i ≤ length ls - length xs⌝ ∗
     [∗ listZ] l;x ∈ seg i (i + length xs) ls; xs, l ↦{dq} #x.
 
-  (* Ownership of the whole array. *)
+  Lemma isSlice_isArray `{Encode A} a dq i (xs : list A) :
+    isSlice a dq i xs -∗ ∃ ls, isArray a ls ∗ ⌜0 ≤ i ≤ length ls - length xs⌝.
+  Proof. iIntros "(%ls & $ & $ & _)". Qed.
+
+  (* Ownership of the whole array.
+     Includes the exclusive physical block ownership [a ⤇{1} Mut ls], enabling freeze. *)
 
   Definition ownArray `{Encode A} (a : array) dq (xs : list A) : iProp Σ :=
-    ∃ ls, isArray a ls ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
+    ∃ ls, isArray a ls ∗ a ⤇{dq} Mut ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
 
   Lemma ownArray_isArray `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ ∃ ls, isArray a ls ∗ ⌜length ls = length xs⌝.
-  Proof. iIntros "(%ls & #$ & _ & $)". Qed.
+  Proof. iIntros "(%ls & #$ & _ & _ & $)". Qed.
 
   Lemma ownArray_length `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ ⌜0 ≤ length xs ≤ max_array⌝.
@@ -63,14 +50,15 @@ Section array_resources.
 
   Lemma ownArray_isSlice `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ isSlice a dq 0 xs.
-  Proof. iIntros "(%ls & #Ha & $ & %Hlen)". Qed.
+  Proof. iIntros "(%ls & #Ha & _ & $ & %Hlen)". Qed.
 
   Lemma isSlice_ownArray `{Encode A} a dq ls (xs : list A) :
     isArray a ls -∗
+    a ⤇{dq} Mut -∗
     isSlice a dq 0 xs -∗
     ⌜length ls = length xs⌝ -∗
     ownArray a dq xs.
-  Proof. iIntros "Ha $ $". iFrame. Qed.
+  Proof. iIntros "#Ha Hmut $ $". iFrame "Hmut Ha". Qed.
 
 End array_resources.
 
@@ -90,8 +78,8 @@ Section array_resources.
     intros ->.
     lengths.
     iSplit; iIntros "Hslice".
-    - iDestruct "Hslice" as "(%ls & #$ & %Hpos & %Hlen & Hls)".
-      length in Hlen. length.
+    - iDestruct "Hslice" as "(%ls & #$ & %Hbound & Hls)".
+      length in Hbound. length.
       rewrite (split_seg (i + length xs)); try lia.
       iPoseProof (big_sepLZ2_app_inv with "Hls")
         as "($ & Hslice2)"; first (length; lia).
@@ -100,15 +88,16 @@ Section array_resources.
       iPureIntro. lia.
 
     - iDestruct "Hslice" as "(Hslice1 & Hslice2)".
-      iDestruct "Hslice1" as "(%ls & #Harr & %Hpos & %Hlen & Hslice1)".
-      iDestruct "Hslice2" as "(% & #Harr' & %Hpos' & %Hlen' & Hslice2)".
+      iDestruct "Hslice1" as "(%ls & #Harr & %Hlen & Hslice1)".
+      iDestruct "Hslice2" as "(% & #Harr' & %Hlen' & Hslice2)".
       iPoseProof (isArray_valid with "Harr Harr'") as "->".
       iFrame "#". length.
 
       iPoseProof (big_sepLZ2_app with "Hslice1 Hslice2") as "Hslice".
       rewrite -(split_seg (i + length xs)); try lia.
       replace (i + (length xs + length ys)) with (i + length xs + length ys) by lia.
-      iFrame "∗%".
+      iFrame "∗".
+      iPureIntro. lia.
   Qed.
 
   (* We can split a slice on an index [j] of the model [xs].
@@ -144,23 +133,23 @@ Section array_reasoning.
       discharged automatically and [Φ ls] is delivered. *)
   Lemma imp_as_array {ζ} {Φ : list loc → iProp Σ} (Φ1 : array → iProp Σ) (m : microvx) :
     imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    (∀ (a : array), Φ1 a -∗ ∃ ls, isArray a ls ∗ Φ ls) -∗
+    (∀ (a : array), Φ1 a -∗ ∃ ls, ▷ isArray a ls ∗ Φ ls) -∗
     imp as_array m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm H".
     iApply (imp_bind with "Hm").
     iIntros (a) "HΦ1".
-    iDestruct ("H" with "HΦ1") as "(%ls & (% & #Hpts & %Hbound) & HΦ)".
-    iApply (imp_bind with "[Hpts]").
-    { iApply (imp_load_block with "Hpts"). }
-    iIntros ([? ?]) "(-> & -> & _)".
+    iDestruct ("H" with "HΦ1") as "(%ls & #Harr & HΦ)".
+    iApply (imp_bind with "[Harr]").
+    { iApply (imp_load_block_ghost with "Harr"). }
+    iIntros ([? ?]) "->".
     iApply (imp_ret with "HΦ"). encode.
   Qed.
 
   (** [as_array] rule for a pre-existing array.  Use when [isArray a ls] is
       already in context and [m] reduces to the array address [a]. *)
   Lemma imp_as_array_isArray {ζ} {Φ : list loc → iProp Σ} a ls (m : microvx) :
-    isArray a ls -∗
+    ▷ isArray a ls -∗
     imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
     Φ ls -∗
     imp as_array m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -182,8 +171,8 @@ Section array_reasoning.
     iIntros "Hm".
     iApply (imp_as_array (λ a, ∃ xs, a ↦∗ xs ∗ R a xs)%I with "Hm").
     iIntros (a) "(%xs & Hown & $)".
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %)".
-    iFrame "Hown Ha".
+    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %hlen)".
+    iFrame "Hown". iExists ls. iFrame "#".
   Qed.
 
   Lemma imp_EArrayLit `{Encode A} {ζ} (Φs : list (A → iProp Σ)) es :
@@ -201,18 +190,15 @@ Section array_reasoning.
     iPoseProof (big_sepLZ2_length with "Hls") as "%Hlenls".
     iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenxs".
     iApply imp_bind.
-    { iApply imp_alloc_block. }
-    iIntros (a) "Ha".
-    iPoseProof (pointsto_persist with "Ha") as ">#Ha".
+    { iApply (imp_alloc_block arr with "[]").
+      iPureIntro. rewrite Hlenls Hlenxs Hleneq. apply Hlenbound. }
+    iIntros (a) "(Ha & #Harr)".
     iApply imp_ret; first encode.
     iFrame "HΦs".
 
-    (* Goal: establish [a ↦∗ xs] from
-       [a ↦ (Dict Mut arr)] and [∀ l x ∈ arr xs, l ↦ #x ]. *)
-    iAssert (isArray a arr) as "#Harr".
-    { iFrame "Ha". iPureIntro.
-      rewrite Hlenls Hlenxs Hleneq. apply Hlenbound. }
-    iApply (isSlice_ownArray with "Harr [Hls] [//]").
+    (* Goal: establish [a ↦∗ xs] from [a ⤇{1} Mut arr], [isArray a arr],
+       and [∀ l x ∈ arr xs, l ↦ #x ]. *)
+    iApply (isSlice_ownArray with "Harr Ha [Hls] [//]").
     iFrame "Harr". seg. iFrame "Hls".
     iPureIntro; lia.
   Qed.
@@ -228,10 +214,8 @@ Section array_reasoning.
       simpl_evals. iApply imp_ret; first encode.
       by iApply big_sepLZ2_nil.
     - iIntros (a) "(%xs & HownArr & Hxs)".
-      iDestruct "HownArr" as "(%ls & HisArr & Hslice & %Hlenls)".
       iPoseProof (big_sepLZ2_nil_inv_r with "Hxs") as "->".
-      length in Hlenls. apply nil_length_inv in Hlenls as ->.
-      by iApply (isSlice_ownArray with "HisArr Hslice").
+      iApply "HownArr".
   Qed.
 
   Lemma imp_EArrayLength' {ζ} (ls : list loc) e :
@@ -254,7 +238,8 @@ Section array_reasoning.
     iApply (imp_bind with "[He] [-]").
     - set_postcondition (λ ls, ⌜length ls = length xs⌝)%I.
       iApply (imp_as_array with "He").
-      iIntros (?) "(%ls & $ & _ & $)".
+      iIntros (a) "Hown".
+      iPoseProof (ownArray_isArray with "Hown") as "(% & $ & $)".
     - iIntros (ls) "<-". iApply imp_ret; first encode. auto.
   Qed.
 
@@ -275,18 +260,18 @@ Section array_reasoning.
     { rewrite <- fmap_replicate. iApply imp_allocn.
       iIntros "!>" (ls) "Hpts". iExact "Hpts". }
     iIntros (arr) "!> Hpts".
-    iApply imp_bind. { iApply imp_alloc_block. }
-    iIntros (a) "Ha".
-    iPoseProof (pointsto_persist with "Ha") as ">#Ha".
+    iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
+    iApply imp_bind.
+    { iApply (imp_alloc_block arr).
+      iPureIntro. length in Hlen'. length; lia. }
+    iIntros (a) "(Ha & #Harr)".
 
     iApply imp_ret; first encode.
-    iPoseProof (big_sepLZ2_length with "Hpts") as "%Hlen'".
     simpl. length in Hlen'.
-    iFrame "∗#".
-    iSplitR. { iPureIntro; length; lia. }
-    iSplitL. { unfold isSlice; seg; iFrame.
-               iPureIntro; length; lia. }
-    iPureIntro; length; lia.
+    iFrame "Hφ".
+    iFrame "#∗". seg. iFrame "Hpts".
+    iPureIntro.
+    length; lia.
   Qed.
 
   Global Instance inhabited_loc : Inhabited loc.
@@ -328,12 +313,12 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayGet2 `{Encode A, Inhabited A} {Φ : A → iProp Σ} {ζ} (Φ2 : Z → iProp Σ) e1 e2 a ls :
-    isArray a ls -∗
+    ▷ isArray a ls -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ i, Φ2 i -∗
           ∃ dq j xs,
-            ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ a ↦∗[j]{dq} xs) ∗
+            ▷ (⌜j ≤ i < j + length xs⌝ ∗ a ↦∗[j]{dq} xs) ∗
             ▷ (a ↦∗[j]{dq} xs -∗ Φ (xs !!! (i - j)))) -∗
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -343,10 +328,11 @@ Section array_reasoning.
     - iApply (imp_as_int with "He2").
     - iIntros (? i) "-> HΦ2".
       iDestruct ("P" with "HΦ2") as
-        "(%dq & %j & %xs & >(%le & %Hlt & Hslice) & Hlookup)".
-      iDestruct "Hslice" as "(% & #Ha' & %Hbound & %Hle & Hslice)".
+        "(%dq & %j & %xs & >(%le & Hslice) & Hlookup)".
+      iDestruct "Hslice" as "(% & #Ha' & %Hbound & Hslice)".
+      iNext.
       iPoseProof (isArray_valid with "Ha Ha'") as "->".
-      iDestruct "Ha" as "(%t & Ha & %Hlen)".
+      iPoseProof (isArray_length with "Ha") as "%Hlenls".
 
       simpl.
       rewrite signed_repr; last representable.
@@ -355,29 +341,29 @@ Section array_reasoning.
       iPoseProof (big_sepLZ2_lookup_seg_acc i with "Hslice")
         as "(Hl & Hslice)"; try lia.
       iApply (imp_load' with "Hl").
-      iIntros "!> !> Hl".
+      iIntros "!> Hl".
       iApply "Hlookup". iFrame "#%".
       iApply ("Hslice" with "Hl").
   Qed.
 
-  Lemma imp_EArrayGet' `{Encode A, Inhabited A} {ζ} a (ls : list loc) (i j : Z) dq (xs : list A) e1 e2 :
-    ⌜j ≤ i⌝ -∗
-    ⌜i - j < length xs⌝ -∗
-    isArray a ls -∗
+  Lemma imp_EArrayGet' `{Encode A, Inhabited A} {ζ} a (i j : Z) dq (xs : list A) e1 e2 :
+    ⌜j ≤ i < j + length xs⌝ -∗
     ▷ a ↦∗[j]{dq} xs -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
       {{ λ (x : A), ⌜x = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }}.
   Proof.
-    iIntros (Hi Hlen) "#Harr Hslice He1 He2".
+    iIntros (Hlen) "Hslice He1 He2".
+    iDestruct "Hslice" as "(%ls & #Harr & >%Hlenls & H)".
     iApply (imp_EArrayGet2 with "Harr He1 He2").
     iIntros (?) "->".
-    iFrame "∗%".
+    iExists dq, j, xs.
+    iSplitL. { iFrame. iFrame "%#". }
     iIntros "!> $ //".
   Qed.
 
-    Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} (a : array) (i j : Z) dq (xs : list A) e1 e2 :
+  Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} (a : array) (i j : Z) dq (xs : list A) e1 e2 :
     ⌜0 ≤ i < length xs⌝ -∗
     a ↦∗{dq} xs -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
@@ -385,40 +371,42 @@ Section array_reasoning.
     imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
       {{ λ (x : A), ⌜x = xs !!! i⌝ ∗ a ↦∗{dq} xs }}.
   Proof.
-    iIntros (Hlen) "(%ls & #Harr & Hslice & %Hlenls) He1 He2".
-    iApply (imp_wand with "[-]").
-    iApply (imp_EArrayGet' with "[] [] Harr Hslice He1 He2").
-    - iPureIntro; lia.
-    - iPureIntro; lia.
-    - iIntros (x) "(-> & Hslice)".
-      iSplit.
-      + iPureIntro. rewrite Z.sub_0_r. reflexivity.
-      + iFrame "∗#%".
+    iIntros (Hlen) "Hown He1 He2".
+    iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".
+    iApply (imp_wand with "[- Hblock]").
+    { iApply (imp_EArrayGet' with "[%] Hslice He1 He2").
+      lia. }
+    iIntros (x) "(-> & Hslice)".
+    iSplit.
+    + iPureIntro. rewrite Z.sub_0_r. reflexivity.
+    + iApply (isSlice_ownArray with "Harr Hblock Hslice [%]").
+      assumption.
   Qed.
 
   Lemma imp_EArraySet2 `{Encode A, Inhabited A} {Φ : unit → iProp Σ} {ζ}
     (Φ3 : A → iProp Σ) (Φ1 : array → list loc → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 e3 :
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, ∃ ls, isArray a ls ∗ Φ1 a ls }} -∗
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, ∃ ls, ▷ isArray a ls ∗ Φ1 a ls }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3  }} -∗
     (∀ a ls i y, Φ1 a ls -∗ Φ2 i -∗ Φ3 y -∗
                  ∃ j xs,
-                   ▷ (⌜j ≤ i⌝ ∗ ⌜i - j < length xs⌝ ∗ a ↦∗[j] xs) ∗
+                   ▷ (⌜j ≤ i < j + length xs⌝ ∗ a ↦∗[j] xs) ∗
                    ▷ (a ↦∗[j] (<[i - j := y]> xs) -∗ Φ ())) -∗
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 He3 P". simpl_eval.
     iApply (imp_bind_par (A2:=(Z * A)) with "[He1] [He2 He3]").
-    { set_postcondition (λ ls, ∃ a, isArray a ls ∗ Φ1 a ls)%I.
+    { set_postcondition (λ ls, ∃ a, ▷ isArray a ls ∗ Φ1 a ls)%I.
       iApply (imp_as_array with "He1").
       iIntros (l) "(% & #$ & $)". }
     { iApply (imp_par with "[He2] He3").
       iApply (imp_as_int with "He2"). }
     iIntros (ls (i & y)) "(%a & #Ha & HΦ1) (HΦ2 & HΦ3)".
     iDestruct ("P" with "HΦ1 HΦ2 HΦ3")
-      as "(%j & %xs & >(%Hle & %Hlt & Hslice) & HΦ)".
+      as "(%j & %xs & >(%Hle & Hslice) & HΦ)".
 
-    iDestruct "Hslice" as "(% & #Ha' & %Hpos & %Hlen & Hslice)".
+    iDestruct "Hslice" as "(% & #Ha' & %Hlen & Hslice)".
+    iNext.
     iPoseProof (isArray_valid with "Ha Ha'") as "->".
     iPoseProof (isArray_length with "Ha") as "%Hlen'".
 
@@ -430,7 +418,7 @@ Section array_reasoning.
       as "(Hl & Hslice)"; try lia.
 
     iApply (imp_store' with "Hl").
-    iIntros "!> !> Hl".
+    iIntros "!> Hl".
     iApply "HΦ". iFrame "Ha'". length. iFrame "%".
     iSpecialize ("Hslice" with "Hl").
     update.
@@ -438,10 +426,8 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArraySet' `{Encode A, Inhabited A} {ζ}
-    (Φ : A → iProp Σ) (i j : Z) (a : array) (ls : list loc) xs e1 e2 e3 :
-    ⌜j ≤ i⌝ -∗
-    ⌜i - j < length xs⌝ -∗
-    isArray a ls -∗
+    (Φ : A → iProp Σ) (i j : Z) (a : array) xs e1 e2 e3 :
+    ⌜j ≤ i < j + length xs ⌝ -∗
     ▷ a ↦∗[j] xs -∗
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i'=i⌝ }} -∗
@@ -449,16 +435,16 @@ Section array_reasoning.
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
       {{ λ (_ : unit), ∃ y, Φ y ∗ a ↦∗[j] (<[i-j:=y]> xs) }}.
   Proof.
-    iIntros (Hbound Hlen) "#Harr Hslice He1 He2 He3".
+    iIntros (Hbound) "Hslice He1 He2 He3".
+    iDestruct "Hslice" as "(%ls & #Harr & >%Hlenls & slice)".
     iApply (imp_EArraySet2 with "[He1] He2 He3").
     { set_postcondition (λ a', ∃ ls', _ ∗ ⌜a' = a⌝ ∗ ⌜ls' = ls⌝)%I.
       iApply (imp_wand with "He1").
       iIntros (?) "->". iFrame "Harr". auto. }
     iIntros (??? y) "(-> & ->) -> HΦ".
-    iFrame.
-    iSplit.
-    - iPureIntro. lia.
-    - iIntros "!> Hslice".
+    iExists j, xs. iSplitL "slice".
+    - iFrame. iFrame "%#".
+    - iIntros "!> $".
       iFrame.
   Qed.
 
@@ -472,16 +458,15 @@ Section array_reasoning.
     imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
       {{ λ (_ : unit), ∃ y, Φ y ∗ a ↦∗ (<[i:=y]> xs) }}.
   Proof.
-    iIntros (Hbound) "Harr He1 He2 He3".
-    iDestruct "Harr" as "(%ls & #Ha & Hslice & %Hlen)".
-    iApply (imp_wand with "[-]").
-    iApply (imp_EArraySet' with "[] [] Ha Hslice He1 He2 He3").
-    - iPureIntro; lia.
-    - iPureIntro; lia.
-    - iIntros ([]) "(%y & $ & Hslice)".
-      rewrite Z.sub_0_r.
-      iApply (isSlice_ownArray with "Ha Hslice").
-      by length.
+    iIntros (Hbound) "Hown He1 He2 He3".
+    iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".
+    iApply (imp_wand with "[- Hblock]").
+    { iApply (imp_EArraySet' with "[%] Hslice He1 He2 He3").
+      lia. }
+    iIntros ([]) "(%y & $ & Hslice)".
+    rewrite Z.sub_0_r.
+    iApply (isSlice_ownArray with "Harr Hblock Hslice [%]").
+    by length.
   Qed.
 
 End array_reasoning.

@@ -278,17 +278,17 @@ Section imp_rules_expr.
 
   (** * EFreeze : expr → expr *)
 
-  Lemma imp_EFreeze2 {ζ} (Φ : block → list loc → iProp Σ) (Φ' : block → iProp Σ) η e :
+  Lemma imp_EFreeze2 {ζ} (Φ : block → iProp Σ) (Φ' : block → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
-    (∀ l, Φ' l -∗ ∃ t ls, isBlock l (DfracOwn 1) t ls ∗ Φ l ls) -∗
-    impure E (eval η (EFreeze e)) Ψ ζ (λ l, ∃ ls, Φ l ls ∗ isBlock l (DfracOwn 1) Immut ls).
+    (∀ l, Φ' l -∗ ∃ t, ▷ l ⤇ t ∗ Φ l) -∗
+    impure E (eval η (EFreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Immut).
   Proof.
     iIntros "He Hcov".
     simpl_eval.
     iApply (imp_bind with "[He]").
     { iApply (imp_as_block with "He"). }
     iIntros (l) "HΦl".
-    iDestruct ("Hcov" with "HΦl") as "(%t & %ls & Hl & HΦ)".
+    iDestruct ("Hcov" with "HΦl") as "(%t & Hl & HΦ)".
     iApply (imp_bind with "[Hl]").
     { iApply (imp_set_tag with "Hl"). }
     iIntros ([]) "Hl".
@@ -296,32 +296,31 @@ Section imp_rules_expr.
     iFrame.
   Qed.
 
-  Lemma imp_EFreeze {ζ} l t ls η e :
-    isBlock l (DfracOwn 1) t ls -∗
+  Lemma imp_EFreeze {ζ} l t η e :
+    ▷ l ⤇ t -∗
     impure E (eval η e) Ψ ζ (λ l', ⌜l' = l⌝) -∗
-    impure E (eval η (EFreeze e)) Ψ ζ (λ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut ls).
+    impure E (eval η (EFreeze e)) Ψ ζ (λ l', ⌜l' = l⌝ ∗ l ⤇ Immut).
   Proof.
     iIntros "Hl He".
     iApply (imp_wand with "[-]").
-    { iApply (imp_EFreeze2 (λ l' ls', ⌜l' = l⌝ ∗ ⌜ls' = ls⌝)%I with "He").
+    { iApply (imp_EFreeze2 (λ l', ⌜l' = l⌝)%I with "He").
       iIntros (?) "->". by iFrame. }
-    iIntros (?) "(% & (-> & ->) & $)".
-    auto.
+    iIntros (?) "(-> & $) //".
   Qed.
 
   (** * EUnfreeze : expr → expr *)
 
-  Lemma imp_EUnfreeze {ζ} (Φ' : block → iProp Σ) (Φ : block → list loc → iProp Σ) η e :
+  Lemma imp_EUnfreeze {ζ} (Φ' : block → iProp Σ) (Φ : block → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
-    (∀ l, Φ' l -∗ ∃ t ls, isBlock l (DfracOwn 1) t ls ∗ Φ l ls) -∗
-    impure E (eval η (EUnfreeze e)) Ψ ζ (λ l, ∃ ls, Φ l ls ∗ isBlock l (DfracOwn 1) Mut ls).
+    (∀ l, Φ' l -∗ ∃ t, l ⤇ t ∗ Φ l) -∗
+    impure E (eval η (EUnfreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Mut).
   Proof.
     iIntros "He Hcov".
     simpl_eval.
     iApply (imp_bind with "[He]").
     { iApply (imp_as_block with "He"). }
     iIntros (l) "HΦl".
-    iDestruct ("Hcov" with "HΦl") as "(%t & %ls & Hl & HΦ)".
+    iDestruct ("Hcov" with "HΦl") as "(%t & Hl & HΦ)".
     iApply (imp_bind with "[Hl]").
     { iApply (imp_set_tag with "Hl"). }
     iIntros ([]) "Hl".

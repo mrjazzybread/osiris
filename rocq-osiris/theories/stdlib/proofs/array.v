@@ -162,19 +162,17 @@ Section init_proof.
         iIntros "Hm".
         iApply ("Hm" with "[] [] HI"); iPureIntro; length; lia. }
       iIntros "HI Hm".
-      iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Harr & %Hlenls)".
-      iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-      iSpecialize ("Hm" with "Harr Hslice [HI] [] []").
+      iDestruct "Hown" as "(%ls & #Harr & Htag & Hslice & %Hlenls)".
+      iSpecialize ("Hm" with "Hslice [HI] [%]").
       { instantiate (1:=(λ y, I (xs ++ singleton y))). iFrame. }
-      { iPureIntro; lia. }
-      { iPureIntro; length; lia. }
+      { length; lia. }
       iApply (imp_wand with "Hm").
       iIntros (_) "(% & $ & Hslice)".
       rewrite Z.sub_0_r -app_assoc.
       rewrite (split_replicate x (n - i) 1); last lia.
       update. replace (n - (i + 1)) with (n - i - 1) by lia.
-      iPoseProof (isSlice_ownArray with "Harr Hslice []") as "Hown".
-      { iPureIntro. length; length in Hlenls. lia. }
+      iPoseProof (isSlice_ownArray with "Harr Htag Hslice [%]") as "Hown".
+      { length; length in Hlenls. lia. }
       iFrame. iPureIntro; length; lia. }
 
     iIntros "(%xs & %Hlen & Hslice & HI)".
@@ -255,14 +253,14 @@ Section iter_proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (f a A HencA HinhA dq xs I) "Hown #Hf HI".
     iApply imp_please; iNext.
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Harr & %Hlenls)".
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
+    iDestruct "Hown" as "(% & #Harr & Htag & Hslice & %Hlenls)".
+    iPoseProof (isArray_length with "Harr") as "%Hmaxlength".
     length_nonneg xs.
-    iApply (imp_wand with "[-]").
+    iApply (imp_wand with "[Hslice HI]").
     - imp_for 0 to (length xs - 1) $!
-        (λ i, a ↦∗{dq} xs ∗
+        (λ i, a ↦∗[0]{dq} xs ∗
               ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
-        with "[] [] [HI Hown]".
+        with "[] [] [-]".
       { imp_arith.
         imp_app τ[array].
         iIntros "Hm".
@@ -274,28 +272,26 @@ Section iter_proof.
         iFrame. iPureIntro. split; [ by length | apply prefix_nil ]. }
 
       (* Body of the [for] loop. *)
-      iIntros (i') "%Hi' (Hown & (%Xs & HI & <- & %Hprefix))".
+      iIntros (i') "%Hi' (Hslice & (%Xs & HI & <- & %Hprefix))".
       (* Subgoal: f (unsafe_get a i) *)
-      imp_app τ[A] with "[] [Hown]".
+      imp_app τ[A] with "[] [Hslice]".
       { (* unsafe_get a i *)
         imp_app τ[array;Z].
         iIntros "Hm".
-        iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-        iApply ("Hm" $! A with "Harr Hslice").
-        - iPureIntro. lia.
-        - iPureIntro. lia. }
+        iApply ("Hm" $! A with "Hslice [%]").
+        lia. }
       iIntros "(-> & Hslice) Hm". rewrite Z.sub_0_r.
       apply prefix_snoc in Hprefix; try lia.
       iSpecialize ("Hm" with "[//] HI").
       iApply (imp_wand with "Hm").
-      iIntros ([]) "$".
-      iPoseProof (isSlice_ownArray with "Harr Hslice [//]") as "$".
+      iIntros ([]) "$". iFrame.
       iPureIntro.
       split; [ length; lia | assumption ].
-    - iIntros ([]) "($ & %Xs & HI & %HlenXs & %Hprefix)".
+    - iIntros ([]) "(Hslice & %Xs & HI & %HlenXs & %Hprefix)".
       (* Show that we have covered the full list. *)
       rewrite (complete_prefix Xs xs); [ | lia | assumption ].
-      iApply "HI".
+      iFrame "HI".
+      iApply (isSlice_ownArray with "Harr Htag Hslice [//]").
   Qed.
 
 End iter_proof.
@@ -360,16 +356,15 @@ Section map_spec.
     iApply imp_EAnon_pers.
     iIntros "!>" (f a A B HencA HinhA HencB HinhB dq xs Φ) "Hown #Hf".
     iApply imp_please; iNext.
-
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %Hlenls)".
+    iDestruct "Hown" as "(%ls & #Harr & Htag & Hslice & %Hlenls)".
+    iPoseProof (isArray_length with "Harr") as "%Hmaxlength".
 
     (* let l = length a in ... *)
-    iApply (imp_ELet_var (B:=Z) with "[] [Hown]").
+    iApply (imp_ELet_var (B:=Z) with "[]").
     { imp_app τ[array].
-      iIntros "Hm". iApply ("Hm" with "Ha"). }
+      iIntros "Hm". iApply ("Hm" with "Harr"). }
     iIntros (l) "->".
 
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
     length_nonneg xs.
 
     (* if l = 0 then [||] else ... *)
@@ -377,29 +372,28 @@ Section map_spec.
     { (* Case: length xs = 0, so xs = [] *)
       iApply imp_wand.
       iApply (imp_EArrayEmpty (A:=B)).
-      iIntros (a') "$". iFrame.
+      iIntros (a') "$". iFrame "∗#".
       rewrite (nil_length_inv xs); last lia.
+      iSplit. iPureIntro. length; lia.
       by rewrite big_sepLZ2_nil. }
 
     (* Case: length xs > 0 *)
 
     (* let r = make l (f (unsafe_get a 0)) in ... *)
-    iApply (imp_ELet_var (B:=array) with "[Hown]").
+    iApply (imp_ELet_var (B:=array) with "[Hslice]").
     { set_postcondition
-        (λ r, ∃ y, a ↦∗{dq} xs ∗ Φ (xs !!! 0) y ∗ r ↦∗ (replicate (length xs) y))%I.
-      imp_app τ[Z; B] with "[] [] [Hown]".
+        (λ r, ∃ y, a ↦∗[0]{dq} xs ∗ Φ (xs !!! 0) y ∗ r ↦∗ (replicate (length xs) y))%I.
+      imp_app τ[Z; B] with "[] [] [Hslice]".
       { (* f (unsafe_get a 0) *)
-        imp_app τ[A] with "[] [Hown]".
+        imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
         (* arg: unsafe_get a 0 *)
         { imp_app τ[array; Z].
           (* continuation for unsafe_get *)
           iIntros "Hm".
-          iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-          iSpecialize ("Hm" $! A with "Ha Hslice").
+          iSpecialize ("Hm" $! A with "Hslice").
           iApply "Hm".
-          - iPureIntro; lia.
-          - iPureIntro; lia. }
+          iPureIntro; lia. }
         (* continuation for f *)
         iIntros "(%Hlookup & Hslice) Hm".
         set_postcondition (λ y, a ↦∗[0]{dq} xs ∗ Φ (xs !!! 0) y)%I.
@@ -411,75 +405,70 @@ Section map_spec.
       iSpecialize ("Hm" with "[%] HΦy0"); first lia.
 
       iApply (imp_wand with "Hm [Hslice]").
-      iIntros (r) "(%y & HΦy0 & HownR)".
-      iPoseProof (isSlice_ownArray with "Ha Hslice [//]") as "$".
+      iIntros (r) "(%y & $ & HownR)".
       rewrite Hlenls. iFrame. }
 
-    iIntros (r) "(%y & HownSrc & HΦy & HownRes)".
-    iPoseProof (ownArray_isArray with "HownRes") as "(%ls' & #Ha' & %Hlenls')".
+    (* We have now allocated a new array, [res]. *)
+
+    iIntros (res) "(%y & HsliceSrc & HΦy & HownRes)".
+    iDestruct "HownRes" as "(%ls' & #Harr' & HtagRes & HsliceRes & %Hlenls')".
     length in Hlenls'.
 
     (* for i = 1 to l - 1 do unsafe_set r i (f (unsafe_get a i)) done; r *)
-    iApply (imp_ESeq with "[HownSrc HownRes HΦy]").
+    iApply (imp_ESeq with "[HsliceSrc HsliceRes HΦy]").
     { imp_for 1 to (length xs - 1) $!
-        (λ i, a ↦∗{dq} xs ∗
+        (λ i, a ↦∗[0]{dq} xs ∗
               ∃ (ys : list B),
-                r ↦∗ (ys ++ replicate (length xs - i) y) ∗
+                res ↦∗[0] (ys ++ replicate (length xs - i) y) ∗
                 [∗ listZ] x;y ∈ seg 0 i xs;ys, Φ x y)%I
-        with "[] [] [HownSrc HownRes HΦy]".
+        with "[] [] [HsliceSrc HsliceRes HΦy]".
       { by rewrite Hlenls. }
 
       { (* Initial invariant at i = 1 *)
-        iFrame "HownSrc".
+        iFrame "HsliceSrc".
         rewrite (split_replicate y _ 1); last lia. replicate.
-        iFrame "HownRes".
+        iFrame "HsliceRes".
         rewrite seg_is_singleton; try lia.
         iApply (big_sepLZ2_singleton with "HΦy"). }
 
       (* Loop body: unsafe_set r i (f (unsafe_get a i)) *)
-      iIntros (i') "%Hi' (HownSrc & %ys & HownRes & HΦs)".
-      imp_app τ[array; Z; B] with "[] [] [] [HownSrc HownRes HΦs]".
+      iIntros (i') "%Hi' (HsliceSrc & %ys & HsliceRes & HΦs)".
+      imp_app τ[array; Z; B] with "[] [] [] [HsliceSrc HsliceRes HΦs]".
       { (* unsafe_set *) iSpecialize ("ha" $! B HencB HinhB). iAssumption. }
       { (* f (unsafe_get a i) *)
-        imp_app τ[A] with "[] [HownSrc]".
+        imp_app τ[A] with "[] [HsliceSrc]".
         (* function: f *)
         (* arg: unsafe_get a i *)
         { imp_app τ[array;Z].
           (* continuation for unsafe_get on source array a *)
           iIntros "Hm".
-          iPoseProof (ownArray_isSlice with "HownSrc") as "Hslice".
-          iApply ("Hm" $! A with "Ha Hslice").
-          - iPureIntro; lia.
+          iApply ("Hm" $! A with "HsliceSrc").
           - iPureIntro; lia. }
         (* continuation for f *)
-        iIntros "(%Hlookup & Hslice) Hm".
+        iIntros "(%Hlookup & HsliceSrc) Hm".
         set_postcondition
           (λ x,
              a ↦∗[0]{dq} xs ∗
-             r ↦∗ (ys ++ replicate (length xs - i') y) ∗
+             res ↦∗[0] (ys ++ replicate (length xs - i') y) ∗
              Φ (xs !!! i') x ∗
              [∗ listZ] x;y ∈ (seg 0 i' xs);ys, Φ x y)%I.
-        iApply (imp_wand with "Hm [Hslice HownRes HΦs]").
+        iApply (imp_wand with "Hm [HsliceSrc HsliceRes HΦs]").
         iIntros (x') "HΦ".
         rewrite Hlookup Z.sub_0_r. iFrame. }
       (* continuation for unsafe_set *)
-      iIntros "(Hslice & HownRes & HΦy & HΦs) Hm".
+      iIntros "(Hslice & HsliceRes & HΦy & HΦs) Hm".
       iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
       length in Hlenys. length_nonneg ys.
-      iPoseProof (ownArray_isSlice with "HownRes") as "HsliceRes".
-      iSpecialize ("Hm" with "Ha' HsliceRes HΦy [] []").
-      { iPureIntro. lia. }
-      { iPureIntro. length. lia. }
+      iSpecialize ("Hm" with "HsliceRes HΦy [%]").
+      { length. lia. }
       iApply (imp_wand with "Hm").
       iIntros ([]) "(% & HΦ & HsliceRes)".
-      iPoseProof (isSlice_ownArray with "Ha Hslice [//]") as "$".
+      iFrame "Hslice".
       iExists (ys ++ singleton x0).
       update.
       replace (length xs - i' -1 - (i' - 0 -length ys))
         with (length xs - (i' + 1)) by lia.
-      rewrite app_assoc.
-      iPoseProof (isSlice_ownArray with "Ha' HsliceRes []") as "$".
-      { iPureIntro. length. lia. }
+      rewrite app_assoc. iFrame.
 
       rewrite (split_seg i' xs 0 (i' + 1)); try lia.
       iApply (big_sepLZ2_app with "HΦs").
@@ -487,9 +476,13 @@ Section map_spec.
       iApply (big_sepLZ2_singleton with "HΦ"). }
 
     (* After the loop: return r *)
-    iIntros "(HownSrc & %ys & HownRes & HΦs)".
+    iIntros "(HownSrc & %ys & HsliceRes & HΦs)".
     imp_path. seg. replicate.
-    iFrame.
+    iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
+    iPoseProof (isSlice_ownArray with "Harr Htag HownSrc [//]") as "$".
+    iPoseProof (isSlice_ownArray with "Harr' HtagRes HsliceRes [%]") as "$".
+    { lia. }
+    iApply "HΦs".
   Qed.
 
 End map_spec.
@@ -523,15 +516,16 @@ Section map_inplace_spec.
     iApply imp_EAnon_pers.
     iIntros "!>" (f a A HencA HinhA xs Φ) "Hown #Hf".
     iApply imp_please; iNext.
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %Hlenls)".
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
+    iDestruct "Hown" as "(%ls & #Ha & Htag & Hslice_init & %Hlenls)".
+    iPoseProof (isArray_length with "Ha") as "%Hboundxs".
+    length_nonneg xs.
 
-    iApply (imp_wand with "[-]").
+    iApply (imp_wand with "[Hslice_init]").
     - imp_for 0 to (length xs - 1) $!
         (λ i, ∃ (ys : list A),
-             a ↦∗ (ys ++ seg i (length xs) xs) ∗
+             a ↦∗[0] (ys ++ seg i (length xs) xs) ∗
             [∗ listZ] x;y ∈ (seg 0 i xs);ys, Φ x y)%I
-        with "[] [] [Hown]".
+        with "[] [] [-]".
       { imp_arith.
         imp_app τ[array].
         iIntros "Hm".
@@ -542,35 +536,32 @@ Section map_inplace_spec.
       { (* Establish the invariant for [i = 0]. *)
         iExists []. seg. rewrite big_sepLZ2_nil. iFrame. }
 
-      iIntros (i) "%Hi (%ys & Hown & HΦs)".
+      iIntros (i) "%Hi (%ys & Hslice & HΦs)".
       iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
       length in Hlenys.
       (* unsafe_set a i (f (unsafe_get a i)) *)
-      imp_app τ[array; Z; A] with "[] [] [] [Hown HΦs]".
+      imp_app τ[array; Z; A] with "[] [] [] [Hslice HΦs]".
       { (* unsafe_set *) iSpecialize ("ha" $! A HencA HinhA). iAssumption. }
       { (* arg 3: f (unsafe_get a i) *)
         set_postcondition (λ (y : A), a ↦∗[0] (ys ++ seg i (length xs) xs) ∗
                                 Φ _ y ∗
                                 [∗ listZ] x;y ∈ (seg 0 i xs);ys, Φ x y)%I.
-        imp_app τ[A] with "[] [Hown]".
+        imp_app τ[A] with "[] [Hslice]".
         (* function: f *)
         { (* arg: unsafe_get a i *)
           imp_app τ[array;Z].
           (* continuation for unsafe_get *)
           iIntros "Hm".
-          iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-          iApply ("Hm" $! A with "Ha Hslice").
-          - iPureIntro; lia.
-          - iPureIntro; length; lia. }
-        (* continuation for f:
-           v = (ys ++ seg i (length xs) xs) !!! i', with slice back *)
+          iApply ("Hm" $! A with "Hslice").
+          iPureIntro; length; lia. }
+        (* continuation for f *)
         iIntros "(-> & $) Hm".
         iApply (imp_wand with "Hm [HΦs]").
         lookup.
         iIntros (y) "$". iApply "HΦs". }
       (* continuation for unsafe_set: all three args resolved *)
       iIntros "(Hslice & HΦy & HΦs) Hm".
-      iSpecialize ("Hm" with "Ha Hslice HΦy [] []"); try (iPureIntro; length; lia).
+      iSpecialize ("Hm" with "Hslice HΦy [%]"); first (length; lia).
 
       iApply (imp_wand with "Hm [HΦs]").
       iIntros ([]) "(% & HΦ & Hslice)". rewrite Z.sub_0_r.
@@ -578,8 +569,7 @@ Section map_inplace_spec.
       rewrite (split_seg (i+1) xs i (length xs)); try lia.
       rewrite (seg_is_singleton i (i + 1)); try lia.
       update. rewrite app_assoc.
-      iPoseProof (isSlice_ownArray with "Ha Hslice []") as "$".
-      { iPureIntro. length. lia. }
+      iFrame "Hslice".
 
       rewrite (split_seg i xs 0 (i+1)); try lia.
       iApply (big_sepLZ2_app with "HΦs").
@@ -588,8 +578,12 @@ Section map_inplace_spec.
       replace (i + (i - length ys)) with i by lia.
       iApply "HΦ".
 
-    - iIntros ([]) "(%ys & Hown & HΦs)".
-      seg. iFrame.
+    - iIntros ([]) "(%ys & Hslice & HΦs)".
+      seg.
+      iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
+      iPoseProof (isSlice_ownArray with "Ha Htag Hslice [%]") as "Hown".
+      { revert Hlenys; length; intros. lia. }
+      iFrame.
   Qed.
 
 End map_inplace_spec.
@@ -625,17 +619,16 @@ Section mapi_inplace_spec.
     iApply imp_EAnon_pers.
     iIntros "!>" (f a A HencA HinhA xs Φ) "Hown #Hf".
     iApply imp_please; iNext.
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %Hlenls)".
-    (* Get enough information into the context to prove that the
-       indices of the for loop are representable integers. *)
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
+    iDestruct "Hown" as "(%ls & #Ha & Htag & Hslice_init & %Hlenls)".
+    iPoseProof (isArray_length with "Ha") as "%Hboundxs".
+    length_nonneg xs.
 
-    iApply (imp_wand with "[-]").
+    iApply (imp_wand with "[Hslice_init]").
     - imp_for 0 to (length xs - 1)
         $! (λ i, ∃ (ys : list A),
-            a ↦∗ (ys ++ seg i (length xs) xs) ∗
+            a ↦∗[0] (ys ++ seg i (length xs) xs) ∗
             [∗ listZ] j↦x;y ∈ (seg 0 i xs);ys, Φ j x y)%I
-        with "[] [] [Hown]".
+        with "[] [] [-]".
       { imp_arith.
         imp_app τ[array].
         iIntros "Hm".
@@ -646,27 +639,25 @@ Section mapi_inplace_spec.
       { (* Establish the invariant for [i = 0]. *)
         iExists []. seg. rewrite big_sepLZ2_nil. iFrame. }
 
-      iIntros (i) "%Hi (%ys & Hown & HΦs)".
+      iIntros (i) "%Hi (%ys & Hslice & HΦs)".
       iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
       revert Hlenys; length; intros.
       (* unsafe_set a i (f i (unsafe_get a i)) *)
-      imp_app τ[array; Z; A] with "[] [] [] [Hown HΦs]".
+      imp_app τ[array; Z; A] with "[] [] [] [Hslice HΦs]".
       { (* unsafe_set *) iSpecialize ("ha" $! A HencA HinhA). iAssumption. }
       { (* arg 3: f i (unsafe_get a i) *)
         set_postcondition
           (λ y, a ↦∗[0] (ys ++ seg i (length xs) xs) ∗
                 Φ i _ y ∗
                 [∗ listZ] j↦x;y ∈ (seg 0 i xs);ys, Φ j x y)%I.
-        imp_app τ[Z; A] with "[] [] [Hown]".
+        imp_app τ[Z; A] with "[] [] [Hslice]".
         (* function: f *)
         { (* arg 2 to f: unsafe_get a i *)
           imp_app τ[array;Z].
           (* continuation for unsafe_get *)
           iIntros "Hm".
-          iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-          iApply ("Hm" $! A with "Ha Hslice").
-          - iPureIntro; lia.
-          - iPureIntro; length; lia. }
+          iApply ("Hm" $! A with "Hslice").
+          iPureIntro; length; lia. }
         (* continuation for f: gets i and element *)
         iIntros "(-> & Hslice) Hm".
         iSpecialize ("Hm" with "[%]"); first lia.
@@ -676,14 +667,14 @@ Section mapi_inplace_spec.
 
       (* continuation for unsafe_set: all three args resolved *)
       iIntros "(Hslice & HΦy & HΦs) Hm".
-      iSpecialize ("Hm" with "Ha Hslice HΦy [%] [%]"); try (length; lia).
+      iSpecialize ("Hm" with "Hslice HΦy [%]"); first (length; lia).
       iApply (imp_wand with "Hm").
       iIntros ([]) "(%x0 & HΦ & Hslice)".
       iExists (ys ++ singleton x0).
       rewrite (split_seg (i+1) xs i); try lia.
       rewrite seg_is_singleton'; try lia.
       update. rewrite app_assoc.
-      iPoseProof (isSlice_ownArray with "Ha Hslice [%]") as "$"; first (length; lia).
+      iFrame "Hslice".
 
       rewrite (split_seg i xs 0 (i+1)); try lia.
       iApply (big_sepLZ2_app with "HΦs").
@@ -692,7 +683,11 @@ Section mapi_inplace_spec.
       replace (i + (i - length ys)) with i by lia. by rewrite Z.add_0_r.
 
     - iIntros ([]) "(%ys & Hslice & HΦs)".
-      seg. iFrame.
+      seg.
+      iPoseProof (big_sepLZ2_length with "HΦs") as "%Hlenys".
+      iPoseProof (isSlice_ownArray with "Ha Htag Hslice [%]") as "Hown".
+      { revert Hlenys; length; intros. lia. }
+      iFrame.
   Qed.
 
 End mapi_inplace_spec.
@@ -754,13 +749,14 @@ Section iteri_spec.
     iApply imp_EAnon_pers.
     iIntros "!>" (f a A HencA HinhA dq xs I) "Hown #Hf HI".
     iApply imp_please; iNext.
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %Hlenls)".
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
+    iDestruct "Hown" as "(%ls & #Ha & Htag & Hslice_init & %Hlenls)".
+    iPoseProof (isArray_length with "Ha") as "%Hboundxs".
+    length_nonneg xs.
 
-    iApply (imp_wand with "[-]").
+    iApply (imp_wand with "[Hslice_init HI]").
     - imp_for 0 to (length xs - 1)
-        $! (λ i, a ↦∗{dq} xs ∗ ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
-        with "[] [] [HI Hown]".
+        $! (λ i, a ↦∗[0]{dq} xs ∗ ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
+        with "[] [] [-]".
       { imp_arith.
         imp_app τ[array].
         iIntros "Hm". iApply (imp_wand with "[Hm]").
@@ -770,16 +766,14 @@ Section iteri_spec.
       { (* Establish the invariant when [i = 0]. *)
         iFrame. iPureIntro. split; [ by length | apply prefix_nil ]. }
 
-      iIntros (i') "%Hi' (Hown & (%Xs & HI & %HlenXs & %Hprefix))".
+      iIntros (i') "%Hi' (Hslice & (%Xs & HI & %HlenXs & %Hprefix))".
       (* f i (unsafe_get a i) *)
-      imp_app τ[Z;A] with "[] [] [Hown]".
+      imp_app τ[Z;A] with "[] [] [Hslice]".
       (* unsafe_get a i *)
       { imp_app τ[array;Z].
         iIntros "Hm".
-        iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-        iApply ("Hm" $! A with "Ha Hslice").
-        - iPureIntro; lia.
-        - iPureIntro; lia. }
+        iApply ("Hm" $! A with "Hslice [%]").
+        lia. }
       iIntros "(%Hget & Hslice) Hm".
       assert (Xs ++ singleton x `prefix_of` xs).
       { destruct Hprefix as (xrest & ->); rewrite length_app in Hi'.
@@ -790,12 +784,13 @@ Section iteri_spec.
       iSpecialize ("Hm" with "[//] [//] HI").
 
       iApply (imp_wand with "Hm").
-      iIntros ([]) "$".
-      iPoseProof (isSlice_ownArray with "Ha Hslice [//]") as "$".
+      iIntros ([]) "$". iFrame.
       iPureIntro; split; [ length; lia | assumption ].
 
-    - iIntros ([]) "($ & %Xs & HI & %HlenXs & %Hprefix)".
-      by rewrite (complete_prefix Xs xs); [ | lia | assumption ].
+    - iIntros ([]) "(Hslice & %Xs & HI & %HlenXs & %Hprefix)".
+      rewrite (complete_prefix Xs xs); [ | lia | assumption ].
+      iFrame "HI".
+      iApply (isSlice_ownArray with "Ha Htag Hslice [//]").
   Qed.
 
 End iteri_spec.
@@ -966,15 +961,16 @@ Section fold_left_spec.
     { imp_ref x. }
     iIntros (r) "Hr".
 
-    iPoseProof (ownArray_isArray with "Hown") as "(%ls & #Ha & %Hlenls)".
-    iPoseProof (ownArray_length with "Hown") as "%Hboundxs".
+    iDestruct "Hown" as "(%ls & #Ha & Htag & Hslice_init & %Hlenls)".
+    iPoseProof (isArray_length with "Ha") as "%Hboundxs".
+    length_nonneg xs.
     (* for i = 0 to length a - 1 do r := f !r (unsafe_get a i) done; !r *)
-    iApply (imp_ESeq with "[Hown HI Hr]").
+    iApply (imp_ESeq with "[Hslice_init HI Hr]").
     { imp_for 0 to (length xs - 1) $!
-        (λ i, a ↦∗{dq} xs ∗
+        (λ i, a ↦∗[0]{dq} xs ∗
               ∃ (acc : A) (Xs : list B),
                 r ↦ #acc ∗ I acc Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
-        with "[] [] [Hr HI Hown]".
+        with "[] [] [-]".
       { imp_arith.
         imp_app τ[array].
         iIntros "Hm". iApply (imp_wand with "[Hm]").
@@ -984,26 +980,24 @@ Section fold_left_spec.
       { (* Establish the invariant for [i = 0]. *)
         iFrame. iPureIntro. split; first by length. apply prefix_nil. }
 
-      iIntros (i') "%Hi' (Hown & %acc & %Xs & Hr & HI & <- & %Hprefix)".
+      iIntros (i') "%Hi' (Hslice & %acc & %Xs & Hr & HI & <- & %Hprefix)".
       (* r := f !r (unsafe_get a i) *)
-      iApply (imp_wand with "[Hr HI Hown]").
+      iApply (imp_wand with "[Hr HI Hslice]").
       set_postcondition
         (λ (_ : unit), ∃ x X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
-                              r ↦ #x ∗ a ↦∗{dq} xs ∗ I x (Xs ++ singleton X))%I.
-      - iApply (imp_EStore2 (A:=A) with "[] [Hr HI Hown]").
+                              r ↦ #x ∗ a ↦∗[0]{dq} xs ∗ I x (Xs ++ singleton X))%I.
+      - iApply (imp_EStore2 (A:=A) with "[] [Hr HI Hslice]").
         imp_path.
         + (* f !r (unsafe_get a i) *)
           set_postcondition
             (λ x, ∃ X, ⌜Xs ++ singleton X `prefix_of` xs⌝ ∗
-                       r ↦ #acc ∗ a ↦∗{dq} xs ∗ I x (Xs ++ singleton X))%I.
-          imp_app τ[A; B] with "[] [Hr] [Hown]".
+                       r ↦ #acc ∗ a ↦∗[0]{dq} xs ∗ I x (Xs ++ singleton X))%I.
+          imp_app τ[A; B] with "[] [Hr] [Hslice]".
           { (* unsafe_get a i *)
             imp_app τ[array;Z].
             iIntros "Hm".
-            iPoseProof (ownArray_isSlice with "Hown") as "Hslice".
-            iApply ("Hm" $! B with "Ha Hslice").
-            - iPureIntro; lia.
-            - iPureIntro; lia. }
+            iApply ("Hm" $! B with "Hslice [%]").
+            lia. }
           (* continuation after getting the element *)
           iIntros "(-> & Hr) (-> & Hslice) Hm". rewrite Z.sub_0_r.
           apply prefix_snoc in Hprefix; last lia.
@@ -1011,7 +1005,6 @@ Section fold_left_spec.
 
           iApply (imp_wand with "Hm").
           iIntros (acc'') "HI".
-          iPoseProof (isSlice_ownArray with "Ha Hslice [//]") as "$".
           iFrame "∗%".
         + iIntros (?) "(%acc' & Hpref & Hr & Hslice & HI)".
           iFrame.
@@ -1019,11 +1012,12 @@ Section fold_left_spec.
       - iIntros ([]) "(% & % & Hpref & Hr & Hslice & HI)".
         iFrame. iPureIntro; length; lia. }
 
-    iIntros "(Hown & %acc' & %Xs & Hr & HI & %HlenXs & %Hprefix)".
+    iIntros "(Hslice & %acc' & %Xs & Hr & HI & %HlenXs & %Hprefix)".
     iApply (imp_wand with "[Hr]"). { imp_load r. }
-    iIntros (?) "(-> & Hr)". iFrame.
+    iIntros (?) "(-> & Hr)".
     rewrite (complete_prefix Xs xs); [ | lia | assumption ].
-    iApply "HI".
+    iFrame "HI".
+    iApply (isSlice_ownArray with "Ha Htag Hslice [//]").
   Qed.
 
 End fold_left_spec.

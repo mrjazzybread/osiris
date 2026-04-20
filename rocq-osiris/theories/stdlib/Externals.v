@@ -204,11 +204,9 @@ Section ExternalsDef.
   Definition array_get_spec get : iProp Σ :=
     iSpec τ[array;Z] get
       (λ a i m,
-         ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) ls dq j (xs : list A),
-         isArray a ls -∗
+         ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) dq j (xs : list A),
          ▷ a ↦∗[j]{dq} xs -∗
-         ⌜j ≤ i⌝ -∗
-         ⌜i - j < length xs⌝ -∗
+         ⌜j ≤ i < j + length xs⌝ -∗
          imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }})%I.
 
   Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
@@ -223,11 +221,10 @@ Section ExternalsDef.
     iApply (imp_sitems_external with "[] Hsitems").
     iApply imp_wand_exn.
     - iApply (imp_EAnon_pers).
-      iIntros "!>" (a i A HencA HinhA n dq j xs) "#Harr Hslice %Hle %Hlt".
+      iIntros "!>" (a i A HencA HinhA dq j xs) "Hslice %Hbounds".
       iApply imp_please; iNext.
-      iApply (imp_EArrayGet' with "[] [] Harr Hslice"); try imp_path.
-      + iPureIntro; eassumption.
-      + iPureIntro; assumption.
+      iApply (imp_EArrayGet' with "[%] Hslice"); try imp_path.
+      assumption.
     - iIntros (? []).
   Qed.
 
@@ -240,12 +237,10 @@ Section ExternalsDef.
     ∀ `(Encode A, Inhabited A),
     iSpec τ[array;Z;A] set
       (λ a i x m,
-         ∀ ls j (xs : list A) Φ,
-         isArray a ls -∗
+         ∀ j (xs : list A) Φ,
          ▷ a ↦∗[j] xs -∗
          Φ x -∗
-         ⌜j ≤ i⌝ -∗
-         ⌜i - j < length xs⌝ -∗
+         ⌜j ≤ i < j + length xs⌝ -∗
          imp m {{ λ (_ : unit), ∃ x, Φ x ∗ a ↦∗[j] (<[i - j:=x]> xs) }})%I.
 
   Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
@@ -260,11 +255,10 @@ Section ExternalsDef.
     iApply (imp_sitems_external with "[] Hsitems").
     iApply imp_wand_exn.
     - iApply imp_EAnon_poly_inh_pers.
-      iIntros (A ??) "!> %a %i %y %n %j %xs %Φ #Harr Hslice HΦ %Hle %Hlt".
+      iIntros (A ??) "!> %a %i %y %j %xs %Φ Hslice HΦ %Hbounds".
       iApply imp_please; iNext.
-      iApply (imp_EArraySet' with "[] [] Harr Hslice"); try imp_path.
-      + iPureIntro; eassumption.
-      + iPureIntro; assumption.
+      iApply (imp_EArraySet' with "[%] Hslice"); try imp_path.
+      assumption.
     - iIntros (? []).
   Qed.
 
@@ -305,9 +299,9 @@ Section ExternalsDef.
 
   Definition freeze_spec freeze : iProp Σ :=
     iSpec τ[block] freeze
-      (λ l m, ∀ ls t,
-         isBlock l (DfracOwn 1) t ls -∗
-         imp m {{ λ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut ls }})%I.
+      (λ l m, ∀ t,
+         l ⤇ t -∗
+         imp m {{ λ l', ⌜l' = l⌝ ∗ l ⤇ Immut }})%I.
 
   Lemma imp_externals_freeze {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ freeze,
@@ -321,7 +315,7 @@ Section ExternalsDef.
     iApply (imp_sitems_external with "[] Hsitems").
     iApply imp_wand_exn.
     - iApply imp_EAnon_pers.
-      iIntros "!> %l %ls %t Hblock".
+      iIntros "!> %l %t Hblock".
       iApply imp_please; iNext.
       iApply (imp_EFreeze with "Hblock"); imp_path.
     - iIntros (? []).

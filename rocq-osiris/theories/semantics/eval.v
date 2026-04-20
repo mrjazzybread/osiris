@@ -690,8 +690,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
       | Mut, _ | _, Mut => ret (locations.eqb l1 l2)
       | _, _ => physical_equality_error "invalid or unsupported arguments"
       end
-  | VCont k1, VCont k2 =>
-      ret (locations.eqb k1 k2)
+  (* | VCont k1, VCont k2 => *)
+  (*     ret (locations.eqb k1 k2) *)
   | VData c1 [], VData c2 [] =>
       ret (c1 =? c2)
   | _, _ =>

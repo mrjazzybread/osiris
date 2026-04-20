@@ -1,4 +1,5 @@
 From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token.
+From iris.base_logic Require Import ghost_map.
 From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
@@ -95,6 +96,7 @@ Section ghost_instances.
       #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread gname Σ;
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
       osiris_tokenG :: tokenG Σ;
+      #[global] osiris_array_ghostG :: ghost_mapG Σ syntax.block (list locations.loc);
     }.
 
   (* The [osirisGS] typeclass is what we use in our proofs.
@@ -114,6 +116,9 @@ Section ghost_instances.
       osiris_thread_postGS :: gen_heapGS thread gname Σ;
       (* savedPropG is inherited from osirisGpreS via osiris_inG *)
       (* This gives us tokens, for resource transfer when joining threads *)
+      (* This gives us a ghost map tracking array locations (persistent per array). *)
+      osiris_array_ghostGS :: ghost_mapG Σ syntax.block (list locations.loc);
+      osiris_array_name : gname;
     }.
 
 End ghost_instances.
@@ -124,14 +129,15 @@ Definition osirisΣ : gFunctors :=
      gen_heapΣ locations.loc mem_block;
      gen_heapΣ thread gname;
      savedPredΣ (outcome2 val exn);
-     tokenΣ
+     tokenΣ;
+     ghost_mapΣ syntax.block (list locations.loc)
     ].
 
 (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
 Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
 
 (* Notations for ghost resouces. *)
 
@@ -154,15 +160,12 @@ Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
 Global Instance osiris_block_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS syntax.block mem_block Σ.
 Proof. unfold block; simpl. apply (osiris_genGS Σ). Defined.
 
-(* TODO: we want to assert ownership over the tag [t] which is mutable, but the list [ls]
-   is going to be constant, so we can discard the ownership over this. *)
+Definition isBlock `{osirisGS Σ} (b : block) dq t : iProp Σ :=
+  ∃ ls, gen_heap.pointsto b dq (Dict t ls).
 
-Definition isBlock `{osirisGS Σ} (b : block) dq t ls : iProp Σ :=
-  gen_heap.pointsto b dq (Dict t ls).
-
-Notation "b ⤇ dq t ls" :=
-  (isBlock b dq t ls)
-    (at level 20, dq custom dfrac at level 1, format "b ⤇ dq t  ls") : bi_scope.
+Notation "b ⤇ dq t" :=
+  (isBlock b dq t)
+    (at level 20, dq custom dfrac at level 1, format "b ⤇ dq  t") : bi_scope.
 
 Section ghost_resources.
 
@@ -184,8 +187,153 @@ Section ghost_resources.
     Persistent (valid_thread ι P).
   Proof. apply _. Qed.
 
+  (* Coherence between the ghost array map A and the physical store σ:
+     every array registered in A has a corresponding block in σ with the same locations. *)
+  Definition osiris_array_coherent (A : gmap syntax.block (list locations.loc)) (σ : store) : Prop :=
+    ∀ (a : locations.loc) (ls : list locations.loc),
+      A !! (a : syntax.block) = Some ls → ∃ t : mut_tag, σ !! a = Some (Dict t ls).
+
+  Definition osiris_array_interp (σ : store) : iProp Σ :=
+    ∃ σ', ghost_map_auth (osiris_array_name Σ) 1 σ' ∗ ⌜osiris_array_coherent σ' σ⌝.
+
   Definition state_interp : (store * post_map Σ) -> iProp Σ :=
-    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
+    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π ∗ osiris_array_interp σ)%I.
+
+  (* [isArray a ls] is the persistent ghost knowledge that array [a] has locations [ls]. *)
+  Definition isArray (a : syntax.block) (ls : list locations.loc) : iProp Σ :=
+    (a ↪[osiris_array_name Σ]□ ls ∗ ⌜(list_z.length ls ≤ int.max_array)%Z⌝)%I.
+
+  Global Instance isArray_pers a ls : Persistent (isArray a ls).
+  Proof. apply _. Qed.
+
+  Lemma isArray_valid a ls1 ls2 :
+    isArray a ls1 -∗ isArray a ls2 -∗ ⌜ls2 = ls1⌝.
+  Proof.
+    iIntros "(Ha & _) (Ha' & _)".
+    iPoseProof (ghost_map_elem_agree with "Ha Ha'") as "%H".
+    iPureIntro. exact (eq_sym H).
+  Qed.
+
+  Lemma isArray_length a ls :
+    isArray a ls -∗ ⌜(list_z.length ls ≤ int.max_array)%Z⌝.
+  Proof. iIntros "(_ & $)". Qed.
+
+  (* Helper: coherence is preserved when updating only the tag of a block. *)
+  Lemma osiris_array_coherent_set_tag A σ l t t' ls :
+    σ !! l = Some (Dict t ls) →
+    osiris_array_coherent A σ →
+    osiris_array_coherent A (<[l := Dict t' ls]>σ).
+  Proof.
+    intros Hσl Hcoh a ls_a Hlookup.
+    destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
+    destruct (decide (a = l)) as [->|Hne].
+    - (* a = l: ls_a must equal ls *)
+      rewrite Hσl in Hσa. injection Hσa as <-.
+      exists t'. rewrite lookup_insert. subst. rewrite decide_True_pi. done.
+    - exists t_a. rewrite lookup_insert_ne; done.
+  Qed.
+
+  (* Helper: coherence is preserved when allocating a new block. *)
+  Lemma osiris_array_coherent_alloc_block A σ (l : locations.loc) ls :
+    σ !! l = None →
+    osiris_array_coherent A σ →
+    osiris_array_coherent (<[(l : syntax.block) := ls]>A) (<[l := Dict Mut ls]>σ).
+  Proof.
+    intros Hfresh Hcoh a ls_a Hlookup.
+    destruct (decide (a = l)) as [->|Hne].
+    - rewrite lookup_insert in Hlookup. simplify_map_eq.
+      exists Mut. rewrite lookup_insert. rewrite decide_True_pi. done.
+    - rewrite lookup_insert_ne in Hlookup; last done.
+      destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
+      exists t_a. rewrite lookup_insert_ne; done.
+  Qed.
+
+  (* Helper: coherence preserved when allocating a fresh non-block loc. *)
+  Lemma osiris_array_coherent_alloc_nonblock A σ l v :
+    σ !! l = None →
+    osiris_array_coherent A σ →
+    osiris_array_coherent A (<[l := v]>σ).
+  Proof.
+    intros Hfresh Hcoh a ls_a Hlookup.
+    destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
+    destruct (decide (a = l)) as [->|Hne].
+    - congruence.
+    - exists t_a. rewrite lookup_insert_ne; done.
+  Qed.
+
+  (* Helper: coherence preserved when updating an existing non-Dict loc. *)
+  Lemma osiris_array_coherent_update_nondict A σ l v v' :
+    σ !! l = Some v →
+    (∀ t ls, v ≠ Dict t ls) →
+    osiris_array_coherent A σ →
+    osiris_array_coherent A (<[l := v']>σ).
+  Proof.
+    intros Hσl Hnotdict Hcoh a ls_a Hlookup.
+    destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
+    destruct (decide (a = l)) as [->|Hne].
+    - rewrite Hσl in Hσa. injection Hσa as Hσa. exact (False_rect _ (Hnotdict t_a ls_a Hσa)).
+    - exists t_a. rewrite lookup_insert_ne; done.
+  Qed.
+
+  (* Derived: osiris_array_interp is preserved when allocating a fresh non-block loc. *)
+  Lemma osiris_array_interp_alloc_nonblock σ l v :
+    σ !! l = None →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := v]>σ).
+  Proof.
+    iIntros (Hfresh) "(%A & Hauth & %Hcoh)".
+    iExists A. iFrame. iPureIntro.
+    exact (osiris_array_coherent_alloc_nonblock A σ l v Hfresh Hcoh).
+  Qed.
+
+  (* Derived: osiris_array_interp is preserved when updating an existing non-Dict loc. *)
+  Lemma osiris_array_interp_update_nondict σ l v v' :
+    σ !! l = Some v →
+    (∀ t ls, v ≠ Dict t ls) →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := v']>σ).
+  Proof.
+    iIntros (Hσl Hnotdict) "(%A & Hauth & %Hcoh)".
+    iExists A. iFrame. iPureIntro.
+    exact (osiris_array_coherent_update_nondict A σ l v v' Hσl Hnotdict Hcoh).
+  Qed.
+
+  (* Specialised: osiris_array_interp is preserved when updating a Val location. *)
+  Lemma osiris_array_interp_update_val σ l (v : val) v' :
+    σ !! l = Some (Val v) →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := v']>σ).
+  Proof.
+    iIntros (Hσl).
+    iApply osiris_array_interp_update_nondict; first done.
+    intros t ls. discriminate.
+  Qed.
+
+  (* Specialised: osiris_array_interp is preserved when allocating a Kont loc. *)
+  Lemma osiris_array_interp_alloc_kont σ l k :
+    σ !! l = None →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := Kont k]>σ).
+  Proof.
+    iIntros (Hfresh).
+    iApply osiris_array_interp_alloc_nonblock. done.
+  Qed.
+
+  (* Specialised: osiris_array_interp is preserved when updating a Kont to Shot. *)
+  Lemma osiris_array_interp_kont_to_shot σ l k :
+    σ !! l = Some (Kont k) →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := Shot]>σ).
+  Proof.
+    iIntros (Hσl).
+    iApply osiris_array_interp_update_nondict; first done.
+    intros t ls. discriminate.
+  Qed.
+
+  (* Derived: osiris_array_interp is preserved for block tag updates. *)
+  Lemma osiris_array_interp_set_tag σ l t t' ls :
+    σ !! l = Some (Dict t ls) →
+    osiris_array_interp σ -∗ osiris_array_interp (<[l := Dict t' ls]>σ).
+  Proof.
+    iIntros (Hσl) "(%A & Hauth & %Hcoh)".
+    iExists A. iFrame. iPureIntro.
+    exact (osiris_array_coherent_set_tag A σ l t t' ls Hσl Hcoh).
+  Qed.
 
   (** If we have a [valid_thread] resource, then the thread exists in the threadpool
       and we can look up its gname from the ghost map, which points to the postcondition. *)

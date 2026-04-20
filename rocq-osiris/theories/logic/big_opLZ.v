@@ -1,6 +1,6 @@
 From stdpp Require Import countable fin_sets functions.
 From iris.algebra Require Import list gmap.
-From iris.bi Require Import derived_laws_later big_op.
+From iris.bi Require Import derived_laws_later big_op updates.
 From iris.prelude Require Import options.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 From osiris.logic Require Export big_opZ list_z.
@@ -424,6 +424,14 @@ Section sep_listZ.
   ([∗ listZ] k↦xy ∈ zip l1 l2, Φ1 k xy.1 ∗ Φ2 k xy.2) ⊣⊢
   ([∗ listZ] k↦x ∈ l1, Φ1 k x) ∗ ([∗ listZ] k↦y ∈ l2, Φ2 k y).
   Proof. apply big_opLZ_sep_zip. Qed.
+
+  Lemma big_sepLZ_bupd `{!BiBUpd PROP} (Φ : Z → A → PROP) l :
+    ([∗ listZ] k↦x ∈ l, |==> Φ k x) ⊢ |==> [∗ listZ] k↦x ∈ l, Φ k x.
+  Proof. by rewrite (big_opLZ_commute _). Qed.
+
+  Lemma big_sepLZ_fupd `{!BiFUpd PROP} E (Φ : Z → A → PROP) l :
+    ([∗ listZ] k↦x ∈ l, |={E}=> Φ k x) ⊢ |={E}=> [∗ listZ] k↦x ∈ l, Φ k x.
+  Proof. by rewrite (big_opLZ_commute _). Qed.
 
 End sep_listZ.
 
@@ -1082,6 +1090,23 @@ Section sep_list2.
     ([∗ listZ] k↦y2 ∈ l2, Φ2 k y2) -∗
     [∗ listZ] k↦y1;y2 ∈ l1;l2, Φ1 k y1 ∗ Φ2 k y2.
   Proof. intros. apply wand_intro_r. by rewrite big_sepLZ2_sepLZ. Qed.
+
+  Lemma big_sepLZ2_bupd `{!BiBUpd PROP} (Φ : Z → A → B → PROP) l1 l2 :
+    ([∗ listZ] k↦x;y ∈ l1;l2, |==> Φ k x y) ⊢
+    |==> [∗ listZ] k↦x;y ∈ l1;l2, Φ k x y.
+  Proof.
+    rewrite !big_sepLZ2_alt !persistent_and_affinely_sep_l.
+    etrans; [| by apply bupd_frame_l]. apply sep_mono_r. apply big_sepLZ_bupd.
+  Qed.
+
+  Lemma big_sepLZ2_fupd `{!BiFUpd PROP} E (Φ : Z → A → B → PROP) l1 l2 :
+    ([∗ listZ] k↦x;y ∈ l1;l2, |={E}=> Φ k x y) ⊢
+    |={E}=> [∗ listZ] k↦x;y ∈ l1;l2, Φ k x y.
+  Proof.
+    rewrite !big_sepLZ2_alt !persistent_and_affinely_sep_l.
+    etrans; [| by apply fupd_frame_l]. apply sep_mono_r. apply big_sepLZ_fupd.
+  Qed.
+
 End sep_list2.
 
 Lemma big_sepLZ2_const_sepLZ_l {A B} (Φ : Z → A → PROP) (l1 : list A) (l2 : list B) :

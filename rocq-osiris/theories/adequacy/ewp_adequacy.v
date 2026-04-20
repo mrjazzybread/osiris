@@ -626,7 +626,7 @@ Proof.
   eapply (@ewp_adequacy Σ (I x)), Hsteps.
   apply SAT_bupd.
   eapply SAT_mono, Hsat.
-  { iIntros "(Hsi & Hti & Hwp)".
+  { iIntros "(Hsi & (Hti & Harri) & Hwp)".
     iMod (saved_pred_alloc
             (savedPredG0 := (@osiris_savedPredG Σ (@osiris_inG Σ (I x))))
             (λ o, ⌜Φ o⌝)%I DfracDiscarded)
@@ -646,12 +646,15 @@ Proof.
   eapply SAT_frame_resource with (R := supply _) in Hsat; last apply _.
   eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
   eapply (SAT_gen_heap_init ∅) in Hsat as [Hgen' Hsat].
+  eapply (SAT_ghost_map_alloc (∅ : gmap syntax.block (list locations.loc))) in Hsat as [γ Hsat].
   do 2 apply SAT_unframe_resource in Hsat.
-  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen')).
+  pose (hg := (@OsirisGS Σ _ _ Hgen Hgen' _ γ)).
   exists hg.
   eapply SAT_mono; last apply Hsat.
-  iIntros "(Hgen' & Hpts' & Hmeta' & Hgen & Hpts & Hmeta)".
-  by iFrame.
+  iIntros "(Harri & _ & Hgen & _ & _ & Hgen' & _ & _)".
+  iFrame "Hgen Hgen'".
+  iExists ∅. iFrame "Harri". iPureIntro.
+  intros a ls Hlookup. rewrite lookup_empty in Hlookup. discriminate.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

@@ -279,10 +279,12 @@ Section handle_rules.
         rewrite try2_inject2_right.
         iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)".
         iFrame.
+        iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
         by ewp_mask_elim. }
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
+      iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg". eassumption.
       iFrame. }
 
     { (* [StepHandleFork] *)
@@ -318,7 +320,7 @@ Section handle_rules.
     { (* [StepHandleLeft] *)
       eassert (thread_step (σ, e, dom π') _) as Hstep.
       { apply BaseS. eassumption. }
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hti Harreg" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi He") as ">H".
       iMod "H". ewp_mask_elim. iMod "H" as "(H & $)". iModIntro.
       iApply ("IH" with "H Hsh"). }
@@ -344,7 +346,9 @@ Section handle_rules.
 
     (* Update the ghost heap. *)
     iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    ewp_mask_elim. iFrame.
+    ewp_mask_elim.
+    iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
+    iFrame.
     by rewrite try2_inject2_right.
   Qed.
 
@@ -369,7 +373,9 @@ Section handle_rules.
 
     (* Update the ghost heap. *)
     iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
-    ewp_mask_elim. iFrame.
+    ewp_mask_elim.
+    iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
+    iFrame.
     rewrite try2_inject2_right.
     iApply ("H" with "Hl").
   Qed.
@@ -458,6 +464,7 @@ Section handler_proof.
       (* Install the handler around the location [l]. *)
       ewp_mask_intro "Hmod".
       ewp_mask_elim.
+      iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "$". eassumption.
       iApply (imp_wrap_eval_branches (E:=E)).
       iIntros (?) "Hl".
       iSpecialize ("Hdh" $! e l').
@@ -502,7 +509,7 @@ Section handler_proof.
 
     { (* [StepHandleLeft] *)
       eapply BaseS in H1 as Hstep.
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hti Harreg" as "Hsi".
       iPoseProof (basic_rules.ewp_step _ _ _ Hstep with "Hsi Hwp") as ">Hwp".
       iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "(Hwp & $)". iModIntro.
       iApply ("IH" with "Hwp Hdh"). }

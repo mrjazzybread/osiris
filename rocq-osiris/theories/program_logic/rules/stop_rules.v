@@ -93,6 +93,7 @@ Section imp_stop.
     { eassumption. }
 
     iIntros "!> !>". iSpecialize ("H" with "Hl").
+    iPoseProof (osiris_array_interp_alloc_nonblock σ l (Val v) H with "Harreg") as "Harreg'".
     ewp_mask_elim. iFrame.
   Qed.
 
@@ -110,22 +111,43 @@ Section imp_stop.
   (* [CAllocBlock]. *)
 
   Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
+    ⌜length ls ≤ max_array⌝ -∗
     ▷ (∀ (l : syntax.block),
-         isBlock l (DfracOwn 1) Mut ls -∗
-         imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+         l ⤇ Mut -∗
+         isArray l ls -∗
+         imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H".
+    iIntros "%Hbound H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    destruct_thread_step.
+    destruct_thread_step. subst.
 
     iDestruct (gen_heap_alloc with "Hsi") as ">(Hsi & Hl & _)".
     { eassumption. }
 
-    iIntros "!> !>". iSpecialize ("H" with "Hl").
-    ewp_mask_elim. iFrame.
+    (* Insert the new block into the ghost array map. *)
+    iDestruct "Harreg" as "(%σ' & Hauth & %Hcoh)".
+    iAssert ⌜σ' !! l1 = None⌝%I as "%HA_fresh".
+    { iPureIntro.
+      apply not_elem_of_dom.
+      intros Hin.
+      apply elem_of_dom in Hin as (ls' & Hlookup).
+      destruct (Hcoh l1 ls' Hlookup) as (t & Hσl).
+      rewrite Hσl in H. done. }
+    iMod (ghost_map.ghost_map_insert l1 ls with "Hauth") as "(Hauth & Hfrag)".
+    { done. }
+    iMod (ghost_map.ghost_map_elem_persist with "Hfrag") as "#Hfrag".
+
+    iIntros "!> !>".
+    iSpecialize ("H" with "[Hl] [Hfrag]").
+    { iFrame "Hl". }
+    { iFrame "Hfrag". iPureIntro. done. }
+    ewp_mask_elim.
+    iFrame.
+    iPureIntro.
+    exact (osiris_array_coherent_alloc_block σ' σ l1 ls H Hcoh).
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -170,7 +192,7 @@ Section imp_stop.
     iIntros "!> !>".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
@@ -179,9 +201,34 @@ Section imp_stop.
     iApply ("Hwp" with "Hl").
   Qed.
 
+  (* [CLoadBlock] via ghost map: use the persistent [isArray] to justify the step.
+     This avoids requiring physical block ownership for read-only array operations. *)
+
+  Lemma imp_stop_load_block_ghost (l : syntax.block) ls (k: _ → micro A X) :
+    ▷ isArray l ls -∗
+    ▷ (∀ t,
+        imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "#(Hfrag & _) Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+    (* Use the ghost map and coherence to determine the physical heap contents. *)
+    iDestruct "Harreg" as "(%σ_A & Hauth & %Hcoh)".
+    iDestruct (ghost_map.ghost_map_lookup with "Hauth Hfrag") as "%Hlookup".
+    destruct (Hcoh l ls Hlookup) as (t & Hσl).
+    (* Thus the reduction step must succeed. *)
+    destruct_thread_step.
+    rewrite /step_load_block_2 Hσl.
+    ewp_mask_elim.
+    iFrame.
+    iSplit.
+    iApply ("Hwp" $! t).
+    iPureIntro. done.
+  Qed.
   (* ------------------------------------------------------------------------ *)
   (* [CExchange]. *)
-
   Lemma imp_stop_exchange l v v' (k : _ → micro A X) :
     ▷ l ↦ v ⊢
     ▷ (
@@ -193,25 +240,22 @@ Section imp_stop.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
-
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
     destruct_thread_step.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_exchange_1 /step_exchange_2 H0.
+    iPoseProof (osiris_array_interp_update_val σ l _ (Val v') H0 with "Harreg") as "Harreg'".
     ewp_mask_elim. iFrame.
-
     iApply ("Hwp" with "Hl").
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CSetBlockTag]. *)
-
-  Lemma imp_stop_set_tag l t ls t' (k : _ → micro A X) :
-    ▷ isBlock l (DfracOwn 1) t ls ⊢
+  Lemma imp_stop_set_tag l t t' (k : _ → micro A X) :
+    ▷ l ⤇ t ⊢
     ▷ (
-        isBlock l (DfracOwn 1) t' ls -∗
+        l ⤇ t' -∗
         imp (continue k ()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CSetBlockTag (l, t') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -219,44 +263,34 @@ Section imp_stop.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
-
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    iDestruct "Hl" as "(% & Hl)".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
     destruct_thread_step.
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_set_tag_1 /step_set_tag_2 H0.
+    iPoseProof (osiris_array_interp_set_tag σ l t t' ls H0 with "Harreg") as "Harreg'".
     ewp_mask_elim. iFrame.
-
-    iApply ("Hwp" with "Hl").
+    iApply ("Hwp" with "[Hl]").
+    iFrame.
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CCAS]. *)
-
   Class PhysEqDec A `{Encode A} : Prop :=
     phys_eq_dec :
       ∀ (a b : A), is_Ret (phys_eq_val #a #b).
-
   Global Instance phys_eq_dec_loc : PhysEqDec loc.
   Proof.
     intros i j. simpl. eexists; eauto.
   Qed.
-
-  Global Instance phys_eq_dec_cont : PhysEqDec cont.
-  Proof.
-    intros i j. simpl. eexists. eauto.
-  Qed.
-
   Global Instance phys_eq_dec_bool : PhysEqDec bool.
   Proof.
     intros [|] [|]; simpl; eexists; eauto.
   Qed.
-
   Definition phys_eq_val_ `{Hped : PhysEqDec B} : B → B → bool :=
     λ a b,
       @is_Ret_proj bool exn (phys_eq_val #a #b) (Hped a b).
-
 
   Lemma phys_eq_val_proj `{Hped : PhysEqDec B} a b :
     phys_eq_val #a #b = ret (phys_eq_val_ a b).
@@ -264,7 +298,6 @@ Section imp_stop.
     unfold phys_eq_val_. destruct Hped as [decision ->].
     reflexivity.
   Qed.
-
   Lemma phys_eq_val__store `{Hped : PhysEqDec B} a b :
     ∀ σ, phys_eq_val_store #a #b σ = Some (phys_eq_val_ a b).
   Proof.
@@ -283,14 +316,10 @@ Section imp_stop.
       cbn in Hproj. injection Hproj as <-. reflexivity. }
     (* VBlock case: par creates Par constructor, which is never ret *)
     { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
-    (* VCont case *)
-    { destruct (#b); try (cbn in Hproj; discriminate Hproj).
-      cbn in Hproj. injection Hproj as <-. reflexivity. }
   Qed.
 
   (* CAS success: the physical equality holds, so the store is updated from
      [seen] to [v'], and the continuation receives [VTrue]. *)
-
   Lemma imp_stop_cas `{PhysEqDec B} l (seen v v' : B) (k : _ → micro A X) :
     ▷ l ↦ #v ⊢
     ▷ (
@@ -308,6 +337,7 @@ Section imp_stop.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
     - iMod (gen_heap_update σ l (Val #v) (Val #v') with "Hsi Hl") as "[Hsi Hl]".
       rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
+      iPoseProof (osiris_array_interp_update_val σ l #v (Val #v') Hvalid with "Harreg") as "Harreg'".
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
     - rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
@@ -315,10 +345,8 @@ Section imp_stop.
       iApply ("Hwp" with "Hl").
   Qed.
 
-
   (* ------------------------------------------------------------------------ *)
   (* [CFAA]. *)
-
   Lemma imp_stop_faa l (i j : int) (k : _ → micro A X) :
     ▷ l ↦ #j ⊢
     ▷ (
@@ -335,13 +363,12 @@ Section imp_stop.
     destruct_thread_step.
     iMod (gen_heap_update σ l (Val #j) (Val #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
+    iPoseProof (osiris_array_interp_update_val with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CPerform]. *)
-
   Lemma imp_stop_perform (v : val) (k : _ → micro A X) :
     Ψ allows perform v << λ o, ▷ impure E (k o) Ψ ζ Φ >> -∗
     imp (Stop CPerf v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -350,10 +377,8 @@ Section imp_stop.
     ewp_unfold (Stop CPerf v k).
     iApply ("Hallows").
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CResume] *)
-
   (* Resuming a continuation from a location in the store. *)
   Lemma imp_stop_resume l o sk (k: _ → micro A X) :
     isCont l sk ⊢
@@ -365,13 +390,14 @@ Section imp_stop.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
     (* Update the ghost heap. *)
     iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
     iSpecialize ("Hwp" with "Hl").
+    iPoseProof (osiris_array_interp_kont_to_shot σ l _ H0 with "Harreg") as "Harreg'".
     ewp_mask_elim.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
   Qed.
@@ -394,13 +420,10 @@ Section imp_stop.
     ewp_mask_elim.
     rewrite /step_resume_1 /step_resume_2 H0. by iFrame.
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CWrap] *)
-
   (* Installing a handler with branches [bs] on top of a continuation
      that is located in the store at location [l]. *)
-
   Lemma imp_stop_wrap_deep l η bs (k: _ -> micro A X) :
     (∀ l',
       isCont l'
@@ -411,16 +434,14 @@ Section imp_stop.
     iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
-
     (* The reduction step must be a successful step. *)
     destruct_thread_step.
-
     (* Allocate a new location in the heap. *)
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
     iSpecialize ("Hwp" with "Hl'").
+    iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim. iFrame.
   Qed.
-
   Lemma imp_stop_wrap_shallow l η bs (k: _ -> micro A X) :
     (∀ l',
       isCont l'
@@ -431,13 +452,12 @@ Section imp_stop.
     iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
-
     (* The reduction step must be a successful step. *)
     destruct_thread_step.
-
     (* Allocate a new location in the heap. *)
     iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
     iSpecialize ("Hwp" with "Hl'").
+    iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim.
     unfold step_wrap_2.
     by iFrame.
@@ -446,34 +466,28 @@ Section imp_stop.
 End imp_stop.
 
 Section imp_stop_concurrent.
-
   Context `{!osirisGS Σ}.
 
   Context {A X : Type} `{Hobs : Observe Encoded A}.
   Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : Encoded → iProp Σ}.
 
   Implicit Type m : micro A X.
-
   (* When forking a thread, we must prove that the forked thread is
      safe, and that the parent thread is safe.
      We learn that the forked thread has an address ι' and is initially alive *)
-
   Definition isThread `{Observe B val} (ι : thread) ζ Φ : iProp Σ :=
     valid_thread ι (ilift ζ (ireturns Φ)).
 
   (* [joinable ι φ] allows one to join on [ι] and to recover the non-necessarily
      persistent postcondition [φ] (after opening and closing an invariant) *)
-
   Definition joinN := nroot .@ "join".
   (* We need the implicit [Encode] to be outside of the existential,
      so that we know the return type when we join thread [ι]. *)
   Definition joinable B `{Observe B val} ι φ :=
     (∃ ζ (Φ : B → iProp Σ),
         isThread ι ζ Φ ∗ ∀ o, ilift ζ Φ o ={↑joinN}=∗ ▷ φ)%I.
-
   (* ------------------------------------------------------------------------ *)
   (* [CFork]. *)
-
   Lemma imp_stop_fork' `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
@@ -514,7 +528,6 @@ Section imp_stop_concurrent.
 
   (* ------------------------------------------------------------------------ *)
   (* [CJoin]. *)
-
   Lemma imp_stop_join `{Observe B val} ι' (k : _ -> micro A X) φ μ :
     isThread ι' μ φ -∗
     ▷ (∀ x, □ φ x -∗ imp continue k ♯x @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
@@ -546,7 +559,6 @@ Section imp_combinators.
 
   (* ------------------------------------------------------------------------ *)
   (* [CEval]. *)
-
   Lemma imp_please `{Observe A val} {Φ : A → iProp Σ} η e :
     ▷ imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     imp please_eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -562,7 +574,6 @@ Section imp_combinators.
 
   (* ------------------------------------------------------------------------ *)
   (* [CLoop]. *)
-
   Lemma imp_empty_loop (R : iProp Σ) i j e x η :
     int.representable i →
     int.representable j →
@@ -662,7 +673,6 @@ Section imp_combinators.
   Qed.
 
   (* [CFlip]. *)
-
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma imp_flip {Φ : bool → iProp Σ} :
       ▷( Φ true ∧ Φ false)
@@ -691,7 +701,6 @@ Section imp_combinators.
 
   (* ------------------------------------------------------------------------ *)
   (* [CAllocn]. *)
-
   Lemma imp_alloc2' {Φ : loc → iProp Σ} v :
     ▷ (∀ (l : loc), l ↦ v ∗ meta_token l ⊤ -∗ Φ l) -∗
     imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -759,7 +768,6 @@ Section imp_combinators.
       iApply "H".
       iApply big_sepLZ2_cons. iFrame.
   Qed.
-
   Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
     ▷^(List.length xs) (∀ ls,
        ([∗ listZ] l;x ∈ ls;xs, l ↦ #x) -∗ Φ ls) ⊢
@@ -771,30 +779,28 @@ Section imp_combinators.
     iPoseProof (big_sepLZ2_sep with "Hls") as "[Hls _]".
     iApply "H". iFrame.
   Qed.
-
   (* [CAllocBlock]. *)
-
   Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} ls :
-    ▷ (∀ l, isBlock l (DfracOwn 1) Mut ls -∗ Φ l) ⊢
+    ⌜length ls ≤ max_array⌝ -∗
+    ▷ (∀ l, l ⤇ Mut -∗ isArray l ls -∗ Φ l) -∗
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
-    iIntros "H".
-    iApply imp_stop_alloc_block.
-    iIntros "!>" (l) "Hl".
+    iIntros "%Hbound H".
+    iApply (imp_stop_alloc_block with "[%]"). assumption.
+    iIntros "!>" (l) "Hl #Harr".
     iApply imp_ret; first encode.
-    iApply ("H" with "Hl").
+    iApply ("H" with "Hl Harr").
   Qed.
-
   Lemma imp_alloc_block ls :
-    ⊢ impure E (alloc_block ls) Ψ ζ (λ l, isBlock l (DfracOwn 1) Mut ls).
+    ⌜length ls ≤ max_array⌝ -∗
+    impure E (alloc_block ls) Ψ ζ (λ l, l ⤇ Mut ∗ isArray l ls).
   Proof.
-    iApply imp_alloc_block2.
-    iIntros "!>" (l) "$".
+    iIntros "%Hbound".
+    iApply (imp_alloc_block2 with "[%//]").
+    iIntros "!>" (l) "$ #$".
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CLoad]. *)
-
   Lemma imp_load' `{Encode A} {Φ : A → iProp Σ} l a dq :
     ▷ l ↦{dq} #a ⊢
     ▷ (l ↦{dq} #a -∗ Φ a) -∗
@@ -806,7 +812,6 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-
   Lemma imp_load `{Encode A} l (a : A) dq :
     ▷ l ↦{dq} #a ⊢
     imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ l ↦{dq} #a }}.
@@ -815,11 +820,8 @@ Section imp_combinators.
     iApply (imp_load' with "Hl").
     by iIntros "!> $".
   Qed.
-
   (* [CLoadBlock]. *)
-
   Instance notval_dict : NotVal (mut_tag * list loc) := {}.
-
   Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} l dq t ls :
     ▷ pointsto l dq (Dict t ls) ⊢
     ▷ (pointsto l dq (Dict t ls) -∗ Φ (t, ls)) -∗
@@ -831,7 +833,6 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-
   Lemma imp_load_block l dq t ls :
     ▷ pointsto l dq (Dict t ls) ⊢
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
@@ -840,10 +841,21 @@ Section imp_combinators.
     iApply (imp_load_block' with "Hl").
     by iIntros "!> $".
   Qed.
+  (* Ghost-based load_block: use [isArray] (persistent ghost entry) to load the block.
+     Returns the tag [t] without requiring physical block ownership. *)
+  Lemma imp_load_block_ghost (l : syntax.block) ls :
+    ▷ isArray l ls -∗
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜ls' = ls⌝ }}.
+  Proof.
+    iIntros "#Harr".
+    iApply (imp_stop_load_block_ghost with "Harr").
+    iIntros "!>" (t).
+    iApply imp_ret; first encode.
+    done.
+  Qed.
 
   (* ------------------------------------------------------------------------ *)
   (* [CExchange]. *)
-
   Lemma imp_exchange' `{Encode A} {Φ : A → iProp Σ} l a v' :
     ▷ l ↦ #a ⊢
     ▷ (l ↦ v' -∗ Φ a) -∗
@@ -855,7 +867,6 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-
   Lemma imp_exchange `{Encode A} {Φ : A → iProp Σ} l a v' :
     ▷ l ↦ #a ⊢
     imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a' : A), ⌜a' = a⌝ ∗ l ↦ v' }}.
@@ -878,7 +889,6 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-
   Lemma imp_store l v v' :
     ▷ l ↦ v ⊢
     imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ↦ v' }}.
@@ -887,13 +897,11 @@ Section imp_combinators.
     iApply (imp_store' with "Hl").
     iIntros "!> $".
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CSetBlockTag]. *)
-
-  Lemma imp_set_tag' {Φ : unit → iProp Σ} l t ls t' :
-    ▷ isBlock l (DfracOwn 1) t ls ⊢
-    ▷ (isBlock l (DfracOwn 1) t' ls -∗ Φ ()) -∗
+  Lemma imp_set_tag' {Φ : unit → iProp Σ} l t t' :
+    ▷ l ⤇ t ⊢
+    ▷ (l ⤇ t' -∗ Φ ()) -∗
     imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -902,19 +910,16 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-
-  Lemma imp_set_tag l t ls t' :
-    ▷ isBlock l (DfracOwn 1) t ls ⊢
-    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), isBlock l (DfracOwn 1) t' ls }}.
+  Lemma imp_set_tag l t t' :
+    ▷ l ⤇ t ⊢
+    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ⤇ t' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_set_tag' with "Hl").
     iIntros "!> $".
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CCAS]. *)
-
   Lemma imp_cas `{PhysEqDec A} {Φ : bool → iProp Σ} l (seen v v' : A) :
     ▷ l ↦ #v ⊢
     ▷ (l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
@@ -930,7 +935,6 @@ Section imp_combinators.
 
   (* ------------------------------------------------------------------------ *)
   (* [CFAA]. *)
-
   Lemma imp_faa {Φ : Z → iProp Σ} l (i j : Z) :
     ▷ l ↦ #j ⊢
     ▷ (l ↦ #(j + i) -∗ Φ j) -∗
@@ -947,7 +951,6 @@ Section imp_combinators.
 
   (* ------------------------------------------------------------------------ *)
   (* [CPerform]. *)
-
   Lemma imp_perform `{Encode A} {Φ : A → iProp Σ} (v : val) :
     Ψ allows perform v << (ilift ζ (ireturns Φ)) >> -∗
     imp perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -958,10 +961,8 @@ Section imp_combinators.
     iIntros (?) "H".
     iApply (ewp_outcome2 with "H").
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CResume]. *)
-
   Lemma imp_resume `{Encode A} {Φ : A → iProp Σ} l o sk :
     isCont l sk ⊢
     (isShot l -∗ ▷ imp (sk o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
@@ -1012,11 +1013,9 @@ Section imp_combinators.
                             | _ => False
                              end)%I).
       by iFrame. }
-
     iIntros ([ | | ]); try iIntros ([]).
     iIntros "(-> & $)".
   Qed.
-
   Lemma imp_wrap_shallow {Φ : loc → iProp Σ} l η bs :
     (∀ l',
       isCont l' (λ o, Handle (resume l o) (shallow_eval_branches η bs bs)) -∗
