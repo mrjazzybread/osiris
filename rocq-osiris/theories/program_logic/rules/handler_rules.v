@@ -276,7 +276,8 @@ Section handle_rules.
         eapply invert_thread_step_resume in Hstep; [ | eexact Hl ].
         destruct Hstep as (-> & -> & ->).
         rewrite try2_inject2_right.
-        iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi HH") as "(Hsi & HH)".
+        iMod (osiris_state_update Shot with "Hsi HH") as "(Hsi & HH)".
+        { intros; discriminate. }
         iFrame.
         by ewp_mask_elim. }
 
@@ -342,7 +343,8 @@ Section handle_rules.
     (* Thus, the reduction step must be a successful step. *)
 
     (* Update the ghost heap. *)
-    iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi Hl") as "(Hsi & Hl)".
+    iMod (osiris_state_update Shot with "Hsi Hl") as "(Hsi & Hl)".
+    { intros; discriminate. }
     ewp_mask_elim.
     iFrame.
     by rewrite try2_inject2_right.
@@ -368,7 +370,8 @@ Section handle_rules.
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
 
     (* Update the ghost heap. *)
-    iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi Hl") as "(Hsi & Hl)".
+    iMod (osiris_state_update Shot with "Hsi Hl") as "(Hsi & Hl)".
+    { intros; discriminate. }
     ewp_mask_elim.
     iFrame.
     rewrite try2_inject2_right.

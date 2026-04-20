@@ -89,7 +89,7 @@ Section imp_stop.
 
     destruct_thread_step.
 
-    iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta)".
+    iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta & _)".
     iIntros "!> !>". iSpecialize ("H" with "[$Hl $Hmeta]").
     ewp_mask_elim. iFrame.
   Qed.
@@ -121,7 +121,7 @@ Section imp_stop.
 
     destruct_thread_step. subst.
 
-    iMod (osiris_state_alloc_block σ l1 ls H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
+    iMod (osiris_state_alloc σ l1 (Dict Mut ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
     iIntros "!> !>".
     iSpecialize ("H" with "[Hl] [Hfrag]").
     { iFrame "Hl". }
@@ -218,7 +218,8 @@ Section imp_stop.
     iIntros "!> !>".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     destruct_thread_step.
-    iMod (osiris_state_update_nondict _ _ (Val v) (Val v') ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update (Val v') with "Hsi Hl") as "[Hsi Hl]".
+    { intros; discriminate. }
     rewrite /step_exchange_1 /step_exchange_2 H0.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
@@ -307,7 +308,8 @@ Section imp_stop.
     iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
-    - iMod (osiris_state_update_nondict _ _ (Val #v) (Val #v') ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
+    - iMod (osiris_state_update (Val #v') with "Hsi Hl") as "[Hsi Hl]".
+      { intros; discriminate. }
       rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
@@ -332,7 +334,8 @@ Section imp_stop.
     iIntros "!> !>".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
-    iMod (osiris_state_update_nondict _ _ (Val #j) (Val #(int.add j i)) ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update (Val #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
+    { intros; discriminate. }
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
@@ -365,7 +368,8 @@ Section imp_stop.
     destruct_thread_step.
 
     (* Update the ghost heap. *)
-    iMod (osiris_state_update_nondict _ _ (Kont _) Shot ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update Shot with "Hsi Hl") as "[Hsi Hl]".
+    { intros; discriminate. }
     iSpecialize ("Hwp" with "Hl").
     ewp_mask_elim.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
