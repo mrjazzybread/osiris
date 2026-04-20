@@ -261,8 +261,7 @@ Section handle_rules.
       ewp_unfold (Stop CPerf e0 k).
       iMod "He" as "HP".
 
-      iDestruct (gen_heap_alloc _ _ (Kont k) with "Hsi") as ">[Hsi [HH _]]";
-        [ exact H | ].
+      iMod (osiris_state_alloc _ _ (Kont k) H with "Hsi") as "(Hsi & HH & _)".
 
       iAssert (Ψ allows perform e0
                  << fun o => ▷ ewp_def E (stop CResume (l, o)) Ψ Φ >>)%I
@@ -272,19 +271,17 @@ Section handle_rules.
         rename σ into σ'.
         ewp_unfold_head.
         intro_state. ewp_mask_intro "Hmod".
-        iDestruct (gen_heap_valid with "Hsi HH") as %Hl.
+        iDestruct (osiris_state_valid with "Hsi HH") as %Hl.
         construct_wp_nonret.
         eapply invert_thread_step_resume in Hstep; [ | eexact Hl ].
         destruct Hstep as (-> & -> & ->).
         rewrite try2_inject2_right.
-        iDestruct (gen_heap_update with "Hsi HH") as ">(Hsi & HH)".
+        iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi HH") as "(Hsi & HH)".
         iFrame.
-        iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
         by ewp_mask_elim. }
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg". eassumption.
       iFrame. }
 
     { (* [StepHandleFork] *)
@@ -320,7 +317,7 @@ Section handle_rules.
     { (* [StepHandleLeft] *)
       eassert (thread_step (σ, e, dom π') _) as Hstep.
       { apply BaseS. eassumption. }
-      iCombine "Hsi Hti Harreg" as "Hsi".
+      iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi He") as ">H".
       iMod "H". ewp_mask_elim. iMod "H" as "(H & $)". iModIntro.
       iApply ("IH" with "H Hsh"). }
@@ -338,16 +335,15 @@ Section handle_rules.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%".
 
     destruct_thread_step.
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
     (* Thus, the reduction step must be a successful step. *)
 
     (* Update the ghost heap. *)
-    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi Hl") as "(Hsi & Hl)".
     ewp_mask_elim.
-    iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
     iFrame.
     by rewrite try2_inject2_right.
   Qed.
@@ -365,16 +361,15 @@ Section handle_rules.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap.gen_heap_valid with "Hsi Hl")  as "%".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%".
 
     destruct_thread_step.
     (* Thus, the reduction step must be a successful step. *)
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
 
     (* Update the ghost heap. *)
-    iMod (gen_heap.gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update_nondict _ _ (Kont k) Shot ltac:(intros; discriminate) with "Hsi Hl") as "(Hsi & Hl)".
     ewp_mask_elim.
-    iPoseProof (osiris_array_interp_kont_to_shot with "Harreg") as "Harreg". eassumption.
     iFrame.
     rewrite try2_inject2_right.
     iApply ("H" with "Hl").
@@ -457,14 +452,12 @@ Section handler_proof.
       iPoseProof (ewp_perform_inv with "[$]") as "HP"; iMod "HP".
 
       (* We allocate a new location that contains the continuation *)
-      iDestruct (gen_heap.gen_heap_alloc _ _ (Kont k) with "Hsi")
-        as ">[Hsi [HH _]]"; [ eassumption | ].
+      iMod (osiris_state_alloc _ _ (Kont k) H1 with "Hsi") as "(Hsi & HH & _)".
 
       iFrame.
       (* Install the handler around the location [l]. *)
       ewp_mask_intro "Hmod".
       ewp_mask_elim.
-      iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "$". eassumption.
       iApply (imp_wrap_eval_branches (E:=E)).
       iIntros (?) "Hl".
       iSpecialize ("Hdh" $! e l').
@@ -509,7 +502,7 @@ Section handler_proof.
 
     { (* [StepHandleLeft] *)
       eapply BaseS in H1 as Hstep.
-      iCombine "Hsi Hti Harreg" as "Hsi".
+      iCombine "Hsi Hti" as "Hsi".
       iPoseProof (basic_rules.ewp_step _ _ _ Hstep with "Hsi Hwp") as ">Hwp".
       iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "(Hwp & $)". iModIntro.
       iApply ("IH" with "Hwp Hdh"). }

@@ -626,7 +626,7 @@ Proof.
   eapply (@ewp_adequacy Σ (I x)), Hsteps.
   apply SAT_bupd.
   eapply SAT_mono, Hsat.
-  { iIntros "(Hsi & (Hti & Harri) & Hwp)".
+  { iIntros "(Hsi & Hti & Hwp)".
     iMod (saved_pred_alloc
             (savedPredG0 := (@osiris_savedPredG Σ (@osiris_inG Σ (I x))))
             (λ o, ⌜Φ o⌝)%I DfracDiscarded)

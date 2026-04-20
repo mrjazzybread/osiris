@@ -89,11 +89,8 @@ Section imp_stop.
 
     destruct_thread_step.
 
-    iDestruct (gen_heap_alloc with "Hsi") as ">(Hsi & Hl)".
-    { eassumption. }
-
-    iIntros "!> !>". iSpecialize ("H" with "Hl").
-    iPoseProof (osiris_array_interp_alloc_nonblock σ l (Val v) H with "Harreg") as "Harreg'".
+    iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta)".
+    iIntros "!> !>". iSpecialize ("H" with "[$Hl $Hmeta]").
     ewp_mask_elim. iFrame.
   Qed.
 
@@ -124,30 +121,12 @@ Section imp_stop.
 
     destruct_thread_step. subst.
 
-    iDestruct (gen_heap_alloc with "Hsi") as ">(Hsi & Hl & _)".
-    { eassumption. }
-
-    (* Insert the new block into the ghost array map. *)
-    iDestruct "Harreg" as "(%σ' & Hauth & %Hcoh)".
-    iAssert ⌜σ' !! l1 = None⌝%I as "%HA_fresh".
-    { iPureIntro.
-      apply not_elem_of_dom.
-      intros Hin.
-      apply elem_of_dom in Hin as (ls' & Hlookup).
-      destruct (Hcoh l1 ls' Hlookup) as (t & Hσl).
-      rewrite Hσl in H. done. }
-    iMod (ghost_map.ghost_map_insert l1 ls with "Hauth") as "(Hauth & Hfrag)".
-    { done. }
-    iMod (ghost_map.ghost_map_elem_persist with "Hfrag") as "#Hfrag".
-
+    iMod (osiris_state_alloc_block σ l1 ls H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
     iIntros "!> !>".
     iSpecialize ("H" with "[Hl] [Hfrag]").
     { iFrame "Hl". }
     { iFrame "Hfrag". iPureIntro. done. }
-    ewp_mask_elim.
-    iFrame.
-    iPureIntro.
-    exact (osiris_array_coherent_alloc_block σ' σ l1 ls H Hcoh).
+    ewp_mask_elim. iFrame.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -167,7 +146,7 @@ Section imp_stop.
     iIntros "!> !>".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
@@ -192,7 +171,7 @@ Section imp_stop.
     iIntros "!> !>".
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
@@ -215,17 +194,12 @@ Section imp_stop.
     construct_wp_nonret.
     iIntros "!> !>".
     (* Use the ghost map and coherence to determine the physical heap contents. *)
-    iDestruct "Harreg" as "(%σ_A & Hauth & %Hcoh)".
-    iDestruct (ghost_map.ghost_map_lookup with "Hauth Hfrag") as "%Hlookup".
-    destruct (Hcoh l ls Hlookup) as (t & Hσl).
+    iDestruct (osiris_state_valid_array with "Hsi Hfrag") as "(%t & %Hσl)".
     (* Thus the reduction step must succeed. *)
     destruct_thread_step.
     rewrite /step_load_block_2 Hσl.
-    ewp_mask_elim.
-    iFrame.
-    iSplit.
+    ewp_mask_elim. iFrame.
     iApply ("Hwp" $! t).
-    iPureIntro. done.
   Qed.
   (* ------------------------------------------------------------------------ *)
   (* [CExchange]. *)
@@ -242,11 +216,10 @@ Section imp_stop.
     construct_wp_nonret.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     destruct_thread_step.
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update_nondict _ _ (Val v) (Val v') ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_exchange_1 /step_exchange_2 H0.
-    iPoseProof (osiris_array_interp_update_val σ l _ (Val v') H0 with "Harreg") as "Harreg'".
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
@@ -265,12 +238,11 @@ Section imp_stop.
     construct_wp_nonret.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iIntros "!> !>".
-    iDestruct "Hl" as "(% & Hl)".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    iDestruct "Hl" as "(%ls & Hl)".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     destruct_thread_step.
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_set_tag with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_set_tag_1 /step_set_tag_2 H0.
-    iPoseProof (osiris_array_interp_set_tag σ l t t' ls H0 with "Harreg") as "Harreg'".
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "[Hl]").
     iFrame.
@@ -332,12 +304,11 @@ Section imp_stop.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
-    - iMod (gen_heap_update σ l (Val #v) (Val #v') with "Hsi Hl") as "[Hsi Hl]".
+    - iMod (osiris_state_update_nondict _ _ (Val #v) (Val #v') ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
       rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
-      iPoseProof (osiris_array_interp_update_val σ l #v (Val #v') Hvalid with "Harreg") as "Harreg'".
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
     - rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
@@ -359,11 +330,10 @@ Section imp_stop.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     iIntros "!> !>".
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%Hvalid".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
     destruct_thread_step.
-    iMod (gen_heap_update σ l (Val #j) (Val #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update_nondict _ _ (Val #j) (Val #(int.add j i)) ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
-    iPoseProof (osiris_array_interp_update_val with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" with "Hl").
   Qed.
@@ -390,14 +360,13 @@ Section imp_stop.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl") as "%H0".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
     (* Update the ghost heap. *)
-    iMod (gen_heap_update with "Hsi Hl") as "[Hsi Hl]".
+    iMod (osiris_state_update_nondict _ _ (Kont _) Shot ltac:(intros; discriminate) with "Hsi Hl") as "[Hsi Hl]".
     iSpecialize ("Hwp" with "Hl").
-    iPoseProof (osiris_array_interp_kont_to_shot σ l _ H0 with "Harreg") as "Harreg'".
     ewp_mask_elim.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
   Qed.
@@ -412,7 +381,7 @@ Section imp_stop.
     construct_wp_nonret.
 
     (* Argue that [l] must be in the domain of the ghost heap. *)
-    iDestruct (gen_heap_valid with "Hsi Hl")  as "%".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
     destruct_thread_step.
 
@@ -437,9 +406,8 @@ Section imp_stop.
     (* The reduction step must be a successful step. *)
     destruct_thread_step.
     (* Allocate a new location in the heap. *)
-    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iMod (osiris_state_alloc σ l' (Kont _) H with "Hsi") as "(Hsi & Hl' & _)".
     iSpecialize ("Hwp" with "Hl'").
-    iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim. iFrame.
   Qed.
   Lemma imp_stop_wrap_shallow l η bs (k: _ -> micro A X) :
@@ -455,9 +423,8 @@ Section imp_stop.
     (* The reduction step must be a successful step. *)
     destruct_thread_step.
     (* Allocate a new location in the heap. *)
-    iMod (gen_heap.gen_heap_alloc with "Hsi") as "(Hsi & Hl' & _)"; first done.
+    iMod (osiris_state_alloc σ l' (Kont _) H with "Hsi") as "(Hsi & Hl' & _)".
     iSpecialize ("Hwp" with "Hl'").
-    iPoseProof (osiris_array_interp_alloc_kont with "Harreg") as "Harreg'". eassumption.
     ewp_mask_elim.
     unfold step_wrap_2.
     by iFrame.

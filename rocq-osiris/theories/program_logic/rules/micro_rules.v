@@ -349,14 +349,14 @@ Section ewp_rules.
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.
-      iCombine "Hsi Hti Harreg" as "Hsi".
+      iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H1") as ">H1".
       iMod "H1". ewp_mask_elim. iMod "H1" as "(H1 & $)".
       iApply ("IH" with "H1 H2 Hjoin"). }
 
     { (* [ParRight] *)
       eapply BaseS in H as Hstep.
-      iCombine "Hsi Hti Harreg" as "Hsi".
+      iCombine "Hsi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H2") as ">H2".
       iMod "H2". ewp_mask_elim. iMod "H2" as "(H2 & $)".
       iApply ("IH" with "H1 H2 Hjoin"). }

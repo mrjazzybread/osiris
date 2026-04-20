@@ -171,9 +171,6 @@ Section ghost_resources.
 
   Context `{!osirisGS Σ}.
 
-  Definition osiris_state_interp (σ : store) :=
-    @gen_heap_interp locations.loc _ _ mem_block Σ _ σ.
-
   Definition osiris_thread_interp π : iProp Σ :=
     @gen_heap_interp thread _ _ gname Σ _ π.
 
@@ -196,12 +193,15 @@ Section ghost_resources.
   Definition osiris_array_interp (σ : store) : iProp Σ :=
     ∃ σ', ghost_map_auth (osiris_array_name Σ) 1 σ' ∗ ⌜osiris_array_coherent σ' σ⌝.
 
+  Definition osiris_state_interp (σ : store) : iProp Σ :=
+    @gen_heap_interp locations.loc _ _ mem_block Σ _ σ ∗ osiris_array_interp σ.
+
   Definition state_interp : (store * post_map Σ) -> iProp Σ :=
-    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π ∗ osiris_array_interp σ)%I.
+    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
   (* [isArray a ls] is the persistent ghost knowledge that array [a] has locations [ls]. *)
   Definition isArray (a : syntax.block) (ls : list locations.loc) : iProp Σ :=
-    (a ↪[osiris_array_name Σ]□ ls ∗ ⌜(list_z.length ls ≤ int.max_array)%Z⌝)%I.
+    (a ↪[osiris_array_name Σ]□ ls ∗ ⌜(list_z.length ls ≤ int.max_array_length)%Z⌝)%I.
 
   Global Instance isArray_pers a ls : Persistent (isArray a ls).
   Proof. apply _. Qed.
@@ -333,6 +333,84 @@ Section ghost_resources.
     iIntros (Hσl) "(%A & Hauth & %Hcoh)".
     iExists A. iFrame. iPureIntro.
     exact (osiris_array_coherent_set_tag A σ l t t' ls Hσl Hcoh).
+  Qed.
+
+  (* -------------------------------------------------------------------- *)
+  (** Combined [osiris_state_interp] operations.
+
+      These lemmas update both the gen_heap and the array ghost map in one
+      step, so callers never need to destructure [osiris_state_interp]. *)
+
+  Lemma osiris_state_valid σ l dq (v : mem_block) :
+    osiris_state_interp σ -∗ pointsto l dq v -∗ ⌜σ !! l = Some v⌝.
+  Proof.
+    iIntros "(Hmem & _) Hl".
+    iApply (gen_heap_valid with "Hmem Hl").
+  Qed.
+
+  Lemma osiris_state_valid_array σ (l : syntax.block) ls :
+    osiris_state_interp σ -∗ l ↪[osiris_array_name Σ]□ ls -∗ ∃ t, ⌜σ !! (l : locations.loc) = Some (Dict t ls)⌝.
+  Proof.
+    iIntros "(_ & %A & Hauth & %Hcoh) #Hfrag".
+    iDestruct (ghost_map_lookup with "Hauth Hfrag") as "%Hlookup".
+    destruct (Hcoh l ls Hlookup) as (t & Hσl).
+    iExists t. iPureIntro. exact Hσl.
+  Qed.
+
+  Lemma osiris_state_alloc σ l (v : mem_block) :
+    σ !! l = None →
+    osiris_state_interp σ ==∗ osiris_state_interp (<[l := v]>σ) ∗ pointsto l (DfracOwn 1) v ∗ meta_token l ⊤.
+  Proof.
+    iIntros (Hfresh) "(Hmem & Harreg)".
+    iMod (gen_heap_alloc with "Hmem") as "(Hmem & Hl & Hmeta)"; first done.
+    iModIntro. iFrame.
+    iApply (osiris_array_interp_alloc_nonblock with "Harreg"). done.
+  Qed.
+
+  Lemma osiris_state_alloc_block σ (l : locations.loc) ls :
+    σ !! l = None →
+    osiris_state_interp σ ==∗
+      osiris_state_interp (<[l := Dict Mut ls]>σ) ∗
+      pointsto l (DfracOwn 1) (Dict Mut ls) ∗ meta_token l ⊤ ∗
+      (l : syntax.block) ↪[osiris_array_name Σ]□ ls.
+  Proof.
+    iIntros (Hfresh) "(Hmem & (%A & Hauth & %Hcoh))".
+    iMod (gen_heap_alloc with "Hmem") as "(Hmem & Hl & Hmeta)"; first done.
+    iAssert ⌜A !! (l : syntax.block) = None⌝%I as "%HA_fresh".
+    { iPureIntro. apply not_elem_of_dom. intros Hin.
+      apply elem_of_dom in Hin as (ls' & Hlookup).
+      destruct (Hcoh l ls' Hlookup) as (t & Hσl).
+      rewrite Hσl in Hfresh. done. }
+    iMod (ghost_map_insert (l : syntax.block) ls with "Hauth") as "(Hauth & Hfrag)"; first done.
+    iMod (ghost_map.ghost_map_elem_persist with "Hfrag") as "Hfrag".
+    iModIntro.
+    iSplitL "Hmem Hauth".
+    { iFrame "Hmem". iExists (<[(l : syntax.block) := ls]>A). iFrame. iPureIntro.
+      exact (osiris_array_coherent_alloc_block A σ l ls Hfresh Hcoh). }
+    iFrame.
+  Qed.
+
+  Lemma osiris_state_update_nondict σ l (v v' : mem_block) :
+    (∀ t ls, v ≠ Dict t ls) →
+    osiris_state_interp σ -∗ pointsto l (DfracOwn 1) v ==∗
+      osiris_state_interp (<[l := v']>σ) ∗ pointsto l (DfracOwn 1) v'.
+  Proof.
+    iIntros (Hnotdict) "(Hmem & Harreg) Hl".
+    iDestruct (gen_heap_valid with "Hmem Hl") as "%Hσl".
+    iMod (gen_heap_update with "Hmem Hl") as "(Hmem & Hl)".
+    iModIntro. iFrame.
+    iApply (osiris_array_interp_update_nondict with "Harreg"); done.
+  Qed.
+
+  Lemma osiris_state_set_tag σ l t t' ls :
+    osiris_state_interp σ -∗ pointsto l (DfracOwn 1) (Dict t ls) ==∗
+      osiris_state_interp (<[l := Dict t' ls]>σ) ∗ pointsto l (DfracOwn 1) (Dict t' ls).
+  Proof.
+    iIntros "(Hmem & Harreg) Hl".
+    iDestruct (gen_heap_valid with "Hmem Hl") as "%Hσl".
+    iMod (gen_heap_update with "Hmem Hl") as "(Hmem & Hl)".
+    iModIntro. iFrame.
+    iApply (osiris_array_interp_set_tag with "Harreg"). done.
   Qed.
 
   (** If we have a [valid_thread] resource, then the thread exists in the threadpool

@@ -23,7 +23,7 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ], [π] and [state_interp (σ, π)]. *)
 
-  Ltac intro_state := iIntros (σ π) "(Hsi & Hti & Harreg)".
+  Ltac intro_state := iIntros (σ π) "(Hsi & Hti)".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -179,8 +179,8 @@ Module ewp_rules_tactics.
              (bi_forall (fun σ1 : step.store =>
               bi_forall (fun π1 : post_map _ => _)))] =>
         lazymatch goal with
-        (* When all state interps are in the same hypothesis (right-assoc: A ∗ (B ∗ C)). *)
-        | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (bi_sep (osiris_thread_interp ?π) _))] =>
+        (* When all state interps are in the same hypothesis. *)
+        | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (osiris_thread_interp ?π))] =>
             let Hstep := fresh "Hstep" in
             iSpecialize (Hwp $! σ π with SI);
             try (iMod Hwp;
@@ -189,19 +189,12 @@ Module ewp_rules_tactics.
         | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             lazymatch goal with
             | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
-                lazymatch goal with
-                | |- context [environments.Esnoc _ ?AI (osiris_array_interp ?σ)] =>
-                    let Hstep := fresh "Hstep" in
-                    (* Combine right-to-left: TI ∗ AI first, then SI ∗ (TI ∗ AI) *)
-                    iPoseProof (combine_seps with TI) as TI;
-                    iSpecialize (TI with AI);
-                    iPoseProof (combine_seps with SI) as SI;
-                    iSpecialize (SI with TI);
-                    iSpecialize (Hwp $! σ π with SI);
-                    try (iMod Hwp;
-                         iDestruct Hwp as (Hstep) Hwp)
-                | |- _ => fail "Cannot find array interp hypothesis"
-                end
+                let Hstep := fresh "Hstep" in
+                iPoseProof (combine_seps with SI) as SI;
+                iSpecialize (SI with TI);
+                iSpecialize (Hwp $! σ π with SI);
+                try (iMod Hwp;
+                     iDestruct Hwp as (Hstep) Hwp)
             | |- _ => fail "Cannot find thread interp hypothesis"
             end
         | |- _ => fail "Cannot find state interp hypothesis"
