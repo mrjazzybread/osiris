@@ -308,22 +308,22 @@ Section state_interp.
     iExists t. iPureIntro. exact Hσl.
   Qed.
 
-  (** view of expressions either being some expression or a value *)
-  Inductive mem_block_view : mem_block -> Type :=
-  | block_view_dict : forall (t : mut_tag) (ls : list locations.loc),
+  (** view of memory either being a block or anything else *)
+  Variant mem_block_view : mem_block -> Type :=
+  | dict_view t ls :
     mem_block_view (Dict t ls)
-  | block_view_block : forall (b : mem_block),
+  | block b :
     (forall t ls, b <> Dict t ls) ->
     mem_block_view b
   .
   Lemma block_view b : mem_block_view b.
-  Proof. destruct b; econstructor; congruence. Qed.
+  Proof. destruct b; econstructor; congruence. Defined.
 
   Lemma osiris_state_alloc σ (l : locations.loc) (v : mem_block) :
     σ !! l = None →
     osiris_state_interp σ ==∗ osiris_state_interp (<[l := v]>σ) ∗ pointsto l (DfracOwn 1) v ∗ meta_token l ⊤ ∗
-    match v with
-    | Dict _ ls => (l : syntax.block) ↪[osiris_array_name Σ]□ ls
+    match block_view v with
+    | dict_view _ ls => (l : syntax.block) ↪[osiris_array_name Σ]□ ls
     | _ => True
     end.
   Proof.
@@ -346,10 +346,8 @@ Section state_interp.
       iFrame.
     - (* If we are not allocating a block, then we are done. *)
       iModIntro. iFrame.
-      iSplit.
-      { iPureIntro.
-        apply coherent_alloc_nonblock; eauto. }
-      destruct b; auto. by specialize (n t ls).
+      iPureIntro.
+      apply coherent_alloc_nonblock; eauto.
   Qed.
 
   Lemma osiris_state_update (v' v : mem_block) σ l :
