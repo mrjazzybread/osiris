@@ -82,6 +82,7 @@
 * Functions and function applications ✓
 * Mutually recursive functions ✓
 * Algebraic data types (unit, tuples, sums, records, sums-of-records) ✓
+  + missing inline records
 * Pattern matching on immutable data ✓
 * Conditionals ✓
 * `while` loops ✓
