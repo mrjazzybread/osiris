@@ -6,7 +6,7 @@
   association lists. This should make the executable interpreter
   significantly faster.
 
-* Add support for shallow handlers (translator, semantics, reasoning rules).
+* Add support for shallow handlers (translator, reasoning rules).
 
 * Add support for concurrency (towards weak memory).
 
@@ -95,6 +95,7 @@
   + consider supporting the use of `Obj.magic` to "freeze" records with mutable fields/arrays
 * Arrays ✓
   + still missing support for `blit` and dependent defs in `stdlib/proofs/arrays.v`
+  + finish proofs of array and iarray
 * Characters and strings
   + decide how they should be represented in Rocq;
     Rocq's `char` type seems needlessly inefficient,
