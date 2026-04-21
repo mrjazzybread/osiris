@@ -22,9 +22,10 @@ Definition eff := val.
    call is allowed to throw an exception of type [exn]. Some system
    calls can indeed throw such an exception: this includes [CEval],
    [CLoop], [CPerf], [CContinue], and [CDiscontinue]. Some system
-   calls, such as [CFlip], [CAllocn], [CLoad], and [CExchange], cannot
-   throw an exception. Describing them with the type [exn], as opposed
-   to [void], is a (convenient) over-approximation. *)
+   calls, such as [CFlip], [CAlloc], [CAllocBlock], [CLoad], [CLoadBlock],
+   [CExchange], and [CSetBlockTag], cannot throw an exception. Describing
+   them with the type [exn], as opposed to [void], is a (convenient)
+   over-approximation. *)
 
 (* [Eval (η, e)] is a request for the computation [eval η e].
    The function [eval] is defined in eval.v.
@@ -37,13 +38,35 @@ Definition eff := val.
 
 (* [Flip] is a request to flip a Boolean coin. *)
 
-(* [Allocn vs], [Load l], [Exchange (l, v)] are requests to allocate, read,
-   and write a memory location in the heap.
-   The result of [Allocn vs] is a list of memory locations.
-   The result of [Load l] is a value.
-   The result of [Exchange (l, v)] is the previously stored value. *)
+(* [CAlloc v] is a request to allocate a fresh ref cell with initial value [v].
+   The result is the location of the new cell. *)
 
-(* TODO: comment CAS and FAA. *)
+(* [CAllocBlock ls] is a request to allocate a fresh block of memory whose
+   fields are the ref cells at locations [ls], initially tagged as mutable.
+   The result is a block pointer. *)
+
+(* [CLoad l] is a request to read the value stored at the ref cell at [l].
+   The result is the stored value. *)
+
+(* [CLoadBlock l] is a request to read the contents of the block at [l].
+   The result is a pair of the mutability tag and the list of ref cell locations. *)
+
+(* [CExchange (l, v')] is a request to overwrite the ref cell at location [l]
+   with the value [v'], returning the previously stored value. *)
+
+(* [CSetBlockTag (l, t)] is a request to update the mutability tag of the
+   block at [l] to [t]. The result is unit. *)
+
+(* [CCAS (l, seen, v')] is a compare-and-set request. If the ref cell at [l]
+   currently stores a value [v] that is physically equal to [seen], then [v]
+   is overwritten with [v'] and [true] is returned; otherwise the cell is left
+   unchanged and [false] is returned. Physical equality is only defined for
+   locations and nullary constructors; the request fails for other argument
+   types. *)
+
+(* [CFAA (l, i)] is a fetch-and-add request. It reads the integer [j] stored
+   at the ref cell at [l], atomically overwrites it with [i + j], and returns
+   the old value [j]. The request fails if [l] does not contain an integer. *)
 
 (* [CPerf e] is a request to perform a delimited control effect,
    carrying the value [e] as a payload.
@@ -225,8 +248,8 @@ Fixpoint allocn (vs : list val) : micro (list loc) exn :=
       ret (l :: ls)
   end.
 
-(* [alloc_block ls] allocates [n] new ref cells with initial value [v] and
-   returns the ref cells' locations. *)
+(* [alloc_block ls] allocates a new block that stores the list of locations [ls]
+   and returns a pointer to it. *)
 
 Definition alloc_block (ls : list loc) : micro block exn :=
   stop CAllocBlock ls.

@@ -671,7 +671,7 @@ Section imp_combinators.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
-  (* [CAllocn]. *)
+  (* [CAlloc]. *)
   Lemma imp_alloc2' {Φ : loc → iProp Σ} v :
     ▷ (∀ (l : loc), l ↦ v ∗ meta_token l ⊤ -∗ Φ l) -∗
     imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.

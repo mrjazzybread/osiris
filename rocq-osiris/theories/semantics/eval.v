@@ -259,9 +259,8 @@ Definition as_record (m : microvx) : micro env exn :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [val_as_array v] checks that the value [v] is a language-level array
-   value and returns a tuple of the location of the first element,
-   and the length. *)
+(* [val_as_array v] checks that the value [v] is a language-level block
+   pointer and returns the list of locations stored in the block. *)
 
 Definition val_as_array (v : val) : micro (list loc) exn :=
   match v with

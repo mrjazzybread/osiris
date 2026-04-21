@@ -19,8 +19,9 @@ From osiris.semantics Require Import code eval.
 
    A continuation is either not-yet-shot or already shot.
 
-   This gives rise to three cases: [V] for values, [K] for continuations,
-   and [Shot] for already-shot continuations.  *)
+   This gives rise to four cases: [Val] for values, [Dict] for blocks of
+   memory, [Kont] for continuations, and [Shot] for already-shot
+   continuations.  *)
 
 Inductive mem_block : Type :=
 | Val (v : val)
@@ -113,9 +114,9 @@ Local Ltac exploit_location_lookup :=
   end.
 
 (* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
-   in the goal and performs a case analysis on [σ !! l], giving rise to 4
-   cases (value block; ordinary continuation block; shot continuation block;
-   nonexistent address). *)
+   in the goal and performs a case analysis on [σ !! l], giving rise to 5
+   cases (value block; dict/block-of-memory block; ordinary continuation block;
+   shot continuation block; nonexistent address). *)
 
 Ltac case_location_lookup :=
   match goal with
@@ -187,10 +188,10 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_exchange σ l v k] is the right-hand side of the reduction rule [StepStore].
+(* [step_exchange σ l v' k] is the right-hand side of the reduction rule [StepExchange].
 
    This rule loads a value [v] from the store [σ] at location [l], overwrites
-   it with the value [v'], and returns a unit value to the continuation [k].
+   it with the value [v'], and returns [v] to the continuation [k].
    It fails if the location [l] is not in the domain of [σ] or contains
    something other than a value. *)
 
@@ -222,12 +223,11 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_exchange σ l v k] is the right-hand side of the reduction rule [StepStore].
+(* [step_set_tag σ l t k] is the right-hand side of the reduction rule [StepSetTag].
 
-   This rule loads a value [v] from the store [σ] at location [l], overwrites
-   it with the value [v'], and returns a unit value to the continuation [k].
-   It fails if the location [l] is not in the domain of [σ] or contains
-   something other than a value. *)
+   This rule looks up the dict block at location [l] in the store [σ], changes
+   its mutability tag to [t], and returns unit to the continuation [k].
+   It fails if [l] is not in the domain of [σ] or does not contain a [Dict]. *)
 
 Definition step_set_tag_1 σ l t : store :=
   match σ !! l with
@@ -257,12 +257,13 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [step_cas σ l seen v k] is the right-hand side of the reduction rule [StepCAS].
+(* [step_cas σ l seen v' k] is the right-hand side of the reduction rule [StepCAS].
 
-   This rule loads a value [v] from the store [σ] at location [l], overwrites
-   it with the value [v'], and returns a unit value to the continuation [k].
-   It fails if the location [l] is not in the domain of [σ] or contains
-   something other than a value. *)
+   If [l] maps to a value [v] and [phys_eq_val_store v seen σ] holds, the
+   rule overwrites [v] with [v'] and returns [VTrue]; if physical equality
+   does not hold, [v] is left unchanged and [VFalse] is returned. It fails
+   if [l] is not in the domain of [σ] or contains something other than a
+   value, or if physical equality is undefined for the given values. *)
 
 Definition phys_eq_val_store v1 v2 σ : option bool :=
   match v1, v2 with
