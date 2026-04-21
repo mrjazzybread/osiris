@@ -17,16 +17,16 @@ Section iarray_resources.
   Context `{!osirisGS Σ}.
 
   Definition owniArray `{Encode A} (a : iarray) (xs : list A) : iProp Σ :=
-    ∃ ls, isArray a ls ∗ [∗ listZ] l;x ∈ ls; xs, l ↦□ #x.
+    ∃ ls, isBlockLocs a ls ∗ [∗ listZ] l;x ∈ ls; xs, l ↦□ #x.
 
-  Global Instance isArray_pers' (a : iarray) ls : Persistent (isArray a ls).
+  Global Instance isBlockLocs_pers' (a : iarray) ls : Persistent (isBlockLocs a ls).
   Proof. apply _. Qed.
 
   Global Instance iArray_pers `{Encode A} a (xs : list A) : Persistent (owniArray a xs).
   Proof. apply _. Qed.
 
-  Lemma ownArray_isArray `{Encode A} (a : iarray) (xs : list A) :
-    owniArray a xs -∗ ∃ ls, isArray a ls.
+  Lemma ownArray_isBlockLocs `{Encode A} (a : iarray) (xs : list A) :
+    owniArray a xs -∗ ∃ ls, isBlockLocs a ls.
   Proof. iIntros "(%ls & $ & _)". Qed.
 
 End iarray_resources.
@@ -51,11 +51,11 @@ Section freeze_iarray.
     iIntros "Hspec".
     iApply (iSpec_mono with "Hspec").
     iIntros (b m) "Hm %A %HencA %xs Hown".
-    (* Unfold ownArray: extracts isArray, isBlock (DfracOwn 1 Mut), isSlice, length-eq *)
+    (* Unfold ownArray: extracts isBlockLocs, isBlock (DfracOwn 1 Mut), isSlice, length-eq *)
     iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".
     (* Extract the slice contents for persistence later *)
     iDestruct "Hslice" as "(%ls' & #Harr' & %Hle & Hown)".
-    iPoseProof (isArray_valid with "Harr Harr'") as "->".
+    iPoseProof (isBlockLocs_valid with "Harr Harr'") as "->".
     (* Now apply freeze to the physical block *)
     iSpecialize ("Hm" with "Hblock").
     iPoseProof (big_sepLZ2_mono with "Hown") as "Hown".

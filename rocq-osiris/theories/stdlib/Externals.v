@@ -176,7 +176,7 @@ Section ExternalsDef.
   Definition Externals__array_length_expr := EEta1 EArrayLength.
 
   Definition array_length_spec length : iProp Σ :=
-    iSpec τ[array] length (λ a m, ∀ (ls : list loc), isArray a ls -∗ imp m {{ λ n', ⌜n' = list_z.length ls⌝ }})%I.
+    iSpec τ[array] length (λ a m, ∀ (ls : list loc), isBlockLocs a ls -∗ imp m {{ λ n', ⌜n' = list_z.length ls⌝ }})%I.
 
   Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ length,

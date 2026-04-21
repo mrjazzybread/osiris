@@ -111,7 +111,7 @@ Section imp_stop.
     ⌜length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : syntax.block),
          l ⤇ Mut -∗
-         isArray l ls -∗
+         isBlockLocs l ls -∗
          imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
@@ -180,11 +180,11 @@ Section imp_stop.
     iApply ("Hwp" with "Hl").
   Qed.
 
-  (* [CLoadBlock] via ghost map: use the persistent [isArray] to justify the step.
+  (* [CLoadBlock] via ghost map: use the persistent [isBlockLocs] to justify the step.
      This avoids requiring physical block ownership for read-only array operations. *)
 
   Lemma imp_stop_load_block_ghost (l : syntax.block) ls (k: _ → micro A X) :
-    ▷ isArray l ls -∗
+    ▷ isBlockLocs l ls -∗
     ▷ (∀ t,
         imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -753,7 +753,7 @@ Section imp_combinators.
   (* [CAllocBlock]. *)
   Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} ls :
     ⌜length ls ≤ max_array_length⌝ -∗
-    ▷ (∀ l, l ⤇ Mut -∗ isArray l ls -∗ Φ l) -∗
+    ▷ (∀ l, l ⤇ Mut -∗ isBlockLocs l ls -∗ Φ l) -∗
     impure E (alloc_block ls) Ψ ζ Φ.
   Proof.
     iIntros "%Hbound H".
@@ -764,7 +764,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_alloc_block ls :
     ⌜length ls ≤ max_array_length⌝ -∗
-    impure E (alloc_block ls) Ψ ζ (λ l, l ⤇ Mut ∗ isArray l ls).
+    impure E (alloc_block ls) Ψ ζ (λ l, l ⤇ Mut ∗ isBlockLocs l ls).
   Proof.
     iIntros "%Hbound".
     iApply (imp_alloc_block2 with "[%//]").
@@ -812,10 +812,10 @@ Section imp_combinators.
     iApply (imp_load_block' with "Hl").
     by iIntros "!> $".
   Qed.
-  (* Ghost-based load_block: use [isArray] (persistent ghost entry) to load the block.
+  (* Ghost-based load_block: use [isBlockLocs] (persistent ghost entry) to load the block.
      Returns the tag [t] without requiring physical block ownership. *)
   Lemma imp_load_block_ghost (l : syntax.block) ls :
-    ▷ isArray l ls -∗
+    ▷ isBlockLocs l ls -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜ls' = ls⌝ }}.
   Proof.
     iIntros "#Harr".
