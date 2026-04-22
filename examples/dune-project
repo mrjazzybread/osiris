@@ -1,0 +1,26 @@
+(lang dune 3.21)
+(using rocq 0.11)
+
+(generate_opam_files true)
+
+(package
+  (name rocq-osiris-examples)
+  (authors
+     "François Pottier"
+     "Jean-Marie Madiot"
+     "Remy Seassau"
+     "Irene Yoon"
+   )
+  (maintainers
+    "François Pottier"
+  )
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports francois.pottier@inria.fr)
+  (synopsis "Examples of use of Osiris")
+  (depends
+     dune
+     rocq-stdpp
+     rocq-iris
+     rocq-osiris
+  )
+)

@@ -6,5 +6,10 @@
   (name dummy_stdlib)
   (flags (:standard -w -9 -bin-annot))
 )
+
+(alias
+  (name default)
+  (deps dummy_stdlib.cma)
+)
 ;; warning 9 [missing-record-field-pattern] is disabled because it triggers
 ;; many errors in map.ml.

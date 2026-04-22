@@ -28,28 +28,6 @@
 )
 
 (package
-  (name rocq-osiris-examples)
-  (authors
-     "François Pottier"
-     "Jean-Marie Madiot"
-     "Remy Seassau"
-     "Irene Yoon"
-   )
-  (maintainers
-    "François Pottier"
-  )
-  (homepage https://gitlab.inria.fr/fpottier/osiris/)
-  (bug_reports francois.pottier@inria.fr)
-  (synopsis "Examples of use of Osiris")
-  (depends
-     dune
-     rocq-stdpp
-     rocq-iris
-     rocq-osiris
-  )
-)
-
-(package
   (name osiris-interpreter)
   (authors "Jean-Marie Madiot")
   (maintainers "Jean-Marie Madiot")

@@ -12,19 +12,27 @@ open SysExtra
 
 (* https://github.com/ocaml/ocaml/blob/trunk/file_formats/cmt_format.mli *)
 
-let read (cmt_file : filename) : Typedtree.structure =
+let read (cmt_file : filename) : Typedtree.structure * Env.t  =
   assert (is_absolute cmt_file);
   let open Cmt_format in
   match read_cmt cmt_file with
   | exception Cmt_format.(Error (Not_a_typedtree _))
   | exception Cmi_format.(Error (Not_an_interface _)) ->
       fail "Invalid .cmt file: %s\n" cmt_file
-  | { cmt_annots; _ } ->
-      match cmt_annots with
-      | Implementation t ->
-          t
-      | _ ->
-          fail "This .cmt file does not contain a typed tree: %s\n" cmt_file
+  | { cmt_annots = Implementation t; cmt_initial_env; _ } ->
+    (* [cmt_initial_env] is stored as a summary, which references modules by
+       name rather than inlining their types. [Envaux.env_of_only_summary]
+       reconstructs the full environment by loading the relevant .cmi files from
+       disk. The load path has already been initialised from the module table
+       before any [read] call. *)
+      (match Envaux.env_of_only_summary cmt_initial_env with
+       | exception Envaux.Error error ->
+           Envaux.report_error Format.str_formatter error;
+           failwith (Format.flush_str_formatter ())
+       | env -> (t, env))
+  | _ ->
+      fail "This .cmt file does not contain a typed tree: %s\n" cmt_file
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -58,8 +66,8 @@ let translate ml_file cmt_file out_file =
     if Settings.decorate then Some (IO.read_whole_file ml_file) else None
   in
 
-  (* Read the .cmt file, which contains a typed OCaml AST. *)
-  let u : Typedtree.structure = read cmt_file in
+  (* Read the .cmt file, which contains a typed OCaml AST and a typing environment. *)
+  let (u, _) : Typedtree.structure * Env.t = read cmt_file in
 
   (* Convert this typed OCaml AST to an Osiris AST. *)
   let u : Syntax.mexpr = Translate.unit osource u in
@@ -92,8 +100,25 @@ let output_file_path ml_file =
 
 (* Obtain a table of the modules in this project. *)
 
-let table =
+let (workspace_root, table) =
   Dune.describe Settings.root
+
+(* Initialise the OCaml load path from the module table.
+   [Envaux.env_of_only_summary] needs to find .cmi files on disk to reconstruct
+   typing environments from .cmt summaries. The module table tells us exactly
+   which directories contain .cmt (and therefore .cmi) files, so we use those
+   together with the standard library path. *)
+let () =
+  let dirs = Dune.cmt_directories workspace_root table in
+  (* Initialize the loadpath:
+     [Compmisc.auto_include] allows the inclusion of libraries that are not
+     included in the standard library, but are by the compiler itself (such as
+     Str or Unix).
+
+     Look into [Compmisc.init_path] *)
+  Load_path.init ~auto_include:Compmisc.auto_include
+    ~visible:(Config.standard_library :: dirs)
+    ~hidden:[]
 
 (* -------------------------------------------------------------------------- *)
 
@@ -110,9 +135,9 @@ let process m =
   let v_file = output_file_path ml_file in
   say "  output file: %s\n" v_file;
   (* Construct the absolute path of the input [.ml] file. *)
-  let ml_file = concat Settings.root ml_file in
+  let ml_file = concat workspace_root ml_file in
   (* Construct the absolute path of the input [.cmt] file. *)
-  let cmt_file = concat Settings.root cmt_file in
+  let cmt_file = concat workspace_root cmt_file in
   (* Translate this file. *)
   translate ml_file cmt_file v_file
 

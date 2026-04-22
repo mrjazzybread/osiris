@@ -48,8 +48,8 @@ let rec extract_module_descriptions (e : Base.Sexp.t) accu =
      own ml files when they are in [rocq_osiris]. *)
   (* TODO: support having different modules with the same name. *)
   match e with
-  | List (Atom "executables" :: [List (List (Atom "names" :: [List [Atom "interp"]]) :: _)]) ->
-    Printf.fprintf stderr "Warning: extract_module_descriptions: skipping S-expression (executables ((names (interp)) ...))\n";
+  | List (Atom "executables" :: [List (List (Atom "names" :: [List [Atom ("interp" | "Main")]]) :: _)]) ->
+    Printf.fprintf stderr "Warning: extract_module_descriptions: skipping translator/interp executable\n";
     accu
   | List [Atom "library"; List (List [Atom "name"; Atom ("translatorlib" | "extracted" as name)] :: _)] ->
     Printf.fprintf stderr "Warning: extract_module_descriptions: skipping S-expression (library ((name %s) ...))\n" name;
@@ -76,7 +76,19 @@ let extract_module_descriptions (e : Base.Sexp.t) : module_description list =
 (* [describe dirname] invokes [dune describe] in the directory [dirname],
    parses its output, and returns a list of module descriptions. *)
 
-let describe dirname =
+let extract_root (e : Base.Sexp.t) : string =
+  match e with
+  | Base.Sexp.List items ->
+      (match List.find_opt (function
+        | Base.Sexp.List [Base.Sexp.Atom "root"; Base.Sexp.Atom _] -> true
+        | _ -> false
+       ) items with
+      | Some (Base.Sexp.List [Base.Sexp.Atom "root"; Base.Sexp.Atom path]) -> path
+      | _ -> fail "Could not find (root ...) in dune describe output\n")
+  | _ ->
+      fail "Unexpected top-level sexp from dune describe\n"
+
+let describe_raw dirname =
   let cmd =
     sprintf "cd %s && dune describe --lang 0.1 --format csexp"
       (Filename.quote dirname)
@@ -90,7 +102,7 @@ let describe dirname =
       | Error (ofs, msg) ->
           fail "Could not parse the output of [dune describe]: %d: %s\n" ofs msg
       | Ok sexp ->
-          extract_module_descriptions sexp
+          (extract_root sexp, extract_module_descriptions sexp)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -115,7 +127,8 @@ let tabulate mdescs =
   List.fold_left loop empty mdescs
 
 let describe dirname =
-  tabulate (describe dirname)
+  let (root, mdescs) = describe_raw dirname in
+  (root, tabulate mdescs)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -140,3 +153,18 @@ let cmt name table =
        filename
    | None ->
        fail "No .cmt file exists for the module %s.\n" name
+
+(* -------------------------------------------------------------------------- *)
+
+(* [cmt_directories root table] returns the unique directories containing .cmt
+   files, resolved to absolute paths using [root]. In dune's build tree, .cmi
+   files live alongside .cmt files, so these directories form the project's
+   OCaml load path. *)
+let cmt_directories (root : filename) (table : module_table) : filename list =
+  M.fold (fun _ mdesc acc ->
+    match mdesc.cmt with
+    | None -> acc
+    | Some rel ->
+        let dir = Filename.dirname (Filename.concat root rel) in
+        if List.mem dir acc then acc else dir :: acc
+  ) table []

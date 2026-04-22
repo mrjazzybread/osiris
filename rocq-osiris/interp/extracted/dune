@@ -5,7 +5,7 @@
 
 (rocq.extraction
   (prelude extract)
-  (theories Stdlib stdpp iris Ltac2 osiris Equations)
+  (theories Stdlib stdpp iris Ltac2 osiris osiris.stdlib Equations)
   (extracted_modules
     Datatypes Specif Decimal Basics Bool Orders ListDef list_basics List base NatDef BinNums PosDef
     BinPos BinNat Nat Ascii BinInt ZArith_dec String Zpower option numbers list_init list_z

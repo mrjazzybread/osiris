@@ -7,6 +7,18 @@ export PATH:=$(shell pwd)/tutorial/bin:$(PATH)
 all:
 	@ dune build --display=short
 
+.PHONY: core
+core:
+	@ dune build theories/ --display=short
+
+.PHONY: stdlib
+stdlib:
+	@ dune build theories/stdlib/Stdlib.vo --display=short
+
+.PHONY: ocaml-libs
+ocaml-libs:
+	@ dune build @theories/stdlib/src/all --display=short
+
 .PHONY: clean
 clean:
 	dune clean

@@ -6,3 +6,8 @@
   (flags (:standard -bin-annot))
   (name CoqOsirisExamples)
 )
+
+(alias
+  (name default)
+  (deps coqosirisexamples.cma)
+)

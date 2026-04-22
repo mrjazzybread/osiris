@@ -4,7 +4,7 @@ default: all
 
 .PHONY: theory
 theory:
-	@ make --no-print-directory -C rocq-osiris
+	@ make --no-print-directory -C rocq-osiris core
 
 .PHONY: translator
 translator:
@@ -12,17 +12,16 @@ translator:
 
 .PHONY: all
 all:
-# Build the Osiris translator.
+# Build the Osiris translator and the core Rocq theory.
 	$(MAKE) translator
-# Compile the OCaml source code of the OCaml standard library.
-	@ cd rocq-osiris/theories/stdlib/src && dune build .
-# Compile the OCaml source code of our examples.
-	@ cd rocq-osiris/examples/src && dune build .
-# Apply the Osiris translator to all of the above OCaml source code.
-# The mark [og_] stands for "Osiris-generated".
+	$(MAKE) theory
+# Compile the OCaml sources for the standard library and examples.
+	@ make --no-print-directory -C rocq-osiris ocaml-libs
+	@ dune build @examples/src/all --display=short
+# Apply the Osiris translator to the standard library and examples.
 	@ (cd osiris && dune exec src/Main.exe -- \
-	     --root $(PWD)/rocq-osiris/ \
-	     --out $(PWD)/rocq-osiris/ \
+	     --root $(PWD) \
+	     --out $(PWD) \
 	     --mark og_ \
 	     --no-warnings \
 	     --decorate \
@@ -31,9 +30,10 @@ all:
 # Copy the translated files to a place where dune and rocq will see them.
 	@ cd rocq-osiris/theories/stdlib && mv src/*.v .  # TODO these files are not yet used
 #	@ cd rocq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
-	@ cd rocq-osiris/examples && mv src/*.v .
-# Now compile all of the rocq code.
-	$(MAKE) theory
+	@ cd examples && mv src/*.v .
+# Compile the stdlib and examples Rocq theories.
+	@ make --no-print-directory -C rocq-osiris all
+	@ dune build @examples/all --display=short
 
 .PHONY: clean
 clean:
