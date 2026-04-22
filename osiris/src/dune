@@ -1,14 +1,17 @@
+(library
+  (name translatorlib)
+  (wrapped false)
+  (modules Cut Dune ErrorReports Fail FilenameExtra IO Print Rocq Rocqify StringExtra SysExtra Syntax Translate)
+  (libraries unix ocaml-compiler-libs.common pprint base csexp)
+  (preprocess (pps ppx_sexp_conv ppx_deriving.show))
+  (flags :standard "-w" "A-4-44-45-70")
+)
+
 (executable
   (package osiris)
   (public_name osiris)
   (name Main)
-  (libraries
-    unix
-    ocaml-compiler-libs.common
-    pprint
-    base
-    csexp
-  )
-  (preprocess (pps ppx_sexp_conv ppx_deriving.show))
+  (modules Main Settings)
+  (libraries translatorlib)
   (flags :standard "-w" "A-4-44-45-70")
 )
