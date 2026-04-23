@@ -1,4 +1,69 @@
+stages:
+  - image
+  - translator
+  - theory
+  - all
+  - pages
+
+variables:
+  DEPS_IMAGE: $CI_REGISTRY_IMAGE/deps:latest
+
+# Build the dependency image (opam switch with rocq, iris, stdpp, …) and push
+# it to the project's container registry. Only runs when the inputs to the
+# image actually change, or when triggered manually from the pipeline UI.
+build-deps-image:
+  stage: image
+  tags:
+    - ci.inria.fr
+    - small
+  image: docker:stable
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docker/Dockerfile
+        - Makefile
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docker/Dockerfile
+        - Makefile
+    - when: manual
+      allow_failure: true
+  script:
+    - docker build -f docker/Dockerfile -t "$DEPS_IMAGE" .
+    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker push "$DEPS_IMAGE"
+
+translator:
+  stage: translator
+  tags:
+    - ci.inria.fr
+    - small
+  image: $DEPS_IMAGE
+  script:
+    - cd osiris
+    - dune build
+    - dune runtest
+
+theory:
+  stage: theory
+  tags:
+    - ci.inria.fr
+    - small
+  image: $DEPS_IMAGE
+  script:
+    - make theory
+
+all:
+  stage: all
+  tags:
+    - ci.inria.fr
+    - small
+  image: $DEPS_IMAGE
+  script:
+    - make
+
 pages:
+  stage: pages
   script:
     - mkdir public
     - cp -r rocq-osiris/tutorial/* public
@@ -9,4 +74,4 @@ pages:
   rules:
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
       changes:
-      - rocq-osiris/tutorial/*
+        - rocq-osiris/tutorial/*
