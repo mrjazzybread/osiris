@@ -13,6 +13,8 @@ variables:
 # image actually change, or when triggered manually from the pipeline UI.
 build-deps-image:
   stage: image
+  tags:
+    - ci
   image: docker:stable
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -41,6 +43,8 @@ build-deps-image:
 
 translator:
   stage: translator
+  tags:
+    - ci
   image: $DEPS_IMAGE
   script:
     - cd osiris
@@ -50,6 +54,8 @@ translator:
 
 theory:
   stage: theory
+  tags:
+    - ci
   image: $DEPS_IMAGE
   script:
     - make theory
@@ -57,6 +63,8 @@ theory:
 
 all:
   stage: all
+  tags:
+    - ci
   image: $DEPS_IMAGE
   script:
     - make
