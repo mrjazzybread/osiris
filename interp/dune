@@ -5,3 +5,9 @@
   (flags :standard "-w" "A-40-41-42-44-45")
   (libraries translatorlib extracted)
 )
+
+(rocq.theory
+  (package osiris-interpreter)
+  (name osiris.interp)
+  (theories osiris osiris.stdlib)
+)

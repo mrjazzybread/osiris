@@ -1,2 +1,4 @@
 -R _build/default/rocq-osiris/theories osiris
+-R _build/default/rocq-osiris/stdlib_proofs osiris.stdlib.proofs
 -R _build/default/examples osiris.examples
+-R _build/default/interp osiris.interp

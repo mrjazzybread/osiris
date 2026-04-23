@@ -1,0 +1,14 @@
+(lang dune 3.21)
+(using rocq 0.11)
+
+(generate_opam_files true)
+
+(package
+  (name osiris-interpreter)
+  (authors "Jean-Marie Madiot")
+  (maintainers "Jean-Marie Madiot")
+  (homepage https://gitlab.inria.fr/fpottier/osiris/)
+  (bug_reports jean-marie.madiot@inria.fr)
+  (synopsis "Osiris Interpreter")
+  (depends rocq-osiris)
+)

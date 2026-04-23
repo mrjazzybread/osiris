@@ -2,7 +2,7 @@ From Stdlib Require Import Extraction String Ascii.
 From osiris.lang Require notations.
 From osiris.semantics Require strategy eval.
 From osiris.stdlib Require Import Stdlib Externals.
-From osiris.stdlib Require run.
+From osiris.interp Require run.
 
 (* Suppress warnings of the form "Warning: The identifier Externals__eq contains
    __ which is reserved for the extraction" *)

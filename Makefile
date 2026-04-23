@@ -13,8 +13,8 @@ translator:
 .PHONY: all
 all:
 # Build the Osiris translator and the core Rocq theory.
-	$(MAKE) translator
-	$(MAKE) theory
+	@ $(MAKE) --no-print-directory translator
+	@ $(MAKE) --no-print-directory theory
 # Compile the OCaml sources for the standard library and examples.
 	@ make --no-print-directory -C rocq-osiris ocaml-libs
 	@ dune build @examples/src/all --display=short
@@ -37,7 +37,9 @@ all:
 
 .PHONY: clean
 clean:
-	@ git clean -fdX .
+	@ dune clean
+	@ rm -f examples/og_*.v rocq-osiris/theories/stdlib/og_*.v
+
 
 # This is the desired version of OCaml.
 
@@ -115,7 +117,7 @@ vscode:
 
 .PHONY: runtests
 runtests:
-	@ cd rocq-osiris/interp && dune build
+	@ cd interp && dune build
 	@ cd tests && ./runtests.sh
 
 .PHONY: check-axioms
