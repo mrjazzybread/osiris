@@ -13,9 +13,6 @@ variables:
 # image actually change, or when triggered manually from the pipeline UI.
 build-deps-image:
   stage: image
-  tags:
-    - ci.inria.fr
-    - small
   image: docker:stable
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -33,31 +30,33 @@ build-deps-image:
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker push "$DEPS_IMAGE"
 
+# Shared artifact config: hand the dune build tree to the next stage so it
+# doesn't rebuild from scratch. Short expiry — these are intra-pipeline only.
+.build_cache: &build_cache
+  artifacts:
+    when: always
+    expire_in: 1 hour
+    paths:
+      - _build/
+
 translator:
   stage: translator
-  tags:
-    - ci.inria.fr
-    - small
   image: $DEPS_IMAGE
   script:
     - cd osiris
     - dune build
     - dune runtest
+  <<: *build_cache
 
 theory:
   stage: theory
-  tags:
-    - ci.inria.fr
-    - small
   image: $DEPS_IMAGE
   script:
     - make theory
+  <<: *build_cache
 
 all:
   stage: all
-  tags:
-    - ci.inria.fr
-    - small
   image: $DEPS_IMAGE
   script:
     - make
