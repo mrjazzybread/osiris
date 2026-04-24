@@ -34,12 +34,19 @@ build-deps-image:
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker push "$DEPS_IMAGE"
 
-# Shared artifact config: hand the dune build tree to the next stage so it
-# doesn't rebuild from scratch. Short expiry — these are intra-pipeline only.
-.build_cache: &build_cache
-  artifacts:
-    when: always
-    expire_in: 1 hour
+# Per-job dune cache: each job keeps its own _build/ across pipelines, keyed
+# on the branch + job + the files that pin tool / dependency versions. This
+# avoids the merge problem of multiple jobs uploading partial _build/ trees
+# as artifacts. translator/theory/all still run in parallel-or-sequence per
+# their `needs:`, but each pulls its OWN warm cache from the prior pipeline.
+.dune_cache: &dune_cache
+  cache:
+    key:
+      files:
+        - osiris/dune-project
+        - rocq-osiris/dune-project
+        - Makefile
+      prefix: $CI_COMMIT_REF_SLUG-$CI_JOB_NAME
     paths:
       - _build/
 
@@ -55,11 +62,12 @@ translator:
     - cd osiris
     - dune build
     - dune runtest
+  <<: *dune_cache
   artifacts:
     when: always
     expire_in: 1 hour
     paths:
-      - _build/
+      - _build/**/junit-*.xml
     reports:
       junit: _build/**/junit-*.xml
 
@@ -73,7 +81,7 @@ theory:
       optional: true
   script:
     - make theory
-  <<: *build_cache
+  <<: *dune_cache
 
 all:
   stage: all
@@ -84,11 +92,12 @@ all:
     - job: build-deps-image
       optional: true
     - job: translator
-      artifacts: true
+      artifacts: false
     - job: theory
-      artifacts: true
+      artifacts: false
   script:
     - make
+  <<: *dune_cache
 
 pages:
   stage: pages
