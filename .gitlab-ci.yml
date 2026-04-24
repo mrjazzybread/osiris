@@ -9,8 +9,11 @@ variables:
   DEPS_IMAGE: $CI_REGISTRY_IMAGE/deps:latest
 
 # Build the dependency image (opam switch with rocq, iris, stdpp, …) and push
-# it to the project's container registry. Only runs when the inputs to the
-# image actually change, or when triggered manually from the pipeline UI.
+# it to the project's container registry. Only runs when:
+#   - the inputs (Dockerfile / Makefile) actually change, or
+#   - a pipeline is run with REBUILD_DEPS_IMAGE set (via "Run Pipeline" UI).
+# Otherwise the job is absent from the pipeline, so downstream jobs (which
+# need it `optional: true`) start immediately against the existing image.
 build-deps-image:
   stage: image
   tags:
@@ -25,8 +28,7 @@ build-deps-image:
       changes:
         - docker/Dockerfile
         - Makefile
-    - when: manual
-      allow_failure: true
+    - if: $REBUILD_DEPS_IMAGE
   script:
     - docker build -f docker/Dockerfile -t "$DEPS_IMAGE" .
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
