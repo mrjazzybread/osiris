@@ -43,9 +43,8 @@ build-deps-image:
   cache:
     key:
       files:
-        - osiris/dune-project
-        - rocq-osiris/dune-project
         - Makefile
+        - osiris/dune-project
       prefix: $CI_COMMIT_REF_SLUG-$CI_JOB_NAME
     paths:
       - _build/
