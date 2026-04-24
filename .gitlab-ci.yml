@@ -62,10 +62,14 @@ translator:
     - dune build
     - dune runtest
   <<: *dune_cache
+  # Upload only translator's disjoint slice of _build/. Top-level dune state
+  # files (_build/.db, _build/log, ...) are intentionally excluded — when
+  # `all` merges this with theory's slice, those would clobber each other.
   artifacts:
     when: always
     expire_in: 1 hour
     paths:
+      - _build/default/osiris/
       - _build/**/junit-*.xml
     reports:
       junit: _build/**/junit-*.xml
@@ -81,6 +85,11 @@ theory:
   script:
     - make theory
   <<: *dune_cache
+  artifacts:
+    when: always
+    expire_in: 1 hour
+    paths:
+      - _build/default/rocq-osiris/theories/
 
 all:
   stage: all
@@ -91,9 +100,9 @@ all:
     - job: build-deps-image
       optional: true
     - job: translator
-      artifacts: false
+      artifacts: true
     - job: theory
-      artifacts: false
+      artifacts: true
   script:
     - make
   <<: *dune_cache
