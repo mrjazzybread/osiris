@@ -8,27 +8,26 @@ end)
 
 (* -------------------------------------------------------------------------- *)
 
-let pass = ref true
+let () = Junit.init "translator"
 
 let check_ast label actual expected =
-  if actual = expected then
-    Printf.printf "OK   [%s]\n%!" label
-  else begin
-    Printf.printf "FAIL [%s]\n  expected: %s\n  got:      %s\n%!"
-      label (show_mexpr expected) (show_mexpr actual);
-    pass := false
-  end
+  if actual = expected then Junit.pass label
+  else
+    Junit.fail label
+      (Printf.sprintf "expected: %s\ngot:      %s"
+         (show_mexpr expected) (show_mexpr actual))
 
 let check_contains label haystack needle =
-  if let n = String.length needle and h = String.length haystack in
-     n <= h && let rec loop i = i <= h - n &&
-       (String.sub haystack i n = needle || loop (i + 1))
-     in loop 0
-  then Printf.printf "OK   [%s contains %S]\n%!" label needle
-  else begin
-    Printf.printf "FAIL [%s]: %S not found in:\n%s\n%!" label needle haystack;
-    pass := false
-  end
+  let n = String.length needle and h = String.length haystack in
+  let found =
+    n <= h && let rec loop i =
+      i <= h - n && (String.sub haystack i n = needle || loop (i + 1))
+    in loop 0
+  in
+  if found then Junit.pass (Printf.sprintf "%s contains %S" label needle)
+  else
+    Junit.fail (Printf.sprintf "%s contains %S" label needle)
+      (Printf.sprintf "%S not found in:\n%s" needle haystack)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -90,5 +89,4 @@ let () =
   check_ast "pair" pair
     (MStruct [ILet [Binding (PVar "p", ETuple [EInt 1; EInt 2])]]);
 
-  if !pass then print_string "All tests passed.\n"
-  else (print_string "Some tests failed.\n"; exit 1)
+  Junit.exit_with_status ()

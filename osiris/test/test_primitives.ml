@@ -7,16 +7,14 @@ end)
 
 (* -------------------------------------------------------------------------- *)
 
-let pass = ref true
+let () = Junit.init "primitives"
 
 let check_ast label actual expected =
-  if actual = expected then
-    Printf.printf "OK   [%s]\n%!" label
-  else begin
-    Printf.printf "FAIL [%s]\n  expected: %s\n  got:      %s\n%!"
-      label (show_mexpr expected) (show_mexpr actual);
-    pass := false
-  end
+  if actual = expected then Junit.pass label
+  else
+    Junit.fail label
+      (Printf.sprintf "expected: %s\ngot:      %s"
+         (show_mexpr expected) (show_mexpr actual))
 
 (* -------------------------------------------------------------------------- *)
 
@@ -315,5 +313,4 @@ let () =
       EAnonFun (AnonFun ("arr",
         EApp (EPath ["Array"; "get"], EPath ["arr"]))))]]);
 
-  if !pass then print_string "All tests passed.\n"
-  else (print_string "Some tests failed.\n"; exit 1)
+  Junit.exit_with_status ()

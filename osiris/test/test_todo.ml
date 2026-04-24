@@ -7,16 +7,14 @@ end)
 
 (* -------------------------------------------------------------------------- *)
 
-let pass = ref true
+let () = Junit.init "todo"
 
 let check_ast label actual expected =
-  if actual = expected then
-    Printf.printf "OK   [%s]\n%!" label
-  else begin
-    Printf.printf "FAIL [%s]\n  expected: %s\n  got:      %s\n%!"
-      label (show_mexpr expected) (show_mexpr actual);
-    pass := false
-  end
+  if actual = expected then Junit.pass label
+  else
+    Junit.fail label
+      (Printf.sprintf "expected: %s\ngot:      %s"
+         (show_mexpr expected) (show_mexpr actual))
 
 let find_let name = function
   | MStruct items ->
@@ -32,26 +30,28 @@ let find_let name = function
   | other -> other
 
 (* Like [check_ast] and [check_contains], but for features not yet implemented.
-   A mismatch prints TODO and is not a failure; an unexpected match prints XPASS
-   and is a failure (the feature was implemented — promote to a real test). *)
+   A mismatch records TODO (not a failure); an unexpected match records XPASS
+   (a failure: the feature was implemented — promote to a real test). *)
 
 let check_ast_todo label actual expected =
-  if actual = expected then begin
-    Printf.printf "XPASS [%s] — was TODO, now passes; promote to a real test\n%!" label;
-    pass := false
-  end else
-    Printf.printf "TODO  [%s]\n%!" label
+  if actual = expected then
+    Junit.xpass label
+      (Printf.sprintf "actual now matches expected: %s" (show_mexpr actual))
+  else
+    Junit.todo label
+      (Printf.sprintf "expected: %s\ngot:      %s"
+         (show_mexpr expected) (show_mexpr actual))
 
 let check_contains_todo label haystack needle =
-  if let n = String.length needle and h = String.length haystack in
-     n <= h && let rec loop i = i <= h - n &&
-       (String.sub haystack i n = needle || loop (i + 1))
-     in loop 0
-  then begin
-    Printf.printf "XPASS [%s contains %S] — was TODO, now passes; promote to a real test\n%!" label needle;
-    pass := false
-  end else
-    Printf.printf "TODO  [%s contains %S]\n%!" label needle
+  let n = String.length needle and h = String.length haystack in
+  let found =
+    n <= h && let rec loop i =
+      i <= h - n && (String.sub haystack i n = needle || loop (i + 1))
+    in loop 0
+  in
+  let name = Printf.sprintf "%s contains %S" label needle in
+  if found then Junit.xpass name (Printf.sprintf "%S now appears in output" needle)
+  else Junit.todo name (Printf.sprintf "%S not found in:\n%s" needle haystack)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -210,11 +210,11 @@ let () =
             ECAS (EPath ["r"], EPath ["x"], EPath ["y"]))))))))]]);
 
   (* atomic_load and atomic_xchg: even full application is unhandled *)
-  check_ast "pointfree: atomic_load body"
+  check_ast_todo "pointfree: atomic_load body"
     (find_let "atomic_load" pf_ast)
     (MStruct [ILet [Binding (PVar "atomic_load",
       EAnonFun (AnonFun ("r", ELoad (EPath ["r"]))))]]);
-  check_ast "pointfree: atomic_xchg body"
+  check_ast_todo "pointfree: atomic_xchg body"
     (find_let "atomic_xchg" pf_ast)
     (MStruct [ILet [Binding (PVar "atomic_xchg",
       EAnonFun (AnonFun ("r",
@@ -237,5 +237,4 @@ let () =
   check_contains_todo "pointfree: my_atomic_xchg -> EExchange" mxchg_text "EExchange";
   check_contains_todo "pointfree: my_atomic_cas -> ECAS"       mcas_text  "ECAS";
 
-  if !pass then print_string "All tests passed.\n"
-  else (print_string "Some tests failed.\n"; exit 1)
+  Junit.exit_with_status ()

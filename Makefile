@@ -44,7 +44,7 @@ clean:
 # This is the desired version of OCaml.
 
 OCAML_VERSION := 5.4.0
-SWITCH_NAME = osiris
+SWITCH_NAME ?= osiris
 
 # [make init] creates an opam switch named [osiris]
 # and invokes [make pin].

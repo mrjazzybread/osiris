@@ -12,14 +12,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 USER opam
 
-# Install the project's opam dependencies into a switch named "osiris".
-# We only need the Makefile for this — copying the full source would bust
-# the dependency-install cache on every source change.
+# Install the project's opam dependencies into the base image's existing
+# switch (which already has OCaml 5.4 compiled). Skipping `make init` avoids
+# a ~5–10 min OCaml recompile. We only need the Makefile for this — copying
+# the full source would bust the dependency-install cache on every change.
 WORKDIR /tmp/osiris-deps
 COPY --chown=opam:opam Makefile ./Makefile
-RUN make init \
+RUN make pin SWITCH_NAME=$(opam switch show) \
  && rm -rf /tmp/osiris-deps
 
-# Make the osiris switch the default for containers using this image.
-ENV OPAMSWITCH=osiris
 WORKDIR /home/opam

@@ -19,19 +19,17 @@ let type_of env lident =
   | exception Not_found -> None
   | (_, vdesc) -> Some (Format.asprintf "%a" Printtyp.type_expr vdesc.Types.val_type)
 
-let pass = ref true
+let () = Junit.init "read_env"
 
 let check_type env lident expected =
   let name = String.concat "." (Longident.flatten lident) in
   match type_of env lident with
   | None ->
-      Printf.printf "FAIL %s: not found in env\n%!" name;
-      pass := false
+      Junit.fail name "not found in env"
   | Some actual when actual = expected ->
-      Printf.printf "OK   %s : %s\n%!" name actual
+      Junit.pass (Printf.sprintf "%s : %s" name actual)
   | Some actual ->
-      Printf.printf "FAIL %s: expected '%s' got '%s'\n%!" name expected actual;
-      pass := false
+      Junit.fail name (Printf.sprintf "expected '%s' got '%s'" expected actual)
 
 let () =
   let fixture_cmt   = Sys.argv.(1) in
@@ -45,7 +43,7 @@ let () =
 
   (* FixtureA.cmt: same stdlib initial env; we just check it loads. *)
   let _ = read_env fixture_a_cmt in
-  Printf.printf "OK   FixtureA: env loaded\n%!";
+  Junit.pass "FixtureA: env loaded";
 
   (* FixtureB.cmt: type-checked against FixtureA, so FixtureA is in scope. *)
   let env_b = read_env fixture_b_cmt in
@@ -53,5 +51,4 @@ let () =
   check_type env_b (Longident.Ldot (fixture_a, Location.mknoloc "hello")) "string";
   check_type env_b (Longident.Ldot (fixture_a, Location.mknoloc "add"))   "int -> int -> int";
 
-  if !pass then print_string "All tests passed.\n"
-  else (print_string "Some tests failed.\n"; exit 1)
+  Junit.exit_with_status ()
