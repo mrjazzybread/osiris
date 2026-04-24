@@ -17,17 +17,18 @@ let check_ast label actual expected =
       (Printf.sprintf "expected: %s\ngot:      %s"
          (show_mexpr expected) (show_mexpr actual))
 
-let check_contains label haystack needle =
+let check_contains ?source label haystack needle =
   let n = String.length needle and h = String.length haystack in
   let found =
     n <= h && let rec loop i =
       i <= h - n && (String.sub haystack i n = needle || loop (i + 1))
     in loop 0
   in
-  if found then Junit.pass (Printf.sprintf "%s contains %S" label needle)
+  let name = Printf.sprintf "%s contains %S" label needle in
+  if found then Junit.pass name
   else
-    Junit.fail (Printf.sprintf "%s contains %S" label needle)
-      (Printf.sprintf "%S not found in:\n%s" needle haystack)
+    let context = match source with Some s -> s | None -> haystack in
+    Junit.fail name (Printf.sprintf "%S not found in:\n%s" needle context)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -73,9 +74,10 @@ let () =
   check_ast "simple" simple
     (MStruct [ILet [Binding (PVar "x", EInt 42)]]);
   let rendered = render simple in
-  check_contains "simple" rendered "Definition __main";
-  check_contains "simple" rendered "EInt 42";
-  check_contains "simple" rendered {|PVar "x"|};
+  let simple_src = Junit.read_source simple_cmt in
+  check_contains "simple" ~source:simple_src rendered "Definition __main";
+  check_contains "simple" ~source:simple_src rendered "EInt 42";
+  check_contains "simple" ~source:simple_src rendered {|PVar "x"|};
 
   (* --- let f x = x + 1 --- *)
   let arith = translate arith_cmt in

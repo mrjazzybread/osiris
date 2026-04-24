@@ -42,7 +42,7 @@ let check_ast_todo label actual expected =
       (Printf.sprintf "expected: %s\ngot:      %s"
          (show_mexpr expected) (show_mexpr actual))
 
-let check_contains_todo label haystack needle =
+let check_contains_todo ?source label haystack needle =
   let n = String.length needle and h = String.length haystack in
   let found =
     n <= h && let rec loop i =
@@ -51,7 +51,9 @@ let check_contains_todo label haystack needle =
   in
   let name = Printf.sprintf "%s contains %S" label needle in
   if found then Junit.xpass name (Printf.sprintf "%S now appears in output" needle)
-  else Junit.todo name (Printf.sprintf "%S not found in:\n%s" needle haystack)
+  else
+    let context = match source with Some s -> s | None -> haystack in
+    Junit.todo name (Printf.sprintf "%S not found in:\n%s" needle context)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -111,7 +113,8 @@ let () =
      that some form of EFor appears rather than EUnsupported.) *)
   let downto_ast  = translate downto_cmt in
   let downto_text = render downto_ast in
-  check_contains_todo "downto: EFor" downto_text "EFor";
+  let downto_src  = Junit.read_source downto_cmt in
+  check_contains_todo "downto: EFor" ~source:downto_src downto_text "EFor";
 
   (* --- %opaque externals ---
      external unsafe_of_array : 'a array -> 'a iarray = "%opaque"
@@ -142,7 +145,8 @@ let () =
      Currently the translator always produces EMatch regardless. *)
   let shallow_ast  = translate shallow_cmt in
   let shallow_text = render shallow_ast in
-  check_contains_todo "shallow: EShallowMatch" shallow_text "EShallowMatch";
+  let shallow_src  = Junit.read_source shallow_cmt in
+  check_contains_todo "shallow: EShallowMatch" ~source:shallow_src shallow_text "EShallowMatch";
 
   (* --- Point-free and partial continue / discontinue ---
      When fully applied at the call site, EContinue/EDiscontinue fire correctly.
@@ -155,6 +159,7 @@ let () =
      and partial `continue k` becomes
        EAnonFun (AnonFun ("v", EContinue (EPath ["k"], EPath ["v"]))). *)
   let pf_ast = translate pointfree_cmt in
+  let pf_src = Junit.read_source pointfree_cmt in
 
   (* Baseline: fully applied — these already work *)
   check_ast "pointfree: resume_42 body"
@@ -172,14 +177,14 @@ let () =
   (* Partial application — should eta-expand the missing argument *)
   let resume_text  = render (find_let "resume"  pf_ast) in
   let dismiss_text = render (find_let "dismiss" pf_ast) in
-  check_contains_todo "partial: resume -> EContinue"     resume_text  "EContinue";
-  check_contains_todo "partial: dismiss -> EDiscontinue" dismiss_text "EDiscontinue";
+  check_contains_todo "partial: resume -> EContinue"     ~source:pf_src resume_text  "EContinue";
+  check_contains_todo "partial: dismiss -> EDiscontinue" ~source:pf_src dismiss_text "EDiscontinue";
 
   (* Point-free — should eta-expand both arguments *)
   let mc_text = render (find_let "my_continue"    pf_ast) in
   let md_text = render (find_let "my_discontinue" pf_ast) in
-  check_contains_todo "pointfree: my_continue -> EContinue"       mc_text "EContinue";
-  check_contains_todo "pointfree: my_discontinue -> EDiscontinue" md_text "EDiscontinue";
+  check_contains_todo "pointfree: my_continue -> EContinue"       ~source:pf_src mc_text "EContinue";
+  check_contains_todo "pointfree: my_discontinue -> EDiscontinue" ~source:pf_src md_text "EDiscontinue";
 
   (* --- (!) deref ---
      (!) uses %field0 which is intentionally absent from translate_primitive_expr,
@@ -190,7 +195,7 @@ let () =
     (MStruct [ILet [Binding (PVar "deref",
       EAnonFun (AnonFun ("r", ELoad (EPath ["r"]))))]]);
   let deref_text = render (find_let "my_deref" pf_ast) in
-  check_contains_todo "pointfree: my_deref -> ELoad" deref_text "ELoad";
+  check_contains_todo "pointfree: my_deref -> ELoad" ~source:pf_src deref_text "ELoad";
 
   (* --- Atomic operations ---
      In OCaml 5.4, Atomic.get and Atomic.exchange are no longer declared as
@@ -225,16 +230,16 @@ let () =
   let xchg1_text = render (find_let "atomic_xchg1" pf_ast) in
   let cas1_text  = render (find_let "atomic_cas1"  pf_ast) in
   let cas2_text  = render (find_let "atomic_cas2"  pf_ast) in
-  check_contains_todo "partial: atomic_xchg1 -> EExchange" xchg1_text "EExchange";
-  check_contains_todo "partial: atomic_cas1 -> ECAS"       cas1_text  "ECAS";
-  check_contains_todo "partial: atomic_cas2 -> ECAS"       cas2_text  "ECAS";
+  check_contains_todo "partial: atomic_xchg1 -> EExchange" ~source:pf_src xchg1_text "EExchange";
+  check_contains_todo "partial: atomic_cas1 -> ECAS"       ~source:pf_src cas1_text  "ECAS";
+  check_contains_todo "partial: atomic_cas2 -> ECAS"       ~source:pf_src cas2_text  "ECAS";
 
   (* Point-free *)
   let mal_text  = render (find_let "my_atomic_load"   pf_ast) in
   let mxchg_text = render (find_let "my_atomic_xchg"  pf_ast) in
   let mcas_text  = render (find_let "my_atomic_cas"   pf_ast) in
-  check_contains_todo "pointfree: my_atomic_load -> ELoad"     mal_text   "ELoad";
-  check_contains_todo "pointfree: my_atomic_xchg -> EExchange" mxchg_text "EExchange";
-  check_contains_todo "pointfree: my_atomic_cas -> ECAS"       mcas_text  "ECAS";
+  check_contains_todo "pointfree: my_atomic_load -> ELoad"     ~source:pf_src mal_text   "ELoad";
+  check_contains_todo "pointfree: my_atomic_xchg -> EExchange" ~source:pf_src mxchg_text "EExchange";
+  check_contains_todo "pointfree: my_atomic_cas -> ECAS"       ~source:pf_src mcas_text  "ECAS";
 
   Junit.exit_with_status ()

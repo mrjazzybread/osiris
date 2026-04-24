@@ -16,17 +16,18 @@ let check_ast label actual expected =
       (Printf.sprintf "expected: %s\ngot:      %s"
          (show_mexpr expected) (show_mexpr actual))
 
-let check_contains label haystack needle =
+let check_contains ?source label haystack needle =
   let n = String.length needle and h = String.length haystack in
   let found =
     n <= h && let rec loop i =
       i <= h - n && (String.sub haystack i n = needle || loop (i + 1))
     in loop 0
   in
-  if found then Junit.pass (Printf.sprintf "%s contains %S" label needle)
+  let name = Printf.sprintf "%s contains %S" label needle in
+  if found then Junit.pass name
   else
-    Junit.fail (Printf.sprintf "%s contains %S" label needle)
-      (Printf.sprintf "%S not found in:\n%s" needle haystack)
+    let context = match source with Some s -> s | None -> haystack in
+    Junit.fail name (Printf.sprintf "%S not found in:\n%s" needle context)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -83,23 +84,25 @@ let () =
 
   (* catch uses match-with-exception, which produces CExc branches *)
   let raise_text = render raise_ast in
-  check_contains "raise: ERaise"   raise_text "ERaise";
-  check_contains "raise: CExc"     raise_text "CExc";
-  check_contains "raise: PXData"   raise_text {|PXData [ "Exit" ]|};
+  let raise_src  = Junit.read_source raise_cmt in
+  check_contains "raise: ERaise" ~source:raise_src raise_text "ERaise";
+  check_contains "raise: CExc"   ~source:raise_src raise_text "CExc";
+  check_contains "raise: PXData" ~source:raise_src raise_text {|PXData [ "Exit" ]|};
 
   (* --- Effects: perform, effect pattern, continue --- *)
 
-  let effect_ast = translate effect_cmt in
+  let effect_ast  = translate effect_cmt in
   let effect_text = render effect_ast in
+  let effect_src  = Junit.read_source effect_cmt in
 
   (* IExtend marks the effect constructor declaration *)
-  check_contains "effect: IExtend Ask"  effect_text {|IExtend [|};
+  check_contains "effect: IExtend Ask"  ~source:effect_src effect_text {|IExtend [|};
   (* ask () = perform Ask *)
-  check_contains "effect: EPerform"     effect_text "EPerform";
+  check_contains "effect: EPerform"     ~source:effect_src effect_text "EPerform";
   (* run handler: effect Ask, k -> continue k 42 *)
-  check_contains "effect: CEff"         effect_text "CEff";
-  check_contains "effect: EContinue"    effect_text "EContinue";
-  check_contains "effect: continue val" effect_text "EInt 42";
+  check_contains "effect: CEff"         ~source:effect_src effect_text "CEff";
+  check_contains "effect: EContinue"    ~source:effect_src effect_text "EContinue";
+  check_contains "effect: continue val" ~source:effect_src effect_text "EInt 42";
 
   (* --- References and while loops --- *)
 
@@ -118,9 +121,10 @@ let () =
 
   (* count uses ref, while, load, store *)
   let refs_text = render refs_ast in
-  check_contains "refs: ERef"   refs_text "ERef";
-  check_contains "refs: ELoad"  refs_text "ELoad";
-  check_contains "refs: EStore" refs_text "EStore";
-  check_contains "refs: EWhile" refs_text "EWhile";
+  let refs_src  = Junit.read_source refs_cmt in
+  check_contains "refs: ERef"   ~source:refs_src refs_text "ERef";
+  check_contains "refs: ELoad"  ~source:refs_src refs_text "ELoad";
+  check_contains "refs: EStore" ~source:refs_src refs_text "EStore";
+  check_contains "refs: EWhile" ~source:refs_src refs_text "EWhile";
 
   Junit.exit_with_status ()

@@ -45,6 +45,14 @@ let xpass name msg =
   record name (Xpass msg);
   Printf.printf "XPASS [%s] %s — promote to a real test\n%!" name msg
 
+(* Best-effort read of the .ml source corresponding to a .cmt path. Used by
+   check_contains to show the original OCaml expression in failure messages
+   instead of the translated Rocq output. *)
+let read_source cmt_file =
+  let src_file = Filename.remove_extension cmt_file ^ ".ml" in
+  try In_channel.with_open_text src_file In_channel.input_all
+  with Sys_error _ -> Printf.sprintf "(source not found: %s)" src_file
+
 let escape s =
   let b = Buffer.create (String.length s) in
   String.iter (function

@@ -69,8 +69,6 @@ theory:
   needs:
     - job: build-deps-image
       optional: true
-    - job: translator
-      artifacts: true
   script:
     - make theory
   <<: *build_cache
@@ -83,6 +81,8 @@ all:
   needs:
     - job: build-deps-image
       optional: true
+    - job: translator
+      artifacts: true
     - job: theory
       artifacts: true
   script:
