@@ -51,6 +51,12 @@
   (action (run ocamlc -bin-annot -c %{deps}))
 )
 
+(rule
+  (targets sample_record.cmt sample_record.cmo sample_record.cmi)
+  (deps sample_record.ml)
+  (action (run ocamlc -bin-annot -c %{deps}))
+)
+
 (test
   (name test_translator)
   (modules test_translator)
@@ -59,7 +65,8 @@
     (run %{test}
       %{dep:sample_simple.cmt}
       %{dep:sample_arith.cmt}
-      %{dep:sample_pair.cmt})))
+      %{dep:sample_pair.cmt}
+      %{dep:sample_record.cmt})))
 )
 
 (rule

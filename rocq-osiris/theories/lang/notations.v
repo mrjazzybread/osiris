@@ -323,22 +323,22 @@ Notation "n1 := v1 ; tail" :=
      format "n1  ':='   v1 ;  '/' tail").
 
 Notation "{ }" :=
-  (ERecord [])
+  (ERecord _ [])
     (only printing,
       format "{ }").
 
 Notation "{ fds }" :=
-  (ERecord fds)
+  (ERecord _ fds)
     (only printing,
-      format "{  '[hv' fds ']'  }").
+      format "{ '[hv' fds ']' }").
 
-Goal (trivial (ERecord [])). Abort.
+Goal (trivial (ERecord Immut [])). Abort.
 
 Goal (trivial
-        (ERecord [Fexpr "a" 0;
-                  Fexpr "b" 1;
-                  Fexpr "c" 2;
-                  Fexpr "d" (EString "val")])).
+        (ERecord Mut [0;
+                  1;
+                  2;
+                  (EString "val")])).
 Abort.
 
 Notation "r . f" :=
@@ -347,10 +347,10 @@ Notation "r . f" :=
       at level 80, format "r . f").
 
 Goal (trivial
-        (ERecordAccess (ERecord [Fexpr "a" 0;
-                                 Fexpr "b" 1;
-                                 Fexpr "c" 2;
-                                 Fexpr "d" (EString "val")]) ("a"))).
+        (ERecordAccess (ERecord Immut [0;
+                                 1;
+                                 2;
+                                 (EString "val")]) (0%Z))).
 Abort.
 
 Notation "{ r 'with' fds }" :=

@@ -500,11 +500,11 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (<[ l := Val v ]> σ, continue k l)
 
   | StepAllocBlock :
-    ∀ σ ls l k,
+    ∀ σ t ls l k,
       lookup (Lookup:=lookup_block) l σ = None →
       step
-        (σ, Stop CAllocBlock ls k)
-        (insert (Insert:=insert_block) l (Dict Mut ls) σ, continue k l)
+        (σ, Stop CAllocBlock (t, ls) k)
+        (insert (Insert:=insert_block) l (Dict t ls) σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -1103,11 +1103,11 @@ Lemma invert_step_alloc {A E} σ σ' v k m' :
     eexists. eauto.
   Qed.
 
-Lemma invert_step_alloc_block {A E} σ σ' ls k m' :
-  @step A E (σ, Stop CAllocBlock ls k) (σ', m') →
+Lemma invert_step_alloc_block {A E} σ σ' t ls k m' :
+  @step A E (σ, Stop CAllocBlock (t, ls) k) (σ', m') →
   ∃ l,
     lookup (Lookup:=lookup_block) l σ = None ∧
-    σ' = insert (Insert:=insert_block) l (Dict Mut ls) σ ∧
+    σ' = insert (Insert:=insert_block) l (Dict t ls) σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.

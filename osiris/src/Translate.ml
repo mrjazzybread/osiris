@@ -216,7 +216,7 @@ let translate_record_field id label_desc : field =
   (* [label_desc] is the field description constructed by the OCaml
      type-checker. *)
   assert (Longident.last (txt id) = label_desc.lbl_name);
-  label_desc.lbl_name
+  label_desc.lbl_pos
 
 (* -------------------------------------------------------------------------- *)
 
@@ -878,8 +878,19 @@ and translate_rec_bindings vbs =
 
 (* Records. *)
 
+and is_mutable_record fields : mut_tag =
+  if
+    Array.exists
+      (fun (label_desc, _) -> label_desc.lbl_mut = Mutable)
+      fields
+  then
+    Mut
+  else
+    Immut
+
 and translate_record_construction fields : expr =
-  ERecord (translate_record_field_defs fields)
+  (* Here we rely on the invariant that fields are ordered by the position of the label *)
+  ERecord (is_mutable_record fields, translate_record_field_defs fields |> List.map (fun (Fexpr (_, e)) -> e))
 
 and translate_record_update e fields : expr =
   ERecordUpdate (translate_expr e, translate_record_field_defs fields)

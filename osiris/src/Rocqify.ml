@@ -28,11 +28,13 @@ let var =
 let data =
   quote
 
-let field =
-  quote
+let field f =
+  plain (string_of_int f)
 
 let path (pi : path) : expression =
   list (map var pi)
+
+let mut_tag t = quote (show_mut_tag t)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -185,8 +187,8 @@ let rec expr (e : expr) =
   | EXData (pi, e) ->
       c "EXData" [ path pi ; list (exprs e) ]
 
-  | ERecord fs ->
-      c "ERecord" [ fexprs fs ]
+  | ERecord (t, es) ->
+      c "ERecord" [ mut_tag t; list (exprs es) ]
 
   | ERecordUpdate (e, fes) ->
       c "ERecordUpdate" [ expr e; fexprs fes ]

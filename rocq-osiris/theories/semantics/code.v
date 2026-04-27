@@ -97,7 +97,7 @@ Inductive code : Type → Type → Type → Type :=
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
 | CAlloc : code val loc exn
-| CAllocBlock : code (list loc) block exn
+| CAllocBlock : code (mut_tag * list loc) block exn
 | CLoad  : code loc val exn
 | CLoadBlock : code block (mut_tag * list loc) exn
 | CExchange : code (loc * val) val exn
@@ -174,11 +174,6 @@ Definition resume (l : cont) (o : outcome2 val exn) :=
 Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
   Handle m h.
 
-(* [load l] loads the value stored at location [l]. *)
-
-Definition load (l : loc) :=
-  stop CLoad l.
-
 (* [load_block l] loads the locations stored in the block at location [l]. *)
 
 Definition load_block (l : block) :=
@@ -230,6 +225,25 @@ Notation "' x ← y ; z" :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [load l] loads the value stored at location [l]. *)
+
+Definition load (l : loc) :=
+  stop CLoad l.
+
+(* [loadn ls] loads multiple locations [ls], and returns the list of
+   the stored valies. *)
+
+Fixpoint loadn (ls : list loc) : micro (list val) exn :=
+  match ls with
+  | [] => ret []
+  | l :: ls =>
+      v ← load l ;
+      vs ← loadn ls ;
+      ret (v :: vs)
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* [alloc v] allocates a new ref cell with initial value [v] and returns the
    ref cell's location. *)
 
@@ -251,8 +265,8 @@ Fixpoint allocn (vs : list val) : micro (list loc) exn :=
 (* [alloc_block ls] allocates a new block that stores the list of locations [ls]
    and returns a pointer to it. *)
 
-Definition alloc_block (ls : list loc) : micro block exn :=
-  stop CAllocBlock ls.
+Definition alloc_block (t : mut_tag) (ls : list loc) : micro block exn :=
+  stop CAllocBlock (t, ls).
 
 (* [store l v] updates the ref cell at location [l] with the value [v],
    and returns unit. *)

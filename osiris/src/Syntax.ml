@@ -5,6 +5,11 @@
 (* There are a few minor differences between the Rocq Osiris AST (syntax.v)
    and this OCaml Osiris AST. *)
 
+type mut_tag =
+  | Mut
+  | Immut
+    [@@ deriving show]
+
 (* -------------------------------------------------------------------------- *)
 
 (* Variables. *)
@@ -41,7 +46,7 @@ type data =
 (* Record fields. *)
 
 type field =
-  string
+  int
     [@@ deriving show]
 
 (* -------------------------------------------------------------------------- *)
@@ -174,7 +179,7 @@ type expr =
   | EXData of path * exprs
 
   (* Record construction: [{ fs = es }]. *)
-  | ERecord of fexprs
+  | ERecord of mut_tag * exprs
   (* Record update: [{ e and fs = es }]. *)
   | ERecordUpdate of expr * fexprs
   (* Record access: [ef]. *)

@@ -44,7 +44,7 @@ Definition data :=
 (* Record fields. *)
 
 Definition field :=
-  string.
+  Z.
 
 (* Data constructors and record fields are not treated like variables and
    module names. They are never considered "bound" and never looked up in
@@ -155,7 +155,7 @@ Inductive coercion :=
      fields named in the list [xcs] are retained, and the corresponding
      coercions in the list [xcs] are applied to them. All other fields are
      dropped. *)
-| CStruct (xcs : list (field * coercion)).
+| CStruct (xcs : list (var * coercion)).
 
 Definition fcoercion :=
   (var * coercion)%type.
@@ -192,7 +192,7 @@ Inductive expr :=
   | EXData (π : path) (e : list expr)
 
   (* Record construction: [{ fs = es }]. *)
-  | ERecord (fes : list fexpr)
+  | ERecord (t : mut_tag) (es : list expr)
   (* Record update: [{ e with fs = es }]. *)
   | ERecordUpdate (e : expr) (fes : list fexpr)
   (* Record access: [e.f]. *)
@@ -440,12 +440,6 @@ Inductive val : Type :=
      [l] is the location of the constructor. Extensible types can
      alias by having two constructors point to the same location. *)
   | VXData (l : loc) (v : list val)
-  (* A record. *)
-  (* A list of field-value pairs is the same thing as an environment,
-     so, for the moment at least, we identify these concepts. *)
-  (* The fields in a record are always pairwise distinct (this is checked
-     by OCaml, not by us) and alphabetically sorted. *)
-  | VRecord (fvs : list (var * val))
   (* A location. *)
   | VLoc (l: loc)
   (* A pointer to a block. *)

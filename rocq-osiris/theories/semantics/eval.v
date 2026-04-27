@@ -245,15 +245,16 @@ Definition check_div_by_zero i : micro unit exn :=
    value and returns its content, a list of field-value pairs, which can
    also be viewed as an environment fragment. *)
 
-Definition val_as_record (v : val) : micro env exn :=
+Definition val_as_record (v : val) : micro (mut_tag * list loc) exn :=
   match v with
-  | VRecord fvs =>
-      ret fvs
+  | VBlock l =>
+      '(t, ls) ← load_block l ;
+      ret (t, ls)
   | _ =>
       type_mismatch "record value expected"
   end.
 
-Definition as_record (m : microvx) : micro env exn :=
+Definition as_record (m : microvx) : micro (mut_tag * list loc) exn :=
   v ← m ;
   val_as_record v.
 
@@ -348,37 +349,6 @@ Fixpoint lookup_path η π : option val :=
   end.
 
 End LookupEnv.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [remove f fvs] removes field [f] from the field-value list [fvs]. *)
-
-Fixpoint remove f fvs : micro env exn :=
-  match fvs with
-  | (f', v) :: fvs =>
-      if f =? f' then
-        ret fvs
-      else
-        fvs ← remove f fvs ;
-        ret ((f', v) :: fvs)
-  | [] =>
-      missing_field f
-  end.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [update fvs fvs'] updates the existing record fields [fvs] with the new
-   record fields [fvs']. *)
-
-Fixpoint update fvs fvs' : micro env exn :=
-  match fvs' with
-  | [] =>
-      ret fvs
-  | (f, v') :: fvs' =>
-      fvs ← remove f fvs ;
-      let fvs := (f, v') :: fvs in
-      update fvs fvs'
-  end.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -558,10 +528,10 @@ Local Fixpoint pre_eval_pat η δ p v : option env :=
       vl' ← (lookup_path η π) ;
       l' ← val_as_loc_opt vl' ;
       if (locations.eqb l l') then eval_pats η δ ps vs else None
-  | PRecord fps, VRecord fvs =>
+  | PRecord fps, VBlock l =>
       (* A record pattern matches a record value. *)
       (* The pattern may have fewer fields than the value. *)
-      eval_fpats η δ fps fvs
+      None
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then Some δ else None
@@ -1175,6 +1145,19 @@ Definition pre_wrap_eval_branches η bs (o : outcome3 val exn) : microvx :=
 
 End EvalBranches.
 
+Fixpoint update (ls : list loc) (fvs : list (field * val)) : micro unit exn :=
+  match fvs with
+  | [] => ret ()
+  | (f, v) :: fvs =>
+    match ls !! f with
+    | Some l =>
+        _ ← store l v ;
+        update ls fvs
+    | None =>
+        Crash
+    end
+  end.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [eval η e] evaluates the expression [e] in environment [η].
@@ -1240,26 +1223,33 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       l ← as_loc (widen (lookup_path η π)) ;
       v ← evals η es ;
       ret (VXData l v)
-  | ERecord fes =>
+  | ERecord t es =>
       (* The record components are evaluated in parallel. *)
-      fvs ← evalfs η fes ;
-      let fvs := sort fvs in
-      ret (VRecord fvs)
+      vs ← evals η es ;
+      ls ← allocn vs ;
+      l ← alloc_block t ls;
+      ret (VBlock l)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
          parallel. *)
-      '(fvs, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      '((t, ls), fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      (* Copy the values in record [e] into a new block. *)
+      vs ← loadn ls ;
+      ls ← allocn vs ;
       (* The new components override existing components by the same name. *)
-      fvs ← update fvs fvs' ;
-      let fvs := sort fvs in
-      ret (VRecord fvs)
+      '() ← update ls fvs' ;
+      l ← alloc_block t ls ;
+      ret (VBlock l)
   | ERecordAccess e f =>
-      fvs ← as_record (eval η e) ;
-      widen (lookup_name fvs f)
+      '(t, ls) ← as_record (eval η e) ;
+      match ls !! f with
+      | Some l => load l
+      | None => Crash
+      end
   | EArrayLit es =>
       vs ← evals η es ;
       ls ← allocn vs ;
-      l ← alloc_block ls ;
+      l ← alloc_block Mut ls ;
       ret (VBlock l)
   | EArrayLength e =>
       ls ← as_array (eval η e) ;
@@ -1282,7 +1272,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       let n : Z := signed n in
       if decide (0 ≤ n ≤ max_array_length) then
         ls ← allocn (replicate n v) ;
-        l ← alloc_block ls ;
+        l ← alloc_block Mut ls ;
         ret (VBlock l)
       else crash "invalid_argument: Array.make"
   | EFreeze e =>
