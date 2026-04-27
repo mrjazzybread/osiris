@@ -93,34 +93,44 @@ let () =
     (MStruct [ILet [Binding (PVar "p", ETuple [EInt 1; EInt 2])]]);
 
   (* --- records: fields are represented by their declaration position,
-         not their name. With [type t = { x : int; y : int }], [x] is at
-         position 0 and [y] is at position 1, regardless of the order
-         in which they appear at construction or update sites. --- *)
+         not their name. The translator must always emit field values in
+         declaration order (i.e. [label_desc.lbl_pos] order), regardless
+         of the order in which the fields appear in the source code. --- *)
   let record = translate record_cmt in
   check_ast "record" record
     (MStruct [
-      (* let r1 = { x = 1; y = 2 } *)
+      (* { ra = 1; rb = 2; rc = 3 } — source order = declaration order. *)
       ILet [Binding (PVar "r1",
-        ERecord (Immut, [EInt 1; EInt 2]))];
-      (* let r2 = { y = 4; x = 3 } — source order differs from
-         declaration order, but the AST lists fields in declaration
-         order, with each value at its declared position. *)
+        ERecord (Immut, [EInt 1; EInt 2; EInt 3]))];
+      (* { rc = 30; rb = 20; ra = 10 } — source order is reversed; the
+         AST values must still appear in declaration order, so the
+         literals end up as [10; 20; 30] (ra=10, rb=20, rc=30). *)
       ILet [Binding (PVar "r2",
-        ERecord (Immut, [EInt 3; EInt 4]))];
-      (* let get_y (r : t) = r.y — access uses position 1. *)
-      ILet [Binding (PVar "get_y",
-        EAnonFun (AnonFun ("r", ERecordAccess (EPath ["r"], 1))))];
-      (* let set_x (r : t) = { r with x = 5 } — only the overridden
-         field appears, at position 0; the kept field is filtered out. *)
-      ILet [Binding (PVar "set_x",
+        ERecord (Immut, [EInt 10; EInt 20; EInt 30]))];
+      (* { rb = 200; rc = 300; ra = 100 } — yet another permutation;
+         AST values must again be in declaration order. *)
+      ILet [Binding (PVar "r3",
+        ERecord (Immut, [EInt 100; EInt 200; EInt 300]))];
+      (* { ma = 7; mb = 8 } where [ma] is declared mutable: the [ERecord]
+         tag must be [Mut]. *)
+      ILet [Binding (PVar "m1",
+        ERecord (Mut, [EInt 7; EInt 8]))];
+      (* let get_c r = r.rc — access uses declaration position 2. *)
+      ILet [Binding (PVar "get_c",
+        EAnonFun (AnonFun ("r", ERecordAccess (EPath ["r"], 2))))];
+      (* let upd_bc r = { r with rc = 100; rb = 99 } — multi-field update
+         with source order rc-first; the [Fexpr]s must be emitted in
+         declaration-position order: rb (1) before rc (2). *)
+      ILet [Binding (PVar "upd_bc",
         EAnonFun (AnonFun ("r",
-          ERecordUpdate (EPath ["r"], [Fexpr (0, EInt 5)]))))];
+          ERecordUpdate (EPath ["r"],
+            [Fexpr (1, EInt 99); Fexpr (2, EInt 100)]))))];
     ]);
   let record_src = Junit.read_source record_cmt in
   let rendered_record = render record in
   (* Field positions are rendered as bare integers (not quoted names). *)
-  check_contains "record" ~source:record_src rendered_record "Fexpr 0";
   check_contains "record" ~source:record_src rendered_record "Fexpr 1";
+  check_contains "record" ~source:record_src rendered_record "Fexpr 2";
   check_contains "record" ~source:record_src rendered_record "ERecordAccess";
   check_contains "record" ~source:record_src rendered_record "ERecordUpdate";
 
