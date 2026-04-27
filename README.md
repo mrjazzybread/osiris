@@ -8,27 +8,74 @@ and an automatic translator from OCaml programs to our Rocq embedding is in `osi
 
 An overview of the structure of the whole project can be found in `ROADMAP.md`
 
-## Compilation
+## Getting started
 
-The project requires OCaml's package manager `opam`.
+### Prerequisites
 
-Running `make init` then creates a new `opam` switch with all the required dependencies at
-the right version.
+OCaml's package manager [`opam`](https://opam.ocaml.org/) should be installed.
 
-**If there is an error while the dependencies are being installed:**\
-It is recommended to update the list of opam packages with `opam update`,
-and to continue installing with `make pin` to avoid creating a new switch.
+### Install dependencies
 
-For comfort, we also provide `make emacs` to install the dependencies necessary to use Emacs as an IDE for OCaml.
+Running `make init` creates a new `opam` switch named `osiris` and installs
+all project dependencies (Rocq, Iris, stdpp, …) at their pinned versions.
+
+If the installation fails partway through, running `opam update` followed by
+`make pin` retries within the existing switch instead of recreating it.
 
 ### Build
 
-Running `make` will:\
-(1) build the translator,\
-(2) compile the example files in `rocq-osiris/examples/src` and run the translator on them,\
-(3) compile all rocq files in the project.
+Running `make` executes the full build pipeline:\
+(1) the translator is built (`osiris/`),\
+(2) the core Rocq theory is compiled (`rocq-osiris/theories/`),\
+(3) the translator is run on the standard library and examples,\
+(4) the stdlib and examples Rocq theories are compiled.
 
-### Dependencies
+For day-to-day iteration, one of the narrower targets listed in
+[Build targets](#build-targets) below is preferable — `make theory` and
+`make translator` are typically the right choice.
+
+### Editor setup (optional)
+
+For Emacs, `make emacs` installs `tuareg`, `merlin`, and `ocp-indent`.\
+For VS Code, `make vscode` installs `ocamlformat`, `ocaml-lsp-server`, and `vsrocq-language-server`.
+
+## Build targets
+
+The Makefile exposes the following targets. The narrowest one that covers a
+given set of changes is preferable for faster iteration; the full `make` is
+only required for end-to-end verification.
+
+| Target            | What it does                                                           |
+|-------------------|------------------------------------------------------------------------|
+| `make`            | Full pipeline: translator → translate examples & stdlib → compile Rocq |
+| `make translator` | Compile the OCaml translator only (`osiris/`)                          |
+| `make theory`     | Compile the core Rocq theory only (`rocq-osiris/theories/`)            |
+| `make clean`      | Remove `_build/` and generated `og_*.v` files                          |
+| `make runtests`   | Run the semantics validation tests (see [Validation](#validation))     |
+| `make check-axioms` | List axioms used in the Rocq development (see [Axioms](#axioms))     |
+
+When working only on `.v` files, `make theory` is sufficient and significantly
+faster than `make`. When working only on the translator, `make translator`
+followed by `cd osiris && dune runtest` is the inner-loop combination.
+
+## Setup targets
+
+These targets manage the opam switch and editor tooling. They are normally
+only needed once.
+
+| Target          | What it does                                                              |
+|-----------------|---------------------------------------------------------------------------|
+| `make init`     | Create the `osiris` opam switch and install all project dependencies      |
+| `make pin`      | Install dependencies into the current switch (skip switch creation)       |
+| `make upgrade`  | Update the OCaml compiler in the existing `osiris` switch and re-pin      |
+| `make emacs`    | Install Emacs OCaml tooling (`tuareg`, `merlin`, `ocp-indent`)            |
+| `make vscode`   | Install VS Code OCaml + Rocq tooling (`ocamlformat`, `ocaml-lsp-server`, `vsrocq-language-server`) |
+| `make install-rocq-mcp` | Install the dependencies for the `rocq-mcp` MCP server            |
+
+`make init`, `make pin`, and `make upgrade` all accept `SWITCH_NAME=<name>`
+if you want to operate on a switch other than the default `osiris`.
+
+## Dependencies
 
 The project depends on the opam libraries `ocaml`, `pprint`, `ocaml-compiler-libs`, `dune`, `rocq`,
 `iris`, `rocq-equations`, and `std++`.
