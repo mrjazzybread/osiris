@@ -86,7 +86,8 @@ Global Instance notval_env : NotVal env := {}.
 Global Instance notval_int : NotVal int := {}.
 Global Instance notval_loc : NotVal loc := {}.
 Global Instance notval_cont : NotVal cont := {}.
-Global Instance notval_block : NotVal syntax.block := {}.
+Global Instance notval_array : NotVal array := {}.
+Global Instance notval_record : NotVal record := {}.
 Global Instance notval_thread : NotVal thread := {}.
 
 Global Instance observe_id `{NotVal A} : Observe A A | 1 := { observe := id }.
@@ -444,13 +445,19 @@ Proof. solve_encode. Qed.
 
 (* Pointers to blocks. *)
 
-Global Instance Encode_block : Encode syntax.block :=
-  { encode := λ l, VBlock l }.
+Global Instance Encode_array : Encode syntax.array :=
+  { encode := λ l, VArray l }.
 
-Lemma solve_encode_block (l : syntax.block) :
-  VBlock l = #l.
+Lemma solve_encode_array (l : syntax.array) :
+  VArray l = #l.
 Proof. solve_encode. Qed.
 
+Global Instance Encode_record : Encode record :=
+  { encode := λ l, VRecord l }.
+
+Lemma solve_encode_record (l : record) :
+  VRecord l = #l.
+Proof. solve_encode. Qed.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -62,12 +62,15 @@ Definition cont :=
 
 (* Pointers to blocks of memory. *)
 
-Definition block :=
+Definition array :=
+  tc_opaque loc.
+
+Definition record :=
   tc_opaque loc.
 
 (* Without this, the typeclass engine unfolds both [cont] and [block] to the
    same [tc_opaque loc] body, making Encode/Observe instances ambiguous. *)
-Global Typeclasses Opaque cont block.
+Global Typeclasses Opaque cont array record.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -107,8 +110,10 @@ Inductive pat :=
      In [PXData (π, ps)], the path [π] is expected to denote a memory
      location, which serves as a dynamically-allocated name. *)
   | PXData (π : path) (ps : list pat)
-  (* A record pattern. *)
-  | PRecord (fps : list (var * pat))
+  (* PRecord: a record pattern. *)
+  | PRecord (fps : list (field * pat))
+  (* PArray: an array pattern. *)
+  | PArray (ps : list pat)
   (* A literal integer pattern. *)
   | PInt (i : Z)
   (* A literal character pattern. *)
@@ -197,6 +202,8 @@ Inductive expr :=
   | ERecordUpdate (e : expr) (fes : list fexpr)
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
+  (* Mutable record field assignment: [e1.f <- e2]. *)
+  | ERecordSet (e1 : expr) (f : field) (e2 : expr)
 
   (* An array literal: [ [|1;2;3|] ] *)
   | EArrayLit (es : list expr)
@@ -442,8 +449,9 @@ Inductive val : Type :=
   | VXData (l : loc) (v : list val)
   (* A location. *)
   | VLoc (l: loc)
-  (* A pointer to a block. *)
-  | VBlock (l: loc)
+  (* Both records and array are represented as pointers to a block. *)
+  | VRecord (l: loc)
+  | VArray (l: loc)
   (* A continuation; more precisely, a location which stores a continuation. *)
   | VCont (k: cont)
   (* A thread id. *)

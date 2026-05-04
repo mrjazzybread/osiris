@@ -443,8 +443,9 @@ let rec translate_expr (e: expression) : expr =
       let field = translate_record_field id label_desc in
       ERecordAccess (translate_expr e, field)
 
-  | Texp_setfield (_e1, _id, _label_desc, _e2) ->
-      eunsupported loc "mutable record"
+  | Texp_setfield (e1, id, label_desc, e2) ->
+      let field = translate_record_field id label_desc in
+      ERecordSet (translate_expr e1, field, translate_expr e2)
 
   | Texp_array (_, es) ->
       EArrayLit (map translate_expr es)

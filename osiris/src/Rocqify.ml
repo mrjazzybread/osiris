@@ -196,6 +196,9 @@ let rec expr (e : expr) =
   | ERecordAccess (e, f) ->
       c "ERecordAccess" [ expr e; field f ]
 
+  | ERecordSet (e1, f, e2) ->
+      c "ERecordSet" [ expr e1; field f; expr e2 ]
+
   | EArrayLength e ->
       c "EArrayLength" [ expr e ]
 

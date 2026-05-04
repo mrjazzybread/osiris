@@ -184,6 +184,8 @@ type expr =
   | ERecordUpdate of expr * fexprs
   (* Record access: [ef]. *)
   | ERecordAccess of expr * field
+  (* Mutable record field assignment: [e1.f <- e2]. *)
+  | ERecordSet of expr * field * expr
 
   (* Length of an array: [Array.length a] *)
   | EArrayLength of expr

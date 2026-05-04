@@ -287,7 +287,9 @@ Section imp_stop.
     (* VLoc case *)
     { destruct (#b); try (cbn in Hproj; discriminate Hproj).
       cbn in Hproj. injection Hproj as <-. reflexivity. }
-    (* VBlock case: par creates Par constructor, which is never ret *)
+    (* VRecord case: par creates Par constructor, which is never ret *)
+    { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
+    (* VArray case: par creates Par constructor, which is never ret *)
     { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
   Qed.
 
@@ -751,7 +753,7 @@ Section imp_combinators.
     iApply "H". iFrame.
   Qed.
   (* [CAllocBlock]. *)
-  Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} t ls :
+  Lemma imp_alloc_block2 {Φ : loc → iProp Σ} t ls :
     ⌜length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : loc), l ⤇ t -∗ isBlockLocs l ls -∗ Φ l) -∗
     impure E (alloc_block t ls) Ψ ζ Φ.
@@ -764,7 +766,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_alloc_block t ls :
     ⌜length ls ≤ max_array_length⌝ -∗
-    impure E (alloc_block t ls) Ψ ζ (λ (l : syntax.block), (l : loc) ⤇ t ∗ isBlockLocs (l : loc) ls).
+    impure E (alloc_block t ls) Ψ ζ (λ (l : loc), l ⤇ t ∗ isBlockLocs l ls).
   Proof.
     iIntros "%Hbound".
     iApply (imp_alloc_block2 with "[%//]").

@@ -59,28 +59,6 @@ Defined.
 Lemma store_conversion : cont_store = store.
 Proof. reflexivity. Qed.
 
-Global Instance block_eq_decision : EqDecision block.
-Proof. solve_decision. Defined.
-
-Global Instance block_countable : Countable block.
-Proof. unfold block; simpl. apply locations.loc_countable. Defined.
-
-Definition block_store : Type :=
-  tc_opaque (gmap block mem_block).
-
-Definition lookup_block : Lookup block mem_block store :=
-  (@gmap_lookup loc loc_eq_decision loc_countable mem_block).
-
-Definition insert_block : Insert block mem_block store.
-Proof.
-  unfold block_store; simpl. unfold block; simpl.
-  change block_eq_decision with loc_eq_decision.
-  change block_countable with loc_countable.
-  apply map_insert.
-Defined.
-
-Lemma store_conversion' : block_store = store.
-Proof. reflexivity. Qed.
 
 (* A configuration is a pair of a computation and a store. *)
 
@@ -166,8 +144,8 @@ Qed.
    the continuation [k]. It fails if this location is not in the domain of [σ]
    or contains something other than a value. *)
 
-Definition step_load_block_2 {A E} σ (l : block) (k : outcome2 (mut_tag * list loc) exn → _) : micro A E :=
-  match lookup (Lookup:=lookup_block) l σ with
+Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (mut_tag * list loc) exn → _) : micro A E :=
+  match σ !! l with
   | Some (Dict t ls) => continue k (t, ls)
   | _          => crash "load error: unbound location"
   end.
@@ -269,7 +247,8 @@ Definition phys_eq_val_store v1 v2 σ : option bool :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
       Some (locations.eqb l1 l2)
-  | VBlock l1, VBlock l2 =>
+  | VArray l1, VArray l2
+  | VRecord l1, VRecord l2 =>
       match σ !! l1, σ !! l2 with
       | Some (Dict Mut _), Some (Dict _ _)
       | Some (Dict _ _), Some (Dict Mut _) => Some (locations.eqb l1 l2)
@@ -501,10 +480,10 @@ Inductive step {A E} : config A E → config A E → Prop :=
 
   | StepAllocBlock :
     ∀ σ t ls l k,
-      lookup (Lookup:=lookup_block) l σ = None →
+      σ !! l = None →
       step
         (σ, Stop CAllocBlock (t, ls) k)
-        (insert (Insert:=insert_block) l (Dict t ls) σ, continue k l)
+        (<[ l := Dict t ls ]> σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -1106,8 +1085,8 @@ Lemma invert_step_alloc {A E} σ σ' v k m' :
 Lemma invert_step_alloc_block {A E} σ σ' t ls k m' :
   @step A E (σ, Stop CAllocBlock (t, ls) k) (σ', m') →
   ∃ l,
-    lookup (Lookup:=lookup_block) l σ = None ∧
-    σ' = insert (Insert:=insert_block) l (Dict t ls) σ ∧
+    σ !! l = None ∧
+    σ' = <[ l := Dict t ls ]> σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.
@@ -1144,7 +1123,6 @@ Proof.
     apply not_elem_of_dom.
     apply is_fresh. }
   { eexists. apply StepAllocBlock.
-    unfold block. simpl.
     eapply not_elem_of_dom.
     apply is_fresh. }
   (* In the case of wrap, we must also exhibit an address [l]

@@ -97,11 +97,11 @@ Inductive code : Type → Type → Type → Type :=
 | CLoop  : code (env * var * int * int * expr) val exn
 | CFlip : code unit bool exn
 | CAlloc : code val loc exn
-| CAllocBlock : code (mut_tag * list loc) block exn
+| CAllocBlock : code (mut_tag * list loc) loc exn
 | CLoad  : code loc val exn
-| CLoadBlock : code block (mut_tag * list loc) exn
+| CLoadBlock : code loc (mut_tag * list loc) exn
 | CExchange : code (loc * val) val exn
-| CSetBlockTag : code (block * mut_tag) unit exn
+| CSetBlockTag : code (loc * mut_tag) unit exn
 | CCAS : code (loc * val * val) val exn
 | CFAA : code (loc * int) val exn
 | CPerf  : code eff val exn
@@ -174,10 +174,16 @@ Definition resume (l : cont) (o : outcome2 val exn) :=
 Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
   Handle m h.
 
-(* [load_block l] loads the locations stored in the block at location [l]. *)
+(* [load_block l] loads the locations stored in the block at location [l].
+   [load_block] only crashes on a bad heap state — it never throws — so its
+   error type is left polymorphic. *)
 
-Definition load_block (l : block) :=
-  stop CLoadBlock l.
+Definition load_block {E} (l : loc) : micro (mut_tag * list loc) E :=
+  Stop CLoadBlock l (λ o,
+    match o with
+    | O2Ret r => Ret r
+    | O2Throw _ => Crash
+    end).
 
 (* [exchange l v] updates the ref cell at location [l] with the value [v],
    and returns the previously stored value. *)
@@ -187,7 +193,7 @@ Definition exchange (l : loc) (v : val) :=
 
 (* [set_tag l t] updates the tag of a block to [t], and returns the location of the block. *)
 
-Definition set_tag (l : block) (t : mut_tag) :=
+Definition set_tag (l : loc) (t : mut_tag) :=
   stop CSetBlockTag (l, t).
 
 (* [cas l seen v] updates the ref cell at location [l] with the value [v],
@@ -225,15 +231,21 @@ Notation "' x ← y ; z" :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [load l] loads the value stored at location [l]. *)
+(* [load l] loads the value stored at location [l].
+   [load] only crashes on a bad heap state — it never throws — so its
+   error type is left polymorphic. *)
 
-Definition load (l : loc) :=
-  stop CLoad l.
+Definition load {E} (l : loc) : micro val E :=
+  Stop CLoad l (λ o,
+    match o with
+    | O2Ret v => Ret v
+    | O2Throw _ => Crash
+    end).
 
 (* [loadn ls] loads multiple locations [ls], and returns the list of
    the stored valies. *)
 
-Fixpoint loadn (ls : list loc) : micro (list val) exn :=
+Fixpoint loadn {E} (ls : list loc) : micro (list val) E :=
   match ls with
   | [] => ret []
   | l :: ls =>
@@ -265,7 +277,7 @@ Fixpoint allocn (vs : list val) : micro (list loc) exn :=
 (* [alloc_block ls] allocates a new block that stores the list of locations [ls]
    and returns a pointer to it. *)
 
-Definition alloc_block (t : mut_tag) (ls : list loc) : micro block exn :=
+Definition alloc_block (t : mut_tag) (ls : list loc) : micro loc exn :=
   stop CAllocBlock (t, ls).
 
 (* [store l v] updates the ref cell at location [l] with the value [v],

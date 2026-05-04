@@ -147,28 +147,53 @@ Definition as_loc {E} (m : micro val E) : micro loc E :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* [val_as_block v] checks that the value [v] is a language-level pointer
-   to a block and returns its meta-level value. *)
+(* [val_as_array v] checks that the value [v] is a language-level pointer
+   to an array block and returns its meta-level value. *)
 
-Definition val_as_block {E} (v : val) : micro block E :=
+Definition val_as_array {E} (v : val) : micro array E :=
   match v with
-  | VBlock l =>
+  | VArray l =>
       ret l
   | _ =>
       type_mismatch "location value expected"
   end.
 
-Definition val_as_block_opt (v : val) : option block :=
+Definition val_as_array_opt (v : val) : option array :=
   match v with
-  | VBlock l =>
+  | VArray l =>
       Some l
   | _ =>
       None
   end.
 
-Definition as_block {E} (m : micro val E) : micro block E :=
+Definition as_array {E} (m : micro val E) : micro array E :=
   v ← m ;
-  val_as_block v.
+  val_as_array v.
+
+(* ------------------------------------------------------------------------ *)
+
+(* [val_as_record v] checks that the value [v] is a language-level pointer
+   to a record block and returns its meta-level value. *)
+
+Definition val_as_record {E} (v : val) : micro record E :=
+  match v with
+  | VRecord l =>
+      ret l
+  | _ =>
+      type_mismatch "location value expected"
+  end.
+
+Definition val_as_record_opt (v : val) : option record :=
+  match v with
+  | VRecord l =>
+      Some l
+  | _ =>
+      None
+  end.
+
+Definition as_record {E} (m : micro val E) : micro record E :=
+  v ← m ;
+  val_as_record v.
 
 
 (* ------------------------------------------------------------------------ *)
@@ -230,43 +255,6 @@ Definition check_div_by_zero i : micro unit exn :=
     division_by_zero
   else
     ret ().
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_record v] checks that the value [v] is a language-level record
-   value and returns its content, a list of field-value pairs, which can
-   also be viewed as an environment fragment. *)
-
-Definition val_as_record (v : val) : micro (mut_tag * list loc) exn :=
-  match v with
-  | VBlock l =>
-      '(t, ls) ← load_block l ;
-      ret (t, ls)
-  | _ =>
-      type_mismatch "record value expected"
-  end.
-
-Definition as_record (m : microvx) : micro (mut_tag * list loc) exn :=
-  v ← m ;
-  val_as_record v.
-
-(* ------------------------------------------------------------------------ *)
-
-(* [val_as_array v] checks that the value [v] is a language-level block
-   pointer and returns the list of locations stored in the block. *)
-
-Definition val_as_array (v : val) : micro (list loc) exn :=
-  match v with
-  | VBlock l =>
-      '(_, ls) ← load_block l ;
-      ret ls
-  | _ =>
-      type_mismatch "array expected"
-  end.
-
-Definition as_array (m : microvx) : micro (list loc) exn :=
-  v ← m ;
-  val_as_array v.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -437,23 +425,21 @@ Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
       length_mismatch "shorter tuple expected"
  end.
 
-(* [eval_fpats η δ fps fvs] matches the field-indexed values [fvs] against the
-   field-indexed patterns [fps].
+(* [eval_fpats η δ fps vs] matches the positionally-indexed record values
+   [vs] against the field-indexed patterns [fps].
 
-   In case of success, the result is an extension of the environment
-   (or environment fragment) [δ] with bindings for the bound variables of
-   the patterns [fps].
+   In case of success, the result is an extension of [δ] with bindings for
+   the bound variables of [fps]. A field index out of bounds is a meta-level
+   invariant violation and triggers a crash. *)
 
-   A failure occurs if a field is present in [fps] but absent in [fvs]. *)
-
-Fixpoint pre_eval_fpats (η δ : env) fps fvs : micro env unit :=
+Fixpoint pre_eval_fpats (η δ : env) fps vs : micro env unit :=
   let eval_fpats := pre_eval_fpats in
   match fps with
   | [] => ret δ
   | (f, p) :: fps =>
-      v ← of_option (lookup_name fvs f) ;
+      v ← of_option (vs !! f) ;
       δ ← eval_pat η δ p v ;
-      δ ← eval_fpats η δ fps fvs ;
+      δ ← eval_fpats η δ fps vs ;
       ret δ
   end.
 
@@ -514,11 +500,23 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
          the data constructors correspond to the same location in the environment.
          If the data constructors do not match, a meta-level exception is raised. *)
       l' ← as_loc (of_option (lookup_path η π)) ;
-      if (locations.eqb l l') then eval_pats η δ ps vs else throw()
-  | PRecord fps, VBlock fvs =>
-      (* A record pattern matches a record value. *)
-      (* The pattern may have fewer fields than the value. *)
-      unsupported_construct
+      if (locations.eqb l l') then eval_pats η δ ps vs else throw ()
+  | PRecord fps, VRecord l =>
+      (* A record pattern matches a record value. The pattern may
+         mention fewer fields than the value. The values are loaded
+         from the heap in field order; field indices in [fps] are
+         positional and looked up against [vs]. *)
+      '(_, ls) ← load_block l ;
+      vs ← loadn ls ;
+      eval_fpats η δ fps vs
+  | PArray ps, VArray l =>
+      (* An array pattern matches an array value of the same length;
+         a length mismatch is a match failure, not a crash. *)
+      '(_, ls) ← load_block l ;
+      vs ← loadn ls ;
+      if decide (length vs = length ps)
+      then eval_pats η δ ps vs
+      else throw ()
   | PInt z, VInt i' =>
       let i := int.repr z in
       if int.eq i i' then ret δ else throw ()
@@ -534,6 +532,8 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       type_mismatch "extensible algebraic data expected"
   | PRecord _, _ =>
       type_mismatch "record expected"
+  | PArray _, _ =>
+      type_mismatch "array expected"
   | PInt _, _ =>
       type_mismatch "integer expected"
   | PChar _, _ =>
@@ -643,7 +643,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
   match v1, v2 with
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
-  | VBlock l1, VBlock l2 =>
+  | VArray l1, VArray l2
+  | VRecord l1, VRecord l2 =>
       '((t1, _), (t2, _)) ← par (load_block l1) (load_block l2) ;
       match t1, t2 with
       | Mut, _ | _, Mut => ret (locations.eqb l1 l2)
@@ -1204,42 +1205,55 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       vs ← evals η es ;
       ls ← allocn vs ;
       l ← alloc_block t ls;
-      ret (VBlock l)
+      ret (VRecord l)
   | ERecordUpdate e fes =>
       (* The existing record and the new record components are evaluated in
          parallel. *)
-      '((t, ls), fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      '(r, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
+      '(t, ls) ← load_block r ;
       (* Copy the values in record [e] into a new block. *)
       vs ← loadn ls ;
       ls ← allocn vs ;
       (* The new components override existing components by the same name. *)
       '() ← update ls fvs' ;
       l ← alloc_block t ls ;
-      ret (VBlock l)
+      ret (VRecord l)
   | ERecordAccess e f =>
-      '(t, ls) ← as_record (eval η e) ;
+      r ← as_record (eval η e) ;
+      '(_, ls) ← load_block r ;
       match ls !! f with
       | Some l => load l
+      | None => Crash
+      end
+  | ERecordSet e1 f e2 =>
+      (* The record and the new value are evaluated in parallel. *)
+      '(r, v) ← par (as_record (eval η e1)) (eval η e2) ;
+      '(_, ls) ← load_block r ;
+      match ls !! f with
+      | Some l => store l v
       | None => Crash
       end
   | EArrayLit es =>
       vs ← evals η es ;
       ls ← allocn vs ;
       l ← alloc_block Mut ls ;
-      ret (VBlock l)
+      ret (VArray l)
   | EArrayLength e =>
-      ls ← as_array (eval η e) ;
+      a ← as_array (eval η e) ;
+      '(_, ls) ← load_block a ;
       ret (VInt (repr (length ls)))
   | EArrayGet e1 e2 =>
-      '(ls, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
-      match ls !! signed i with
+      '(a, i) ← par (as_array (eval η e1)) (as_int (eval η e2)) ;
+      '(_, ls) ← load_block a ;
+      match ls !! (signed i) with
       | Some l => load l
       | None => crash "index out of bounds"
       end
   | EArraySet e1 e2 e3 =>
-      '(ls, (i, v)) ← par (as_array (eval η e1))
+      '(a, (i, v)) ← par (as_array (eval η e1))
                        (par (as_int (eval η e2)) (eval η e3));
-        match ls !! signed i with
+        '(_, ls) ← load_block a ;
+        match ls !! (signed i) with
         | Some l => store l v
         | None => crash "index out of bounds"
         end
@@ -1249,16 +1263,16 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       if decide (0 ≤ n ≤ max_array_length) then
         ls ← allocn (replicate n v) ;
         l ← alloc_block Mut ls ;
-        ret (VBlock l)
+        ret (VArray l)
       else crash "invalid_argument: Array.make"
   | EFreeze e =>
-      l ← as_block (eval η e) ;
+      l ← as_array (eval η e) ;
       '() ← set_tag l Immut ;
-      ret (VBlock l)
+      ret (VArray l)
   | EUnfreeze e =>
-      l ← as_block (eval η e) ;
+      l ← as_array (eval η e) ;
       '() ← set_tag l Mut ;
-      ret (VBlock l)
+      ret (VArray l)
   | EBoolConj e1 e2 =>
       b1 ← as_bool (eval η e1) ;
       if (b1 : bool) then eval η e2 else ret VFalse
