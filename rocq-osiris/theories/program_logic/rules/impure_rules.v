@@ -636,9 +636,19 @@ Section dynamic_checks.
     iApply (imp_ret with "HΦ"); first encode.
   Qed.
 
-  Lemma imp_as_block (m : microvx) (Φ : syntax.block → iProp Σ) :
+  Lemma imp_as_array (m : microvx) (Φ : syntax.array → iProp Σ) :
     imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_block m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp as_array m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hm".
+    iApply (imp_bind with "Hm").
+    iIntros (l) "HΦ".
+    iApply (imp_ret with "HΦ"); first encode.
+  Qed.
+
+  Lemma imp_as_record (m : microvx) (Φ : syntax.record → iProp Σ) :
+    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    imp as_record m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").

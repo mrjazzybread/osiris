@@ -646,7 +646,7 @@ Proof.
   eapply SAT_frame_resource with (R := supply _) in Hsat; last apply _.
   eapply (SAT_gen_heap_init σ) in Hsat as [Hgen Hsat].
   eapply (SAT_gen_heap_init ∅) in Hsat as [Hgen' Hsat].
-  eapply (SAT_ghost_map_alloc (∅ : gmap syntax.block (list locations.loc))) in Hsat as [γ Hsat].
+  eapply (SAT_ghost_map_alloc (∅ : gmap locations.loc (list locations.loc))) in Hsat as [γ Hsat].
   do 2 apply SAT_unframe_resource in Hsat.
   pose (hg := (@OsirisGS Σ _ _ Hgen Hgen' _ γ)).
   exists hg.

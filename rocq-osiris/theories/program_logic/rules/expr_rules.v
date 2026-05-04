@@ -279,7 +279,7 @@ Section imp_rules_expr.
 
   (** * EFreeze : expr → expr *)
 
-  Lemma imp_EFreeze2 {ζ} (Φ : block → iProp Σ) (Φ' : block → iProp Σ) η e :
+  Lemma imp_EFreeze2 {ζ} (Φ : array → iProp Σ) (Φ' : array → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
     (∀ l, Φ' l -∗ ∃ t, ▷ l ⤇ t ∗ Φ l) -∗
     impure E (eval η (EFreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Immut).
@@ -287,7 +287,7 @@ Section imp_rules_expr.
     iIntros "He Hcov".
     simpl_eval.
     iApply (imp_bind with "[He]").
-    { iApply (imp_as_block with "He"). }
+    { iApply (imp_as_array with "He"). }
     iIntros (l) "HΦl".
     iDestruct ("Hcov" with "HΦl") as "(%t & Hl & HΦ)".
     iApply (imp_bind with "[Hl]").
@@ -297,7 +297,7 @@ Section imp_rules_expr.
     iFrame.
   Qed.
 
-  Lemma imp_EFreeze {ζ} (l : block) t η e :
+  Lemma imp_EFreeze {ζ} (l : array) t η e :
     ▷ l ⤇ t -∗
     impure E (eval η e) Ψ ζ (λ l', ⌜l' = l⌝) -∗
     impure E (eval η (EFreeze e)) Ψ ζ (λ l', ⌜l' = l⌝ ∗ l ⤇ Immut).
@@ -311,7 +311,7 @@ Section imp_rules_expr.
 
   (** * EUnfreeze : expr → expr *)
 
-  Lemma imp_EUnfreeze {ζ} (Φ' : block → iProp Σ) (Φ : block → iProp Σ) η e :
+  Lemma imp_EUnfreeze {ζ} (Φ' : array → iProp Σ) (Φ : array → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
     (∀ l, Φ' l -∗ ∃ t, l ⤇ t ∗ Φ l) -∗
     impure E (eval η (EUnfreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Mut).
@@ -319,7 +319,7 @@ Section imp_rules_expr.
     iIntros "He Hcov".
     simpl_eval.
     iApply (imp_bind with "[He]").
-    { iApply (imp_as_block with "He"). }
+    { iApply (imp_as_array with "He"). }
     iIntros (l) "HΦl".
     iDestruct ("Hcov" with "HΦl") as "(%t & Hl & HΦ)".
     iApply (imp_bind with "[Hl]").

@@ -242,7 +242,10 @@ Section state_interp.
   Global Instance isBlockLocs_pers a ls : Persistent (isBlockLocs a ls).
   Proof. apply _. Qed.
 
-  Global Instance isBlockLocs_pers_block (a : syntax.block) ls : Persistent (isBlockLocs a ls) :=
+  Global Instance isBlockLocs_pers_array (a : syntax.array) ls : Persistent (isBlockLocs a ls) :=
+    isBlockLocs_pers a ls.
+
+  Global Instance isBlockLocs_pers_record (a : syntax.record) ls : Persistent (isBlockLocs a ls) :=
     isBlockLocs_pers a ls.
 
   Lemma isBlockLocs_valid a ls1 ls2 :

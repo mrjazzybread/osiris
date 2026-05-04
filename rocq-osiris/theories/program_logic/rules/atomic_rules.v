@@ -14,8 +14,8 @@ Instance crash_atomic {V X} :
   thread_step.Atomic (@Crash V X).
 Proof. constructor. inversion H; subst. inversion H1. Qed.
 
-Global Instance load_atomic l :
-  thread_step.Atomic (load l).
+Global Instance load_atomic {E} l :
+  thread_step.Atomic (load (E:=E) l).
 Proof.
   unfold thread_step.Atomic. intros.
 
@@ -85,9 +85,9 @@ Proof. constructor. Qed.
 Global Instance to_join_crash {V X} : TCEq (to_join (@Crash V X)) None.
 Proof. constructor. Qed.
 
-Global Instance to_eff_load l : TCEq (to_eff (load l)) None.
+Global Instance to_eff_load {E} l : TCEq (to_eff (load (E:=E) l)) None.
 Proof. constructor. Qed.
-Global Instance to_join_load l : TCEq (to_join (load l)) None.
+Global Instance to_join_load {E} l : TCEq (to_join (load (E:=E) l)) None.
 Proof. constructor. Qed.
 
 Global Instance to_eff_exchange l v : TCEq (to_eff (exchange l v)) None.

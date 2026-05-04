@@ -107,6 +107,13 @@ Section eval_pat_app.
     - destruct v; auto. destruct (_ =? _)%string; auto.
     - destruct v; auto. rewrite IHps. rew. ext l'. destruct (locations.eqb _ _); auto.
     - destruct v; auto.
+      rew. f_equal. ext o. simpl; unfold continue; simpl.
+      destruct o. rew. f_equal. ext o. rewrite IHfps.
+      rewrite bind_as_try2. auto.
+    - destruct v; auto.
+      rew. f_equal. ext o. rew.
+      destruct o. rew. f_equal. ext o. rewrite IHps.
+      rewrite bind_as_try2. by case_decide.
     - destruct v; auto. destruct (int.eq _ _); auto.
     - destruct v; auto. destruct (_ =? _)%char; auto.
     - destruct v; auto. destruct (_ =? _)%string; auto.

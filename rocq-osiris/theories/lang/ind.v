@@ -9,7 +9,7 @@ Section pat.
   Context
     (Ppat : pat → Prop)
     (Ppats : list pat → Prop)
-    (Pfps : list (var * pat) → Prop)
+    (Pfps : list (field * pat) → Prop)
   .
 
   Context
