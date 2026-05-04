@@ -14,9 +14,7 @@ Lemma reversible_pat_POr_unary η δ p1 p2 v φ ψ :
   pattern η δ (POr p1 p2) v φ ψ.
 Proof.
   unfold pattern. simpl_eval_pat.
-  destruct (eval_pat η δ p1 v).
-  - by rewrite union_Some_l.
-  - by rewrite union_None_l.
+  apply pure_wp_reversible_orelse.
 Qed.
 
 Lemma reversible_pat_POr η δ p1 p2 v φ ψ :
@@ -25,7 +23,7 @@ Lemma reversible_pat_POr η δ p1 p2 v φ ψ :
   pattern η δ (POr p1 p2) v φ ψ.
 Proof.
   rewrite <-reversible_pat_POr_unary.
-  firstorder eauto using pattern_mono_exn.
+  firstorder eauto using pattern_exn_mono.
 Qed.
 
 Lemma reversible_pat_POr_2 η δ p1 p2 v φ (ψ : Prop) :
@@ -37,7 +35,7 @@ Lemma reversible_pat_POr_2 η δ p1 p2 v φ (ψ : Prop) :
   pattern η δ (POr p1 p2) v φ ψ.
 Proof.
   rewrite <-reversible_pat_POr.
-  firstorder eauto using pattern_mono_exn.
+  firstorder eauto using pattern_exn_mono.
 Qed.
 
 
@@ -49,7 +47,16 @@ Lemma reversible_pat_PData_nil η δ c c' (φ : env → Prop) (ψ : Prop) :
   pattern η δ (PData c nil) (VData c' nil) φ (ψ ∨ c ≠ c').
 Proof.
   unfold pattern; intros. simpl_eval_pat.
-  destruct_string_eqb; tauto.
+  destruct_string_eqb.
+  - split.
+    + intros Hφ. eapply pure_ret; eauto.
+    + intros Hret. apply invert_pure_ret in Hret.
+      destruct Hret as (? & -> & Hφ). tauto.
+  - split.
+    + intros _.
+      apply pure_throw; auto.
+    + intros _ Heq'.
+      contradiction.
 Qed.
 
 Lemma reversible_pat_PData_or η δ c c' ps vs φ ψ :
@@ -59,23 +66,32 @@ Lemma reversible_pat_PData_or η δ c c' ps vs φ ψ :
 Proof.
   unfold pattern; intros. simpl_eval_pat.
   destruct_string_eqb.
-  - unfold patterns.
-    destruct (eval_pats η δ ps vs); tauto.
-  - tauto.
+  - assert (ψ ↔ (ψ ∨ c ≠ c')) by tauto.
+    unfold patterns.
+    firstorder eauto using pure_exn_mono.
+    eapply pure_exn_mono. apply H2. tauto.
+  - split; intros _.
+    + apply pure_throw. tauto.
+    + contradiction.
 Qed.
 
 
 (** [PXData], assuming the path lookup is safe *)
 
 Lemma reversible_pat_PXData η δ π ps l l' vs φ ψ :
-  lookup_path η π = Some #l' →
+  lookup_path η π = Some (VLoc l') →
   (l = l' → patterns η δ ps vs φ ψ)
   <->
   pattern η δ (PXData π ps) (VXData l vs) φ (ψ ∨ l ≠ l').
 Proof.
-  unfold pattern. simpl_eval_pat. intros ->; simpl.
+  unfold pattern. simpl_eval_pat. intros ->.
+  change (as_loc (of_option (Some (VLoc l')))) with (@ret _ unit l'). rewrite bind_ret.
   destruct (eqb_spec l l').
   - unfold patterns.
-    destruct (eval_pats η δ ps vs); tauto.
-  - tauto.
+    assert ((ψ ∨ l ≠ l') → ψ) by tauto.
+    firstorder eauto using pure_exn_mono.
+    eapply pure_exn_mono. apply H1. tauto.
+  - split; intros _.
+    + apply pure_throw. tauto.
+    + contradiction.
 Qed.

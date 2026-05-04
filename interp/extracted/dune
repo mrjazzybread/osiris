@@ -8,8 +8,8 @@
   (theories Stdlib stdpp iris Ltac2 osiris osiris.stdlib osiris.interp Equations)
   (extracted_modules
     Datatypes Specif Decimal Basics Bool Orders ListDef list_basics List base NatDef BinNums PosDef
-    BinPos BinNat Nat Ascii BinInt ZArith_dec String Zpower option numbers list_init list_z
-    countable infinite fin_sets fin_maps mapset list_monad gmap locations thread_ids
+    BinPos BinNat Nat Ascii BinInt ZArith_dec String Zpower option numbers list_z
+    countable void infinite fin_sets fin_maps mapset list_monad gmap locations thread_ids
     decidable PrimFloat Coqlib Zbits Integers int syntax notations outcome code Mergesort
     strategy eval step DecimalString Stdlib run
  )

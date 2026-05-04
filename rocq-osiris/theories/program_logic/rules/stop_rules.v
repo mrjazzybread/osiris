@@ -107,13 +107,13 @@ Section imp_stop.
 
   (* [CAllocBlock]. *)
 
-  Lemma imp_stop_alloc_block ls (k : _ → micro A X) :
+  Lemma imp_stop_alloc_block t ls (k : _ → micro A X) :
     ⌜length ls ≤ max_array_length⌝ -∗
-    ▷ (∀ (l : syntax.block),
-         l ⤇ Mut -∗
+    ▷ (∀ (l : loc),
+         l ⤇ t -∗
          isBlockLocs l ls -∗
          imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CAllocBlock ls k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    imp (Stop CAllocBlock (t, ls) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hbound H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -121,7 +121,7 @@ Section imp_stop.
 
     destruct_thread_step. subst.
 
-    iMod (osiris_state_alloc σ l1 (Dict Mut ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
+    iMod (osiris_state_alloc σ l (Dict t ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
     iIntros "!> !>".
     iSpecialize ("H" with "[Hl] [Hfrag]").
     { iFrame "Hl". }
@@ -183,7 +183,7 @@ Section imp_stop.
   (* [CLoadBlock] via ghost map: use the persistent [isBlockLocs] to justify the step.
      This avoids requiring physical block ownership for read-only array operations. *)
 
-  Lemma imp_stop_load_block_ghost (l : syntax.block) ls (k: _ → micro A X) :
+  Lemma imp_stop_load_block_ghost (l : loc) ls (k: _ → micro A X) :
     ▷ isBlockLocs l ls -∗
     ▷ (∀ t,
         imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
@@ -751,10 +751,10 @@ Section imp_combinators.
     iApply "H". iFrame.
   Qed.
   (* [CAllocBlock]. *)
-  Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} ls :
+  Lemma imp_alloc_block2 {Φ : syntax.block → iProp Σ} t ls :
     ⌜length ls ≤ max_array_length⌝ -∗
-    ▷ (∀ l, l ⤇ Mut -∗ isBlockLocs l ls -∗ Φ l) -∗
-    impure E (alloc_block ls) Ψ ζ Φ.
+    ▷ (∀ (l : loc), l ⤇ t -∗ isBlockLocs l ls -∗ Φ l) -∗
+    impure E (alloc_block t ls) Ψ ζ Φ.
   Proof.
     iIntros "%Hbound H".
     iApply (imp_stop_alloc_block with "[%]"). assumption.
@@ -762,9 +762,9 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("H" with "Hl Harr").
   Qed.
-  Lemma imp_alloc_block ls :
+  Lemma imp_alloc_block t ls :
     ⌜length ls ≤ max_array_length⌝ -∗
-    impure E (alloc_block ls) Ψ ζ (λ l, l ⤇ Mut ∗ isBlockLocs l ls).
+    impure E (alloc_block t ls) Ψ ζ (λ (l : syntax.block), (l : loc) ⤇ t ∗ isBlockLocs (l : loc) ls).
   Proof.
     iIntros "%Hbound".
     iApply (imp_alloc_block2 with "[%//]").
@@ -793,7 +793,7 @@ Section imp_combinators.
   Qed.
   (* [CLoadBlock]. *)
   Instance notval_dict : NotVal (mut_tag * list loc) := {}.
-  Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} l dq t ls :
+  Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} (l : loc) dq t ls :
     ▷ pointsto l dq (Dict t ls) ⊢
     ▷ (pointsto l dq (Dict t ls) -∗ Φ (t, ls)) -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -804,7 +804,7 @@ Section imp_combinators.
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
   Qed.
-  Lemma imp_load_block l dq t ls :
+  Lemma imp_load_block (l : loc) dq t ls :
     ▷ pointsto l dq (Dict t ls) ⊢
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
   Proof.
@@ -814,7 +814,7 @@ Section imp_combinators.
   Qed.
   (* Ghost-based load_block: use [isBlockLocs] (persistent ghost entry) to load the block.
      Returns the tag [t] without requiring physical block ownership. *)
-  Lemma imp_load_block_ghost (l : syntax.block) ls :
+  Lemma imp_load_block_ghost (l : loc) ls :
     ▷ isBlockLocs l ls -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜ls' = ls⌝ }}.
   Proof.

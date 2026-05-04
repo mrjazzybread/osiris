@@ -322,7 +322,7 @@ Section PathRule.
   Proof.
     iIntros "(% & %Hlookup & Hspec)".
     simpl_eval.
-    iApply imp_widen.
+    iApply imp_of_option.
     rewrite Hlookup.
     iExists x; auto.
   Qed.

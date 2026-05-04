@@ -13,29 +13,22 @@ From osiris.program_logic.pure Require Import
 (* A judgement for the evaluation of structure items. *)
 
 Definition struct_item ηδ item (φ : envs -> Prop) :=
-  pure_wp (eval_sitem ηδ item) φ (λ _, False).
+  pure (eval_sitem ηδ item) φ (λ _, False).
 
 Definition struct_items ηδ sitems (φ : envs -> Prop) :=
-  pure_wp (eval_sitems ηδ sitems) φ (λ _, False).
+  pure (eval_sitems ηδ sitems) φ (λ _, False).
 
 
 (* A judgement for the evaluation of module expressions. *)
 
 Definition eval_module η me (φ : env -> Prop) :=
-  pure_wp (eval_mexpr η me) (λ v, match v with
-                                 | VStruct η' => φ η'
-                                 | _ => False
-                                 end) (λ _, False).
+  pure (eval_mexpr η me) φ (λ _, False).
 
 
 (* A judgement for module coercion. *)
 
 Definition coerces c η (φ : env -> Prop) :=
-  match coerce c (VStruct η) with
-  | Some (VStruct η') => φ η'
-  | _ => False
-  end.
-
+  pure (of_option (coerce c (VStruct η))) φ (λ (_ : exn), False).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -44,7 +37,7 @@ Lemma struct_consequence ηδ item (φ φ' : envs -> Prop) :
   (∀ ηδ, φ ηδ -> φ' ηδ) ->
   struct_item ηδ item φ'.
 Proof.
-  unfold struct_item. eauto using pure_wp_mono.
+  unfold struct_item. eauto using pure_mono.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -57,7 +50,7 @@ Lemma structs_nil ηδ (φ : envs -> Prop) :
 Proof.
   unfold struct_items.
   simpl_eval_sitems.
-  by apply pure_wp_ret.
+  apply pure_ret. destruct ηδ. auto.
 Qed.
 
 Lemma structs_cons_unary ηδ item items (φ : envs -> Prop) :
@@ -66,8 +59,8 @@ Lemma structs_cons_unary ηδ item items (φ : envs -> Prop) :
 Proof.
   unfold struct_items, struct_item. intros.
   simpl_eval_sitems.
-  apply pure_wp_bind.
-  eapply pure_wp_mono; eauto.
+  apply pure_bind_unary.
+  eapply pure_mono; eauto. intros [??]. auto.
 Qed.
 
 Lemma structs_cons ηδ item items φ ψ :
@@ -77,7 +70,8 @@ Lemma structs_cons ηδ item items φ ψ :
 Proof.
   unfold struct_items, struct_item. intros.
   simpl_eval_sitems.
-  eapply pure_wp_bind_conseq; eauto.
+  eapply pure_bind; eauto.
+  intros [??]; auto.
 Qed.
 
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
@@ -88,7 +82,9 @@ Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILet bs) φ.
 Proof.
   unfold struct_item; simpl_eval_sitem; intros.
-  eapply pure_wp_bind_conseq; eauto using pure_wp_ret.
+  eapply pure_bind; eauto.
+  intros.
+  eapply pure_ret; eauto. encode.
 Qed.
 
 Lemma unfold_struct_letrec η δ rbs (φ : envs -> Prop) ψ :
@@ -97,7 +93,8 @@ Lemma unfold_struct_letrec η δ rbs (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILetRec rbs) φ.
 Proof.
   unfold struct_item; intros.
-  simpl_eval_sitem; auto using pure_wp_ret.
+  simpl_eval_sitem.
+  eapply pure_ret; eauto. encode.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
@@ -109,16 +106,11 @@ Lemma struct_let_single η δ e name (spec : val -> Prop) :
                    δ0 = [(name, clo)] ++ δ) .
 Proof.
   intros; unfold struct_item; simpl_eval_sitem.
-  eapply pure_wp_bind.
-  eapply bindings_cons.
-  { eapply H. }
-  { intros a Ha. apply pat_PVar.
-    instantiate (1:=(λ η, ∃ a, η = [(_, _)] ∧ spec a)).
-    exists a; auto. }
-  { apply bindings_nil. apply eq_refl. }
-  intros ?? (? & -> & HSpec) <-.
-  apply pure_wp_ret.
-  eauto.
+  eapply pure_bind_unary.
+  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
+  intros v ? Hspec <-.
+  apply pat_PVar.
+  eapply (pure_ret _ _ _ ((name ¬> #v) ++ η, (name ¬> #v) ++ δ)); eauto.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
@@ -127,13 +119,13 @@ Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
   intros; unfold struct_item; simpl_eval_sitem.
-  eapply pure_wp_bind.
-  eapply bindings_cons.
-  { eapply H. }
-  { intros ? Hpat; apply Hpat. }
-  { apply bindings_nil. apply eq_refl. }
-  intros ?? Hpat <-.
-  eapply pure_wp_ret. rewrite app_nil_r. auto.
+  eapply pure_bind_unary.
+  eapply bindings_cons. { eapply H. } { apply bindings_nil. apply eq_refl. }
+  intros v ? Hpat <-.
+  simpl in Hpat.
+  eapply pattern_mono; [ apply Hpat | | auto ].
+  intros η' HΨ.
+  eapply pure_ret; eauto. encode.
 Qed.
 
 Lemma struct_letrec_single η δ name af (spec : val -> Prop) :
@@ -147,7 +139,9 @@ Lemma struct_letrec_single η δ name af (spec : val -> Prop) :
 Proof.
   intros; unfold struct_item.
   simpl_eval_sitem.
-  apply pure_wp_ret; eauto.
+  eapply (pure_ret _ _ _ (name ~> VCloRec η [RecBinding name af] name;
+         η, name ~> VCloRec η [RecBinding name af] name;
+         δ)); eauto.
 Qed.
 
 Lemma struct_external η δ x e (spec : val -> Prop) :
@@ -163,7 +157,9 @@ Proof.
   apply pure_wp_bind.
   eapply pure_wp_mono_ret. eassumption.
   intros f (? & -> & ?).
-  apply pure_wp_ret; eauto.
+  eapply (pure_ret _ _ _ (x ~> ♯x0;
+   η, x ~> ♯x0;
+   δ)); eauto.
 Qed.
 
 Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
@@ -173,8 +169,8 @@ Lemma struct_module η δ m me (φ : envs -> Prop) (φ' : env -> Prop) :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_conseq; eauto.
-  intros []; try contradiction; eauto using pure_wp_ret.
+  eapply pure_bind; eauto.
+  intros η' Hφ'. eapply pure_ret; eauto. encode.
 Qed.
 
 Lemma struct_open η δ me (φ : envs -> Prop) (φ' : env -> Prop) :
@@ -184,12 +180,11 @@ Lemma struct_open η δ me (φ : envs -> Prop) (φ' : env -> Prop) :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_conseq.
+  eapply pure_bind.
   { unfold as_struct.
-    eapply pure_wp_bind_conseq; eauto.
-    intros [] Hx; try contradiction.
-    eauto using pure_wp_ret. }
-  eauto using pure_wp_ret.
+    eapply pure_bind; eauto.
+    intros η' Hφ'. eapply pure_ret; eauto. }
+  intros η' Hφ'. eapply pure_ret; eauto. encode.
 Qed.
 
 Lemma struct_include η δ me (φ : envs -> Prop) module_spec :
@@ -200,12 +195,11 @@ Lemma struct_include η δ me (φ : envs -> Prop) module_spec :
 Proof.
   unfold struct_item; intros.
   simpl_eval_sitem.
-  eapply pure_wp_bind_conseq.
+  eapply pure_bind.
   { unfold as_struct.
-    eapply pure_wp_bind_conseq; eauto.
-    intros [] Hx; try contradiction;
-      eauto using pure_wp_ret. }
-  eauto using pure_wp_ret.
+    eapply pure_bind; eauto.
+    intros η' Hφ'. eapply pure_ret; eauto. }
+  intros η' Hφ'. eapply pure_ret; eauto. encode.
 Qed.
 
 (* Rec *)
@@ -236,7 +230,7 @@ Proof.
   intros x HP.
   eapply pure_rec_call; eauto.
   intros ????.
-  eapply pure_eval_match. { eapply pure_eval_path; eauto. }
+  eapply pure_eval_match. { eapply pure_eval_path; reflexivity. }
   eauto.
 Qed.
 
@@ -309,13 +303,10 @@ Qed.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->
-  pure (eval_mexpr η me) (λ v, match v with
-                               | VStruct η => φ η
-                               | _ => False
-                               end) ⊥.
+  pure (eval_mexpr η me) φ ⊥.
 Proof.
   repeat intro.
-  eapply pure_wp_mono; intros; eauto with pure_wp.
+  eapply pure_mono; intros; eauto with pure.
 Qed.
 
 Lemma module_struct η sitems φ :
@@ -324,8 +315,9 @@ Lemma module_struct η sitems φ :
 Proof.
   intros; unfold eval_module.
   simpl_eval_mexpr.
-  eapply pure_wp_bind_conseq; [ eassumption | ].
-  intros [??]; auto using pure_wp_ret.
+  eapply pure_bind; [ eassumption | ].
+  intros [??] Hφ.
+  eapply pure_ret; eauto.
 Qed.
 
 Lemma module_struct_let η bs sitems φ ψ :
@@ -341,16 +333,16 @@ Proof.
     intros; rewrite app_nil_r; by apply Hψsitems. }
 Qed.
 
-Lemma module_path η π φ :
-  match lookup_path η π with
-  | Some (VStruct η) => φ η
-  | _ => False
-  end →
+Lemma module_path η π φ m :
+  lookup_path η π = Some #m →
+  φ m →
   eval_module η (MPath π) φ.
 Proof.
-  unfold eval_module; simpl_eval_mexpr; intros.
-  apply pure_wp_widen.
-  destruct (lookup_path η π); [ eauto | contradiction ].
+  intros Hlookup Hφ.
+  unfold eval_module; simpl_eval_mexpr.
+  eapply pure_wp_widen.
+  rewrite Hlookup.
+  exists m. auto.
 Qed.
 
 Lemma module_coercion η me c φ :
@@ -360,9 +352,7 @@ Lemma module_coercion η me c φ :
 Proof.
   intros; unfold eval_module.
   simpl_eval_mexpr.
-  eapply pure_wp_bind_conseq; [ eassumption | ].
-  intros [] Hx; try contradiction; apply pure_wp_widen;
-    unfold coerces in *; auto.
-  specialize (H0 xvs Hx).
-  destruct (coerce c (VStruct xvs)); [ eauto | contradiction ].
+  eapply pure_bind; [ eassumption | ].
+  intros m Hφ.
+  unfold coerces in *; auto.
 Qed.

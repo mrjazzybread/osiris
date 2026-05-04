@@ -4,6 +4,7 @@ From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
+From osiris.lang Require Import locations.
 From osiris.program_logic Require Import thread_step.
 From osiris Require Export thread_ids syntax semantics.
 
@@ -96,7 +97,7 @@ Section ghost_instances.
       #[global] osiris_thread_gen_GpreS :: gen_heapGpreS thread gname Σ;
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
       osiris_tokenG :: tokenG Σ;
-      #[global] osiris_array_ghostG :: ghost_mapG Σ syntax.block (list locations.loc);
+      #[global] osiris_array_ghostG :: ghost_mapG Σ locations.loc (list locations.loc);
     }.
 
   (* The [osirisGS] typeclass is what we use in our proofs.
@@ -117,7 +118,7 @@ Section ghost_instances.
       (* savedPropG is inherited from osirisGpreS via osiris_inG *)
       (* This gives us tokens, for resource transfer when joining threads *)
       (* This gives us a ghost map tracking array locations (persistent per array). *)
-      osiris_array_ghostGS :: ghost_mapG Σ syntax.block (list locations.loc);
+      osiris_array_ghostGS :: ghost_mapG Σ locations.loc (list locations.loc);
       osiris_array_name : gname;
     }.
 
@@ -130,7 +131,7 @@ Definition osirisΣ : gFunctors :=
      gen_heapΣ thread gname;
      savedPredΣ (outcome2 val exn);
      tokenΣ;
-     ghost_mapΣ syntax.block (list locations.loc)
+     ghost_mapΣ locations.loc (list locations.loc)
     ].
 
 (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
@@ -165,10 +166,10 @@ Definition isShot `{osirisGS} (k : cont) : iProp Σ :=
 (* Ownership of memory blocks. *)
 
 (* We declare that [block] can be used as keys for pointstos. *)
-Global Instance osiris_block_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS syntax.block mem_block Σ.
-Proof. unfold block; simpl. apply (osiris_genGS Σ). Defined.
+Global Instance osiris_block_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS locations.loc mem_block Σ.
+Proof. apply (osiris_genGS Σ). Defined.
 
-Definition isBlock `{osirisGS Σ} (b : block) dq t : iProp Σ :=
+Definition isBlock `{osirisGS Σ} (b : locations.loc) dq t : iProp Σ :=
   ∃ ls, gen_heap.pointsto b dq (Dict t ls).
 
 Notation "b ⤇ dq t" :=
@@ -221,9 +222,9 @@ Section state_interp.
 
   (* Coherence between the ghost array map σ' and the physical store σ:
      every array registered in σ' has a corresponding block in σ with the same locations. *)
-  Definition array_coherent (σ' : gmap syntax.block (list locations.loc)) (σ : store) : Prop :=
-    ∀ (a : locations.loc) (ls : list locations.loc),
-      σ' !! (a : syntax.block) = Some ls → ∃ t : mut_tag, σ !! a = Some (Dict t ls).
+  Definition array_coherent (σ' : gmap locations.loc (list loc)) (σ : store) : Prop :=
+    ∀ (a : loc) (ls : list loc),
+      σ' !! (a : loc) = Some ls → ∃ t : mut_tag, σ !! a = Some (Dict t ls).
 
   Definition array_interp (σ : store) : iProp Σ :=
     ∃ σ', ghost_map_auth (osiris_array_name Σ) 1 σ' ∗ ⌜array_coherent σ' σ⌝.
@@ -235,11 +236,14 @@ Section state_interp.
     (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
 
   (* [isBlockLocs a ls] is the persistent ghost knowledge that array [a] has locations [ls]. *)
-  Definition isBlockLocs (a : syntax.block) (ls : list locations.loc) : iProp Σ :=
+  Definition isBlockLocs (a : loc) (ls : list locations.loc) : iProp Σ :=
     (a ↪[osiris_array_name Σ]□ ls ∗ ⌜(list_z.length ls ≤ int.max_array_length)%Z⌝)%I.
 
   Global Instance isBlockLocs_pers a ls : Persistent (isBlockLocs a ls).
   Proof. apply _. Qed.
+
+  Global Instance isBlockLocs_pers_block (a : syntax.block) ls : Persistent (isBlockLocs a ls) :=
+    isBlockLocs_pers a ls.
 
   Lemma isBlockLocs_valid a ls1 ls2 :
     isBlockLocs a ls1 -∗ isBlockLocs a ls2 -∗ ⌜ls2 = ls1⌝.
@@ -263,7 +267,7 @@ Section state_interp.
     iApply (gen_heap_valid with "Hmem Hl").
   Qed.
 
-  Lemma osiris_state_valid_array σ (l : syntax.block) ls :
+  Lemma osiris_state_valid_array σ (l : loc) ls :
     osiris_state_interp σ -∗
     l ↪[osiris_array_name Σ]□ ls -∗
     ∃ t, ⌜σ !! (l : locations.loc) = Some (Dict t ls)⌝.
@@ -289,7 +293,7 @@ Section state_interp.
     osiris_state_interp σ ==∗
     osiris_state_interp (<[l := v]>σ) ∗ pointsto l (DfracOwn 1) v ∗ meta_token l ⊤ ∗
     match block_view v with
-    | dict_view _ ls => (l : syntax.block) ↪[osiris_array_name Σ]□ ls
+    | dict_view _ ls => (l : loc) ↪[osiris_array_name Σ]□ ls
     | ndict_view _ _ => True
     end.
   Proof.
@@ -297,15 +301,15 @@ Section state_interp.
     iMod (gen_heap_alloc σ l v with "Hmem") as "(Hmem & Hl & Hmeta)"; first done.
     destruct (block_view v).
     - (* Dict: register the new block in the ghost array map. *)
-      iAssert ⌜σ' !! (l : syntax.block) = None⌝%I as "%HA_fresh".
+      iAssert ⌜σ' !! (l : loc) = None⌝%I as "%HA_fresh".
       { iPureIntro. apply not_elem_of_dom. intros Hin.
         apply elem_of_dom in Hin as (ls' & Hlookup).
         destruct (Hcoh l ls' Hlookup) as (? & Hσl).
         rewrite Hσl in Hfresh. done. }
-      iMod (ghost_map_insert (l : syntax.block) ls with "Hauth") as "(Hauth & Hfrag)"; first done.
+      iMod (ghost_map_insert (l : loc) ls with "Hauth") as "(Hauth & Hfrag)"; first done.
       iMod (ghost_map.ghost_map_elem_persist with "Hfrag") as "Hfrag".
       iModIntro. iSplitL "Hmem Hauth"; last iFrame.
-      iFrame "Hmem". iExists (<[(l : syntax.block) := ls]>σ'). iFrame. iPureIntro.
+      iFrame "Hmem". iExists (<[(l : loc) := ls]>σ'). iFrame. iPureIntro.
       intros a ls_a Hlookup.
       destruct (decide (a = l)) as [->|Hne].
       + rewrite lookup_insert in Hlookup. simplify_map_eq.

@@ -92,7 +92,7 @@ Section verification.
   Local Instance : Encode effect := encode_effect shift_eff.
 
   Lemma establish_shift_spec η :
-    lookup_name η "Shift" = Some #shift_eff →
+    lookup_name η "Shift" = ret (VLoc shift_eff) →
     ⊢ imp eval η (EAnonFun __fun0)
       {{ λ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
@@ -118,7 +118,7 @@ Section verification.
   Qed.
 
   Lemma establish_reset_spec η :
-    lookup_name η "Shift" = Some #shift_eff →
+    lookup_name η "Shift" = ret (VLoc shift_eff) →
     ⊢ imp eval η (EAnonFun __fun2)
       {{ λ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.

@@ -224,7 +224,7 @@ Section verification.
     Proof. by rewrite /prot /ψ_yield (upcl_tele' [tele _ _] [tele]) //=. Qed.
 
     Lemma yield_handler_correct γ (Ys : list A) η :
-      lookup_name η "Yield" = Some #l →
+      lookup_name η "Yield" = ret (VLoc l) →
       handlerView γ Ys -∗
       (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
          (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)

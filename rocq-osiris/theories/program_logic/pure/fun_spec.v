@@ -658,10 +658,9 @@ Proof.
   intros isLambda Hwf Hmkspec He2.
   eapply lambda_depth_to_vclorec in isLambda.
   unfold struct_item. simpl_eval_sitem.
-  eapply pure_wp_ret.
-  eapply He2.
-  eapply prove_aSpec_rec; eauto.
-  apply by_unfold_spec; eauto.
+  eapply pure_ret.
+  2: { eapply He2. eapply prove_aSpec_rec; eauto. apply by_unfold_spec; eauto. }
+  simpl. reflexivity.
 Qed.
 
 Lemma structs_letrec (τ : types)

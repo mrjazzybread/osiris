@@ -98,10 +98,10 @@ Lemma pat_pLeaf `{Encode A} η δ v (t : tree A) (φ : env -> Prop) :
 Proof.
     intros; subst.
   destruct t.
-  { eapply pattern_mono_exn.
+  { eapply pattern_exn_mono.
     { eapply pat_PData_eq; pats. }
     destruct 1. }
-  { eapply pattern_mono_exn.
+  { eapply pattern_exn_mono.
     { eapply pat_PData_neq; auto. }
     congruence. }
 Qed.
@@ -125,7 +125,7 @@ Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
     (t = Leaf \/ (exists t1 a t2, t = Node t1 a t2 /\ (ψ1 t1 \/ ψ2 a \/ ψ3 t2))).
 Proof.
   intros -> Hcov.
-  destruct t; eapply pattern_mono_exn.
+  destruct t; eapply pattern_exn_mono.
   { eapply pat_PData_neq; eauto. }
   { auto. }
   { eapply pat_PData_eq; pats ; eauto. }
@@ -197,9 +197,9 @@ Section Proofs.
 Variable η : env.
 
 Lemma insert_mkspec insert (x : Z) (t : tree Z) :
-  (lookup_name η "v" = Some #t) ->
-  (lookup_name η "x" = Some #x) ->
-  (lookup_name η "insert" = Some insert) ->
+  (lookup_name η "v" = ret #t) ->
+  (lookup_name η "x" = ret #x) ->
+  (lookup_name η "insert" = ret insert) ->
   bst t ->
   representable x ->
   Spec τ[Z * tree Z] insert
@@ -211,10 +211,16 @@ Lemma insert_mkspec insert (x : Z) (t : tree Z) :
 Proof.
   intros Hv Hx Hinsert Ht Hrepr IH.
   eapply @pure_eval_match with (A := tree Z).
-  { pure_path. }
+  { apply pure_eval_path. simpl; rewrite Hv. pure_ret. }
   pure_match.
   - (* Case: [v] matches [Leaf] *)
-    pure_data.
+    apply pure_eval_data.
+    eapply (@pure_evals_cons (tree Z)). pure_const.
+    eapply (@pure_evals_cons Z).
+    apply pure_eval_path. simpl lookup_path; rewrite Hx. pure_ret.
+    eapply (@pure_evals_cons (tree Z)). pure_const.
+    eapply pure_evals_nil.
+    eexists. split; [ encode | ].
     intro z; cbn.
     destruct (z <? x) eqn:Hlt'; first lia.
     destruct (x <? z) eqn:Hlt; first lia.
@@ -223,7 +229,9 @@ Proof.
     eapply pure_eval_ifthenelse.
     { (* Evaluate the condition [x < y] *)
       inversion Ht; subst.
-      eapply pure_eval_EOpLt; try pure_path; assumption. }
+      eapply pure_eval_EOpLt; try pure_path.
+      eapply pure_eval_path. simpl; rewrite Hx; pure_ret.
+      assumption. assumption. }
 
     (* Case: [z < a] *)
     { intros Hlt.
@@ -231,9 +239,10 @@ Proof.
       apply pure_eval_data.
       eapply (@pure_evals_cons (tree Z)).
       eapply (pure_EApp τ[(Z * tree Z)]).
-      { pure_path. apply IH. }
+      { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
       apply pure_eval_pair.
-      { pure_path. pure_path. apply eq_refl. }
+      { eapply pure_eval_path. simpl lookup_path. rewrite Hx. pure_ret.
+        pure_path. apply eq_refl. }
       intros [??] Heqp m Hm; fold evals; simpl in Hm.
       apply pair_equal_spec in Heqp as [-> ->].
       eapply pure_ret_mono.
@@ -257,7 +266,9 @@ Proof.
     { intros Hge.
       eapply pure_eval_ifthenelse.
       { inversion Ht; subst.
-        eapply pure_eval_EOpGt; try pure_path; assumption. }
+        eapply pure_eval_EOpGt; try pure_path.
+        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+        assumption. assumption. }
 
       (* Subcase: [ ¬ (x < a)] *)
       { intros Hgt.
@@ -266,9 +277,10 @@ Proof.
         eapply (@pure_evals_cons Z). pure_path.
         eapply (@pure_evals_cons (tree Z)).
         eapply (pure_EApp τ[(Z * tree Z)%type]).
-        { pure_path. apply IH. }
+        { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
         { eapply pure_eval_pair.
-          { pure_path. pure_path. apply eq_refl. } }
+          { eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+            pure_path. apply eq_refl. } }
         intros [??] Heqp m Hm; simpl in Hm.
         apply pair_equal_spec in Heqp as [-> ->].
         eapply pure_ret_mono.
@@ -296,9 +308,9 @@ Proof.
 Qed.
 
 Lemma member_mkspec member (x : Z) (t : tree Z) :
-  (lookup_name η "v" = Some #t) ->
-  (lookup_name η "x" = Some #x) ->
-  (lookup_name η "member" = Some member) ->
+  (lookup_name η "v" = ret #t) ->
+  (lookup_name η "x" = ret #x) ->
+  (lookup_name η "member" = ret member) ->
   bst t ->
   representable x ->
   Spec τ[Z * tree Z] member
@@ -309,7 +321,7 @@ Lemma member_mkspec member (x : Z) (t : tree Z) :
 Proof.
   intros Hv Hx Hmember Ht Hrepr IH.
   eapply pure_eval_match.
-  { pure_path. }
+  { eapply pure_eval_path. simpl. rewrite Hv. pure_ret. }
   pure_match.
   (* The case when [v] is a [Leaf] is trivial. *)
   pure_data.
@@ -318,14 +330,17 @@ Proof.
   rename a into y.
   eapply pure_eval_ifthenelse.
   { inversion Ht; subst.
-    eapply pure_eval_EOpLt; try pure_path; assumption. }
+    eapply pure_eval_EOpLt; try pure_path.
+    eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+    assumption. assumption. }
 
   (* Case: [x < y] *)
   { intros Hlt.
     eapply (pure_EApp τ[(Z * tree Z)%type]).
-    { pure_path. apply IH. }
+    { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
     { eapply pure_eval_pair.
-      pure_path. pure_path. apply eq_refl. }
+      eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+      pure_path. apply eq_refl. }
     intros [??] Heqp m Hm; simpl in Hm.
     apply pair_equal_spec in Heqp as [-> ->].
     eapply pure_ret_mono.
@@ -340,14 +355,17 @@ Proof.
     intros Hge.
     eapply pure_eval_ifthenelse.
     { inversion Ht; subst.
-      eapply pure_eval_EOpGt; try pure_path; assumption. }
+      eapply pure_eval_EOpGt; try pure_path.
+      apply pure_eval_path. simpl. rewrite Hx. pure_ret.
+      assumption. assumption. }
 
     (* Subcase: [x > y] *)
     { intros Hgt.
       eapply (pure_EApp τ[(Z * tree Z)]).
-      { pure_path. apply IH. }
+      { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
       { eapply pure_eval_pair.
-        pure_path. pure_path. apply eq_refl. }
+        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+        pure_path. apply eq_refl. }
       intros [??] Heqp m Hm.
       apply pair_equal_spec in Heqp as [-> ->].
       eapply pure_ret_mono.
@@ -385,7 +403,7 @@ Proof.
     intros insert [x t] IH Ht Hrepr.
     apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
-    { pure_path. }
+    { pure_path. eapply solve_encode_tuple2; try encode. }
     pure_match.
     eapply insert_mkspec; auto. }
 
@@ -400,7 +418,7 @@ Proof.
     intros member [x t] IH Ht Hrepr.
     apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
-    { pure_path. }
+    { pure_path. eapply solve_encode_tuple2; try encode. }
     pure_match.
     eapply member_mkspec; auto. }
 

@@ -94,18 +94,17 @@ Section imp_eval.
   Proof.
     iIntros "He Hpat Hbs".
     simpl_eval_bindings.
-    iApply (imp_bind_par with "[He Hpat] Hbs").
-    { iApply (imp_bind with "He").
-      iIntros (?) "HΦ". iApply imp_widen.
-      iDestruct ("Hpat" with "HΦ") as "%Hpat".
-      unfold pattern in Hpat. simpl.
-      destruct (eval_pat η [] p #x).
-      - instantiate (1 := (λ η, ∃ x, Φ x ∗ ⌜P x η⌝)%I).
-        iFrame. iFrame "%". auto.
-      - contradiction. }
-    iIntros (η' δ) "(%a & HΦ & HP) Hη".
-    iApply imp_ret. reflexivity.
-    iFrame. auto.
+    iApply (imp_bind_par (A1:=A) with "He Hbs").
+    iIntros (a δ') "HΦ HQ !>".
+    iDestruct ("Hpat" with "HΦ") as "%Hpat".
+    iApply (imp_wand _ _ _ _ (λ η, ⌜∃ η', η = η' ++ δ' ∧ P a η'⌝)%I with "[] [-]"); last first.
+    { iIntros (?) "(%η' & -> & %HP)".
+      iFrame. by iFrame "%". }
+    iApply impure_pure.
+    apply binding_rules.pure_irrefutably_extend.
+    eapply (iffRL (binding_rules.pattern_app η δ' p #a _ False)).
+    eapply pattern_env_mono. { apply Hpat. }
+    intros η' HP. exists η'. auto.
   Qed.
 
   Lemma imp_bindings_nil η :

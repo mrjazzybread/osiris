@@ -56,11 +56,11 @@ Section proof_pure.
       unfold head_spec; intros l.
       change encode_list with (@encode.encode (list A) _).
       apply pure_please_eval.
-      eapply pure_eval_match. { pure_path. }
+      eapply pure_eval_match. { eapply pure_eval_path. eapply pure_ret. reflexivity. reflexivity. }
       pure_match.
       - eapply pure_eval_raise.
-        simpl_eval. rewrite !bind_ret. pure_ret.
-      - pure_path. eauto. }
+        simpl_eval. pure_ret.
+      - pure_path. }
     intros head Hhead.
 
     (* Struct item: [let catch_head l = ...] *)
@@ -70,14 +70,14 @@ Section proof_pure.
       change encode_list with (@encode.encode (list A) _).
       apply pure_please_eval.
       eapply pure_eval_match'_exn.
-      - eapply (pure_EApp τ[list A]). { pure_path. eassumption. }
-        pure_path. apply eq_refl.
+      - eapply (pure_EApp τ[list A]). pure_path. { pure_path; apply eq_refl. }
         simpl.
         intros l' <- m Hm. apply Hm.
       - intros h (t & ->). pure_match.
-        pure_data.
+        apply pure_eval_data. eapply pure_evals_cons.
+        pure_path. apply pure_evals_nil. encode.
       - intros e (-> & ->). pure_match.
-        pure_const. reflexivity. }
+        eapply pure_eval_const. encode. reflexivity. }
     intros catch_head Hcatch_head.
 
     (* Struct item: [let catch_head2 l = ...] *)
@@ -87,8 +87,7 @@ Section proof_pure.
       apply pure_please_eval.
       eapply pure_eval_match'_exn.
       { eapply pure_eval_data. eapply pure_evals_cons.
-        eapply (pure_EApp τ[list A]).
-        { pure_path. eassumption. } pure_path; apply eq_refl.
+        eapply (pure_EApp τ[list A]). pure_path. pure_path; apply eq_refl.
         simpl.
         intros ? <- m Hm.
         eapply pure_ret_mono; [ apply Hm | intros a (t & Ht) ]; fold evals.

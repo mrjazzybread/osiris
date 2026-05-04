@@ -581,10 +581,13 @@ Section handler_proof.
     imp (eval_branches η o (Branch cp e :: bs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     simpl_eval_branches.
-    iIntros "%Hpat Hmono". unfold cpattern in Hpat.
-    destruct (eval_cpat η η cp o).
-    - iApply "Hmono". iFrame "%".
-    - iApply "Hmono". iFrame "%".
+    iIntros "%Hpat Hmono".
+    iApply (imp_try2 _ _ (eval_cpat η η cp o) with "[] [Hmono]").
+    { iApply impure_pure2. apply Hpat. }
+    iSplit.
+    - iDestruct "Hmono" as "[$ _]".
+    - iDestruct "Hmono" as "[_ Hmono]".
+      iIntros ([]). iApply "Hmono".
   Qed.
 
   Lemma deep_handle_cons_skip η o cp e bs (Φ : A → iProp Σ) :
@@ -595,9 +598,9 @@ Section handler_proof.
     iIntros (Hvalid) "Hmatch".
     iApply deep_handle_cons.
     { iPureIntro. unfold cpattern.
-      instantiate (2 := λ _, False).
-      instantiate (1 := True).
-      rewrite invert_valid_match; [ done | assumption ]. }
+      rewrite invert_valid_match; [ | assumption ].
+      instantiate (1 := True); instantiate (1 := λ _, False).
+      constructor. apply I. }
     iSplit.
     - iIntros (?) "[]".
     - iIntros (_). iApply "Hmatch".

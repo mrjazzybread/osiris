@@ -230,7 +230,7 @@ Local Ltac2 rec solve_lookup_path () :=
   | [ |- bind (lookup_name ?η ?c) _ = _ ] =>
       erewrite -> (rewrite_bind (lookup_name $η $c)) >
         [ solve_lookup_name () | solve_lookup_path () ]
-  | [ |- Some _ = Some _ ] => reflexivity
+  | [ |- ret _ = ret _ ] => reflexivity
   end.
 
 Local Ltac2 rec is_pattern (c : constr) :=
@@ -439,7 +439,7 @@ Local Ltac2 patterns () :=
       if (Constr.is_evar ψ) then
         eapply pats_PNil
       else
-        eapply patterns_mono_exn > [ eapply pats_PNil | intros [] ]
+        eapply patterns_exn_mono > [ eapply pats_PNil | intros [] ]
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
@@ -825,25 +825,22 @@ Ltac2 pure_path0 () : unit :=
   match! e with
   | (EPath _) =>
       (* [pure_eval_path : *)
-(*           ∃ a, lookup_path η π = Some #a ∧ ψ a -> pure (eval η (EPath π)) ##ψ ⊥] *)
+(*           pure (lookup_path η π) ##ψ ⊥ -> pure (eval η (EPath π)) ##ψ ⊥] *)
       eapply pure_eval_path;
-      eexists; split;
-      Control.focus 1 1 (fun _ =>
       simpl lookup_path;
       lazy_match! goal with
       (* If the lookup has not reduced to a result, try and use a hypothesis. *)
-      | [ h_ident : lookup_name ?_η ?_π = Some _
-          |- lookup_name ?_η ?_π = _ ] =>
+      | [ h_ident : lookup_name ?_η ?_π = ret _
+          |- pure (lookup_name ?_η ?_π) _ _ ] =>
           let h := Control.hyp h_ident in
-          apply $h
-      | [ |- Some _ = Some _ ] =>
-          f_equal; ltac1:(encode)
-      | [ |- _ ] => ltac1:(encode)
-      end)
+          rewrite [$h]; pure_ret
+      (* If the lookup has reduced to a result, use [pure_ret]. *)
+      | [ |- _] => pure_ret
+      end
   end.
 
-Ltac2 Notation "pure_path" := Control.enter (fun _ => pure_path0 (); try reflexivity).
-Tactic Notation "pure_path" := ltac2:(pure_path).
+Ltac2 Notation "pure_path" := Control.enter pure_path0.
+Tactic Notation "pure_path" := ltac2:(pure_path; try reflexivity).
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) ##φ ⊥].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
@@ -1012,12 +1009,13 @@ Ltac2 rec pure_data () :=
       first (fun _ => eapply pure_evals_eq;
                       unfold_Forall2 ();
                       try0 (fun _ => Control.plus
-                                       (fun _ => pure_data ())
-                                       (fun _ => pure_path)));
+                                       (fun _ => pure_path)
+                                       (fun _ => pure_data ())));
     ltac1:(rewrite /singleton; intros ? ->; encode)
     | ]; ltac1:(try encode).
 
-Tactic Notation "pure_data" := ltac2:(pure_data ()).
+Ltac2 Notation "pure_data" := Control.enter (fun _ => repeat0 pure_data).
+Tactic Notation "pure_data" := ltac2:(pure_data).
 
 (* -------------------------------------------------------------------------- *)
 

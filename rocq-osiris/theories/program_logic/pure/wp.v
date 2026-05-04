@@ -2,7 +2,6 @@ From Stdlib Require Import Program.Equality.
 From osiris Require Import base lang.
 From stdpp Require Import relations.
 From osiris.semantics Require Import code step eval pure.
-From osiris.program_logic.pure Require Import pattern_rules.
 
 (** This file defines the [pure_wp] predicate and its properties, which is used
   to state judgements about pure computations. *)
@@ -238,7 +237,7 @@ Section pure_wp_rules.
     eauto using pure_wp_try2.
   Qed.
 
-  Lemma pure_wp_orelse {A E} (m1 m2 : micro A E) φ ψ1 ψ :
+  Lemma pure_wp_orelse {A E E'} (m1 : micro A E') (m2 : micro A E) φ ψ1 ψ :
     pure_wp m1 φ ψ1 →
     (∀ e, ψ1 e → pure_wp m2 φ ψ) →
     pure_wp (orelse m1 m2) φ ψ.
@@ -1052,26 +1051,21 @@ Section pure_wp_rules.
     intros y Py. apply (invert_pure_wp_ret _ _ _ (Hm y Py)).
   Qed.
 
-  (** Compatibility with [widen] *)
+  (** Compatibility with [of_option] *)
 
-  Lemma pure_wp_widen_pat {E} η δ p v (φ : env → Prop) ψ :
-    pattern η δ p v φ False →
-    pure_wp (E := E) (widen (eval_pat η δ p v)) φ ψ.
+  Lemma pure_wp_widen {A E} (o : option A) φ ψ :
+    match o with
+    | Some a => φ a
+    | None => False
+    end →
+    pure_wp (E := E) (of_option o) φ ψ.
   Proof.
-    unfold widen, pattern.
-    intros P. destruct (eval_pat η δ p v); by constructor.
-  Qed.
-
-  Lemma pure_wp_widen {A E} o (φ : A → Prop) ψ :
-    (∃ a, o = Some a ∧ φ a) →
-    pure_wp (E := E) (widen o) φ ψ.
-  Proof.
-    destruct o; firstorder.
-    - apply pure_wp_ret. inversion H. by subst.
-    - discriminate.
+    unfold of_option. destruct o; last destruct 1.
+    apply pure_wp_ret.
   Qed.
 
 End pure_wp_rules.
+
 
 Section pure_wp_reversible_rules.
 

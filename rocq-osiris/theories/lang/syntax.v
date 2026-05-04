@@ -108,7 +108,7 @@ Inductive pat :=
      location, which serves as a dynamically-allocated name. *)
   | PXData (π : path) (ps : list pat)
   (* A record pattern. *)
-  | PRecord (fps : list (field * pat))
+  | PRecord (fps : list (var * pat))
   (* A literal integer pattern. *)
   | PInt (i : Z)
   (* A literal character pattern. *)

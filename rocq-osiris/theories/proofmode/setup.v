@@ -30,12 +30,10 @@ Arguments val_as_loc _ !v /.
 Arguments val_as_cont _ !v /.
 Arguments val_as_int !v /.
 Arguments val_as_record !v /.
-Arguments val_as_struct _ !v /.
+Arguments val_as_struct {X} !v / : rename.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
-Arguments eval.E.remove !f !fvs : simpl nomatch.
-Arguments update !fvs !fvs' : simpl nomatch.
 Arguments eval_pat η δ !p v.
 Arguments eval_pats η δ !ps !vs.
 Arguments eval_fpats η δ !fps !fvs.

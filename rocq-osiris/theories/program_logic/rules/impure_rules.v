@@ -534,15 +534,28 @@ Section micro_combinators.
       iApply (imp_throw with "Hζ").
   Qed.
 
-  Lemma imp_widen (m : option V) :
-    match m with
-    | Some a => (ireturns Φ) a
-    | None => False
-    end -∗
+  Lemma imp_widen (m : micro V void) :
+    imp m @ E <|Ψ|> {{ Φ }} -∗
     imp (widen m) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
-    unfold widen. destruct m.
+    unfold widen.
+    iApply (imp_try with "Himp").
+    iSplit.
+    - iIntros (a) "HΦ".
+      iApply (imp_ret with "HΦ"); auto.
+    - iIntros (e []).
+  Qed.
+
+  Lemma imp_of_option (o : option V) :
+    match o with
+    | Some a => (ireturns Φ) a
+    | None => False
+    end -∗
+    imp (of_option o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Himp".
+    unfold of_option. destruct o.
     - iDestruct "Himp" as (a ->) "HΦ".
       iApply (imp_ret with "HΦ"); auto.
     - done.
@@ -569,9 +582,9 @@ Proof.
   iIntros ([??]) "$".
 Qed.
 
-Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} (m : micro V X) ζ Φ :
+Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} {E Ψ} (m : micro V X) ζ Φ :
   pure m Φ ζ →
-  ⊢ imp m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
+  ⊢ imp m @ E <|Ψ|> ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
@@ -581,16 +594,17 @@ Proof.
   iExists v; iFrame "%".
 Qed.
 
-Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} {X} (m : micro V X) Φ :
+Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} {X} {E Ψ ζ} (m : micro V X) Φ :
   pure m Φ ⊥ →
-  ⊢ imp m {{ λ x, ⌜Φ x⌝ }}.
+  ⊢ imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
   iApply (ewp_mono with "Hewp").
-  iIntros ([|]); last auto.
-  iIntros "(%v & %Henc & %HΦ)".
-  iExists v; iFrame "%".
+  iIntros ([|]).
+  - iIntros "(%v & %Henc & %HΦ)".
+    iExists v; iFrame "%".
+  - iIntros ([]).
 Qed.
 
 Section dynamic_checks.

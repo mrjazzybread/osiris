@@ -93,6 +93,9 @@ Global Instance observe_id `{NotVal A} : Observe A A | 1 := { observe := id }.
 
 Notation "♯ x" := (observe x) (at level 5, format "♯ x").
 
+Class ObserveInjective `{Observe A V} : Type :=
+  { observe_injective : ∀ a1 a2 : A, ♯a1 = ♯a2 → a1 = a2 }.
+
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
 

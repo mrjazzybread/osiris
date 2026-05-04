@@ -558,7 +558,7 @@ Section transparent_funs.
    iIntros (Hlookup) "He Hbody".
    simpl_eval.
    iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He").
-   { iApply imp_widen.
+   { iApply imp_of_option.
      instantiate (1 := (λ f, ⌜f = (VClo η' (Anon (v => e)))⌝)%I).
      rewrite Hlookup. iExists _; auto. }
    iIntros (??) "-> HΦ".
@@ -578,7 +578,7 @@ Section transparent_funs.
    iIntros (Hlookup) "He1 He2 Hbody". simpl_eval.
    iApply (imp_bind_par (A1:=val) (A2:=C) with "[He1] He2").
    { iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He1").
-     { iApply imp_widen.
+     { iApply imp_of_option.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto. }
      iIntros (??) "-> HΦ".
@@ -609,7 +609,7 @@ Section transparent_funs.
    iApply (imp_bind_par (A1:=val) (A2:=D) with "[He1 He2] He3").
    { iApply (imp_bind_par (A1:=val) (A2:=C) with "[He1] He2").
      { iApply (imp_bind_par (A1:=val) (A2:=B) with "[] He1").
-       iApply imp_widen.
+       iApply imp_of_option.
        instantiate (1 := (λ f, ⌜f = (VClo η' _)⌝)%I).
        rewrite Hlookup. iExists _; auto.
        iIntros (??) "-> HΦ".

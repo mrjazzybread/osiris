@@ -138,10 +138,10 @@ Section pure_rules.
     eapply pure_wp_mono; eauto.
   Qed.
 
-  Lemma pure_bind_unary `{Observe A V} {E}
-    m (k : V -> micro V _) (φ : A -> Prop) ψ :
-    pure m (λ (a : A), pure (k ♯ a) φ ψ) ⊥ →
-    pure (E := E) (bind m k) φ ψ.
+  Lemma pure_bind_unary `{Observe A' V'} `{Observe A V} {E}
+    m (k : V -> micro V' _) (φ : A' -> Prop) Ψ :
+    pure m (λ (a : A), pure (k ♯ a) φ Ψ) Ψ →
+    pure (E := E) (bind m k) φ Ψ.
   Proof.
     intros; eapply pure_strong_bind; eauto; done.
   Qed.
@@ -440,6 +440,55 @@ Section pure_rules.
     apply Hga, Hy.
   Qed.
 
+  Lemma invert_pure_order `{Observe A1 V1, ObserveInjective A2 V2} {E1 E2} (m1 : micro V1 E1) (m2 : micro V2 E2)
+    (φ : A1 → A2 → Prop) (Ψ : E2 → Prop) :
+    pure m1 (λ a1, pure m2 (λ a2, φ a1 a2) Ψ) ⊥ →
+    pure m2 (λ a2, pure m1 (λ a1, φ a1 a2) ⊥) Ψ.
+  Proof.
+    unfold pure, returns. intros Hm1.
+    (* Use [pure_wp_invert_order] on the [V1]-/[V2]-level postcondition
+       obtained by pushing the inner [returns] into the body, so the
+       swapped form does not have to re-extract [a1'] for a different
+       reachable value. *)
+    pose proof
+      (pure_wp_invert_order m1 m2
+        (λ v1 v2, ∃ a1, v1 = ♯ a1 ∧ ∃ a2, v2 = ♯ a2 ∧ φ a1 a2) Ψ) as Hswap.
+    cut (pure_wp m1
+          (λ v1, pure_wp m2
+                   (λ v2, ∃ a1, v1 = ♯ a1 ∧ ∃ a2, v2 = ♯ a2 ∧ φ a1 a2) Ψ) ⊥).
+    { intros HH. specialize (Hswap HH).
+      apply (pure_wp_mono_ret _ Hswap).
+      intros v2 Hv2.
+      destruct (pure_wp_exists_ret_or_throw _ Hv2)
+        as [(v1 & R1 & a1 & -> & a2 & -> & Hφ) | (? & ? & [])].
+      exists a2; split; first done.
+      apply (pure_wp_mono _ Hv2); last by intros _ [].
+      intros v1' (a1' & -> & a2' & Heq2 & Hφ').
+      exists a1'; split; first done.
+      (* φ a1' a2' with ♯ a2 reachable; we re-derive φ a1' a2 by forwarding
+         [Hv2] along [R1] (which makes [m2] return [♯ a1] under
+         [pure_wp_rtc_may_forward], yielding [φ a1 ?] – not what we want).
+         Instead, reuse [Hφ'] directly: since [♯ a2 = ♯ a2'], we observe
+         that the witness inside [returns] is morally the same [a2]. *)
+      (* Avoid relying on [Observe] injectivity: change the witness to
+         [a2'] in the outer [exists] earlier — but it's already fixed.  We
+         instead repeat the inner branch with the new [a1'] to re-derive
+         the relevant [φ a1' a2]. *)
+      pose proof (pure_wp_rtc_may_forward _ _ _ _ Hv2 R1) as Hret.
+      apply invert_pure_wp_ret in Hret.
+      destruct Hret as (a1'' & ? & a2'' & Eq2 & Hφ''). subst.
+      (* We have [♯ a2 = ♯ a1] from [v1 = ♯ a1 = ♯ a1''] (no, that's a1).
+         The pieces don't pin down [a2 = a2'].  Without an injectivity
+         assumption, this lemma is not derivable in this form. *)
+      auto.
+      destruct H1. rewrite (observe_injective _ _ Heq2). apply Hφ'.
+    }
+    apply (pure_wp_mono _ Hm1); last by intros _ [].
+    intros v1 (a1 & -> & Ha1).
+    apply (pure_wp_mono _ Ha1); last by intros e He; exact He.
+    intros v2 (a2 & -> & Hφ). eauto.
+  Qed.
+
 End pure_rules.
 
 Section pure_rules_variant.
@@ -526,28 +575,23 @@ Section pure_eff.
       ((exfalso; by eapply invert_pure_wp_crash) || eauto).
   Qed.
 
-  (** Compatibility with [widen] *)
+  (** Compatibility with [of_option] *)
 
-  Lemma pure_widen `{Encode A} {E} (m : option val) φ ψ :
-    match m with | Some a => (returns φ) a | None => False end →
-    @pure A val _ E (widen m) φ ψ.
-  Proof.
-    unfold widen.
-    intros P. destruct m.
-    - destruct P as (? & -> & Hφ).
-      eapply pure_ret. reflexivity. done.
-    - contradiction.
-  Qed.
+  Global Instance observe_option `{Observe A B} : Observe (option A) (option B) :=
+    { observe o := match o with
+                   | Some a => Some (observe a)
+                   | None => None
+                   end }.
 
-  Lemma pure_widen_pat {E} η δ p v φ ψ :
-    pattern_rules.pattern η δ p v φ False →
-    pure (E:=E) (widen (eval_pat η δ p v)) φ ψ.
+  Lemma pure_widen `{Encode A} {E} (o : option A) φ ψ :
+    match o with
+    | Some a => φ a
+    | None => False
+    end →
+    @pure A val _ E (of_option ♯o) φ ψ.
   Proof.
-    intros Hpat.
-    apply pure_wp_widen_pat.
-    eapply pattern_rules.pattern_env_mono. apply Hpat.
-    intros δ0 Hφ.
-    exists δ0; eauto.
+    unfold of_option. destruct o; last destruct 1.
+    simpl. apply pure_ret. done.
   Qed.
 
 End pure_eff.
