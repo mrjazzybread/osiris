@@ -298,7 +298,7 @@ Section ExternalsDef.
   Definition Externals__freeze_expr : expr := EEta1 EFreeze.
 
   Definition freeze_spec freeze : iProp Σ :=
-    iSpec τ[block] freeze
+    iSpec τ[array] freeze
       (λ l m, ∀ t,
          l ⤇ t -∗
          imp m {{ λ l', ⌜l' = l⌝ ∗ l ⤇ Immut }})%I.

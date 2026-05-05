@@ -181,6 +181,7 @@ Proof.
   imp_match (list A).
   - imp_int.
   - auto.
+  Unshelve. refine ⊥. refine ⊥.
 Qed.
 
 (* Testing imp_branches: automatically process all match branches *)

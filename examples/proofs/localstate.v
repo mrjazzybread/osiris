@@ -132,8 +132,8 @@ Section verification.
 
   Lemma localstate_run_spec :
     ∀ η,
-      ⌜ lookup_name η "Get" = ret (VLoc rl) ⌝ -∗
-      ⌜ lookup_name η "Set" = ret (VLoc wl) ⌝ -∗
+      ⌜ lookup_name η "Get" = Some #rl ⌝ -∗
+      ⌜ lookup_name η "Set" = Some #wl ⌝ -∗
       ⌜ address rl ≠ address wl ⌝ -∗
       imp eval η (EAnonFun __fun7)
         {{ λ run,  □ iSpec τ[ state;val] run run_spec }}.
@@ -239,29 +239,29 @@ Section verification.
 
   Lemma module_proof (Q : val -> iProp Σ) :
     ⊢ imp (eval_mexpr dummy_env __main)
-      {{ λ η, ∃ run, ⌜lookup_name η "run" = ret run⌝ ∗
+      {{ λ η, ∃ run, ⌜lookup_name η "run" = Some run⌝ ∗
                      □ iSpec τ[state; val] run run_spec }}.
   Proof.
     iApply imp_module.
     iApply (imp_sitems_cons).
 
     (* [open Effect] *)
-    { iApply (imp_sitem_open).
-      { simpl_eval_mexpr. iApply imp_widen.
-        iApply imp_ret; first encode.
-        instantiate (1 := (λ δ, ⌜δ = [_]⌝)%I). done. }
-      iIntros (? ->) "/=".
-      instantiate (1 := (λ η, ⌜η = (_, _)⌝)%I). done. }
+    { set_postcondition (λ η, ⌜η = (_, _)⌝)%I.
+      iApply (imp_sitem_open).
+      { simpl_eval_mexpr.
+        set_postcondition (λ δ, ⌜δ = [_]⌝)%I.
+        iApply imp_ret; first encode. done. }
+      iIntros (? ->) "//". }
     iIntros (? ->).
 
     (* [open Effect.Deep] *)
     iApply imp_sitems_cons.
-    { iApply (imp_sitem_open).
-      { simpl_eval_mexpr. iApply imp_widen.
-        iApply imp_ret; first encode.
-        instantiate (1 := (λ δ, ⌜δ = []⌝)%I). done. }
-      iIntros (? ->) "/=".
-      instantiate (1 := (λ η, ⌜η = (_, _)⌝)%I). done. }
+    { set_postcondition (λ η, ⌜η = (_, _)⌝)%I.
+      iApply (imp_sitem_open).
+      { simpl_eval_mexpr.
+        set_postcondition (λ δ, ⌜δ = []⌝)%I.
+        iApply imp_ret; first encode. done. }
+      iIntros (? ->) "//". }
     iIntros (? ->).
 
     (* [type _ Effect.t += Get : t Effect.t] *)

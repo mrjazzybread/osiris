@@ -820,23 +820,33 @@ Tactic Notation "pure_ret" := ltac2:(pure_ret).
    and, assuming that the lookup succeeds, calls pure_ret on the result. *)
 
 Ltac2 pure_path0 () : unit :=
-  let (m, _) := decompose_pure () in
-  let e := get_expr_from_eval m in
-  match! e with
-  | (EPath _) =>
-      (* [pure_eval_path : *)
-(*           pure (lookup_path η π) ##ψ ⊥ -> pure (eval η (EPath π)) ##ψ ⊥] *)
-      eapply pure_eval_path;
-      simpl lookup_path;
-      lazy_match! goal with
-      (* If the lookup has not reduced to a result, try and use a hypothesis. *)
-      | [ h_ident : lookup_name ?_η ?_π = ret _
-          |- pure (lookup_name ?_η ?_π) _ _ ] =>
-          let h := Control.hyp h_ident in
-          rewrite [$h]; pure_ret
-      (* If the lookup has reduced to a result, use [pure_ret]. *)
-      | [ |- _] => pure_ret
+  lazy_match! goal with
+  | [ |- pure (eval _ ?e) _ _ ] =>
+      lazy_match! eval hnf in $e with
+      | (EPath _) =>
+          (* [pure_eval_path :
+                 lookup_path η π = Some #a → φ a → η ⊢ₚ { EPath π ensures φ raises ζ }]
+             After [eapply], two goals remain: the [Some _ = Some #?a] equality
+             and the postcondition [φ ?a]. We discharge the equality (using a
+             hypothesis on [lookup_name] when present, or [encode] otherwise) and
+             leave the postcondition for the caller. *)
+          eapply pure_eval_path > [ () | () ];
+          Control.dispatch
+            [ (fun () =>
+                 simpl lookup_path;
+                 lazy_match! goal with
+                 (* If the lookup has not reduced, try to use a hypothesis. *)
+                 | [ h_ident : lookup_name ?_η ?_π = Some _
+                     |- lookup_name ?_η ?_π = _ ] =>
+                     let h := Control.hyp h_ident in
+                     rewrite [$h]; ltac1:(encode)
+                 (* Otherwise let [encode] solve the equality. *)
+                 | [ |- _ ] => ltac1:(encode)
+                 end)
+            ; (fun () => ()) ]
+      | _ => ()
       end
+  | [ |- _ ] => ()
   end.
 
 Ltac2 Notation "pure_path" := Control.enter pure_path0.

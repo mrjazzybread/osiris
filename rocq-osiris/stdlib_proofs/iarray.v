@@ -10,7 +10,7 @@ From iris Require Import ltac_tactics.
 From osiris.logic Require Export list_z big_opLZ.
 From osiris.tactics Require Import osiris_utils.
 
-Definition iarray : Type := syntax.block.
+Definition iarray : Type := syntax.array.
 
 Section iarray_resources.
 
@@ -194,7 +194,7 @@ Section module_proof.
     iIntros "Hpath".
     simpl_eval_mexpr.
     iDestruct "Hpath" as "(%m & -> & HΦ)".
-    iApply imp_widen. by iFrame.
+    iApply imp_of_option. by iFrame.
   Qed.
 
 

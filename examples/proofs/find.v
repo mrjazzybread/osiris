@@ -138,7 +138,7 @@ Proof.
       rename xs' into l.
       eapply pure_eval_seq.
       { (* Evaluate [f x]. *)
-        eapply (pure_EApp τ[A]). { pure_path. } { pure_path. apply eq_refl. }
+        eapply (pure_EApp τ[A]). { pure_path. eassumption. } { pure_path. apply eq_refl. }
         unfold tapp; simpl.
         intros ? <- callsite_f Hcall_f.
         (* Prove that the exceptional postcondition is of the right form. *)

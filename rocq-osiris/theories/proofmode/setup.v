@@ -21,7 +21,8 @@ Arguments discontinue _ _ _ k e /.
 Arguments as_bool m /.
 Arguments as_int m /.
 Arguments as_loc E m /.
-Arguments as_record m /.
+Arguments as_record E m /.
+Arguments as_array E m /.
 Arguments as_struct E m /.
 Arguments lookup_name _ _/.
 
@@ -29,14 +30,15 @@ Arguments val_as_bool !v /.
 Arguments val_as_loc _ !v /.
 Arguments val_as_cont _ !v /.
 Arguments val_as_int !v /.
-Arguments val_as_record !v /.
+Arguments val_as_record _ !v /.
+Arguments val_as_array _ !v /.
 Arguments val_as_struct {X} !v / : rename.
 
 (* semantics/eval.v *)
 Arguments lookup_name !η !x : simpl nomatch.
 Arguments eval_pat η δ !p v.
 Arguments eval_pats η δ !ps !vs.
-Arguments eval_fpats η δ !fps !fvs.
+Arguments eval_fpats η δ !fps !vs.
 Arguments eval η !e /.
 Arguments evals η !es /.
 Arguments evalfs η !fes /.
@@ -75,7 +77,7 @@ Global Opaque
   (* eval_mexpr *)
   (* coerce *)
 
-  encode
+  encode.encode
 
   assertion_failure
   division_by_zero

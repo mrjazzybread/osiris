@@ -75,6 +75,10 @@ Definition VCons v1 v2 :=
 Definition EVar x :=
   (EPath [x]).
 
+(* [EVar] always unfolds so that tactics inspecting the head of an expression
+   see [EPath] rather than the [EVar] alias. *)
+Arguments EVar /.
+
 (* [p = e]. *)
 
 Definition Binding1 (p : pat) (e : expr) : list binding :=

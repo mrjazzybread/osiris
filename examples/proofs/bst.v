@@ -197,9 +197,9 @@ Section Proofs.
 Variable η : env.
 
 Lemma insert_mkspec insert (x : Z) (t : tree Z) :
-  (lookup_name η "v" = ret #t) ->
-  (lookup_name η "x" = ret #x) ->
-  (lookup_name η "insert" = ret insert) ->
+  (lookup_name η "v" = Some #t) ->
+  (lookup_name η "x" = Some #x) ->
+  (lookup_name η "insert" = Some insert) ->
   bst t ->
   representable x ->
   Spec τ[Z * tree Z] insert
@@ -211,13 +211,13 @@ Lemma insert_mkspec insert (x : Z) (t : tree Z) :
 Proof.
   intros Hv Hx Hinsert Ht Hrepr IH.
   eapply @pure_eval_match with (A := tree Z).
-  { apply pure_eval_path. simpl; rewrite Hv. pure_ret. }
+  { eapply pure_eval_path. encode. reflexivity. }
   pure_match.
   - (* Case: [v] matches [Leaf] *)
     apply pure_eval_data.
     eapply (@pure_evals_cons (tree Z)). pure_const.
     eapply (@pure_evals_cons Z).
-    apply pure_eval_path. simpl lookup_path; rewrite Hx. pure_ret.
+    eapply pure_eval_path. simpl lookup_path; rewrite Hx. reflexivity.
     eapply (@pure_evals_cons (tree Z)). pure_const.
     eapply pure_evals_nil.
     eexists. split; [ encode | ].
@@ -230,7 +230,7 @@ Proof.
     { (* Evaluate the condition [x < y] *)
       inversion Ht; subst.
       eapply pure_eval_EOpLt; try pure_path.
-      eapply pure_eval_path. simpl; rewrite Hx; pure_ret.
+      eapply pure_eval_path. simpl lookup_path. rewrite Hx; reflexivity. reflexivity.
       assumption. assumption. }
 
     (* Case: [z < a] *)
@@ -239,9 +239,9 @@ Proof.
       apply pure_eval_data.
       eapply (@pure_evals_cons (tree Z)).
       eapply (pure_EApp τ[(Z * tree Z)]).
-      { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
+      { eapply pure_eval_path. simpl. rewrite Hinsert; reflexivity. eassumption. }
       apply pure_eval_pair.
-      { eapply pure_eval_path. simpl lookup_path. rewrite Hx. pure_ret.
+      { eapply pure_eval_path. simpl lookup_path. rewrite Hx. reflexivity.
         pure_path. apply eq_refl. }
       intros [??] Heqp m Hm; fold evals; simpl in Hm.
       apply pair_equal_spec in Heqp as [-> ->].
@@ -267,7 +267,7 @@ Proof.
       eapply pure_eval_ifthenelse.
       { inversion Ht; subst.
         eapply pure_eval_EOpGt; try pure_path.
-        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
+        eapply pure_eval_path. simpl. rewrite Hx. reflexivity. reflexivity.
         assumption. assumption. }
 
       (* Subcase: [ ¬ (x < a)] *)
@@ -277,10 +277,10 @@ Proof.
         eapply (@pure_evals_cons Z). pure_path.
         eapply (@pure_evals_cons (tree Z)).
         eapply (pure_EApp τ[(Z * tree Z)%type]).
-        { eapply pure_eval_path. simpl. rewrite Hinsert. pure_ret. }
+        { eapply pure_eval_path. simpl. rewrite Hinsert. reflexivity. eassumption. }
         { eapply pure_eval_pair.
-          { eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
-            pure_path. apply eq_refl. } }
+          eapply pure_eval_path. simpl. rewrite Hx. reflexivity.
+          pure_path. apply eq_refl. }
         intros [??] Heqp m Hm; simpl in Hm.
         apply pair_equal_spec in Heqp as [-> ->].
         eapply pure_ret_mono.

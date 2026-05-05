@@ -195,6 +195,7 @@ Section verification.
   Local Instance encode_effect (A : Type) `{Encode A} l : Encode (@effect A _) :=
       { encode eff := match eff with Yield a => VXData l [ #a ] end }.
 
+
   Section invert_correct.
     Context `{!osirisGS Σ}.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
@@ -205,6 +206,9 @@ Section verification.
     Context (l : loc).
 
     Local Instance encode_eff_l : Encode (@effect A _) := encode_effect A l.
+    Lemma solve_encode_effect (a : A) :
+      VXData l [ #a ] = @encode.encode _ (encode_eff_l) (Yield a).
+    Proof. reflexivity. Qed.
 
     (* This protocol describes the effects performed by [yield]. *)
 
@@ -224,7 +228,7 @@ Section verification.
     Proof. by rewrite /prot /ψ_yield (upcl_tele' [tele _ _] [tele]) //=. Qed.
 
     Lemma yield_handler_correct γ (Ys : list A) η :
-      lookup_name η "Yield" = ret (VLoc l) →
+      lookup_name η "Yield" = Some #l →
       handlerView γ Ys -∗
       (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
          (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
@@ -258,6 +262,8 @@ Section verification.
           iMod (update_cell γ (Ys ++ [X]) with "HhandlerView HiterView")
           as "[HhandlerView HiterView]";
           iModIntro.
+
+        rewrite <- (solve_encode_effect X). (* FIXME *)
         imp_branches.
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
@@ -269,7 +275,6 @@ Section verification.
           iApply (imp_EAnon τ[unit]
                     (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
-          change VUnit with (#()).
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
