@@ -54,6 +54,8 @@ translator:
   tags:
     - ci
   image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
     - job: build-deps-image
       optional: true
@@ -79,6 +81,8 @@ theory:
   tags:
     - ci
   image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
     - job: build-deps-image
       optional: true
@@ -96,6 +100,8 @@ all:
   tags:
     - ci
   image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
     - job: build-deps-image
       optional: true
