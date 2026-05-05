@@ -29,12 +29,15 @@ let data =
   quote
 
 let field f =
-  plain (string_of_int f)
+  plain (sprintf "%i%%Z" f)
 
 let path (pi : path) : expression =
   list (map var pi)
 
-let mut_tag t = quote (show_mut_tag t)
+let mut_tag (t : Syntax.mut_tag) =
+  match t with
+  | Mut   -> plain "Mut"
+  | Immut -> plain "Immut"
 
 (* -------------------------------------------------------------------------- *)
 
