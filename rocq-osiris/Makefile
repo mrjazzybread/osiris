@@ -13,11 +13,11 @@ core:
 
 .PHONY: stdlib
 stdlib:
-	@ dune build theories/stdlib/Stdlib.vo --display=short
+	@ dune build stdlib/Stdlib.vo --display=short
 
 .PHONY: ocaml-libs
 ocaml-libs:
-	@ dune build @theories/stdlib/src/all --display=short
+	@ dune build @stdlib/src/all --display=short
 
 .PHONY: clean
 clean:

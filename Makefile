@@ -28,8 +28,8 @@ all:
 	     all \
 	  )
 # Copy the translated files to a place where dune and rocq will see them.
-	@ cd rocq-osiris/theories/stdlib && mv src/*.v .  # TODO these files are not yet used
-#	@ cd rocq-osiris/theories/stdlib && rm -f src/*.v # TODO so we just remove them
+	@ cd rocq-osiris/stdlib && mv src/*.v .  # TODO these files are not yet used
+#	@ cd rocq-osiris/stdlib && rm -f src/*.v # TODO so we just remove them
 	@ cd examples && mv src/*.v .
 # Compile the stdlib and examples Rocq theories.
 	@ make --no-print-directory -C rocq-osiris all
@@ -38,7 +38,7 @@ all:
 .PHONY: clean
 clean:
 	@ dune clean
-	@ rm -f examples/og_*.v rocq-osiris/theories/stdlib/og_*.v
+	@ rm -f examples/og_*.v rocq-osiris/stdlib/og_*.v
 
 
 # This is the desired version of OCaml.
