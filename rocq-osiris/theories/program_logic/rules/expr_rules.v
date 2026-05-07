@@ -100,10 +100,12 @@ Section imp_rules_expr.
     iIntros "H /=". simpl_eval.
     iApply (imp_bind (A1:=(list val)) with "[H]").
     iApply (imp_evals with "H").
-    iIntros (vs) "HΦs". unfold observe, observe_list, encode.encode, Encode_val.
-    replace (map (λ v, v) vs) with vs; last first.
-    { by rewrite map_id. }
-    iApply imp_ret. encode.
+    iIntros (vs) "HΦs".
+    iApply imp_ret.
+    { simpl.
+      replace (map (λ v, v) vs) with vs; last first.
+      - by rewrite map_id.
+      - encode. }
     iFrame. auto.
   Qed.
 

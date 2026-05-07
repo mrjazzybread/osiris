@@ -3,7 +3,6 @@ From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_inversion.
 
 (* ========================================================================== *)
@@ -54,7 +53,7 @@ Section lazy_sequences.
     | Cons X v => VData "Cons" [ #X; v ]
     end.
 
-  Global Instance : Encode seq := { encode := encode_seq }.
+  Global Instance : Encode seq := { encode' := encode_seq }.
 
   (* ------------------------------------------------------------------------ *)
   (** Specification of Heads. *)
@@ -180,7 +179,7 @@ Section verification.
     (* ------------------------------------------------------------------------ *)
     (** Specification of [invert]. *)
 
-    Definition env := stdlib_env.
+    Definition env : env := (* stdlib_env *) [].
 
     Definition invert_spec : val → microvx → iProp Σ :=
       λ (iter : val) m,
@@ -193,7 +192,7 @@ Section verification.
   | Yield (a : A).
 
   Local Instance encode_effect (A : Type) `{Encode A} l : Encode (@effect A _) :=
-      { encode eff := match eff with Yield a => VXData l [ #a ] end }.
+      { encode' eff := match eff with Yield a => VXData l [ #a ] end }.
 
 
   Section invert_correct.
@@ -362,9 +361,9 @@ Section verification.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
       imp_match unit.
-      change (encode' Encode_unit ()) with (#()).
-      change (encode' Encode_val iter) with (#iter).
-      simpl.
+      change (encode' ()) with (#()).
+      change (encode' iter) with (#iter).
+      simpl. fold eval.
 
       (* [match_with iter yield { ...] *)
       iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").

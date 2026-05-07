@@ -1,7 +1,6 @@
 From Stdlib Require Import Wellfounded.Inverse_Image.
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_bst.
 
 Open Scope Z.
@@ -45,7 +44,7 @@ Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
   end.
 
 Local Instance Encode_tree `{Encode A} : Encode (tree A) :=
-  { encode := encode_tree }.
+  { encode' := encode_tree }.
 
 Lemma encode_tree_is_encode `{Encode A} :
   ∀ (t : tree A),
@@ -56,12 +55,9 @@ Qed.
 
 Local Hint Resolve encode_tree_is_encode : encode.
 
-Lemma solve_encode_Leaf `{Encode A} (t : tree A) :
-  Leaf = t →
-  VConstant "Leaf" = #t.
-Proof.
-  intros. subst. eauto.
-Qed.
+Lemma solve_encode_Leaf `{Encode A} :
+  VConstant "Leaf" = #(@Leaf A).
+Proof. eauto. Qed.
 
 Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
   Node t1 x t2 = t →
@@ -74,7 +70,6 @@ Proof.
 Qed.
 
 Local Hint Resolve solve_encode_Leaf solve_encode_Node : encode.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -99,10 +94,10 @@ Proof.
     intros; subst.
   destruct t.
   { eapply pattern_exn_mono.
-    { eapply pat_PData_eq; pats. }
+    { eapply pat_PData_eq; pats. reflexivity. }
     destruct 1. }
   { eapply pattern_exn_mono.
-    { eapply pat_PData_neq; auto. }
+    { eapply pat_PData_neq. erewrite <- solve_encode_Node; eauto. auto. }
     congruence. }
 Qed.
 
@@ -126,7 +121,7 @@ Lemma pat_pNode `{Encode A} (η δ : env) (v : val) (t : tree A)
 Proof.
   intros -> Hcov.
   destruct t; eapply pattern_exn_mono.
-  { eapply pat_PData_neq; eauto. }
+  { eapply pat_PData_neq. encode. auto. }
   { auto. }
   { eapply pat_PData_eq; pats ; eauto. }
   { clear; right; do 3 eexists; split; [ reflexivity | tauto ]. }
@@ -230,7 +225,6 @@ Proof.
     { (* Evaluate the condition [x < y] *)
       inversion Ht; subst.
       eapply pure_eval_EOpLt; try pure_path.
-      eapply pure_eval_path. simpl lookup_path. rewrite Hx; reflexivity. reflexivity.
       assumption. assumption. }
 
     (* Case: [z < a] *)
@@ -239,10 +233,9 @@ Proof.
       apply pure_eval_data.
       eapply (@pure_evals_cons (tree Z)).
       eapply (pure_EApp τ[(Z * tree Z)]).
-      { eapply pure_eval_path. simpl. rewrite Hinsert; reflexivity. eassumption. }
+      { pure_path. rewrite <- solve_encode_val; reflexivity. eassumption. }
       apply pure_eval_pair.
-      { eapply pure_eval_path. simpl lookup_path. rewrite Hx. reflexivity.
-        pure_path. apply eq_refl. }
+      { pure_path. pure_path. apply eq_refl. }
       intros [??] Heqp m Hm; fold evals; simpl in Hm.
       apply pair_equal_spec in Heqp as [-> ->].
       eapply pure_ret_mono.
@@ -267,7 +260,6 @@ Proof.
       eapply pure_eval_ifthenelse.
       { inversion Ht; subst.
         eapply pure_eval_EOpGt; try pure_path.
-        eapply pure_eval_path. simpl. rewrite Hx. reflexivity. reflexivity.
         assumption. assumption. }
 
       (* Subcase: [ ¬ (x < a)] *)
@@ -277,7 +269,7 @@ Proof.
         eapply (@pure_evals_cons Z). pure_path.
         eapply (@pure_evals_cons (tree Z)).
         eapply (pure_EApp τ[(Z * tree Z)%type]).
-        { eapply pure_eval_path. simpl. rewrite Hinsert. reflexivity. eassumption. }
+        { eapply pure_eval_path. simpl. rewrite Hinsert. rewrite <- solve_encode_val. reflexivity. eassumption. }
         { eapply pure_eval_pair.
           eapply pure_eval_path. simpl. rewrite Hx. reflexivity.
           pure_path. apply eq_refl. }
@@ -300,7 +292,12 @@ Proof.
 
       (* Subcase: [¬ (x > a)] . *)
       intros. simpl in Hge, H. assert (x = a) by lia. subst.
-      pure_data. intros x. cbn.
+      (* pure_data. FIXME *)
+      eapply pure_eval_data_val.
+      { eapply pure_wp_mono_ret.
+        eapply pure_evals_eq; ltac2:(unfold_Forall2 ()); pure_path.
+        intros ? ->. encode. }
+      intros x. cbn.
       destruct (x <? a) eqn:Hla.
       { assert (x =? a = false) by lia; rewrite H0; done. }
       destruct (a <? x) eqn : Hla'; try lia.
@@ -308,9 +305,9 @@ Proof.
 Qed.
 
 Lemma member_mkspec member (x : Z) (t : tree Z) :
-  (lookup_name η "v" = ret #t) ->
-  (lookup_name η "x" = ret #x) ->
-  (lookup_name η "member" = ret member) ->
+  (lookup_name η "v" = Some #t) ->
+  (lookup_name η "x" = Some #x) ->
+  (lookup_name η "member" = Some member) ->
   bst t ->
   representable x ->
   Spec τ[Z * tree Z] member
@@ -320,8 +317,10 @@ Lemma member_mkspec member (x : Z) (t : tree Z) :
            ensures λ b : bool, b = lookup x t }.
 Proof.
   intros Hv Hx Hmember Ht Hrepr IH.
+
   eapply pure_eval_match.
-  { eapply pure_eval_path. simpl. rewrite Hv. pure_ret. }
+  { pure_path. }
+
   pure_match.
   (* The case when [v] is a [Leaf] is trivial. *)
   pure_data.
@@ -331,16 +330,15 @@ Proof.
   eapply pure_eval_ifthenelse.
   { inversion Ht; subst.
     eapply pure_eval_EOpLt; try pure_path.
-    eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
     assumption. assumption. }
 
   (* Case: [x < y] *)
   { intros Hlt.
     eapply (pure_EApp τ[(Z * tree Z)%type]).
-    { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
+    { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
     { eapply pure_eval_pair.
-      eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
-      pure_path. apply eq_refl. }
+      pure_path. pure_path.
+      apply eq_refl. }
     intros [??] Heqp m Hm; simpl in Hm.
     apply pair_equal_spec in Heqp as [-> ->].
     eapply pure_ret_mono.
@@ -356,16 +354,15 @@ Proof.
     eapply pure_eval_ifthenelse.
     { inversion Ht; subst.
       eapply pure_eval_EOpGt; try pure_path.
-      apply pure_eval_path. simpl. rewrite Hx. pure_ret.
       assumption. assumption. }
 
     (* Subcase: [x > y] *)
     { intros Hgt.
       eapply (pure_EApp τ[(Z * tree Z)]).
-      { eapply pure_eval_path. simpl. rewrite Hmember. pure_ret. }
+      { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
       { eapply pure_eval_pair.
-        eapply pure_eval_path. simpl. rewrite Hx. pure_ret.
-        pure_path. apply eq_refl. }
+        pure_path. pure_path.
+        apply eq_refl. }
       intros [??] Heqp m Hm.
       apply pair_equal_spec in Heqp as [-> ->].
       eapply pure_ret_mono.
@@ -403,7 +400,7 @@ Proof.
     intros insert [x t] IH Ht Hrepr.
     apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
-    { pure_path. eapply solve_encode_tuple2; try encode. }
+    { pure_path. }
     pure_match.
     eapply insert_mkspec; auto. }
 
@@ -418,7 +415,7 @@ Proof.
     intros member [x t] IH Ht Hrepr.
     apply pure_please_eval.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
-    { pure_path. eapply solve_encode_tuple2; try encode. }
+    { pure_path. }
     pure_match.
     eapply member_mkspec; auto. }
 

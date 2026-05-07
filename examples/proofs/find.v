@@ -3,7 +3,6 @@ From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_find.
 
 From Stdlib Require Import Wellfounded.Inverse_Image.
@@ -152,7 +151,9 @@ Proof.
         apply prefix_app; apply prefix_nil. }
       (* Evaluate the second half of the sequence: [iter f l]. *)
       intros Hlprex.
-      eapply (pure_EApp τ[val; list A]). { pure_path. } { pure_path. } { pure_path. apply eq_refl. }
+      eapply (pure_EApp τ[val; list A]).
+      { pure_path. eassumption. }
+      { pure_path. apply eq_refl. } { pure_path. apply eq_refl. }
       simpl; unfold tapp.
       intros ?? <-<- m Hm; unfold listiter_spec in Hm.
       (* Justify the recursive call: the measure has decreased and
@@ -162,8 +163,7 @@ Proof.
 
     (* Weaken the invariant specification to [listiter_spec]. *)
     intros iter Hiter.
-    eexists (_,_); split; first reflexivity.
-    exists iter; split; [ apply eq_refl | ].
+    exists iter; split; first reflexivity.
     eapply Spec_mono; [ apply Hiter | simpl ].
     intros f l m Hinvspec; unfold listiter_spec, tapp.
     intros I φ Hf HI.
@@ -201,7 +201,7 @@ Proof.
     eapply pure_eval_match'_exn.
     { (* Subgoal: evaluate the scrutinee [List.iter _ _]. *)
       eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp; fold eval).
-      { (* Find iter in the environment. *) pure_path. }
+      { (* Find iter in the environment. *) pure_path. eassumption. }
       2:{ (* find [l] in the environment. *) pure_path; apply eq_refl. }
       { (* Evaluate the lambda expression we pass to [iter]:
            it is a function with
@@ -215,7 +215,7 @@ Proof.
           eapply pure_eval_ifthen.
           { (* Subgoal: evaluate the conditional [pred x]. *)
             eapply (pure_EApp τ[A]);
-              [ pure_path | pure_path; apply eq_refl | simpl; unfold tapp ].
+              [ pure_path; eassumption | pure_path; apply eq_refl | simpl; unfold tapp ].
             (* We now connect the specs of [pred] and the lambda.
                They have the same success postcondition, so we only need
                to exploit the fact that [pred] cannot fail. *)
@@ -225,10 +225,10 @@ Proof.
             intros Hx.
             apply pure_eval_raise.
             (* Evaluate the constructor [Found x]. *)
-            simpl_eval.
+            simpl_eval. rewrite !bind_ret.
             apply pure_wp_Par_vals_right.
-            eapply pure_wp_ret. eapply pure_wp_widen. eapply pure_wp_ret.
-            simpl. pure_ret.
+            eapply pure_wp_ret. eapply pure_wp_ret.
+            simpl. pure_ret. simpl. rewrite <- solve_encode_val. reflexivity.
             (* Prove the failure postcondition of the lambda.
                That is to say, that [φ] holds for some [x ∈ xs]. *)
             split; try auto.

@@ -242,21 +242,30 @@ Section pattern_rules.
     eapply pure_mono; first apply H; eauto.
   Qed.
 
-  Lemma pat_PData_eq η δ c ps vs φ ψ :
+  Lemma pat_PData_eq η δ c ps v vs φ ψ :
+    v = VData c vs ->
     patterns η δ ps vs φ ψ →
-    pattern η δ (PData c ps) (VData c vs) φ ψ.
-      (* This form is useful when [c = c'] is statically known. *)
+    pattern η δ (PData c ps) v φ ψ.
+      (* This form is useful when [c = c'] is statically known. The
+         equation [v = VData c vs] is taken explicitly so that the
+         caller can supply it via the [encode] hint database; this is
+         needed because [encode.encode] is declared [Opaque] in the
+         proofmode and so [#x] cannot be unified with [VData c vs] by
+         [eapply] alone. *)
   Proof.
-    unfold pattern; intros. simpl_eval_pat.
+    unfold pattern; intros -> ?. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
   Qed.
 
-  Lemma pat_PData_neq η δ c ps c' vs φ :
+  Lemma pat_PData_neq η δ c ps c' v vs φ :
+    v = VData c' vs ->
     c ≠ c' →
-    pattern η δ (PData c ps) (VData c' vs) φ True.
-      (* This form is useful when [c ≠ c'] is statically known. *)
+    pattern η δ (PData c ps) v φ True.
+      (* This form is useful when [c ≠ c'] is statically known. See
+         [pat_PData_eq] for why the [v = VData c' vs] equation is
+         explicit. *)
   Proof.
-    unfold pattern; intros. simpl_eval_pat.
+    unfold pattern; intros -> ?. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
   Qed.
 
@@ -561,7 +570,7 @@ Section pattern_rules.
     destruct xs; eapply pattern_exn_mono.
     { eapply pat_PConst; eauto. }
     { tauto. }
-    { eapply pat_PData_neq; done. }
+    { eapply pat_PData_neq; [ reflexivity | done ]. }
     { congruence. }
   Qed.
 
@@ -591,10 +600,10 @@ Section pattern_rules.
     intros; subst.
     destruct xs.
     { eapply pattern_exn_mono.
-      { by apply pat_PData_neq. }
+      { eapply pat_PData_neq; [ reflexivity | done ]. }
       tauto. }
     { eapply pattern_exn_mono.
-      { eapply pat_PData_eq; pats.  }
+      { eapply pat_PData_eq; [ reflexivity | pats ]. }
       right; do 2 eexists; split; [ reflexivity | tauto ]. }
   Qed.
 
@@ -613,9 +622,9 @@ Section pattern_rules.
   Proof.
     intros; subst.
     destruct xs; eapply pattern_exn_mono.
-    { by apply pat_PData_neq. }
+    { eapply pat_PData_neq. encode. auto. }
     { tauto. }
-    { eapply pat_PData_eq; pats. }
+    { eapply pat_PData_eq; pats. encode. }
     { clear; right; do 2 eexists; split; [ reflexivity | tauto ]. }
   Qed.
 

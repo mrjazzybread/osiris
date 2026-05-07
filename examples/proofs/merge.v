@@ -1,7 +1,7 @@
 From Stdlib Require Import Wellfounded.Inverse_Image.
 From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
+
 From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
 
@@ -160,9 +160,9 @@ Section proof.
 Variable η : env.
 
 Lemma merge_mkspec merge (l1 l2 : list Z) :
-  (lookup_name η "l1" = ret #l1) ->
-  (lookup_name η "l2" = ret #l2) ->
-  (lookup_name η "merge" = ret merge) ->
+  (lookup_name η "l1" = Some #l1) ->
+  (lookup_name η "l2" = Some #l2) ->
+  (lookup_name η "merge" = Some merge) ->
   @Spec τ[list Z; list Z] merge
     (λ (x1 x2 : list Z) (m : microvx),
       (length x1 + length x2 < length l1 + length l2)%nat
@@ -176,12 +176,14 @@ Proof.
    apply pure_please_eval.
    eapply pure_eval_match.
    { eapply pure_eval_pair.
-     eapply pure_eval_path. simpl; rewrite Hl1. pure_ret.
-     eapply pure_eval_path. simpl; rewrite Hl2. pure_ret. }
+     (* pure_path. FIXME *)
+     eapply pure_eval_path. simpl; rewrite Hl1. reflexivity.
+     eapply pure_eval_path. simpl; rewrite Hl2. reflexivity.
+     reflexivity. }
 
-   pure_match; abstract_env.
+   pure_match; fold eval; abstract_env.
 
-   { pure_path. }
+   { pure_path. auto. }
    { pure_path. split; [ | rewrite app_nil_r ]; auto. }
 
    eapply pure_eval_ifthenelse.
@@ -198,10 +200,9 @@ Proof.
 
      (* Evaluate "merge t1 l2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
-     { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
+     { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
      { pure_path. apply eq_refl. }
-     { eapply pure_eval_path; simpl; rewrite Hl2; eapply pure_ret.
-       encode. apply eq_refl. }
+     { pure_path. apply eq_refl. }
      simpl; unfold tapp.
      intros t1 l2 -> Ht1.
      intros m Hm.
@@ -231,9 +232,8 @@ Proof.
 
      (* Evaluate "merge l1 t2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
-     { eapply pure_eval_path; simpl; rewrite Hmerge. pure_ret. }
-     { eapply pure_eval_path. simpl; rewrite Hl1; eapply pure_ret.
-       encode. apply eq_refl. }
+     { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
+     { pure_path. apply eq_refl. }
      { pure_path. apply eq_refl. }
 
      unfold tbind, tapp.
@@ -265,11 +265,11 @@ Section merge.
 
 Variable merge : val.
 Hypothesis _merge_spec : @Spec τ[list Z; list Z] merge merge_spec.
-Hypothesis Hmerge : lookup_name η "merge" = ret merge.
+Hypothesis Hmerge : lookup_name η "merge" = Some merge.
 
 Lemma split_mkspec split (l : list Z) :
-  (lookup_name η "l" = ret #l) ->
-  (lookup_name η "split" = ret split) ->
+  (lookup_name η "l" = Some #l) ->
+  (lookup_name η "split" = Some split) ->
   Spec τ[list Z] split
        (λ (x : list Z) (m : microvx),
          (length x < length l)%nat → split_spec x m) ->
@@ -279,7 +279,7 @@ Proof.
   unfold split_spec.
   apply pure_please_eval.
   eapply pure_eval_match.
-  { eapply pure_eval_path. simpl. rewrite Hl. pure_ret. }
+  { pure_path. }
 
   pure_match; abstract_env.
 
@@ -305,14 +305,14 @@ Proof.
   { (* Case: l matches a::b::t *)
     eapply pure_eval_let_pair.
     eapply (pure_EApp τ[list Z]).
-    { eapply pure_eval_path; simpl; rewrite Hsplit. pure_ret. }
+    { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
     { pure_path. apply eq_refl. }
     unfold tbind.
     intros l -> m Hm.
     unfold split_spec in Hm.
     eapply pure_ret_mono. { apply Hm. simpl; lia. }
     intros [l1 l2] Hpost; clear IH; simpl.
-    simpl_eval_pat; simpl; fold eval. abstract_env.
+    simpl_eval_pat; simpl; rewrite !bind_ret; fold eval. abstract_env.
     (* Eval (x1::l1, x2::l2) *)
     apply pure_eval_pair.
     eapply pure_eval_data. eapply pure_evals_cons. pure_path.
@@ -346,11 +346,11 @@ Section split.
 
 Variable split : val.
 Hypothesis _split_spec : @Spec τ[list Z] split split_spec.
-Hypothesis Hsplit : lookup_name η "split" = ret split.
+Hypothesis Hsplit : lookup_name η "split" = Some split.
 
 Lemma mergesort_mkspec mergesort (l : list Z) :
-  (lookup_name η "l" = ret #l) ->
-  (lookup_name η "merge_sort" = ret mergesort) ->
+  (lookup_name η "l" = Some #l) ->
+  (lookup_name η "merge_sort" = Some #mergesort) ->
   (Spec τ[list Z] mergesort (λ x m,
        (length x < length l)%nat ->
        mergesort_spec x m)) ->
@@ -358,8 +358,7 @@ Lemma mergesort_mkspec mergesort (l : list Z) :
 Proof.
   intros Hl Hmergesort IH Hpre.
   apply pure_please_eval.
-  eapply pure_eval_match. { eapply pure_eval_path.
-                            simpl. rewrite Hl. pure_ret. }
+  eapply pure_eval_match. { pure_path. }
   pure_match.
   (* Branch: "[]"  *)
   { pure_const. auto. }
@@ -377,10 +376,9 @@ Proof.
   eapply pure_eval_let_pair.
   (* Use knowledge that [split] ⊨ [split_spec] *)
   eapply (pure_EApp τ[list Z]).
-  { eapply pure_eval_path. simpl. rewrite Hsplit.
-    pure_ret. }
-  { eapply pure_eval_path. simpl. rewrite Hl.
-    eapply pure_ret. encode. apply eq_refl. }
+  { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
+  { pure_path. apply eq_refl. }
+
   unfold tbind.
   intros l <- ms Hsplitm.
   eapply pure_ret_mono. { apply Hsplitm. }
@@ -390,8 +388,8 @@ Proof.
 
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
-    eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
-    eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    { pure_path. eassumption. }
+    { pure_path. apply eq_refl. }
     unfold tbind.
     intros l -> mm Hcall.
     apply Hcall.
@@ -403,8 +401,8 @@ Proof.
   intros l1' IHl1'.
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
-    eapply pure_eval_path. simpl. rewrite Hmergesort. pure_ret.
-    eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    { pure_path. eassumption. }
+    { pure_path. apply eq_refl. }
     unfold tbind.
     intros ? -> mm Hcall. apply Hcall.
     - rewrite Hl2. simpl. destruct (length x0); auto with arith.
@@ -415,9 +413,9 @@ Proof.
   abstract_env.
   eapply (pure_EApp τ[list Z; list Z]).
   - (* Use the knowledge that [merge] ∈ [η] *)
-    eapply pure_eval_path. simpl; rewrite Hmerge. pure_ret.
-  - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
-  - eapply pure_eval_path. eapply pure_ret. encode. apply eq_refl.
+    pure_path. rewrite <- solve_encode_val. reflexivity. eassumption.
+  - pure_path. apply eq_refl.
+  - pure_path. apply eq_refl.
   - simpl. intros ? ? <-. unfold tapp. intros <- m Hmerge'.
     unfold merge_spec in Hmerge'.
     simpl in IHl1', IHl2'; destruct IHl1' as [??]; destruct IHl2' as [??].
@@ -470,7 +468,7 @@ Proof.
   { apply list_wf. }
   { simpl.
     intros mergesort l IH.
-    eapply mergesort_mkspec; eauto. }
+    eapply mergesort_mkspec; eauto. by rewrite <- solve_encode_val. }
   intros mergesort Hmergesort.
 
   (* We have now evaluated the whole struct. *)

@@ -8,15 +8,16 @@ From iris.base_logic.lib Require Import iprop.
    object-language values of type [val]. *)
 
 Class Encode (A : Type) :=
-  { encode: A → val }.
+  { encode' : A → val }.
 
 (* We will later make [encode] opaque. We keep [encode'] transparent
    to compute the encoding at will. *)
 
-Definition encode' {A : Type} := @encode A.
+Definition encode `{HencA : Encode A} := @encode' A HencA.
+Arguments encode {A HencA}.
 
-Lemma encode_encode' {A} :
-  ∀ a, (@encode A a) = (encode' a).
+Lemma encode_encode' `{Encode A} :
+  ∀ (a : A), encode a = (encode' a).
 Proof. tauto. Qed.
 
 (* This declaration is supposed to tell Coq that a goal of the form [Encode ?A]
@@ -152,7 +153,7 @@ From osiris.lang Require Import int.
    when there is no other choice. *)
 
 Global Instance Encode_val : Encode val :=
-  { encode := λ v, v }.
+  { encode' := λ v, v }.
 
 Lemma solve_encode_val v :
   v = #v.
@@ -171,7 +172,7 @@ Global Hint Resolve solve_encode_val | 1000 : encode.
 (* Unit. *)
 
 Global Instance Encode_unit : Encode unit :=
-  { encode := λ x, let '() := x in VUnit }.
+  { encode' := λ x, let '() := x in VUnit }.
   (* We deconstruct [x] because we want an equation [VUnit = #?x] to
      force an instantiation of [x] with [()]. *)
 
@@ -186,7 +187,7 @@ Global Hint Resolve solve_encode_unit : encode.
 (* Booleans. *)
 
 Global Instance Encode_bool : Encode bool :=
-  { encode := λ b, VBool b }.
+  { encode' := λ b, VBool b }.
 
 Lemma solve_encode_false b :
   false = b →
@@ -337,7 +338,7 @@ Qed.
    can be a Coq proposition. *)
 
 Global Instance Encode_Prop : Encode Prop :=
-  { encode := λ P, VBool (truth P) }.
+  { encode' := λ P, VBool (truth P) }.
 
 (* Allowing the tactic [encode] to use [solve_encode_False] and
    [solve_encode_True], where [P] is a metavariable, leads Coq to
@@ -364,10 +365,7 @@ Qed.
 (* Global Hint Resolve solve_encode_False solve_encode_True : encode. *)
 
 Lemma encode_truth (P : Prop) : #(truth P) = #P.
-Proof.
-  unfold encode, Encode_Prop.
-  by destruct (truth P).
-Qed.
+Proof. reflexivity. Qed.
 
 Lemma iff_truth (P Q : Prop) : P ↔ Q → truth P = truth Q.
 Proof.
@@ -377,7 +375,7 @@ Qed.
 
 Lemma iff_encode (P Q : Prop) : P ↔ Q → #P = #Q.
 Proof.
-  unfold encode, Encode_Prop.
+  simpl encode.
   by intros ->%iff_truth.
 Qed.
 
@@ -386,7 +384,7 @@ Qed.
 (* Natural numbers. *)
 
 Global Instance Encode_nat : Encode nat :=
-  { encode := λ n, VInt (repr (Z.of_nat n)) }.
+  { encode' := λ n, VInt (repr (Z.of_nat n)) }.
 
 Lemma solve_encode_nat i n :
   i = repr (Z.of_nat n) →
@@ -400,10 +398,10 @@ Global Hint Resolve solve_encode_nat : encode.
 (* Integer numbers. *)
 
 Global Instance Encode_Z : Encode Z :=
-  { encode := λ n, VInt (repr n) }.
+  { encode' := λ n, VInt (repr n) }.
 
 Global Instance Encode_int : Encode int :=
-  { encode := λ n, VInt n }.
+  { encode' := λ n, VInt n }.
 
 Lemma solve_encode_int i z :
   i = repr z →
@@ -437,7 +435,7 @@ Global Hint Resolve
 (* First-class continuations. *)
 
 Global Instance Encode_cont : Encode cont :=
-  { encode := λ l, VCont l }.
+  { encode' := λ l, VCont l }.
 
 Lemma solve_encode_cont (l : cont) :
   VCont l = #l.
@@ -446,14 +444,14 @@ Proof. solve_encode. Qed.
 (* Pointers to blocks. *)
 
 Global Instance Encode_array : Encode syntax.array :=
-  { encode := λ l, VArray l }.
+  { encode' := λ l, VArray l }.
 
 Lemma solve_encode_array (l : syntax.array) :
   VArray l = #l.
 Proof. solve_encode. Qed.
 
 Global Instance Encode_record : Encode record :=
-  { encode := λ l, VRecord l }.
+  { encode' := λ l, VRecord l }.
 
 Lemma solve_encode_record (l : record) :
   VRecord l = #l.
@@ -464,7 +462,7 @@ Proof. solve_encode. Qed.
 (* Environments. *)
 
 Global Instance Encode_env : Encode env :=
-  { encode := λ η, VStruct η }.
+  { encode' := λ η, VStruct η }.
 
 Lemma solve_encode_env η :
   VStruct η = #η.
@@ -479,21 +477,21 @@ Global Hint Resolve solve_encode_env
 (* Floats. *)
 
 Global Instance Encode_float : Encode PrimFloat.float :=
-  { encode := λ f, VFloat f }.
+  { encode' := λ f, VFloat f }.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Char. *)
 
 Global Instance Encode_char: Encode char :=
-  { encode := λ f, VChar f }.
+  { encode' := λ f, VChar f }.
 
 (* -------------------------------------------------------------------------- *)
 
 (* Options. *)
 
 Global Instance Encode_option `{Encode A} : Encode (option A) :=
-  { encode :=
+  { encode' :=
       λ o, match o with None => VNone | Some v => VSome #v end }.
 
 Lemma solve_encode_None `{Encode A} (o : option A) :
@@ -516,7 +514,7 @@ Global Hint Resolve solve_encode_None solve_encode_Some : encode.
 (* This instance is needed, for instance, for memory locations. *)
 
 Global Instance Encode_loc : Encode loc :=
-  { encode := λ l, VLoc l }.
+  { encode' := λ l, VLoc l }.
 
 Lemma solve_encode_loc l :
   VLoc l = #l.
@@ -531,7 +529,7 @@ Global Hint Resolve solve_encode_loc : encode.
 (* This instance is needed, for instance, for memory locations. *)
 
 Global Instance Encode_thread : Encode thread :=
-  { encode := λ ι, VThread ι }.
+  { encode' := λ ι, VThread ι }.
 
 Lemma solve_encode_thread ι :
   VThread ι = #ι.
@@ -550,7 +548,7 @@ Fixpoint encode_list `{Encode A} (xs : list A) :=
   end.
 
 Global Instance Encode_list `{Encode A} : Encode (list A) :=
-  { encode := encode_list }.
+  { encode' := encode_list }.
 
 Lemma encode_list_is_encode `{Encode A} :
   ∀ (xs : list A),
@@ -612,7 +610,7 @@ Global Instance Encode_tuple2
   : Encode (A * B)
   | 10 (* lower priority than tuple3 and tuple4 below *)
 :=
-  { encode := encode_pair }.
+  { encode' := encode_pair }.
 
 Lemma encode_pair_is_encode `{Encode A, Encode B} :
   ∀ (p : A * B),
@@ -643,7 +641,7 @@ Global Instance Encode_tuple3
   : Encode (A * B * C)
   | 5 (* higher priority than tuple2; lower priority than tuple3 *)
 :=
-  { encode := λ '(a, b, c), VTuple [ #a; #b; #c] }.
+  { encode' := λ '(a, b, c), VTuple [ #a; #b; #c] }.
 
 Lemma solve_encode_tuple3
   `{Encode A} `{Encode B} `{Encode C}
@@ -670,7 +668,7 @@ Global Instance Encode_tuple4
   : Encode (A * B * C * D)
   | 0 (* higher priority than tuple2 and tuple3 above *)
 :=
-  { encode := λ '(a, b, c, d), VTuple [ #a; #b; #c; #d] }.
+  { encode' := λ '(a, b, c, d), VTuple [ #a; #b; #c; #d] }.
 
 Lemma solve_encode_tuple4
   `{Encode A} `{Encode B} `{Encode C} `{Encode D}
@@ -694,7 +692,7 @@ Global Hint Resolve solve_encode_tuple4
 (* Strings. *)
 
 Global Instance Encode_string : Encode string :=
-  { encode := λ s, VString s }.
+  { encode' := λ s, VString s }.
 
 Lemma encode_string_is_encode s :
   VString s = #s.

@@ -6,11 +6,10 @@ From iris.bi Require Import weakestpre.
 From iris Require Import base_logic.lib.gen_heap.
 
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_exception.
 
 Definition stdlib_with_notfound :=
-  ("Not_found", (VLoc (Loc 0))) :: stdlib_env.
+  ("Not_found", (VLoc (Loc 0))) :: [].
 
 Section proof_pure.
 
@@ -70,7 +69,7 @@ Section proof_pure.
       apply pure_please_eval.
       eapply pure_eval_match'_exn.
       - eapply (pure_EApp τ[list A]).
-        { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
+        { pure_path. eassumption. }
         { pure_path. apply eq_refl. }
         simpl.
         intros l' <- m Hm. apply Hm.
@@ -88,7 +87,9 @@ Section proof_pure.
       apply pure_please_eval.
       eapply pure_eval_match'_exn.
       { eapply pure_eval_data. eapply pure_evals_cons.
-        eapply (pure_EApp τ[list A]). pure_path. pure_path; apply eq_refl.
+        eapply (pure_EApp τ[list A]).
+        { pure_path. eassumption. }
+        { pure_path; apply eq_refl. }
         simpl.
         intros ? <- m Hm.
         eapply pure_ret_mono; [ apply Hm | intros a (t & Ht) ]; fold evals.

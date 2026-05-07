@@ -4,7 +4,6 @@ From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_localstate.
 
 (* ========================================================================== *)
@@ -13,7 +12,7 @@ From osiris.examples Require Import og_localstate.
 (* LATER: Make the type of state abstract (i.e. Encode .. ) *)
 Definition state := Z.
 
-Local Instance : Encode state := { encode := λ z, VInt (repr z) }.
+Local Instance : Encode state := { encode' := λ z, VInt (repr z) }.
 
 Section protocols.
 
@@ -103,7 +102,7 @@ Section verification.
   | Write (y : Z).
 
   Local Instance encode_effects : Encode effects :=
-    { encode eff := match eff with
+    { encode' eff := match eff with
                     | Read => VXData rl []
                     | Write y => VXData wl [ #y ]
                     end }.
@@ -235,7 +234,7 @@ Section verification.
 
   End alloc_effects.
 
-  Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
+  Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: (* stdlib_env *) [].
 
   Lemma module_proof (Q : val -> iProp Σ) :
     ⊢ imp (eval_mexpr dummy_env __main)

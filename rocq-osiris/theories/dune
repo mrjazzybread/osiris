@@ -1,4 +1,13 @@
 (include_subdirs qualified)
+
+;; Bring the manually written stdlib files into the [osiris] theory so that
+;; [From osiris Require Import osiris.] also pulls in [stdlib_env] and the
+;; [Stdlib__*] symbols. The files live in [rocq-osiris/stdlib/] for physical
+;; isolation; the [(modules :standard \ Stdlib Externals)] clause in that
+;; directory's dune excludes them from the [osiris.stdlib] theory.
+(copy_files ../stdlib/Stdlib.v)
+(copy_files ../stdlib/Externals.v)
+
 (rocq.theory
   (package rocq-osiris)
   (name osiris)

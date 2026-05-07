@@ -2,7 +2,8 @@ From osiris.lang Require Import type_nel encode notations int locations.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import proofmode.
 
-From osiris.stdlib Require Import og_array Externals.
+From osiris.stdlib Require Import og_array.
+From osiris Require Import Externals.
 
 From iris Require Import ltac_tactics.
 

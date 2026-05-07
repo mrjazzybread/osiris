@@ -230,7 +230,9 @@ Local Ltac2 rec solve_lookup_path () :=
   | [ |- bind (lookup_name ?η ?c) _ = _ ] =>
       erewrite -> (rewrite_bind (lookup_name $η $c)) >
         [ solve_lookup_name () | solve_lookup_path () ]
-  | [ |- ret _ = ret _ ] => reflexivity
+  | [ |- Some _ = Some _ ] =>
+      first [ reflexivity
+            | (ltac1:(f_equal); rewrite ?encode_encode'; reflexivity) ]
   end.
 
 Local Ltac2 rec is_pattern (c : constr) :=
@@ -839,12 +841,18 @@ Ltac2 pure_path0 () : unit :=
                  | [ h_ident : lookup_name ?_η ?_π = Some _
                      |- lookup_name ?_η ?_π = _ ] =>
                      let h := Control.hyp h_ident in
-                     rewrite [$h]; ltac1:(encode)
+                     rewrite $h; try reflexivity
+                 (* Handle [Some _ = Some _] goals from encode instance mismatches.
+                    We use [solve_encode_val] on the LHS value, which preserves opacity
+                    of [encode] so that subsequent [encode] hints still apply. *)
+                 | [ |- Some ?v = Some _ ] =>
+                     first [ reflexivity
+                           | exact (f_equal Some (solve_encode_val $v)) ]
                  (* Otherwise let [encode] solve the equality. *)
-                 | [ |- _ ] => ltac1:(encode)
+                 | [ |- _ ] => try reflexivity
                  end)
-            ; (fun () => ()) ]
-      | _ => ()
+            ; (fun () => try reflexivity) ]
+      | _ => Control.zero (Tactic_failure None)
       end
   | [ |- _ ] => ()
   end.
@@ -1018,11 +1026,11 @@ Ltac2 rec pure_data () :=
     [ eapply pure_wp_mono_ret;
       first (fun _ => eapply pure_evals_eq;
                       unfold_Forall2 ();
-                      try0 (fun _ => Control.plus
-                                       (fun _ => pure_path)
-                                       (fun _ => pure_data ())));
-    ltac1:(rewrite /singleton; intros ? ->; encode)
-    | ]; ltac1:(try encode).
+                      try0 (fun _ => Control.enter (fun _ => Control.plus
+                                               (fun _ => pure_path0 ())
+                                               (fun _ => pure_data ()))));
+    ltac1:(rewrite /singleton; intros ? ->; (encode || apply solve_encode_val))
+    | ]; ltac1:(try (encode || apply solve_encode_val || exact eq_refl)).
 
 Ltac2 Notation "pure_data" := Control.enter (fun _ => repeat0 pure_data).
 Tactic Notation "pure_data" := ltac2:(pure_data).

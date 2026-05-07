@@ -3,7 +3,6 @@ From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_shiftreset.
 
 (* Reasoning about delimited control via [shift/reset].
@@ -54,7 +53,7 @@ End shift_protocol.
 Section reasoning_rules.
   Context `{!osirisGS Σ}.
 
-  Definition env (shift_eff : loc) := ("Shift", #shift_eff) :: stdlib_env.
+  Definition env (shift_eff : loc) := ("Shift", #shift_eff) :: [].
 
   (* Mapping of translated function declaration names *)
   Definition shift_f := (EAnonFun __fun0).
@@ -78,7 +77,7 @@ Inductive effect : Type :=
 | Shift (f : val).
 
 Local Instance encode_effect l : Encode effect :=
-  { encode := λ eff, match eff with
+  { encode' := λ eff, match eff with
                      | Shift f => VXData l [f]
                      end }.
 
@@ -155,7 +154,5 @@ Section verification.
     iIntros (v) "HQ".
     iApply ("Hk" with "HQ IH").
   Qed.
-
-  Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: stdlib_env.
 
 End verification.

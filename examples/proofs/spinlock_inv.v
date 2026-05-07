@@ -1,7 +1,6 @@
 From iris.base_logic.lib Require Import invariants token.
 From osiris Require Import osiris.
 From osiris.proofmode Require Import proofmode.
-From osiris.stdlib Require Import Stdlib.
 From osiris.examples Require Import og_spinlock.
 
 (** * Invariant-based spinlock specification
