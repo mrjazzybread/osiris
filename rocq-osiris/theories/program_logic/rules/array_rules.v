@@ -7,7 +7,7 @@ From osiris.logic Require Import list_z big_opLZ.
 
 (** This file defines array resource predicates and [imp] rules for array expressions. *)
 
-Definition array : Type := syntax.array.
+Local Notation array := syntax.array.
 
 Section array_resources.
 

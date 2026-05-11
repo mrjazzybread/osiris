@@ -816,6 +816,18 @@ Section imp_combinators.
   Qed.
   (* Ghost-based load_block: use [isBlockLocs] (persistent ghost entry) to load the block.
      Returns the tag [t] without requiring physical block ownership. *)
+  Lemma imp_load_block_ghost' P (l : loc) ls :
+    ▷ isBlockLocs l ls -∗
+    ▷ P -∗
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(_, ls'), ⌜ls'=ls⌝ ∗ P }}.
+  Proof.
+    iIntros "Hblock P".
+    iApply (imp_stop_load_block_ghost with "Hblock").
+    iIntros "!>" (t).
+    iApply imp_ret; first encode.
+    iFrame. done.
+  Qed.
+
   Lemma imp_load_block_ghost (l : loc) ls :
     ▷ isBlockLocs l ls -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜ls' = ls⌝ }}.

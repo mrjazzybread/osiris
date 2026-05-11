@@ -1207,8 +1207,6 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       l ← alloc_block t ls;
       ret (VRecord l)
   | ERecordUpdate e fes =>
-      (* The existing record and the new record components are evaluated in
-         parallel. *)
       '(r, fvs') ← par (as_record (eval η e)) (evalfs η fes) ;
       '(t, ls) ← load_block r ;
       (* Copy the values in record [e] into a new block. *)
@@ -1226,7 +1224,6 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       | None => Crash
       end
   | ERecordSet e1 f e2 =>
-      (* The record and the new value are evaluated in parallel. *)
       '(r, v) ← par (as_record (eval η e1)) (eval η e2) ;
       '(_, ls) ← load_block r ;
       match ls !! f with
