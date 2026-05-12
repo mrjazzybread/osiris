@@ -19,14 +19,14 @@ Section types_helpers.
   Global Instance observe_types (τ : types) : Observe τ (list val) :=
     { observe τ := to_vals τ }.
 
-  Fixpoint length (τ : types) : Z :=
+  Fixpoint τ_length (τ : types) : Z :=
     match τ with
     | Tbase _ => 1
-    | type_nel.Tcons _ τ => 1 + length τ
+    | type_nel.Tcons _ τ => 1 + τ_length τ
     end.
 
   Lemma to_vals_length (τ : types) :
-    ∀ (xs : τ), list_z.length (to_vals xs) = length τ.
+    ∀ (xs : τ), list_z.length (to_vals xs) = τ_length τ.
   Proof.
     induction τ.
     - intros x. simpl. unfold tapp. by rewrite length_singleton.
@@ -132,7 +132,7 @@ Section types_helpers.
     apply lookup_total_to_vals_aux.
   Qed.
 
-  Definition valid_field f τ := 0 ≤ f < length τ.
+  Definition valid_field f τ := 0 ≤ f < τ_length τ.
 
   Fixpoint tau_insert_go (τ : types) (i : nat) : types_go i τ → τ → τ :=
     match τ, i return types_go i τ → τ → τ with
@@ -212,7 +212,7 @@ Section records_reasoning.
   Local Instance notval_listval : NotVal (list val) := {}.
 
   Lemma imp_ERecord {τ : types} {ζ} (Φs : τ -#> iProp Σ) t es :
-    ⌜length τ ≤ max_array_length⌝ -∗
+    ⌜τ_length τ ≤ max_array_length⌝ -∗
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
       (λ r, ∃ (xs : τ), ownRecord r (DfracOwn 1) t xs ∗ Φs xs).

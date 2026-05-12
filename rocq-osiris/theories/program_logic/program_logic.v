@@ -10,6 +10,7 @@ From osiris.program_logic Require Export
   rules.expr_rules
   impure_rules
   rules.array_rules
+  rules.record_rules
   rules.atomic_rules
 .
 
