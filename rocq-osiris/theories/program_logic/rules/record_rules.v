@@ -291,6 +291,22 @@ Section records_reasoning.
     iApply ("Hxs" with "Hx").
   Qed.
 
+  Lemma imp_ERecordAccess {τ : types} {ζ} (r : record) f dq t (xs : τ) e :
+    ⌜valid_field f τ⌝ -∗
+    ▷ ownRecord r dq t xs -∗
+    impure E (eval η e) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
+    impure E (eval η (ERecordAccess e f)) Ψ ζ
+      (λ (x : τ !!! f), ⌜x = xs !!τ f⌝  ∗ ownRecord r dq t xs).
+  Proof.
+    iIntros (Hvalid_field) "Hown He".
+    iDestruct "Hown" as "(%ls & #Hblock & Htag & Hxs)".
+    iApply (imp_ERecordAccess2 with "Hblock He").
+    iExists dq, t, xs.
+    iSplitL "Htag Hxs"; iNext.
+    - iFrame "∗#%".
+    - iIntros "$ //".
+  Qed.
+
   Lemma imp_ERecordSet2 {τ : types} {ζ} f {Φ : unit → iProp Σ} (Φ1 : record → iProp Σ) (Φ2 : τ !!! f → iProp Σ) e1 e2 :
     impure E (eval η e1) Ψ ζ Φ1 -∗
     impure E (eval η e2) Ψ ζ Φ2 -∗
@@ -335,6 +351,22 @@ Section records_reasoning.
     iSpecialize ("Hxs" with "Hx").
     update. rewrite insert_to_vals.
     iApply "Hxs".
+  Qed.
+
+  Lemma imp_ERecordSet {τ : types} {ζ} f (Φ : τ !!! f → iProp Σ) (r : record) t (xs : τ) e1 e2 :
+    ⌜valid_field f τ⌝ -∗
+    ▷ ownRecord r (DfracOwn 1) t xs -∗
+    impure E (eval η e1) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
+    impure E (eval η e2) Ψ ζ Φ -∗
+    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
+      (λ (_ : unit), ∃ a, Φ a ∗ ownRecord r (DfracOwn 1) t (<[f τ= a]> xs)).
+  Proof.
+    iIntros (Hvalid_field) "Hown He1 He2".
+    iApply (imp_ERecordSet2 with "He1 He2").
+    iIntros (? a) "-> HΦ".
+    iFrame "∗%".
+    iIntros "!> Hown".
+    iFrame.
   Qed.
 
 End records_reasoning.
