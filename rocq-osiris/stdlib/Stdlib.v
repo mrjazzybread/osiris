@@ -200,7 +200,7 @@ Lemma Stdlib__eq_spec :
   decide_spec Stdlib__eq representable Z.eqb.
 Proof.
   intros x Hx.
-  pure_enter. simpl_eval. pure_ret. unfold observe, observe_encode.
+  pure_enter. rewrite <- fold_pre_eval. simpl. pure_ret. unfold observe, observe_encode.
   rewrite <- solve_encode_val. reflexivity.
   intros y Hy.
   pure_enter.
@@ -210,7 +210,7 @@ Qed.
 Lemma Stdlib__ne_spec :
   decide_spec Stdlib__ne representable (λ x y, negb (x =? y)).
 Proof.
-  intros x Hx. pure_enter. simpl_eval. pure_ret.
+  intros x Hx. pure_enter. rewrite <- fold_pre_eval. simpl. pure_ret.
   simpl. rewrite <- solve_encode_val. reflexivity.
   intros y Hy.
   pure_enter.

@@ -66,8 +66,8 @@ Global Opaque
 
   (* Evaluator functions. *)
   call
-  (* eval *)
-  (* evals *)
+  eval
+  evals
   (* eval_match *)
   (* eval_sitem *)
   (* eval_sitems *)
