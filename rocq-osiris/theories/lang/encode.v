@@ -90,6 +90,8 @@ Global Instance notval_cont : NotVal cont := {}.
 Global Instance notval_array : NotVal array := {}.
 Global Instance notval_record : NotVal record := {}.
 Global Instance notval_thread : NotVal thread := {}.
+Global Instance notval_listloc : NotVal (list loc) := {}.
+Global Instance notval_block : NotVal (mut_tag * list loc) := {}.
 
 Global Instance observe_id `{NotVal A} : Observe A A | 1 := { observe := id }.
 

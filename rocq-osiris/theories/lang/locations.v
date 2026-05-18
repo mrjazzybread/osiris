@@ -31,6 +31,13 @@ Proof.
   by apply infinite.inj_infinite with (f := Loc) (g := λ l, Some (address l)).
 Defined.
 
+(* This instance allows us to use total lookups with [loc] as the key type. *)
+
+Global Instance inhabited_loc : Inhabited loc.
+Proof.
+  do 2 constructor. apply Z.inhabited.(inhabitant).
+Qed.
+
 (* Usage: [destruct (eqb_spec l1 l2)] will replace [eqb l1 l2] with [true] and
    add the hypothesis [l1 = l2] in a first subgoal, and the same with [false]
    and [l1 ≠ l2] in a second subgoal. *)

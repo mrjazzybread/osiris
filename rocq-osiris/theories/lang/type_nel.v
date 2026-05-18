@@ -1,7 +1,9 @@
 From stdpp Require Import base tactics.
 From stdpp Require Import options.
 
-From osiris.lang Require Import encode.
+From osiris Require Import base.
+From osiris.logic Require Import list_z.
+From osiris.lang Require Import syntax encode.
 
 (** This file defines [type_nel] (synonym: [types]), the type used for the
     argument on encoded function types. *)
@@ -239,13 +241,6 @@ Global Hint Extern 1 (tforall _) =>
 Global Hint Extern 1 (texists _) =>
   progress cbn [texists tfold tbind tapp] : typeclass_instances.
 
-(* Fixpoint to_vals {τ : types} : τ-#> list val := *)
-(*   match τ with *)
-(*   | Tbase H => tbind (λ x, [#x]) *)
-(*   | @Tcons X H b => *)
-(*       λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt)) *)
-(*   end. *)
-
 Lemma tforall_unroll `{Encode X} (τ : types) (P : Tcons X τ -> Prop) :
   (∀# (x : Tcons X τ), P x) = (∀ (x : X), ∀# (v : τ), P (x, v)).
 Proof. reflexivity. Qed.
@@ -256,3 +251,176 @@ Proof.
   rewrite <- (tforall_equiv P). rewrite tforall_unroll.
   split; intros HP x; by apply (tforall_equiv).
 Qed.
+
+Section types_helpers.
+
+  Fixpoint to_vals {τ : types} : τ-#> list val :=
+    match τ with
+    | Tbase H => tbind (λ x, [ #x])
+    | @type_nel.Tcons X H b =>
+      λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt))
+    end.
+
+  Global Instance observe_types (τ : types) : Observe τ (list val) :=
+    { observe τ := to_vals τ }.
+
+  Fixpoint τ_length (τ : types) : Z :=
+    match τ with
+    | Tbase _ => 1%Z
+    | type_nel.Tcons _ τ => 1 + τ_length τ
+    end.
+
+  Lemma to_vals_length (τ : types) :
+    ∀ (xs : τ), list_z.length (to_vals xs) = τ_length τ.
+  Proof.
+    induction τ.
+    - intros x. simpl. unfold tapp. by simpl.
+    - intros (x & xs). simpl. rewrite tapp_bind. length.
+      rewrite IHτ. lia.
+  Qed.
+
+  Instance types_lookup : Lookup Z Type types :=
+    λ i xs, if decide (i < 0)%Z then None else
+      let fix go (i : nat) (τ : types) {struct τ} : option Type :=
+        match τ, i with
+        | Tbase X, 0%nat => Some X
+        | Tbase _, _ => None
+        | type_nel.Tcons X _, 0%nat => Some X
+        | type_nel.Tcons _ τ, (S i0) => go i0 τ
+        end
+        in
+      go (Z.to_nat i) xs.
+
+  Instance types_lookup_total : LookupTotal Z Type types :=
+    λ i xs, if decide (i < 0)%Z then ()%type else
+      let fix go (i : nat) (τ : types) {struct τ} : Type :=
+        match τ, i with
+        | Tbase X, 0%nat => X
+        | Tbase _, _ => unit
+        | type_nel.Tcons X _, 0%nat => X
+        | type_nel.Tcons _ τ, (S i0) => go i0 τ
+        end
+      in
+      go (Z.to_nat i) xs.
+
+  Definition types_go : nat -> types -> Type :=
+    fix go (i : nat) (τ : types) {struct τ} : Type :=
+      match τ, i with
+      | Tbase X, 0%nat => X
+      | Tbase _, _ => unit
+      | type_nel.Tcons X _, 0%nat => X
+      | type_nel.Tcons _ τ', S i0 => go i0 τ'
+      end.
+
+  Fixpoint tau_lookup_go (τ : types) (i : nat) : τ -> types_go i τ :=
+    match τ, i return τ -> types_go i τ with
+    | Tbase X, 0%nat => fun xs => xs
+    | Tbase _, _ => fun _ => tt
+    | type_nel.Tcons X _, 0%nat => fun xs => fst xs
+    | type_nel.Tcons _ τ', S i0 => fun xs => tau_lookup_go τ' i0 (snd xs)
+    end.
+
+  Definition τ_lookup_total {τ : types} (f : Z) (xs : τ) : τ !!! f.
+  Proof.
+    unfold lookup_total, types_lookup_total.
+    case_decide.
+    - exact tt.
+    - exact (tau_lookup_go τ (Z.to_nat f) xs).
+  Defined.
+
+  Global Instance encode_types_lookup {τ : types} {f : Z} : Encode (τ !!! f).
+  Proof.
+    unfold lookup_total, types_lookup_total.
+    case_decide. { apply _. }
+    generalize (Z.to_nat f).
+    induction τ; intros n.
+    - destruct n; apply _.
+    - destruct n.
+      + apply _.
+      + apply IHτ.
+  Defined.
+
+  Global Instance inhabited_val : Inhabited val :=
+    { inhabitant := VUnit }.
+
+  Local Instance Encode_types_aux {τ} n : Encode (types_go n τ).
+  Proof.
+    revert n.
+    induction τ; intros n.
+    - simpl. destruct n; apply _.
+    - simpl. destruct n; first apply _.
+      apply IHτ.
+  Defined.
+
+  Local Lemma lookup_total_to_vals_aux {τ : types} (xs : τ) n :
+    (to_vals xs) !!! n = #(tau_lookup_go τ n xs).
+  Proof.
+    revert xs n.
+    induction τ as [X H | X H b IH]; intros xs n.
+    - destruct n as [|n'] eqn:Hnat; first reflexivity.
+      simpl.
+      rewrite list.lookup_total_nil. reflexivity.
+    - pose proof (Tcons_inv b xs) as [x [xs' ->]].
+      simpl; rewrite tapp_bind.
+      destruct n as [|n'] eqn:Hnat; first reflexivity.
+      rewrite (list.lookup_total_cons_ne_0 _ _ _); last lia.
+      apply IH.
+  Qed.
+
+  Lemma lookup_total_to_vals {τ : types} (xs : τ) (f : Z) :
+    (to_vals xs) !!! f = #(τ_lookup_total f xs).
+  Proof.
+    unfold τ_lookup_total, encode_types_lookup, lookup_total, types_lookup_total, listz_lookup_total.
+    case_decide as Hlt. { reflexivity. }
+    generalize (Z.to_nat f) as n; intros n; clear dependent f.
+    apply lookup_total_to_vals_aux.
+  Qed.
+
+  Definition valid_field f τ := (0 ≤ f < τ_length τ)%Z.
+
+  Fixpoint tau_insert_go (τ : types) (i : nat) : types_go i τ → τ → τ :=
+    match τ, i return types_go i τ → τ → τ with
+    | Tbase X, 0%nat        => fun x _ => x
+    | Tbase _, _            => fun _ xs => xs
+    | type_nel.Tcons X _, 0%nat => fun x xs => (x, snd xs)
+    | type_nel.Tcons _ τ', S i0 => fun x xs => (fst xs, tau_insert_go τ' i0 x (snd xs))
+    end.
+
+  Definition τ_insert {τ : types} (f : Z) (x : τ !!! f) (xs : τ) : τ.
+  Proof.
+    unfold lookup_total, types_lookup_total in x.
+    revert x. case_decide.
+    - intros _. exact xs.
+    - intro x. exact (tau_insert_go τ (Z.to_nat f) x xs).
+  Defined.
+
+  Local Lemma insert_to_vals_aux {τ : types} (xs : τ) n (x : types_go n τ) :
+    to_vals (tau_insert_go τ n x xs) = <[n := #x]> (to_vals xs).
+  Proof.
+    revert xs n x.
+    induction τ as [X H | X H b IH]; intros xs n x.
+    - destruct n as [|n']; first reflexivity.
+      simpl. update. reflexivity.
+    - pose proof (Tcons_inv b xs) as [y [xs' ->]].
+      simpl; rewrite tapp_bind.
+      destruct n as [|n']; simpl; rewrite tapp_bind.
+      + reflexivity.
+      + rewrite IH. reflexivity.
+  Qed.
+
+  Lemma insert_to_vals {τ : types} (xs : τ) (f : Z) (x : τ !!! f) :
+    to_vals (τ_insert f x xs) = <[ f := #x ]> (to_vals xs).
+  Proof.
+    revert x.
+    unfold τ_insert, encode_types_lookup, lookup_total, types_lookup_total, insert, listz_insert.
+    case_decide as Hlt. { auto. }
+    generalize (Z.to_nat f) as n; intros n; clear dependent f.
+    intros x.
+    apply insert_to_vals_aux.
+  Qed.
+
+End types_helpers.
+
+Notation "xs !!τ f" := (τ_lookup_total f xs) (at level 20).
+Notation "<[ f τ= x ]> xs" := (τ_insert f x xs)
+  (at level 5, right associativity, format "<[  f  τ=  x  ]>  xs").

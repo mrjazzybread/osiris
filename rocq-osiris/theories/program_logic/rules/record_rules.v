@@ -1,4 +1,5 @@
 From iris Require Import gen_heap proofmode.proofmode.
+From iris.bi.lib Require Import fractional.
 From osiris Require Import lang type_nel.
 From osiris.tactics Require Import osiris_utils.
 From osiris.program_logic Require Import ewp.
@@ -7,190 +8,69 @@ From osiris.logic Require Import list_z big_opLZ.
 
 (** This file defines record resource predicates and [imp] rules for record expressions. *)
 
-Section types_helpers.
-
-  Fixpoint to_vals {τ : types} : τ-#> list val :=
-    match τ with
-    | Tbase H => tbind (λ x, [ #x])
-    | @type_nel.Tcons X H b =>
-      λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt))
-    end.
-
-  Global Instance observe_types (τ : types) : Observe τ (list val) :=
-    { observe τ := to_vals τ }.
-
-  Fixpoint τ_length (τ : types) : Z :=
-    match τ with
-    | Tbase _ => 1
-    | type_nel.Tcons _ τ => 1 + τ_length τ
-    end.
-
-  Lemma to_vals_length (τ : types) :
-    ∀ (xs : τ), list_z.length (to_vals xs) = τ_length τ.
-  Proof.
-    induction τ.
-    - intros x. simpl. unfold tapp. by rewrite length_singleton.
-    - intros (x & xs). simpl. rewrite tapp_bind. length.
-      rewrite IHτ. lia.
-  Qed.
-
-  Instance types_lookup : Lookup Z Type types :=
-    λ i xs, if decide (i < 0) then None else
-      let fix go (i : nat) (τ : types) {struct τ} : option Type :=
-        match τ, i with
-        | Tbase X, 0%nat => Some X
-        | Tbase _, _ => None
-        | type_nel.Tcons X _, 0%nat => Some X
-        | type_nel.Tcons _ τ, (S i0) => go i0 τ
-        end
-        in
-      go (Z.to_nat i) xs.
-
-  Instance types_lookup_total : LookupTotal Z Type types :=
-    λ i xs, if decide (i < 0) then ()%type else
-      let fix go (i : nat) (τ : types) {struct τ} : Type :=
-        match τ, i with
-        | Tbase X, 0%nat => X
-        | Tbase _, _ => unit
-        | type_nel.Tcons X _, 0%nat => X
-        | type_nel.Tcons _ τ, (S i0) => go i0 τ
-        end
-      in
-      go (Z.to_nat i) xs.
-
-  Definition types_go : nat -> types -> Type :=
-    fix go (i : nat) (τ : types) {struct τ} : Type :=
-      match τ, i with
-      | Tbase X, 0%nat => X
-      | Tbase _, _ => unit
-      | type_nel.Tcons X _, 0%nat => X
-      | type_nel.Tcons _ τ', S i0 => go i0 τ'
-      end.
-
-  Fixpoint tau_lookup_go (τ : types) (i : nat) : τ -> types_go i τ :=
-    match τ, i return τ -> types_go i τ with
-    | Tbase X, 0%nat => fun xs => xs
-    | Tbase _, _ => fun _ => tt
-    | type_nel.Tcons X _, 0%nat => fun xs => fst xs
-    | type_nel.Tcons _ τ', S i0 => fun xs => tau_lookup_go τ' i0 (snd xs)
-    end.
-
-  Definition τ_lookup_total {τ : types} (f : Z) (xs : τ) : τ !!! f.
-  Proof.
-    unfold lookup_total, types_lookup_total.
-    case_decide.
-    - exact tt.
-    - exact (tau_lookup_go τ (Z.to_nat f) xs).
-  Defined.
-
-  Global Instance encode_types_lookup {τ : types} {f : Z} : Encode (τ !!! f).
-  Proof.
-    unfold lookup_total, types_lookup_total.
-    case_decide. { apply _. }
-    generalize (Z.to_nat f).
-    induction τ; intros n.
-    - destruct n; apply _.
-    - destruct n.
-      + apply _.
-      + apply IHτ.
-  Defined.
-
-  Global Instance inhabited_val : Inhabited val :=
-    { inhabitant := VUnit }.
-
-  Local Instance Encode_types_aux {τ} n : Encode (types_go n τ).
-  Proof.
-    revert n.
-    induction τ; intros n.
-    - simpl. destruct n; apply _.
-    - simpl. destruct n; first apply _.
-      apply IHτ.
-  Defined.
-
-  Local Lemma lookup_total_to_vals_aux {τ : types} (xs : τ) n :
-    (to_vals xs) !!! n = #(tau_lookup_go τ n xs).
-  Proof.
-    revert xs n.
-    induction τ as [X H | X H b IH]; intros xs n.
-    - rewrite tapp_bind.
-      destruct n as [|n'] eqn:Hnat; first reflexivity.
-      rewrite (list.lookup_total_cons_ne_0 _ _ _ _); last lia.
-      rewrite list.lookup_total_nil. reflexivity.
-    - pose proof (Tcons_inv b xs) as [x [xs' ->]].
-      simpl; rewrite tapp_bind.
-      destruct n as [|n'] eqn:Hnat; first reflexivity.
-      rewrite (list.lookup_total_cons_ne_0 _ _ _ _); last lia.
-      apply IH.
-  Qed.
-
-  Lemma lookup_total_to_vals {τ : types} (xs : τ) (f : Z) :
-    (to_vals xs) !!! f = #(τ_lookup_total f xs).
-  Proof.
-    unfold τ_lookup_total, encode_types_lookup, lookup_total, types_lookup_total, listz_lookup_total.
-    case_decide as Hlt. { reflexivity. }
-    generalize (Z.to_nat f) as n; intros n; clear dependent f.
-    apply lookup_total_to_vals_aux.
-  Qed.
-
-  Definition valid_field f τ := 0 ≤ f < τ_length τ.
-
-  Fixpoint tau_insert_go (τ : types) (i : nat) : types_go i τ → τ → τ :=
-    match τ, i return types_go i τ → τ → τ with
-    | Tbase X, 0%nat        => fun x _ => x
-    | Tbase _, _            => fun _ xs => xs
-    | type_nel.Tcons X _, 0%nat => fun x xs => (x, snd xs)
-    | type_nel.Tcons _ τ', S i0 => fun x xs => (fst xs, tau_insert_go τ' i0 x (snd xs))
-    end.
-
-  Definition τ_insert {τ : types} (f : Z) (x : τ !!! f) (xs : τ) : τ.
-  Proof.
-    unfold lookup_total, types_lookup_total in x.
-    revert x. case_decide.
-    - intros _. exact xs.
-    - intro x. exact (tau_insert_go τ (Z.to_nat f) x xs).
-  Defined.
-
-  Local Lemma insert_to_vals_aux {τ : types} (xs : τ) n (x : types_go n τ) :
-    to_vals (tau_insert_go τ n x xs) = <[n := #x]> (to_vals xs).
-  Proof.
-    revert xs n x.
-    induction τ as [X H | X H b IH]; intros xs n x.
-    - rewrite tapp_bind.
-      destruct n as [|n']; first reflexivity.
-      simpl. update. reflexivity.
-    - pose proof (Tcons_inv b xs) as [y [xs' ->]].
-      simpl; rewrite tapp_bind.
-      destruct n as [|n']; simpl; rewrite tapp_bind.
-      + reflexivity.
-      + rewrite IH. reflexivity.
-  Qed.
-
-  Lemma insert_to_vals {τ : types} (xs : τ) (f : Z) (x : τ !!! f) :
-    to_vals (τ_insert f x xs) = <[ f := #x ]> (to_vals xs).
-  Proof.
-    revert x.
-    unfold τ_insert, encode_types_lookup, lookup_total, types_lookup_total, insert, listz_insert.
-    case_decide as Hlt. { auto. }
-    generalize (Z.to_nat f) as n; intros n; clear dependent f.
-    intros x.
-    apply insert_to_vals_aux.
-  Qed.
-
-End types_helpers.
-
-Notation "xs !!τ f" := (τ_lookup_total f xs) (at level 20).
-Notation "<[ f τ= x ]> xs" := (τ_insert f x xs)
-  (at level 5, right associativity, format "<[  f  τ=  x  ]>  xs").
-
 Section record_resources.
 
   Context `{!osirisGS Σ}.
 
-  Definition ownRecord {τ : types} (r : record) dq (t : mut_tag) (xs : τ) : iProp Σ :=
-    ∃ ls, isBlockLocs r ls ∗ r ⤇{dq} t ∗
-      [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{dq} v.
+  Definition ownRecord {τ : types} (r : record) qp (t : mut_tag) (xs : τ) : iProp Σ :=
+    ∃ ls, isBlockLocs r ls ∗ r ⤇{#qp} t ∗
+      [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{#qp} v.
 
 End record_resources.
+
+Section record_resources_frac.
+
+  Context `{!osirisGS Σ}.
+
+  Local Lemma isBlock_split (b : locations.loc) p q t :
+    b ⤇{#(p + q)} t ⊣⊢ b ⤇{#p} t ∗ b ⤇{#q} t.
+  Proof.
+    unfold isBlock. iSplit.
+    - iIntros "(%ls & Hb)".
+      iDestruct "Hb" as "[Hb1 Hb2]".
+      iSplitL "Hb1"; iExists ls; iFrame.
+    - iIntros "([%ls1 Hb1] & [%ls2 Hb2])".
+      iPoseProof (gen_heap.pointsto_agree with "Hb1 Hb2") as "%Heq". simplify_eq.
+      iExists ls2. iCombine "Hb1 Hb2" as "Hb". iFrame.
+  Qed.
+
+  Global Instance isBlock_fractional (b : locations.loc) t :
+    Fractional (λ q, isBlock b (DfracOwn q) t).
+  Proof. intros p q. rewrite isBlock_split //. Qed.
+
+  Global Instance isBlock_as_fractional (b : locations.loc) q t :
+    AsFractional (isBlock b (DfracOwn q) t) (λ q, isBlock b (DfracOwn q) t) q.
+  Proof. constructor; done || apply _. Qed.
+
+  Global Instance ownRecord_fractional {τ : types} (r : record) t (xs : τ) :
+    Fractional (λ q, ownRecord r q t xs).
+  Proof.
+    intros p q. unfold ownRecord. iSplit.
+    - iIntros "(%ls & #Hblock & Htag & Hxs)".
+      iDestruct (isBlock_split r p q t with "Htag") as "[Htag1 Htag2]".
+      iAssert ([∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{DfracOwn p} v ∗ l ↦{DfracOwn q} v)%I
+        with "[Hxs]" as "Hxs'".
+      { iApply (big_sepLZ2_mono with "Hxs").
+        intros k l v _ _. iIntros "[Hl1 Hl2]". iFrame. }
+      rewrite big_sepLZ2_sep.
+      iDestruct "Hxs'" as "[Hxs1 Hxs2]".
+      iSplitL "Htag1 Hxs1"; iExists ls; iFrame "#∗".
+    - iIntros "([%ls1 (#Hblock1 & Htag1 & Hxs1)] & [%ls2 (#Hblock2 & Htag2 & Hxs2)])".
+      iPoseProof (isBlockLocs_valid with "Hblock1 Hblock2") as "<-".
+      iExists ls2. iFrame "Hblock1".
+      iSplitL "Htag1 Htag2". { rewrite isBlock_split. iFrame. }
+      iAssert ([∗ listZ] l;v ∈ ls2; to_vals xs, l ↦{DfracOwn p} v ∗ l ↦{DfracOwn q} v)%I
+        with "[Hxs1 Hxs2]" as "Hxs".
+      { rewrite big_sepLZ2_sep. iFrame. }
+      iApply (big_sepLZ2_mono with "Hxs").
+      intros k l v _ _. iIntros "[Hl1 Hl2]". iCombine "Hl1 Hl2" as "$".
+  Qed.
+
+  Global Instance ownRecord_as_fractional {τ : types} (r : record) q t (xs : τ) :
+    AsFractional (ownRecord r q t xs) (λ q, ownRecord r q t xs) q.
+  Proof. constructor; done || apply _. Qed.
+
+End record_resources_frac.
 
 Section records_reasoning.
 
@@ -208,14 +88,13 @@ Section records_reasoning.
     iApply (imp_ret with "HΦ"). encode.
   Qed.
 
-  Global Instance notval_listloc : NotVal (list loc) := {}.
   Local Instance notval_listval : NotVal (list val) := {}.
 
   Lemma imp_ERecord {τ : types} {ζ} (Φs : τ -#> iProp Σ) t es :
     ⌜τ_length τ ≤ max_array_length⌝ -∗
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
-      (λ r, ∃ (xs : τ), ownRecord r (DfracOwn 1) t xs ∗ Φs xs).
+      (λ r, ∃ (xs : τ), ownRecord r 1 t xs ∗ Φs xs).
   Proof.
     iIntros "%Hlength Hes". simpl_eval.
     iApply (imp_bind with "Hes").
@@ -236,13 +115,6 @@ Section records_reasoning.
     iIntros (r) "(Hmut & Hblocks)".
     iApply imp_ret. encode.
     iFrame.
-  Qed.
-
-  Global Instance notval_block : NotVal (mut_tag * list loc) := {}.
-
-  Global Instance inhabited_loc : Inhabited loc.
-  Proof.
-    do 2 constructor. apply Z.inhabited.(inhabitant).
   Qed.
 
   Lemma imp_ERecordAccess2 {τ : types} {ζ} f {Φ : (τ !!! f) → iProp Σ} r ls e :
@@ -312,8 +184,8 @@ Section records_reasoning.
     impure E (eval η e2) Ψ ζ Φ2 -∗
     (∀ r a, Φ1 r -∗ Φ2 a -∗
             ∃ t (xs : τ),
-              ▷ (⌜valid_field f τ⌝ ∗ ownRecord r (DfracOwn 1) t xs) ∗
-              ▷ (ownRecord r (DfracOwn 1) t <[f τ= a]> xs -∗ Φ ())) -∗
+              ▷ (⌜valid_field f τ⌝ ∗ ownRecord r 1 t xs) ∗
+              ▷ (ownRecord r 1 t <[f τ= a]> xs -∗ Φ ())) -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
   Proof.
     iIntros "He1 He2 P". simpl_eval.
@@ -355,11 +227,11 @@ Section records_reasoning.
 
   Lemma imp_ERecordSet {τ : types} {ζ} f (Φ : τ !!! f → iProp Σ) (r : record) t (xs : τ) e1 e2 :
     ⌜valid_field f τ⌝ -∗
-    ▷ ownRecord r (DfracOwn 1) t xs -∗
+    ▷ ownRecord r 1 t xs -∗
     impure E (eval η e1) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ (_ : unit), ∃ a, Φ a ∗ ownRecord r (DfracOwn 1) t (<[f τ= a]> xs)).
+      (λ (_ : unit), ∃ a, Φ a ∗ ownRecord r 1 t (<[f τ= a]> xs)).
   Proof.
     iIntros (Hvalid_field) "Hown He1 He2".
     iApply (imp_ERecordSet2 with "He1 He2").
