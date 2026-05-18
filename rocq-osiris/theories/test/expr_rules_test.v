@@ -139,6 +139,49 @@ Proof.
     iFrame. auto.
 Qed.
 
+(* The current automation does not scale when we have to split
+   ownership in this way.
+
+   For example, the following proof should be mostly automatable. *)
+
+(* [x := (!x * !x) + (!x * !x)] *)
+Lemma example_double_double η x lx n :
+  lookup_name η x = Some #lx ->
+  lx ↦ #n
+  ⊢ imp (eval η (EStore (EVar x)
+     ((ELoad (EVar x) + ELoad (EVar x)) * (ELoad (EVar x) + ELoad (EVar x)) )))
+    {{ λ (_ : unit), lx ↦ #((2 * n)^2)%Z }}.
+Proof.
+  iIntros (Ex) "Hx".
+  iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
+  - imp_path.
+  - (* !x + !x *)
+    iDestruct "Hx" as "(Hx1 & Hx2)".
+    set_postcondition (λ i, ⌜(i = (2 * n)^2)%Z⌝ ∗ lx ↦ #n)%I.
+    imp_arith with "[Hx1] [Hx2]".
+    + iDestruct "Hx1" as "(Hx1.1 & Hx1.2)".
+      set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦{#1 / 2} #n)%I.
+      imp_arith with "[Hx1.1] [Hx1.2]".
+      (* add's postcondition *)
+      iIntros "(-> & Hx1) (-> & Hx2)".
+      iCombine "Hx1" "Hx2" as "$".
+      iPureIntro; lia.
+    + iDestruct "Hx2" as "(Hx2.1 & Hx2.2)".
+      set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦{#1 / 2} #n)%I.
+      imp_arith with "[Hx2.1] [Hx2.2]".
+      (* add's postcondition *)
+      iIntros "(-> & Hx1) (-> & Hx2)".
+      iCombine "Hx1" "Hx2" as "$".
+      iPureIntro; lia.
+    + (* mul's postcondition *)
+      iIntros "(-> & Hx1) (-> & Hx2)".
+      iCombine "Hx1" "Hx2" as "$".
+      iPureIntro; lia.
+  - (* := *)
+    iIntros (i) "(-> & Hx)".
+    iFrame. auto.
+Qed.
+
 (* match 1 with _ -> true *)
 
 Lemma simple_PAny_match η :
