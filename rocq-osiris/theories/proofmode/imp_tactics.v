@@ -206,7 +206,14 @@ Ltac2 imp_arith_tac (selpat : constr option) :=
       iApply ($lemma with $s);
       match arith_kind with
       | Literal => ()
-      | Op => Control.extend [] (fun _ => try (imp_step)) [ fun _ => simple_intros (); auto ]
+      | Op =>
+          Control.extend [] (fun _ => try (imp_step))
+            [ fun _ =>
+                simple_intros ();
+                lazy_match! get_iris_goal () with
+                | bi_wand _ _ => ()
+                | _ => auto
+                end ]
       | Comparison =>
           lastn [ (fun _ => imp_step); (fun _ => imp_step) ];
           firstn [ representable; representable ]

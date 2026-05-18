@@ -20,25 +20,53 @@ Section verification.
     ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length length_spec }}.
   Proof.
     iApply imp_EAnon_pers.
-    iIntros "!>" (r dq t x y) "Hown".
+    iIntros "!>" (r qp t x y) "Hown".
 
     iApply imp_please; iNext.
 
     (* TODO: split ownership of record here. *)
+    iDestruct "Hown" as "[Hown1 Hown2]".
 
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
-    imp_arith with "[Hown]".
+    imp_arith with "[Hown1] [Hown2]".
     - (* Subgoal: [(v.x * v.x)] *)
-      admit.
+      iDestruct "Hown1" as "[Hown1.1 Hown1.2]".
+      imp_arith with "[Hown1.1] [Hown1.2]".
+      + iApply (imp_ERecordAccess with "[%] Hown1.1").
+        split; simpl; try lia.
+        imp_path.
+      + iApply (imp_ERecordAccess with "[%] Hown1.2").
+        split; simpl; try lia.
+        imp_path.
+      + (* join: Φ1 i -∗ Φ2 j -∗ outer (i * j) *)
+        unfold τ_lookup_total; simpl.
+        instantiate (1:= (λ i, ⌜ i = (x * x)%Z ⌝ ∗ ownRecord r _ t _)%I).
+        iIntros "(-> & Hown1) (-> & Hown2)".
+        by iCombine "Hown1 Hown2" as "$".
     - (* Subgoal: [(v.y * v.y)] *)
-      admit.
-  Admitted.
-
+      iDestruct "Hown2" as "[Hown2.1 Hown2.2]".
+      imp_arith with "[Hown2.1] [Hown2.2]".
+      + iApply (imp_ERecordAccess with "[%] Hown2.1").
+        split; simpl; try lia.
+        imp_path.
+      + iApply (imp_ERecordAccess with "[%] Hown2.2").
+        split; simpl; try lia.
+        imp_path.
+      + (* join: Φ1 i -∗ Φ2 j -∗ outer (i * j) *)
+        unfold τ_lookup_total; simpl.
+        instantiate (1:= (λ i, ⌜ i = (y * y)%Z ⌝ ∗ ownRecord r _ t _)%I).
+        iIntros "(-> & Hown1) (-> & Hown2)".
+        by iCombine "Hown1 Hown2" as "$".
+    - (* join: Φ1 i -∗ Φ2 j -∗ ⌜i + j = x*x + y*y⌝ ∗ ownRecord *)
+      unfold τ_lookup_total; simpl.
+      iIntros "(-> & Hown1) (-> & Hown2)".
+      by iCombine "Hown1 Hown2" as "$".
+  Qed.
 
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ t (x0 y : Z),
-      ▷ @ownRecord Σ _ τ[Z;Z] r (DfracOwn 1) t (x0, y) -∗
-      imp m {{ λ (_ : unit), @ownRecord Σ _ τ[Z;Z] r (DfracOwn 1) t (x, y) }}.
+      ▷ @ownRecord Σ _ τ[Z;Z] r 1 t (x0, y) -∗
+      imp m {{ λ (_ : unit), @ownRecord Σ _ τ[Z;Z] r 1 t (x, y) }}.
 
   Definition eupdate_x := EAnonFun __fun2.
 
@@ -89,3 +117,5 @@ Section verification.
     iApply imp_sitems_nil.
     iFrame "#". simpl. auto.
   Admitted.
+
+End verification.
