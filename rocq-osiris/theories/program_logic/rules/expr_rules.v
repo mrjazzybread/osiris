@@ -216,25 +216,6 @@ Section imp_rules_expr.
 
   (** * EData : data → expr → expr *)
 
-  Lemma imp_EData `{Encode A} {Φ : A → iProp Σ} {ζ} η c es Φs :
-    ([∗ list] ei;Φi ∈ es;Φs,
-       imp eval η ei @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φi }}) -∗
-    (∀ vs,
-       ([∗ list] vi;Φi ∈ vs;Φs, Φi vi) -∗
-       ∃ a, ⌜#a = VData c vs⌝ ∗ Φ a) -∗
-    imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "H P /=". simpl_eval.
-    iApply (imp_bind (A1:=list val) with "[H]").
-    { iApply (imp_evals with "H"). }
-    iIntros (vs) "H".
-    iDestruct ("P" with "H") as "(%a & %Henc & HΦ)".
-    iApply imp_ret; last iFrame. symmetry.
-    unfold observe, observe_encode at 1. rewrite Henc.
-    unfold observe_list, encode.encode, Encode_val.
-    rewrite map_id. reflexivity.
-  Qed.
-
   (* E/VConstant is a macro for E/VData *)
   Lemma imp_EConstant `{Encode A} {ζ} (a : A) η c :
     VConstant c = #a →
@@ -254,26 +235,6 @@ Section imp_rules_expr.
   Qed.
 
   (** * EXData : data → expr → expr *)
-  Lemma imp_EXData `{Encode A} {ζ} η π l es (Φs : list (val → iProp Σ)) (Φ : A → iProp Σ) :
-    lookup_path η π = Some (VLoc l) →
-    ([∗ list] ei;Φi ∈ es;Φs,
-       imp eval η ei @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φi }}) -∗
-    (∀ vs, ([∗ list] vi;Φi ∈ vs;Φs, Φi vi) -∗
-           ∃ (a : A), ⌜#a = VXData l vs⌝ ∗ Φ a) -∗
-    imp eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros (Hlookup) "He Hjoin".
-    simpl_eval. rewrite Hlookup. simpl.
-    iApply (imp_bind (A1 := loc)). { instantiate (1:= (λ l', ⌜l'=l⌝)%I). by iApply imp_ret. }
-    iIntros (?) "->". iApply (imp_bind (A1:=list val) with "[He]").
-    iApply (imp_evals with "He").
-    iIntros (vs) "HΦs".
-    iDestruct ("Hjoin" $! vs with "HΦs") as "(%a & %Henc & HΦ)".
-    iApply imp_ret; last iFrame.
-    symmetry. unfold observe, observe_encode at 1. rewrite Henc.
-    unfold observe_list, encode.encode, Encode_val.
-    rewrite map_id. reflexivity.
-  Qed.
 
   (** * ERecord : list fexpr → expr *)
   (** * ERecordUpdate : expr → list fexpr → expr *)
