@@ -263,11 +263,10 @@ Section iter_proof.
               ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
         with "[] [] [-]".
       { imp_arith.
-        imp_app τ[array].
-        iIntros "Hm".
-        iApply (imp_wand with "[-]").
-        - iApply ("Hm" with "Harr").
-        - iIntros (?) "->". rewrite Hlenls. auto. }
+        - set_postcondition (λ n, ⌜n = length ls⌝)%I.
+          imp_app τ[array].
+          iIntros "Hm". iApply ("Hm" with "Harr").
+        - iIntros "->". iPureIntro. lia. }
 
       { (* Establish the invariant for [i = 0]. *)
         iFrame. iPureIntro. split; [ by length | apply prefix_nil ]. }
@@ -528,11 +527,10 @@ Section map_inplace_spec.
             [∗ listZ] x;y ∈ (seg 0 i xs);ys, Φ x y)%I
         with "[] [] [-]".
       { imp_arith.
-        imp_app τ[array].
-        iIntros "Hm".
-        iApply (imp_wand with "[-]").
-        - iApply ("Hm" with "Ha").
-        - iIntros (?) "->". rewrite Hlenls. auto. }
+        - set_postcondition (λ n, ⌜n = length ls⌝)%I.
+          imp_app τ[array].
+          iIntros "Hm". iApply ("Hm" with "Ha").
+        - iIntros "->". iPureIntro. lia. }
 
       { (* Establish the invariant for [i = 0]. *)
         iExists []. seg. rewrite big_sepLZ2_nil. iFrame. }
@@ -631,11 +629,10 @@ Section mapi_inplace_spec.
             [∗ listZ] j↦x;y ∈ (seg 0 i xs);ys, Φ j x y)%I
         with "[] [] [-]".
       { imp_arith.
-        imp_app τ[array].
-        iIntros "Hm".
-        iApply (imp_wand with "[Hm]").
-        - iApply ("Hm" with "Ha").
-        - iIntros (?) "->". rewrite Hlenls. auto. }
+        - set_postcondition (λ n, ⌜n = length ls⌝)%I.
+          imp_app τ[array].
+          iIntros "Hm". iApply ("Hm" with "Ha").
+        - iIntros "->". iPureIntro. lia. }
 
       { (* Establish the invariant for [i = 0]. *)
         iExists []. seg. rewrite big_sepLZ2_nil. iFrame. }
@@ -759,10 +756,10 @@ Section iteri_spec.
         $! (λ i, a ↦∗[0]{dq} xs ∗ ∃ Xs, I Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
         with "[] [] [-]".
       { imp_arith.
-        imp_app τ[array].
-        iIntros "Hm". iApply (imp_wand with "[Hm]").
-        - iApply ("Hm" with "Ha").
-        - iIntros (?) "->". rewrite Hlenls. auto. }
+        - set_postcondition (λ n, ⌜n = length ls⌝)%I.
+          imp_app τ[array].
+          iIntros "Hm". iApply ("Hm" with "Ha").
+        - iIntros "->". iPureIntro. lia. }
 
       { (* Establish the invariant when [i = 0]. *)
         iFrame. iPureIntro. split; [ by length | apply prefix_nil ]. }
@@ -973,10 +970,10 @@ Section fold_left_spec.
                 r ↦ #acc ∗ I acc Xs ∗ ⌜length Xs = i⌝ ∗ ⌜Xs `prefix_of` xs⌝)%I
         with "[] [] [-]".
       { imp_arith.
-        imp_app τ[array].
-        iIntros "Hm". iApply (imp_wand with "[Hm]").
-        - iApply ("Hm" with "Ha").
-        - iIntros (?) "->". rewrite Hlenls. auto. }
+        - set_postcondition (λ n, ⌜n = length ls⌝)%I.
+          imp_app τ[array].
+          iIntros "Hm". iApply ("Hm" with "Ha").
+        - iIntros "->". iPureIntro. lia. }
 
       { (* Establish the invariant for [i = 0]. *)
         iFrame. iPureIntro. split; first by length. apply prefix_nil. }
