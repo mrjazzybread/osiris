@@ -10,9 +10,9 @@ Section verification.
   Context `{!osirisGS Σ}.
 
   Definition length_spec r (m : microvx) : iProp Σ :=
-    ∀ dq t (x y : Z),
-      ▷ @ownRecord Σ _ τ[Z; Z] r dq t (x, y) -∗
-      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ @ownRecord _ _ τ[Z; Z] r dq t (x, y) }}.
+    ∀ qp t (x y : Z),
+      ▷ @ownRecord Σ _ τ[Z; Z] r qp t (x, y) -∗
+      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ @ownRecord _ _ τ[Z; Z] r qp t (x, y) }}.
 
   Definition elength := EAnonFun __fun0.
 

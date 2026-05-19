@@ -29,14 +29,15 @@ Section evals_rules.
   Lemma imp_evals_cons `{Encode A} {τ : types} η e es (Φ : A → iProp Σ) (Φs : τ → iProp Σ) :
     impure E (eval η e) Ψ ζ Φ -∗
     impure E (evals η es) Ψ ζ Φs -∗
-    impure E (evals η (e :: es)) Ψ ζ (λ '(x, xs), Φ x ∗ Φs xs).
+    impure (A:=type_nel.Tcons A τ) E (evals η (e :: es)) Ψ ζ (λ '(x, xs), Φ x ∗ Φs xs).
   Proof.
     iIntros "He Hes".
     simpl_evals.
     iApply (imp_bind_par with "He Hes").
     iIntros (x xs) "HΦ HΦs".
-    iApply (imp_ret _ (x, xs)). encode.
-    iFrame.
+    iApply (imp_ret _ (x, xs)).
+    - simpl. rewrite tapp_bind. reflexivity.
+    - iFrame.
   Qed.
 
   Local Instance observe_singleton `{Encode A} : Observe A (list val) :=
@@ -55,41 +56,55 @@ Section evals_rules.
     iApply "HΦ".
   Qed.
 
-  Class IsInductive (A : Type) := { arguments : A → list val }.
+  Class DataCtor (c : data) (τ : types) (A : Type) `{Encode A} : Type :=
+  { ctor_apply  : τ → A;
+    ctor_encode : ∀ xs : τ, VData c (to_vals xs) = #(ctor_apply xs) }.
 
-  Instance encode_inductive {A} (c : data) : IsInductive A → Encode A :=
-    { encode' a := VData c (arguments a) }.
+  Global Hint Mode DataCtor ! - ! - : typeclass_instances.
 
-  Lemma imp_EData {τ : types} `{Encode A} {Φ : A → iProp Σ} η c es (Φs : τ → iProp Σ) :
+  Global Instance DataCtor_Some `{Encode A} : DataCtor "Some" (Tbase A) (option A) :=
+    { ctor_apply  := Some;
+      ctor_encode := λ _, eq_refl }.
+
+  Global Instance DataCtor_Cons `{Encode A} : DataCtor "::" (type_nel.Tcons A (Tbase (list A))) (list A) :=
+    { ctor_apply  := λ '(x, xs), x :: xs;
+      ctor_encode := λ '(_, _), eq_refl }.
+
+  Lemma imp_EData `{DC : DataCtor c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
-    (∀# (xs : τ),
-       Φs xs -∗
-       ∃ a, ⌜#a = VData c (to_vals xs)⌝ ∗ Φ a) -∗
+    (∀# xs, Φs xs -∗ Φ (DC.(ctor_apply) xs)) -∗
     imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros "H P /=". simpl_eval.
+    iIntros "H Hk". simpl_eval.
     iApply (imp_bind with "H").
     iIntros (xs) "HΦs".
     rewrite bi_tforall_equiv.
-    iDestruct ("P" with "HΦs") as "(%a & %Henc & HΦ)".
-    iApply imp_ret; last iApply "HΦ". simpl. auto.
+    iDestruct ("Hk" with "HΦs") as "HΦ".
+    iApply (imp_ret _ (DC.(ctor_apply) xs)); last iApply "HΦ".
+    simpl. apply DC.(ctor_encode).
   Qed.
 
-  Lemma imp_EXData {τ : types} `{Encode A} η π l es (Φs : τ → iProp Σ) (Φ : A → iProp Σ) :
-    lookup_path η π = Some (VLoc l) →
+
+  Class XDataCtor (l : loc) (τ : types) (A : Type) `{Encode A} : Type :=
+    { xctor_apply  : τ → A;
+      xctor_encode : ∀ (xs : τ), VXData l (to_vals xs) = #(xctor_apply xs) }.
+
+  Global Hint Mode XDataCtor ! - ! - : typeclass_instances.
+
+  Lemma imp_EXData `{DC : XDataCtor l τ A} {Φ : A → iProp Σ} η π es (Φs : τ → iProp Σ) :
+    lookup_path η π = Some #l →
     impure E (evals η es) Ψ ζ Φs -∗
-    (∀# xs, Φs xs -∗
-           ∃ (a : A), ⌜#a = VXData l (to_vals xs)⌝ ∗ Φ a) -∗
+    (∀# xs, Φs xs -∗ Φ (DC.(xctor_apply) xs)) -∗
     imp eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
-    iIntros (Hlookup) "He Hjoin". simpl_eval.
+    iIntros (Hlookup) "He Hk". simpl_eval.
     rewrite Hlookup. unfold as_loc; simpl. rewrite !bind_ret.
     iApply (imp_bind with "He").
     rewrite bi_tforall_equiv.
     iIntros (xs) "HΦs".
-    iDestruct ("Hjoin" with "HΦs") as "(%a & %Henc & HΦ)".
-    iApply (imp_ret); last iApply "HΦ".
-    simpl. auto.
+    iDestruct ("Hk" with "HΦs") as "HΦ".
+    iApply (imp_ret _ (DC.(xctor_apply) xs)); last iApply "HΦ".
+    simpl. apply DC.(xctor_encode).
   Qed.
 
 End evals_rules.

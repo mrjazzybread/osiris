@@ -51,7 +51,7 @@ Section proof_pure.
 
     (* Struct item: [let head l = ...] *)
     apply (let_fun τ[list A] head_spec).
-    { simpl; fold eval.
+    { simpl.
       unfold head_spec; intros l.
       apply pure_please_eval.
       eapply pure_eval_match. { pure_path. }
@@ -63,7 +63,7 @@ Section proof_pure.
 
     (* Struct item: [let catch_head l = ...] *)
     apply (let_fun τ[list A] catch_head_spec).
-    { simpl; fold eval.
+    { simpl.
       unfold catch_head_spec; intros l.
       change encode_list with (@encode.encode (list A) _).
       apply pure_please_eval.
@@ -82,7 +82,7 @@ Section proof_pure.
 
     (* Struct item: [let catch_head2 l = ...] *)
     apply (let_fun τ[list A] catch_head_spec).
-    { simpl; fold eval.
+    { simpl.
       unfold catch_head_spec; intros l.
       apply pure_please_eval.
       eapply pure_eval_match'_exn.

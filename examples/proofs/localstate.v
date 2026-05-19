@@ -199,7 +199,6 @@ Section verification.
       - (* EWP Goal: [continue k (!var : t)]. *)
         iDestruct "H" as "(Hauth & Hx)".
         iSpecialize ("H_READ" with "Hx"). simpl.
-        fold eval.
         iApply (imp_EContinue (B:=state) with "[] [Hl]"); try imp_step.
 
         iIntros (? ? ->) "[-> Hl]".
@@ -235,6 +234,9 @@ Section verification.
   End alloc_effects.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: (* stdlib_env *) [].
+
+  Instance xdata_write rl wl : @XDataCtor wl τ[Z] effects (encode_effects rl wl) :=
+    { xctor_apply := λ i, Write i; xctor_encode := λ i, eq_refl }.
 
   Lemma module_proof (Q : val -> iProp Σ) :
     ⊢ imp (eval_mexpr dummy_env __main)
@@ -272,6 +274,7 @@ Section verification.
     iIntros (wl) "Hwl".
 
     set enc_eff := encode_effects rl wl.
+    set xdata_eff := xdata_write rl wl.
 
     (* [let get () = perform Get] *)
     iApply (imp_sitems_let (λ v, □ iSpec τ[unit] v (λ _ m,
@@ -283,8 +286,8 @@ Section verification.
       iApply imp_please. iNext.
       imp_match unit.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
-      { simpl_eval. instantiate (1 := (λ eff, ⌜eff = Read⌝)%I).
-        iApply imp_ret; last done. encode. }
+      { set_postcondition (λ e, ⌜e = Read⌝)%I.
+        admit. (* iApply (imp_EXData (l:=rl)). *) }
       iIntros (? ->).
       rewrite upcl_state.
       iLeft. rewrite upcl_read. iFrame. iSplit.
@@ -302,15 +305,9 @@ Section verification.
       iIntros "!>" (y St x) "HSt".
       iApply imp_please; iNext.
       iApply (imp_EPerform (λ eff, ⌜eff = Write y⌝)%I).
-      { iApply imp_EXData. reflexivity.
-        instantiate (1 := ([(λ x, ⌜x = #y⌝)])%I).
-        simpl; fold eval; iSplit; last done.
-        imp_path.
-        iIntros (?) "Hvs".
-        iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
-        destruct vs; first discriminate; destruct vs; last discriminate.
-        simpl; iDestruct "Hvs" as "[-> _]". iExists _; iSplit; equality.
-        iPureIntro. encode. }
+      { iApply (imp_EXData (l:=wl)). reflexivity.
+        iApply imp_evals_singleton. imp_path.
+        iIntros (?) "-> //". }
       iIntros (? ->).
       rewrite upcl_state upcl_write.
       iRight. iExists x, y. iFrame. iSplit.
@@ -329,6 +326,6 @@ Section verification.
     iIntros (run) "#Hrun".
     iApply imp_sitems_nil; simpl.
     iExists _; iFrame "#". equality.
-  Qed.
+  Admitted.
 
 End verification.

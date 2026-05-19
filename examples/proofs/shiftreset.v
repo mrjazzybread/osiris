@@ -89,6 +89,9 @@ Section verification.
 
   Context (shift_eff : loc).
   Local Instance : Encode effect := encode_effect shift_eff.
+  Local Instance name_effect l : @XDataCtor l τ[val] effect (encode_effect l) :=
+  { xctor_apply := λ f, Shift f;
+    xctor_encode := λ f, eq_refl }.
 
   Lemma establish_shift_spec η :
     lookup_name η "Shift" = Some #shift_eff →
@@ -101,15 +104,9 @@ Section verification.
     iIntros (Ψ Φ Q) "Hf".
     iApply imp_please; iNext.
     iApply (imp_EPerform (λ eff, ⌜eff = Shift f⌝)%I).
-    { iApply imp_EXData. apply Hlookup. instantiate (1:=[(λ v, ⌜v = f⌝)]%I).
-      iApply big_sepL2_singleton.
-      iApply imp_EPath; auto.
-      iIntros (vs) "Hvs".
-      iPoseProof (big_sepL2_length with "Hvs") as "%Hlen".
-      destruct vs; first discriminate; destruct vs; last discriminate.
-      simpl; iDestruct "Hvs" as "[-> _]".
-      iExists _; iSplit; [ iPureIntro | equality ].
-      reflexivity. }
+    { iApply (imp_EXData (l:=shift_eff)). apply Hlookup.
+      iApply imp_evals_singleton. imp_path.
+      iIntros (?) "-> //". }
     iIntros (? ->).
     rewrite upcl_SHIFT. iFrame.
     iSplit; first equality.

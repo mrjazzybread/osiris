@@ -123,7 +123,7 @@ Proof.
       apply list_tuple_wf. }
     { (* Enter the body *) simpl.
       intros iter f l IH.
-      unfold listiter_spec_inv; fold eval.
+      unfold listiter_spec_inv.
       intros lpre lsuf I φ Heql Hf HI.
       apply pure_please_eval. abstract_env.
 
@@ -200,7 +200,7 @@ Proof.
     iApply impure_pure.
     eapply pure_eval_match'_exn.
     { (* Subgoal: evaluate the scrutinee [List.iter _ _]. *)
-      eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp; fold eval).
+      eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp).
       { (* Find iter in the environment. *) pure_path. eassumption. }
       2:{ (* find [l] in the environment. *) pure_path; apply eq_refl. }
       { (* Evaluate the lambda expression we pass to [iter]:
@@ -208,7 +208,7 @@ Proof.
            - a single argument of type [a]
            - a specification [scan_spec]. *)
           eapply (pure_eval_anon τ[A]) with (P := lambda_spec found l φ); simpl.
-          unfold lambda_spec; fold eval.
+          unfold lambda_spec.
           (* Prove that the lambda expression satisfies its spec. *)
           intros x Xs Hpref Hforall.
           apply pure_please_eval.

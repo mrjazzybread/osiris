@@ -7,6 +7,7 @@ From osiris.program_logic Require Export
   handler_rules
   fun_spec
   rules.auxiliary_rules
+  rules.evals_rules
   rules.expr_rules
   impure_rules
   rules.array_rules

@@ -81,7 +81,7 @@ Section lazy_sequences.
     (isSeq :  iEff Σ -d> val -d> list A -d> iPropO Σ)
            : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
     λ Ψ k Xs,
-      iSpec τ[unit] #k (λ _ m,
+      iSpec τ[unit] k (λ _ m,
           imp m <| Ψ |> {{ λ h, isHead_pre isSeq Ψ h Xs }})%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
@@ -200,6 +200,10 @@ Section verification.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
+    Local Instance data_seq_cons : DataCtor "Cons" τ[A; val] (@seq A) :=
+      { ctor_apply := λ '(x, s), Cons x s;
+        ctor_encode := λ '(x, s), eq_refl }.
+
     Section inversion_protocol.
 
     Context (l : loc).
@@ -262,15 +266,13 @@ Section verification.
           as "[HhandlerView HiterView]";
           iModIntro.
 
-        rewrite <- (solve_encode_effect X). (* FIXME *)
-        imp_branches.
+        imp_branches. (* FIXME: [#k] appears in the environment as [VCont k]. *)
 
         (* [Seq.Cons (x, fun () -> continue k ())]. *)
-        iApply (imp_EData _ _ _ [_;_] with "[-]").
-        simpl; fold eval; iSplitR.
+        iApply (imp_EData with "[-]"). iApply imp_evals_cons.
         { imp_path. }
         { (* [fun () -> continue k ()] *)
-          iSplit; last done.
+          iApply imp_evals_singleton.
           iApply (imp_EAnon τ[unit]
                     (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
@@ -285,21 +287,19 @@ Section verification.
           iSpecialize ("IH" with "HhandlerView").
           iApply ("HProt" with "HiterView IH"). }
 
-        iIntros (?) "Hargs".
-        iPoseProof (big_sepL2_cons_inv_r with "Hargs")
-          as "(%v & %vs' & -> & -> & Hargs)".
-        iPoseProof (big_sepL2_cons_inv_r with "Hargs")
-          as "(%v & %vs & -> & Hspec & Hargs)".
-        iPoseProof (big_sepL2_nil_inv_r with "Hargs") as "->".
-        iExists (Cons X v). iSplit; first encode.
-        simpl. iFrame "%".
+        iIntros (? f) "(-> & HSpec) /=".
+        iFrame "%".
         rewrite isSeq_unfold /isSeq_pre /=.
-        iApply "Hspec". }
+        iApply "HSpec". }
     Qed.
 
     End inversion_protocol.
 
     Definition invert := (EAnonFun __fun9).
+
+    Local Instance xdata_yield yl `{Encode A} : @XDataCtor yl τ[A] effect (encode_effect A yl) :=
+      { xctor_apply := λ a, Yield a;
+        xctor_encode := λ a, eq_refl }.
 
     Lemma ewp_invert η :
       ⊢ imp (eval η invert) {{ λ c, □ iSpec τ[val] c invert_spec }}.
@@ -332,18 +332,10 @@ Section verification.
         iIntros "!>" (X Xs) "Hiter Hpermitted".
         iApply imp_please; iNext.
         iApply (imp_EPerform (H0:=encode_effect A yl)).
-        { iApply imp_EXData. simpl. reflexivity.
-          instantiate (1 := [fun x' => ⌜x' = #X⌝%I]).
-          simpl. fold eval.
-          iSplit; [ | done ].
-          imp_path.
-          iIntros (?) "Hlist".
-          iPoseProof (big_sepL2_cons_inv_r with "Hlist")
-            as "(%x1 & %vs' & -> & -> & Hlist)".
-          iPoseProof (big_sepL2_nil_inv_r with "Hlist") as "->".
-          instantiate (1 := λ (a : effect), ⌜a = Yield X⌝%I).
-          iExists _; iSplit; equality.
-          iPureIntro. encode. }
+        { set_postcondition (λ (a : effect), ⌜a = Yield X⌝)%I.
+          iApply (imp_EXData (l:=yl)). reflexivity.
+          iApply imp_evals_singleton. imp_path.
+          iIntros (x) "-> //". }
         iIntros (? ->).
         rewrite upcl_yield.
         iExists _, _.
@@ -363,7 +355,7 @@ Section verification.
       imp_match unit.
       change (encode' ()) with (#()).
       change (encode' iter) with (#iter).
-      simpl. fold eval.
+      simpl.
 
       (* [match_with iter yield { ...] *)
       iApply (imp_EHandler (A' := unit) with "[Hiter HiterView]").
