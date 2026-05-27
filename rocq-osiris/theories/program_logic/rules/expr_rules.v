@@ -191,14 +191,14 @@ Section imp_rules_expr.
   Local Instance observe_tuple {V : Type} `{Observe A V} `{Observe B V} : Observe (A * B) (list V) :=
     { observe := (λ '(a, b), [ observe a; observe b ]) }.
 
-  Lemma imp_EPair `{Encode A, Encode B} {ζ Φ} η e1 e2 (Φ1 : A → iProp Σ) (Φ2 : B → iProp Σ) :
+  Lemma imp_EPair `{Encode A, Encode B} {ζ} {Φ : τ[A;B] → iProp Σ} η e1 e2 (Φ1 : A → iProp Σ) (Φ2 : B → iProp Σ) :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
     imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ a1 a2, Φ1 a1 -∗ Φ2 a2 -∗ Φ (a1, a2)) -∗
     imp eval η (EPair e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin". simpl_eval.
-    iApply (imp_bind (A1:=(A * B)) with "[-]").
+    iApply (imp_bind (A:=τ[A;B]) with "[-]").
     { iApply (imp_bind_par (A2:=list B) with "H1 [H2]").
       { iApply (imp_bind_par (A2:=list val) with "H2").
         { set_postcondition (λ l, ⌜l=[]⌝)%I.
@@ -208,10 +208,10 @@ Section imp_rules_expr.
         iApply (imp_ret _ [b]). reflexivity.
         by iFrame. }
       iIntros (a ?) "HΦ1 (%b & -> & HΦ2) !>".
-      iSpecialize ("Hjoin" with "HΦ1 HΦ2").
-      iApply (imp_ret with "Hjoin"). encode. }
+      iSpecialize ("Hjoin" with "HΦ1 HΦ2"). simpl.
+      iApply (imp_ret _ ((a, b) : τ[A;B]) with "Hjoin"). encode. }
     iIntros (p) "HΦ".
-    iApply (imp_ret with "HΦ"). by destruct p.
+    iApply (imp_ret with "HΦ"). auto.
   Qed.
 
   (** * EData : data → expr → expr *)
@@ -750,7 +750,7 @@ Section imp_rules_expr.
   Qed.
 
   (* Special case of [let (x, y) = e' in e] *)
-  Lemma imp_ELet_pair `{Encode C, Encode A, Encode B} {ζ} {Φ : C → iProp Σ} (Φ' : A * B → iProp Σ) {η x y e e'} :
+  Lemma imp_ELet_pair `{Encode C, Encode A, Encode B} {ζ} {Φ : C → iProp Σ} (Φ' : τ[A; B] → iProp Σ) {η x y e e'} :
     imp eval η e' @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
     (∀ a b, Φ' (a, b) -∗ imp eval ((y, #b) :: (x, #a) :: η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp eval η (ELet [Binding (PTuple [PVar x; PVar y]) e'] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.

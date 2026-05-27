@@ -600,7 +600,7 @@ Section handler_proof.
     { iPureIntro. unfold cpattern.
       rewrite invert_valid_match; [ | assumption ].
       instantiate (1 := True); instantiate (1 := λ _, False).
-      constructor. apply I. }
+      eapply pure_throw. encode. done. }
     iSplit.
     - iIntros (?) "[]".
     - iIntros (_). iApply "Hmatch".

@@ -160,13 +160,15 @@ Section pattern_rules.
     eauto using pure_mono, pure_ret.
   Qed.
 
-  Lemma pure_orelse `{Observe A V} {E} (m1 : micro V E) (m2 : micro V E) (φ : A → Prop) Ψ1 Ψ2 :
+  Lemma pure_orelse `{Observe A V} `{Observe B1 E1, Observe B2 E2}
+  (m1 : micro V E1) (m2 : micro V E2) (φ : A → Prop) Ψ1 Ψ2 :
     pure m1 φ Ψ1 →
     (∀ e, Ψ1 e → pure m2 φ Ψ2) →
     pure (orelse m1 m2) φ Ψ2.
   Proof.
     intros Hm1 Hm2.
     eapply pure_wp_orelse; eauto.
+    intros e1 (b1 & -> & HΨ1). eapply Hm2, HΨ1.
   Qed.
 
   Lemma pat_POr η δ p1 p2 v φ ψ1 ψ2 :
@@ -289,7 +291,7 @@ Section pattern_rules.
     rewrite bind_ret.
     destruct (eqb_spec l l').
     - firstorder eauto using pure_exn_mono.
-    - intros. apply pure_throw. tauto.
+    - intros. eapply pure_throw. encode. tauto.
   Qed.
 
   Lemma pat_PXData_eq η δ π ps l vs φ ψ :
@@ -320,7 +322,7 @@ Section pattern_rules.
     destruct l1, l2; simpl in *.
     replace (address0 =? address) with false;
       last by apply eq_sym; apply Z.eqb_neq.
-    by apply pure_wp_throw.
+    eapply pure_throw. encode. tauto.
   Qed.
 
   Lemma pat_PXData_neq' η δ π ps l1 l2 vs :
@@ -337,7 +339,7 @@ Section pattern_rules.
     destruct l1, l2; simpl in *.
     replace (address0 =? address) with false;
       last by apply eq_sym; apply Z.eqb_neq.
-    by apply pure_wp_throw.
+    eapply pure_throw. encode. tauto.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -423,7 +425,7 @@ Section pattern_rules.
     intros Hneq Hψ.
     unfold pattern. simpl_eval_pat.
     apply String.eqb_neq in Hneq as ->.
-    by apply pure_wp_throw.
+    eapply pure_throw. encode. tauto.
   Qed.
 
   Lemma pat_false η δ v (P : Prop) φ :
@@ -476,7 +478,7 @@ Section pattern_rules.
     rewrite int.eq_repr_repr; auto.
     destruct (_ =? _) eqn:E.
     - eapply pure_ret. encode. apply Hφ. by apply Z.eqb_eq.
-    - apply pure_throw. by apply Z.eqb_neq.
+    - eapply pure_throw. encode. by apply Z.eqb_neq.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -548,7 +550,7 @@ Section pattern_rules.
     intros.
     unfold cpattern.
     rewrite invert_valid_match by assumption.
-    by apply pure_wp_throw.
+    eapply pure_throw. encode. tauto.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -662,10 +664,10 @@ Section pattern_rules.
     intros Hpat.
     unfold cpattern.
     destruct o; simpl.
-    - apply pure_throw. by left.
+    - eapply pure_throw. encode. by left.
     - eapply pure_mono; [ apply Hpat | auto | auto ].
       reflexivity.
-    - apply pure_throw. by left.
+    - eapply pure_throw. encode. by left.
   Qed.
 
   Lemma cpat_CVal_abst η δ p o φ ψ :
@@ -677,8 +679,8 @@ Section pattern_rules.
     destruct o; simpl.
     - eapply pure_mono; [ apply Hpat | auto | auto ].
       reflexivity.
-    - apply pure_throw. by left.
-    - apply pure_throw. by left.
+    - eapply pure_throw. encode. by left.
+    - eapply pure_throw. encode. by left.
   Qed.
 
   Lemma cpat_CEff_abst η δ peff pk o φ ψ1 ψ2 :
@@ -690,8 +692,8 @@ Section pattern_rules.
     intros Hpat.
     unfold cpattern.
     destruct o; simpl.
-    - apply pure_throw. by left.
-    - apply pure_throw. by left.
+    - eapply pure_throw. encode. by left.
+    - eapply pure_throw. encode. by left.
     - eapply pure_bind_unary.
       eapply pure_mono; [ apply Hpat; reflexivity | | auto ].
       intros δ' Hpat2.
@@ -702,7 +704,7 @@ Section pattern_rules.
     cpattern η δ (CEff peff pk) o φ True.
   Proof.
     unfold cpattern.
-    destruct o; simpl; by apply pure_throw.
+    destruct o; simpl; by eapply pure_throw.
   Qed.
 
 End pattern_rules.

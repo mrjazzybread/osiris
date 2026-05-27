@@ -14,7 +14,14 @@ Lemma reversible_pat_POr_unary η δ p1 p2 v φ ψ :
   pattern η δ (POr p1 p2) v φ ψ.
 Proof.
   unfold pattern. simpl_eval_pat.
-  apply pure_wp_reversible_orelse.
+  unfold pure.
+  split.
+  - intro H. apply pure_wp_reversible_orelse.
+    eapply pure_wp_mono_throw. { apply H. }
+    unfold returns. intros u [u' [? HQ]]. exact HQ.
+  - intro H. apply pure_wp_reversible_orelse in H.
+    eapply pure_wp_mono_throw. { apply H. }
+    unfold returns. intros u HQ. exists u. destruct u. auto.
 Qed.
 
 Lemma reversible_pat_POr η δ p1 p2 v φ ψ :
@@ -54,7 +61,7 @@ Proof.
       destruct Hret as (? & -> & Hφ). tauto.
   - split.
     + intros _.
-      apply pure_throw; auto.
+      eapply pure_throw; auto.
     + intros _ Heq'.
       contradiction.
 Qed.
@@ -71,7 +78,7 @@ Proof.
     firstorder eauto using pure_exn_mono.
     eapply pure_exn_mono. apply H2. tauto.
   - split; intros _.
-    + apply pure_throw. tauto.
+    + eapply pure_throw. reflexivity. tauto.
     + contradiction.
 Qed.
 
@@ -92,6 +99,6 @@ Proof.
     firstorder eauto using pure_exn_mono.
     eapply pure_exn_mono. apply H1. tauto.
   - split; intros _.
-    + apply pure_throw. tauto.
+    + eapply pure_throw. reflexivity. tauto.
     + contradiction.
 Qed.

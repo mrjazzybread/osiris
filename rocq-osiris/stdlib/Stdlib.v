@@ -154,7 +154,7 @@ Definition decide_spec `{Encode A}
     pure (call decide #x) (λ v,
       ∀ (y : A),
       P y →
-      pure (call v #y) (λ (b : bool), b = R x y) ⊥) ⊥.
+      pure (call v #y) (λ (b : bool), b = R x y) (⊥ : exn → Prop)) (⊥ : exn → Prop).
 
 (* The above specification states that an application of [decide] to just
    one argument returns a closure. As a sanity check, we verify that this
@@ -169,7 +169,7 @@ Local Lemma decide_spec' `{Encode A}
   pure
     (bind (call decide #x) (λ v, call v #y))
     (λ (b : bool),
-      b = R x y) ⊥.
+      b = R x y) (⊥ : exn → Prop).
 Proof.
   intros Hspec x y Hx Hy.
   eapply pure_bind; [ eauto | intros v; cbn; intros Hv ].
@@ -193,7 +193,7 @@ Definition compare_spec `{Encode A} (compare : val) (le : A → A → Prop) :=
               (c < 0 ↔ lt x y)%Z ∧
               (c = 0 ↔ eq x y)%Z ∧
               (0 < c ↔ lt y x)%Z
-          ) ⊥) ⊥.
+          ) (⊥ : exn → Prop)) (⊥ : exn → Prop).
 (* -------------------------------------------------------------------------- *)
 
 Lemma Stdlib__eq_spec :

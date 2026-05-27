@@ -13,16 +13,16 @@ From osiris.program_logic.pure Require Import
 (* A judgement for the evaluation of structure items. *)
 
 Definition struct_item ηδ item (φ : envs -> Prop) :=
-  pure (eval_sitem ηδ item) φ (λ _, False).
+  pure (eval_sitem ηδ item) φ (λ _ : exn, False).
 
 Definition struct_items ηδ sitems (φ : envs -> Prop) :=
-  pure (eval_sitems ηδ sitems) φ (λ _, False).
+  pure (eval_sitems ηδ sitems) φ (λ _ : exn, False).
 
 
 (* A judgement for the evaluation of module expressions. *)
 
 Definition eval_module η me (φ : env -> Prop) :=
-  pure (eval_mexpr η me) φ (λ _, False).
+  pure (eval_mexpr η me) φ (λ _ : exn, False).
 
 
 (* A judgement for module coercion. *)
@@ -98,7 +98,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  pure (eval η e) spec ⊥ ->
+  pure (eval η e) spec (⊥ : exn → Prop) ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -114,7 +114,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure (eval η e) (λ v, pattern η [] p v ψ False) ⊥ ->
+  pure (eval η e) (λ v, pattern η [] p v ψ False) (⊥ : exn → Prop) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -145,7 +145,7 @@ Proof.
 Qed.
 
 Lemma struct_external η δ x e (spec : val -> Prop) :
-  pure (eval [] e) spec ⊥ ->
+  pure (eval [] e) spec (⊥ : exn → Prop) ->
   struct_item (η, δ) (IExternal x e)
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -204,14 +204,14 @@ Qed.
 
 (* Rec *)
 
-Lemma struct_letrec_function `{Encode X, Encode Y}
+Lemma struct_letrec_function `{Encode X, Encode Y} `{Encode C}
   `{WF_x : WellFounded X}
   η δ f bs
   (φf : X -> Y -> Prop)
   (Ψ : envs -> Prop)
   (R : X -> X -> Prop)
   (P : X -> Prop)
-  ζ :
+  (ζ : C → Prop) :
   (∀ vf x,
     (∀ y,
         wf_relation (WF := WF_x) y x ->
@@ -267,12 +267,12 @@ Proof.
   eauto.
 Qed.
 
-Lemma struct_letrec `{Encode X, Encode Y} `{WF_x : WellFounded X}
+Lemma struct_letrec `{Encode X, Encode Y} `{Encode C} `{WF_x : WellFounded X}
   η δ f arg e1
   (φf : X -> Y -> Prop)
   (Ψ : envs -> Prop)
   (R : X -> X -> Prop)
-  (P : X -> Prop) ζ :
+  (P : X -> Prop) (ζ : C → Prop) :
   (∀ vf x,
       (∀ y,
           wf_relation (WF := WF_x) y x ->
@@ -303,7 +303,7 @@ Qed.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->
-  pure (eval_mexpr η me) φ ⊥.
+  pure (eval_mexpr η me) φ (⊥ : exn → Prop).
 Proof.
   repeat intro.
   eapply pure_mono; intros; eauto with pure.

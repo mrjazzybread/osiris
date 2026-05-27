@@ -31,7 +31,7 @@ Local Definition Spec' `{Encode X} (c : val) (P : call_spec') :=
 
 (* Example of a reasoning rule, for the creation of a [Spec' c P]. *)
 
-Local Lemma pure_eval_anon' `{Encode X} (P : call_spec') η (xvar : var) e ζ :
+Local Lemma pure_eval_anon' `{Encode X} `{Encode C} (P : call_spec') η (xvar : var) e (ζ : C → Prop) :
   (∀ (x : X),
       P x (please_eval ((xvar, #x) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun xvar e))) (λ c, Spec' c P) ζ.
@@ -41,7 +41,7 @@ Proof. by intros; simpl_eval; eapply pure_ret. Qed.
 (* [pure_call_spec'] illustrates how we may want to use a [Spec c P]
    specification. *)
 
-Local Lemma pure_call_spec' `{Encode X, Encode Y} (P : X -> microvx -> Prop) c v (φ : Y -> Prop) ζ :
+Local Lemma pure_call_spec' `{Encode X, Encode Y} `{Encode C} (P : X -> microvx -> Prop) c v (φ : Y -> Prop) (ζ : C → Prop) :
   Spec' c P ->
   (∀ m, P v m -> pure m φ ζ) ->
   pure (eval.E.call c #v) φ ζ.
@@ -60,9 +60,9 @@ Qed.
    [R]) are well-behaved.
    In the second subgoal, we prove [e2] while abstracting over [e]. *)
 
-Local Lemma pure_eval_letrec' `{Encode X, Encode Y}
+Local Lemma pure_eval_letrec' `{Encode X, Encode Y} `{Encode C}
   (P : call_spec') (R : X -> X -> Prop) η f (x : var) e
-  e2 (φ : Y -> Prop) ζ :
+  e2 (φ : Y -> Prop) (ζ : C → Prop) :
   (* Show that the relation on which arguments are decreasing is well-founded. *)
   well_founded R ->
   (* Show the specification [P] holds over a call to any argument

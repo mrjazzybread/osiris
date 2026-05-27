@@ -16,23 +16,23 @@ From osiris.program_logic.pure Require Import
    subgoal instantiates both the metavariable [x] and the metavariable [X],
    which is the type of [x]. *)
 
-Lemma pure_call `{Encode X} `{Encode Y}
-  (φ : Y → Prop) v1 v'2 (x : X) :
+Lemma pure_call `{Encode X} `{Encode Y} `{Encode C}
+  (φ : Y → Prop) v1 v'2 (x : X) (ζ : C → Prop) :
   v'2 = #x →
-  pure (call v1 #x) φ ⊥ →
-  pure (call v1 v'2) φ ⊥.
+  pure (call v1 #x) φ ζ →
+  pure (call v1 v'2) φ ζ.
 Proof.
   intros. subst. eauto.
 Qed.
 
 (* This lemma combines [pure_enc_consequence] and [pure_call]. *)
 
-Lemma pure_call_consequence `{Encode X} `{Encode Y}
-  (φ ψ : Y → Prop) v1 v'2 (x : X) :
+Lemma pure_call_consequence `{Encode X} `{Encode Y} `{Encode C}
+  (φ ψ : Y → Prop) v1 v'2 (x : X) (ζ : C → Prop) :
   v'2 = #x →
-  pure (call v1 #x) φ ⊥ →
+  pure (call v1 #x) φ ζ →
   (∀ y, φ y → ψ y) →
-  pure (call v1 v'2) ψ ⊥.
+  pure (call v1 v'2) ψ ζ.
 Proof.
   intros -> Hcall1 Hconseq.
   eapply pure_mono;
@@ -44,14 +44,14 @@ Qed.
    a concrete closure (as opposed to a rigid metavariable), they step into
    the call. *)
 
-Lemma pure_enter_call_VClo `{Encode Y} η a v2 (φ : Y → Prop) ψ :
+Lemma pure_enter_call_VClo `{Encode Y} `{Encode B} η a v2 (φ : Y → Prop) (ψ : B → Prop) :
   pure (acall η a v2) φ ψ ->
   pure (call (VClo η a) v2) φ ψ.
 Proof.
   tauto.
 Qed.
 
-Lemma pure_enter_call_VCloRec `{Encode Y} η rbs g x e v2 (φ : Y → Prop) ψ :
+Lemma pure_enter_call_VCloRec `{Encode Y} `{Encode B} η rbs g x e v2 (φ : Y → Prop) (ψ : B → Prop) :
   lookup_rec_bindings rbs g = Some (AnonFun x e) ->
   pure (eval ((x, v2) :: eval_rec_bindings η rbs ++ η) e) φ ψ ->
   pure (call (VCloRec η rbs g) v2) φ ψ.
@@ -62,8 +62,8 @@ Proof.
   done.
 Qed.
 
-Lemma invert_pure_call `{Encode Y} f v (φ : Y -> Prop) :
-  pure (call f v) φ ⊥ ->
+Lemma invert_pure_call `{Encode Y} `{Encode C} f v (φ : Y -> Prop) (ζ : C → Prop) :
+  pure (call f v) φ ζ ->
   (exists η a, f = VClo η a) \/ exists η rbs g, f = VCloRec η rbs g.
 Proof.
   intros Hcall.
@@ -92,8 +92,8 @@ Arguments wf_def {_ WF} : rename.
 
 
 (* Recursive calls *)
-Lemma pure_rec_call `{Encode X, Encode Y} (WF_x : WellFounded X)
-  (η : env) (f : var) arg e (x : X) Ψ (P : X -> Prop) (φ : X -> Y -> Prop):
+Lemma pure_rec_call `{Encode X, Encode Y} `{Encode C} (WF_x : WellFounded X)
+  (η : env) (f : var) arg e (x : X) (Ψ : C → Prop) (P : X -> Prop) (φ : X -> Y -> Prop):
   P x ->
   (∀ vf x,
       (∀ (y : X), wf_relation (WF := WF_x) y x -> P y -> pure (call vf #y) (φ y) Ψ) ->
@@ -109,17 +109,17 @@ Proof.
   apply IH; eauto.
 Qed.
 
-Lemma pure_rec_call_simple `{Encode X, Encode Y} (WF_x : WellFounded X)
-  (η : env) (f : var) arg e (x : X) Ψ (φ : X -> Y -> Prop):
+Lemma pure_rec_call_simple `{Encode X, Encode Y} `{Encode C} (WF_x : WellFounded X)
+  (η : env) (f : var) arg e (x : X) (Ψ : C → Prop) (φ : X -> Y -> Prop):
   (∀ vf x,
     (∀ (y : X), wf_relation (WF := WF_x) y x -> pure (call vf #y) (φ y) Ψ) ->
     (pure (eval ((arg, #x) :: (f, vf) :: η) e) (φ x) Ψ)) ->
   pure (call (VCloRec η [RecBinding f (AnonFun arg e)] f) #x) (φ x) Ψ.
 Proof. intros; eapply pure_rec_call with (P := fun _ => True); eauto. Qed.
 
-Lemma pure_rec_call_measure `{Encode X, Encode Y} {M}
+Lemma pure_rec_call_measure `{Encode X, Encode Y} `{Encode C} {M}
   (measure : X -> M) (WF_x : WellFounded M)
-  (η : env) (f : var) arg e Ψ (φ : Y -> Prop):
+  (η : env) (f : var) arg e (Ψ : C → Prop) (φ : Y -> Prop):
   (∀ vf (y' : X),
     (∀ (y : X),
         wf_relation (WF := WF_x) (measure y) (measure y') ->
@@ -138,9 +138,9 @@ Proof.
   specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
-Lemma pure_rec_call_measure_gen `{Encode X, Encode Y} {M}
+Lemma pure_rec_call_measure_gen `{Encode X, Encode Y} `{Encode C} {M}
   (measure : X -> M) (WF_x : WellFounded M) x
-  (η : env) (f : var) arg e Ψ (φ : X -> Y -> Prop):
+  (η : env) (f : var) arg e (Ψ : C → Prop) (φ : X -> Y -> Prop):
   (∀ vf (y' : X),
     (∀ (y : X),
         wf_relation (WF := WF_x) (measure y) (measure y') ->
@@ -158,9 +158,9 @@ Proof.
   specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
-Lemma pure_rec_call_measure' `{Encode X, Encode Y} {M}
+Lemma pure_rec_call_measure' `{Encode X, Encode Y} `{Encode C} {M}
   (measure : X -> M) (WF_x : WellFounded M)
-  (η : env) (f : var) arg e Ψ (φ : Y -> Prop) x P:
+  (η : env) (f : var) arg e (Ψ : C → Prop) (φ : Y -> Prop) x P:
   P x ->
   (∀ vf (y' : X),
     (∀ (y : X),
@@ -179,9 +179,9 @@ Proof.
   specialize (IH _ Hwf). eapply IH; done.
 Qed.
 
-Lemma pure_rec_call_measure_gen' `{Encode X, Encode Y} {M}
+Lemma pure_rec_call_measure_gen' `{Encode X, Encode Y} `{Encode C} {M}
   (measure : X -> M) (WF_x : WellFounded M) x P
-  (η : env) (f : var) arg e Ψ (φ : X -> Y -> Prop):
+  (η : env) (f : var) arg e (Ψ : C → Prop) (φ : X -> Y -> Prop):
   P x ->
   (∀ vf (y' : X),
     (∀ (y : X),
@@ -200,13 +200,13 @@ Proof.
   specialize (IH _ Hwf). eapply IH; done. done.
 Qed.
 
-Definition pure_call2 `{Encode X} vf arg1 arg2 (φ : X -> Prop) Ψ :=
+Definition pure_call2 `{Encode X} `{Encode C} vf arg1 arg2 (φ : X -> Prop) (Ψ : C → Prop) :=
   pure (call vf arg1)
     (λ c, pure (call c arg2) φ Ψ) Ψ.
 
-Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W}
+Lemma pure_rec_call2 `{Encode X, Encode Y, Encode W} `{Encode C}
   `{WF_x: WellFounded (X * Y)%type}
-  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) Ψ
+  η f arg e1 (x : X) (y : Y) (φ : X -> Y -> W -> Prop) (Ψ : C → Prop)
   (R : (X * Y) -> (X * Y) -> Prop) (P : X -> Y -> Prop)
   :
   P x y ->

@@ -12,9 +12,9 @@ From osiris.program_logic.pure Require Import wp.
     value satisfying the predicate [φ], or it may throw an exception and
     satisfy [ψ]. *)
 
-Definition pure `{Observe A V} :
-  forall {E}, micro V E -> (A -> Prop) -> (E -> Prop) -> Prop :=
-    fun _ a Φ Ψ => pure_wp a (returns Φ) Ψ.
+Definition pure `{Observe A V} {E} (m : micro V E) (Φ : A -> Prop) :
+  forall {B} `{Observe B E}, (B -> Prop) -> Prop :=
+    fun B _ Ψ => pure_wp m (returns Φ) (returns Ψ).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -31,12 +31,12 @@ Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ '}'" :=
-  (pure e Φ ⊥)
+  (pure e Φ (⊥ : exn → Prop))
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 Notation "η ⊢ₚ '{' e 'ensures' Φ '}'" :=
-  (pure (eval η e) Φ ⊥)
+  (pure (eval η e) Φ (⊥ : exn → Prop))
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
@@ -53,7 +53,7 @@ Ltac returns_eauto :=
   end.
 
 #[export]
-  Hint Extern 1 (pure_wp _ (returns _) _) => returns_eauto; by firstorder : pure.
+  Hint Extern 1 (pure_wp _ (returns _) (returns _)) => returns_eauto; by firstorder : pure.
 #[export]
   Hint Extern 1 (pure _ _ _) => returns_eauto; by firstorder : pure.
 #[export]

@@ -582,29 +582,30 @@ Proof.
   iIntros ([??]) "$".
 Qed.
 
-Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} {E Ψ} (m : micro V X) ζ Φ :
+Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} `{NotVal X} {E Ψ} (m : micro V X) (ζ : X → Prop) (Φ : A → Prop) :
   pure m Φ ζ →
   ⊢ imp m @ E <|Ψ|> ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
   iApply (ewp_mono with "Hewp").
-  iIntros ([|]); last auto.
-  iIntros "(%v & %Henc & %HΦ)".
-  iExists v; iFrame "%".
+  iIntros ([v|e]).
+  - iIntros "(%a & %Henc & %Ha)". iExists a; iFrame "%".
+  - iIntros "%He". iPureIntro.
+    destruct He as (c & -> & Hc). unfold observe, observe_id. exact Hc.
 Qed.
 
-Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} {X} {E Ψ ζ} (m : micro V X) Φ :
-  pure m Φ ⊥ →
+Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} {E Ψ ζ} (m : micro V exn) Φ :
+  pure m Φ (⊥ : exn → Prop) →
   ⊢ imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
   iApply (ewp_mono with "Hewp").
-  iIntros ([|]).
-  - iIntros "(%v & %Henc & %HΦ)".
-    iExists v; iFrame "%".
-  - iIntros ([]).
+  iIntros ([v|e]).
+  - iIntros "(%a & %Henc & %HΦ)".
+    iExists a; iFrame "%".
+  - iIntros "%He". destruct He as (b & _ & []).
 Qed.
 
 Section dynamic_checks.

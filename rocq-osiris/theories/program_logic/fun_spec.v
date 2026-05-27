@@ -289,6 +289,7 @@ Section imp_spec.
       iApply imp_wand.
       { iApply impure_pure. apply wp.invert_pure_wp_eval in HSpec.
         unfold judgements.pure.
+        apply wp.pure_wp_noexn_weaken.
         eapply (wp.pure_wp_mono_ret _ HSpec).
         intros v Hspec. exists v. split; first reflexivity.
         exact Hspec. }
@@ -301,6 +302,8 @@ Section imp_spec.
         apply wp.invert_pure_wp_eval in HSpec.
         iApply imp_wand.
         { iApply impure_pure.
+          unfold judgements.pure.
+          apply wp.pure_wp_noexn_weaken.
           eapply (wp.pure_wp_mono_ret _ HSpec).
           intros v Hspec. exists v. split; first reflexivity.
           exact Hspec. }

@@ -249,7 +249,7 @@ Section ewp_pure.
     - by apply invert_pure_wp_stop in Hm.
   Qed.
 
-  Lemma ewp_pure `{Encode A} {X} (m : micro val X) (ζ : X → Prop) (φ : A → Prop) :
+  Lemma ewp_pure `{Encode A} (m : micro val exn) (ζ : exn → Prop) (φ : A → Prop) :
     pure m φ ζ →
     ⊢ imp m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜φ x⌝ }} .
   Proof.
@@ -261,7 +261,7 @@ Section ewp_pure.
       exists a. auto.
     - iIntros "%He".
       iPureIntro.
-      apply He.
+      destruct He as (c & -> & Hc). unfold observe, observe_encode. exact Hc.
   Qed.
 
 End ewp_pure.

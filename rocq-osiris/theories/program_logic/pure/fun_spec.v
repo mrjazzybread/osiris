@@ -81,8 +81,8 @@ Equations Spec (τ : types)
    the expected premise when we want to show that
    a function satisfies some specification [P]. *)
 
-Local Lemma pure_eval_anon_unary `{Encode X}
-  (P : τ[X] -#> microvx -> Prop) η (x : var) e ζ
+Local Lemma pure_eval_anon_unary `{Encode X} `{Encode C}
+  (P : τ[X] -#> microvx -> Prop) η (x : var) e (ζ : C → Prop)
   :
   (∀ (v : X), P v (please_eval ((x, #v) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec τ[X] c P) ζ.
@@ -90,8 +90,8 @@ Proof.
   intros HP; simpl_eval; eapply pure_ret; encode.
 Qed.
 
-Local Lemma pure_eval_anon_binary `{Encode X, Encode Y}
-  (P : τ[X; Y] -#> microvx -> Prop) η (x y : var) e ζ
+Local Lemma pure_eval_anon_binary `{Encode X, Encode Y} `{Encode C}
+  (P : τ[X; Y] -#> microvx -> Prop) η (x y : var) e (ζ : C → Prop)
   :
   (∀ (vx : X) (vy : Y), P vx vy (please_eval ((y, #vy) :: (x, #vx) :: η) e)) ->
   pure (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) (λ c, Spec τ[X; Y] c P) ζ.
@@ -354,13 +354,13 @@ Qed.
 
 (* The reasoning rule for an n-ary non-recursive function. *)
 
-Lemma pure_eval_anon
+Lemma pure_eval_anon `{Encode C}
   (τ : types)
   (P : τ -#> microvx -> Prop)
   η
   (x : var)
   e
-  ζ :
+  (ζ : C → Prop) :
   predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) ->
   pure (eval η (EAnonFun (AnonFun x e))) (λ c, Spec τ c P) ζ.
 Proof.
@@ -621,10 +621,10 @@ Qed.
     pure (eval η (ELetRec [RecBinding f (AnonFun x (EAnonFun (AnonFun y e)))] e2)) φ ζ.
 *)
 
-Lemma pure_eval_letrec `{Encode X} (τ : types)
+Lemma pure_eval_letrec `{Encode X} `{Encode C} (τ : types)
   (P : τ -#> microvx -> Prop)
   (R : τ -> τ -> Prop) η f (x : var) e
-  e2 (φ : X -> Prop) ζ :
+  e2 (φ : X -> Prop) (ζ : C → Prop) :
   is_lambda_of_depth (EAnonFun (AnonFun x e)) τ ->
   (* Show that the relation on which arguments are decreasing is well-founded. *)
   well_founded R ->
@@ -683,8 +683,8 @@ Qed.
 (* [pure_eval_anonfun_nonrec] is to be used when a letrec expression
    defines a non-recursive function.  *)
 
-Lemma pure_eval_letrec_nonrec `{Encode X} (τ : types)
-  (P : τ -#> microvx -> Prop) η f x e e2 (φ : X -> Prop) ζ :
+Lemma pure_eval_letrec_nonrec `{Encode X} `{Encode C} (τ : types)
+  (P : τ -#> microvx -> Prop) η f x e e2 (φ : X -> Prop) (ζ : C → Prop) :
   (* Show the specification [P] holds over a call to any argument. *)
   (∀ v, predicate_over_function_body τ P ((f, v) :: η) (EAnonFun (AnonFun x e))) ->
   (* Continue with [f] bound to [c], and [c] specified by [P]. *)
@@ -701,7 +701,7 @@ Qed.
 
 (* [pure_EApp_partial] is a lemma for partial application. *)
 
-Lemma pure_EApp_partial `{Encode X} (τ: types) η e e1 ζ
+Lemma pure_EApp_partial `{Encode X} `{Encode C} (τ: types) η e e1 (ζ : C → Prop)
   (φ1 : X -> Prop) (P : Tcons X τ -#> microvx -> Prop) :
   pure (eval η e) (λ c, Spec (Tcons X τ) c P) ζ ->
   pure (eval η e1) φ1 ζ ->
@@ -719,7 +719,7 @@ Qed.
 (* This alternative formulation may look heaver, but it easier to use
    for an n-ary partial application. *)
 
-Lemma pure_EApp_partial_alt `{Encode X} (τ : types) η e e1 ζ
+Lemma pure_EApp_partial_alt `{Encode X} `{Encode C} (τ : types) η e e1 (ζ : C → Prop)
   (φ1 : X -> Prop) (P : Tcons X τ -#> microvx -> Prop) :
   pure (eval η e) (λ c, Spec (Tcons X τ) c P) ζ ->
   pure (eval η e1) φ1 ζ ->
@@ -751,7 +751,7 @@ Qed.
    this demonstrates that a user could repeatedly use the partial
    application lemmas to prove an n-ary application. *)
 
-Local Lemma pure_EApp_prop2 `{Encode A, Encode B, Encode C} η e e1 e2 (Ψ : C -> Prop) ζ
+Local Lemma pure_EApp_prop2 `{Encode A, Encode B, Encode C} `{Encode D} η e e1 e2 (Ψ : C -> Prop) (ζ : D → Prop)
   (φ1 : A -> Prop) (φ2 : B -> Prop) (P : τ[A; B] -#> microvx -> Prop) :
   pure (eval η e) (λ c, Spec τ[A;B] c P) ζ ->
   pure (eval η e1) φ1 ζ ->
@@ -766,7 +766,7 @@ Proof.
   eapply Hmono; eauto. simp Spec in Hv1.
 Qed.
 
-Local Lemma pure_EApp_prop3 `{Encode A, Encode B, Encode C, Encode D} η e e1 e2 e3 (Ψ : D -> Prop) ζ
+Local Lemma pure_EApp_prop3 `{Encode A, Encode B, Encode C, Encode D} `{Encode E} η e e1 e2 e3 (Ψ : D -> Prop) (ζ : E → Prop)
   (φ1 : A -> Prop) (φ2 : B -> Prop) (φ3 : C -> Prop) (P : τ[A; B; C] -#> microvx -> Prop) :
   pure (eval η e) (λ c, Spec τ[A;B;C] c P) ζ ->
   pure (eval η e1) φ1 ζ ->
@@ -808,7 +808,7 @@ Section pure_EApp_prop_aux_def.
      arguments, which are static from the point of view of the
      auxiliary function.*)
 
-  Context (η : env) (ζ : exn -> Prop).
+  Context `{Encode C} (η : env) (ζ : C -> Prop).
   Context (expr_base : expr) (goal_prop : expr -> Prop).
 
   Equations accumulate_argument_premises_and_build_consequence_hyp
@@ -873,9 +873,9 @@ End pure_EApp_prop_aux_def.
    for the final result.
 *)
 
-Definition pure_EApp_prop `{Encode A} (τ : types) : Prop :=
+Definition pure_EApp_prop `{Encode A} `{Encode C} (τ : types) : Prop :=
   ∀ (η : env) (e : expr) (Ψ : A -> Prop)
-  (ζ : exn -> Prop) (P : τ -#> microvx -> Prop),
+  (ζ : C -> Prop) (P : τ -#> microvx -> Prop),
   pure (eval η e) (λ c, Spec τ c P) ζ ->
   accumulate_argument_premises_and_build_consequence_hyp
     η ζ e
@@ -888,17 +888,18 @@ Definition pure_EApp_prop `{Encode A} (τ : types) : Prop :=
 
 (* We always want [pure_EApp_prop] to unfold, the user should only be
    exposed to the generated lemma. *)
-Arguments pure_EApp_prop {_ _} !τ /.
+Arguments pure_EApp_prop {_ _ _ _} !τ /.
 Transparent pure_EApp_prop.
 Strategy transparent [ pure_EApp_prop ].
 
 (* Auxiliary lemma used in the following proof of [pure_EApp]. *)
 
 Local Lemma pure_EApp_prop_induction_step
+  `{Encode C}
   (τ : types)
   (η : env)
   e
-  (ζ : exn -> Prop) (g : expr -> Prop) :
+  (ζ : C -> Prop) (g : expr -> Prop) :
   ∀ (Hconseq : τ -#> Prop -> Prop) (es : list expr) (ei : expr),
     app_exprs (EApp e ei) es = app_exprs e (es ++ [ei]) ->
     accumulate_argument_premises_and_build_consequence_hyp
@@ -940,8 +941,8 @@ Qed.
    Thus, a user must provide this list of types, and is expected to
    use a tactic of the form [apply (pure_EApp τ[ A1; A2; .. ; An ])]. *)
 
-Lemma pure_EApp `{Encode A} (τ : types) :
-  @pure_EApp_prop A _ τ.
+Lemma pure_EApp `{Encode A} `{Encode C} (τ : types) :
+  @pure_EApp_prop A _ C _ τ.
 Proof.
   unfold pure_EApp_prop.
   intros η e Ψ ζ P.

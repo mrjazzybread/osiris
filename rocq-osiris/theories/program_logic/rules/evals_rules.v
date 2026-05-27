@@ -36,7 +36,7 @@ Section evals_rules.
     iApply (imp_bind_par with "He Hes").
     iIntros (x xs) "HΦ HΦs".
     iApply (imp_ret _ (x, xs)).
-    - simpl. rewrite tapp_bind. reflexivity.
+    - reflexivity.
     - iFrame.
   Qed.
 
@@ -56,21 +56,7 @@ Section evals_rules.
     iApply "HΦ".
   Qed.
 
-  Class DataCtor (c : data) (τ : types) (A : Type) `{Encode A} : Type :=
-  { ctor_apply  : τ → A;
-    ctor_encode : ∀ xs : τ, VData c (to_vals xs) = #(ctor_apply xs) }.
-
-  Global Hint Mode DataCtor ! - ! - : typeclass_instances.
-
-  Global Instance DataCtor_Some `{Encode A} : DataCtor "Some" (Tbase A) (option A) :=
-    { ctor_apply  := Some;
-      ctor_encode := λ _, eq_refl }.
-
-  Global Instance DataCtor_Cons `{Encode A} : DataCtor "::" (type_nel.Tcons A (Tbase (list A))) (list A) :=
-    { ctor_apply  := λ '(x, xs), x :: xs;
-      ctor_encode := λ '(_, _), eq_refl }.
-
-  Lemma imp_EData `{DC : DataCtor c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
+  Lemma imp_EData `{DC : Data c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(ctor_apply) xs)) -∗
     imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -84,14 +70,7 @@ Section evals_rules.
     simpl. apply DC.(ctor_encode).
   Qed.
 
-
-  Class XDataCtor (l : loc) (τ : types) (A : Type) `{Encode A} : Type :=
-    { xctor_apply  : τ → A;
-      xctor_encode : ∀ (xs : τ), VXData l (to_vals xs) = #(xctor_apply xs) }.
-
-  Global Hint Mode XDataCtor ! - ! - : typeclass_instances.
-
-  Lemma imp_EXData `{DC : XDataCtor l τ A} {Φ : A → iProp Σ} η π es (Φs : τ → iProp Σ) :
+  Lemma imp_EXData `{DC : XData l τ A} {Φ : A → iProp Σ} η π es (Φs : τ → iProp Σ) :
     lookup_path η π = Some #l →
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(xctor_apply) xs)) -∗
