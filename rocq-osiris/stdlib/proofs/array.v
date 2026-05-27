@@ -1,4 +1,4 @@
-From osiris.lang Require Import type_nel encode notations int locations.
+From osiris.lang Require Import lang.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import proofmode.
 
@@ -1024,23 +1024,23 @@ End fold_left_spec.
 Section fold_left_map_spec.
 
   Context `{!osirisGS Σ}.
-  Context (A : Type) `{!Encode A}.
+  Context (A : Type) `{HencA : !Encode A}.
 
 
   (** [fold_left_map f acc input_array] is like [fold_left] but also builds
       an output array from the second component of [f]'s return value. *)
   Definition fold_left_map_spec : val → A → array → microvx → iProp Σ :=
     λ f x input_array m,
-      (∀ (B C : Type) (_ : Encode B) (_ : Encode C) (_ : Inhabited B)
+      (∀ `(Encode B, Inhabited B) `(Encode C)
          dq (xs : list B) (Φ : A → B → A → C → iProp Σ),
          input_array ↦∗{dq} xs -∗
          □ iSpec τ[A; B] f (λ (acc : A) (b : B) m,
-                              imp m {{ λ (p : A * C), Φ acc b p.1 p.2 }}) -∗
-         imp m {{ λ '((y, output_array)  : A * array), ∃ (ys : list C),
-                    ⌜length ys = length xs⌝ ∗
-                    input_array ↦∗{dq} xs ∗
-                    output_array ↦∗ ys ∗
-                    ⌜True⌝ (* TODO: characterize the final accumulator and output *) }})%I.
+                              imp m {{ λ (p : τ[A; C]), Φ acc b p.1 p.2 }}) -∗
+         imp m {{ λ '((y, output_array) : τ[A; array]),
+                    ∃ (ys : list C), ⌜length ys = length xs⌝ ∗
+                      input_array ↦∗{dq} xs ∗
+                      output_array ↦∗ ys ∗
+                      ⌜True⌝ (* TODO: characterize the final accumulator and output *) }})%I.
 
 End fold_left_map_spec.
 
@@ -1266,10 +1266,10 @@ Section split_spec.
   (** [split x] takes an array of pairs and returns a pair of arrays. *)
   Definition split_spec : array → microvx → iProp Σ :=
     λ a m,
-      (∀ (A B : Type) (_ : Encode A) (_ : Encode B) (_ : Inhabited (A * B))
+      (∀ (A B : Type) `(Encode A) `(Encode B) (_ : Inhabited (A * B))
          dq (ps : list (A * B)),
          a ↦∗{dq} ps -∗
-         imp m {{ λ '((b1, b2) : array * array),
+         imp m {{ λ '((b1, b2) : τ[array;array]),
                     a ↦∗{dq} ps ∗
                     b1 ↦∗ (fst <$> ps) ∗
                     b2 ↦∗ (snd <$> ps) }})%I.

@@ -77,7 +77,7 @@ Global Instance observe_encode `{Encode A} :
    (Even if its weight is very high.)
 
    Instead, we define a marker class [NotVal], which we manually instantiate
-   for types for which we want Observe instances. *)
+   for types [A] for which we want [Observe A A] instances. *)
 
 Class NotVal (A : Type) : Prop := {}.
 Global Hint Mode NotVal + : typeclass_instances.
@@ -102,6 +102,8 @@ Class ObserveInjective `{Observe A V} : Type :=
 
 Definition returns {A V} `{Observe A V} (φ : A -> Prop):=
   λ (v : V), ∃ a, v = observe a ∧ φ a.
+
+(* -------------------------------------------------------------------------- *)
 
 Section lift_specs.
 
@@ -599,95 +601,6 @@ Global Hint Extern 0 (_ :: _ = ♯ _) =>
   simple eapply solve_observe_cons : encode.
 Global Hint Extern 100 ([] = ♯ _) =>
   simple eapply solve_observe_nil: encode.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Pairs, or tuples of arity 2. *)
-
-Definition encode_pair `{Encode A, Encode B} : (A * B) -> val :=
-  λ '(a, b), VPair #a #b.
-
-Global Instance Encode_tuple2
-  `{Encode A, Encode B}
-  : Encode (A * B)
-  | 10 (* lower priority than tuple3 and tuple4 below *)
-:=
-  { encode' := encode_pair }.
-
-Lemma encode_pair_is_encode `{Encode A, Encode B} :
-  ∀ (p : A * B),
-    encode_pair p = #p.
-Proof. solve_encode. Qed.
-
-Lemma solve_encode_tuple2
-  `{Encode A} `{Encode B}
-  (a : A) (b : B)
-  va vb
-  t :
-  (a, b) = t →
-  va = #a →
-  vb = #b →
-  VPair va vb = #t.
-Proof. solve_encode. Qed.
-
-Global Hint Resolve encode_pair_is_encode solve_encode_tuple2
-| 10 (* lower priority than tuple3 and tuple4 below *)
- : encode.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Tuples of arity 3. *)
-
-Global Instance Encode_tuple3
-  `{Encode A} `{Encode B} `{Encode C}
-  : Encode (A * B * C)
-  | 5 (* higher priority than tuple2; lower priority than tuple3 *)
-:=
-  { encode' := λ '(a, b, c), VTuple [ #a; #b; #c] }.
-
-Lemma solve_encode_tuple3
-  `{Encode A} `{Encode B} `{Encode C}
-  (a : A) (b : B) (c : C)
-  va vb vc
-  t :
-  (a, b, c) = t →
-  va = #a →
-  vb = #b →
-  vc = #c →
-  VTuple [va; vb; vc] = #t.
-Proof. solve_encode. Qed.
-
-Global Hint Resolve solve_encode_tuple3
-| 5 (* higher priority than tuple2; lower priority than tuple3 *)
-: encode.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Tuples of arity 4. *)
-
-Global Instance Encode_tuple4
-  `{Encode A} `{Encode B} `{Encode C} `{Encode D}
-  : Encode (A * B * C * D)
-  | 0 (* higher priority than tuple2 and tuple3 above *)
-:=
-  { encode' := λ '(a, b, c, d), VTuple [ #a; #b; #c; #d] }.
-
-Lemma solve_encode_tuple4
-  `{Encode A} `{Encode B} `{Encode C} `{Encode D}
-  (a : A) (b : B) (c : C) (d : D)
-  va vb vc vd
-  t :
-  (a, b, c, d) = t →
-  va = #a →
-  vb = #b →
-  vc = #c →
-  vd = #d →
-  VTuple [va; vb; vc; vd] = #t.
-Proof. solve_encode. Qed.
-
-Global Hint Resolve solve_encode_tuple4
-| 0 (* higher priority than tuple2 and tuple3 above *)
-  : encode.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -537,8 +537,16 @@ Local Ltac2 rec pattern_match_aux () :=
 Ltac2 pattern_match0 () :=
   Control.enter (fun _ =>
   lazy_match! goal with
-  | [ |- pattern _ _ _ (#_) _ _ ] =>
-      rewrite 1 ?encode_encode'; pattern_match_aux ()
+  | [ |- pattern ?η ?δ ?p (#?v) ?φ ?ψ ] =>
+      (* Try to use [change] to strip the encoding wrapper from the value
+         without disturbing the environment. This works when [v : val] since
+         [#v = encode' v = v] definitionally (via [Encode_val]). If the type
+         of [v] is not [val] (e.g. [int], [list A]), fall back to the original
+         [rewrite] approach. *)
+      Control.plus
+        (fun _ => change (pattern $η $δ $p $v $φ $ψ))
+        (fun _ => rewrite 1 ?encode_encode');
+      pattern_match_aux ()
   | [ |- pattern _ _ _ _ _ _ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
@@ -851,14 +859,14 @@ Ltac2 pure_path0 () : unit :=
                  (* Otherwise let [encode] solve the equality. *)
                  | [ |- _ ] => try reflexivity
                  end)
-            ; (fun () => try reflexivity) ]
+            ; (fun () => first [ reflexivity | ltac1:(apply eq_refl) | () ]) ]
       | _ => Control.zero (Tactic_failure None)
       end
   | [ |- _ ] => ()
   end.
 
 Ltac2 Notation "pure_path" := Control.enter pure_path0.
-Tactic Notation "pure_path" := ltac2:(pure_path; try reflexivity).
+Tactic Notation "pure_path" := ltac2:(pure_path); try apply eq_refl.
 
 (* [pure_const] expects a goal of the form [pure (eval η (EConstant x)) ##φ ⊥].
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
@@ -1021,19 +1029,67 @@ Ltac2 rec evar_tuple (ty: constr) : constr :=
 
 (* -------------------------------------------------------------------------- *)
 
-Ltac2 rec pure_data () :=
-  eapply pure_eval_data_val >
-    [ eapply pure_wp_mono_ret;
-      first (fun _ => eapply pure_evals_eq;
-                      unfold_Forall2 ();
-                      try0 (fun _ => Control.enter (fun _ => Control.plus
-                                               (fun _ => pure_path0 ())
-                                               (fun _ => pure_data ()))));
-    ltac1:(rewrite /singleton; intros ? ->; (encode || apply solve_encode_val))
-    | ]; ltac1:(try (encode || apply solve_encode_val || exact eq_refl)).
+(* [pure_data] applies [pure_eval_data] and then repeatedly breaks down the
+   first goal (the list of sub-expressions to evaluate) using [pure_evals_cons]
+   or [pure_evals_singleton]. *)
 
-Ltac2 Notation "pure_data" := Control.enter (fun _ => repeat0 pure_data).
+Ltac2 rec unfold_pure_evals () :=
+  lazy_match! goal with
+  (* Test singleton pattern first. *)
+  | [ |- pure (evals _ [_]) _ _ ] =>
+    (* Has to be [eapply] because the type of the argument might not be known *)
+    eapply pure_evals_singleton; try0 pure_path0
+  | [ |- pure (evals _ (_ :: _)) _ _ ] =>
+    eapply pure_evals_cons >
+    [ try0 pure_path0 | unfold_pure_evals () ]
+  | [ |- pure (evals _ _) _ _ ] =>
+    apply pure_evals_nil
+  end.
+
+Ltac2 pure_data () :=
+  eapply pure_eval_data >
+  [ unfold_pure_evals () | simpl ctor_apply; simpl type_nel.tforall ].
+
+Ltac2 Notation "pure_data" := Control.enter pure_data.
 Tactic Notation "pure_data" := ltac2:(pure_data).
+
+
+Ltac2 rec utypes_from_exprs (es : constr) : constr :=
+  lazy_match! es with
+  | cons _ nil => open_constr:(type_nel.Tbase _)
+  | cons _ ?es  =>
+    let base := utypes_from_exprs es in
+    open_constr:(type_nel.Tcons _ $base)
+  | nil =>
+    Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Cannot build empty [types]. ")))
+  end.
+
+Ltac2 pure_tuple () :=
+  lazy_match! goal with
+  | [ |- pure (eval _ ?e) _ _ ] =>
+    lazy_match! eval hnf in $e with
+    | ETuple ?es =>
+      let τ := utypes_from_exprs es in
+      eapply (pure_eval_tuple (τ:=$τ)) >
+      [ unfold_pure_evals () | simpl ctor_apply; simpl type_nel.tforall ]
+    | _ =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pure (eval η (ETuple es)) φ ζ]")))
+    end
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [pure (eval η (ETuple es)) φ ζ]")))
+  end.
+
+Ltac2 Notation "pure_tuple" := Control.enter pure_tuple.
+Tactic Notation "pure_tuple" := ltac2:(pure_tuple).
 
 (* -------------------------------------------------------------------------- *)
 

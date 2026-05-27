@@ -62,10 +62,13 @@ Qed.
 
 (** Coercion from [types] to [Type]. *)
 
+(* For example, [coerce_to_type (Tcons nat (Tcons Z (Tbase Z)))] should
+   produce the type [(nat * (Z * Z))]. *)
+
 Fixpoint coerce_to_type (τ : types) : Type :=
   match τ with
-  | Tbase X => X
-  | Tcons X τ => X * (coerce_to_type τ)
+  | Tbase X    => X
+  | Tcons X τ' => X * coerce_to_type τ'
   end.
 Global Arguments coerce_to_type _ : simpl never.
 
@@ -91,9 +94,9 @@ Coercion coerce_to_type : types >-> Sortclass.
 
 Fixpoint tapp {τs : types} {U} : (τs -#> U) -> τs → U :=
   match τs with
-  | Tbase X => λ F x, F x
-  | Tcons _ r => λ (F : Tcons _ r -#> U) '(pair x b),
-      tapp (F x) b
+  | Tbase X => λ (F : Tbase X -#> U) (x : Tbase X), F x
+  | Tcons X r => λ (F : Tcons _ r -#> U) '(pair x xs : X * coerce_to_type r),
+      tapp (F x) xs
   end.
 (* The bidirectionality hint [&] simplifies defining arg_app-based notation *)
 (* such as the atomic updates and atomic triples in Iris. *)
@@ -254,12 +257,13 @@ Qed.
 
 Section types_helpers.
 
-  Fixpoint to_vals {τ : types} : τ-#> list val :=
+  Fixpoint to_vals {τ : types} : τ -> list val :=
     match τ with
-    | Tbase H => tbind (λ x, [ #x])
-    | @type_nel.Tcons X H b =>
-      λ (x : X), @tbind _ b (λ tt, #x :: (to_vals tt))
+    | Tbase _ => λ x, [#x]
+    | @type_nel.Tcons X H b => λ '(x, xs), #x :: @to_vals b xs
     end.
+
+  Eval cbn in @to_vals τ[Z;Z;Z] (0%Z, (1%Z, 2%Z)).
 
   Global Instance observe_types (τ : types) : Observe τ (list val) :=
     { observe τ := to_vals τ }.
@@ -275,7 +279,7 @@ Section types_helpers.
   Proof.
     induction τ.
     - intros x. simpl. unfold tapp. by simpl.
-    - intros (x & xs). simpl. rewrite tapp_bind. length.
+    - intros (x & xs). simpl. length.
       rewrite IHτ. lia.
   Qed.
 
@@ -361,7 +365,7 @@ Section types_helpers.
       simpl.
       rewrite list.lookup_total_nil. reflexivity.
     - pose proof (Tcons_inv b xs) as [x [xs' ->]].
-      simpl; rewrite tapp_bind.
+      simpl.
       destruct n as [|n'] eqn:Hnat; first reflexivity.
       rewrite (list.lookup_total_cons_ne_0 _ _ _); last lia.
       apply IH.
@@ -402,8 +406,8 @@ Section types_helpers.
     - destruct n as [|n']; first reflexivity.
       simpl. update. reflexivity.
     - pose proof (Tcons_inv b xs) as [y [xs' ->]].
-      simpl; rewrite tapp_bind.
-      destruct n as [|n']; simpl; rewrite tapp_bind.
+      simpl.
+      destruct n as [|n']; simpl.
       + reflexivity.
       + rewrite IH. reflexivity.
   Qed.
