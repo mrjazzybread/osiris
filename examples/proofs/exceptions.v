@@ -11,6 +11,12 @@ From osiris.examples Require Import og_exception.
 Definition stdlib_with_notfound :=
   ("Not_found", (VLoc (Loc 0))) :: [].
 
+Inductive exception :=
+| Not_found.
+
+Instance encode_exception : Encode exception :=
+  { encode' := λ _, VXData (Loc 0) [] }.
+
 Section proof_pure.
 
   Variable A : Type.
@@ -28,7 +34,7 @@ Section proof_pure.
      or returns [None] when [l = []]. *)
 
   Definition catch_head_spec (l : list A) (m : microvx) :=
-    pure m (λ hopt, hopt = list.head l) ⊥.
+    pure m (λ hopt, hopt = list.head l) (⊥ : exn → Prop).
 
   Lemma let_fun τ P η δ x e f sitems φ :
     predicate_over_function_body τ P η (EAnonFun (Anon (x => e))) ->
@@ -57,7 +63,9 @@ Section proof_pure.
       eapply pure_eval_match. { pure_path. }
       pure_match.
       - eapply pure_eval_raise.
-        simpl_eval. rewrite !bind_ret. pure_ret.
+        eapply (pure_eval_xconstant (Loc 0) (VXData (Loc 0) [])). simpl. reflexivity.
+        pure_path.
+        split; reflexivity.
       - pure_path. eauto. }
     intros head Hhead.
 
@@ -70,12 +78,13 @@ Section proof_pure.
       eapply pure_eval_match'_exn.
       - eapply (pure_EApp τ[list A]).
         { pure_path. eassumption. }
-        { pure_path. apply eq_refl. }
+        { pure_path. }
         simpl.
         intros l' <- m Hm. apply Hm.
       - intros h (t & ->). pure_match.
-        apply pure_eval_data. eapply pure_evals_cons.
-        pure_path. apply pure_evals_nil. encode.
+        eapply pure_eval_data.
+        eapply pure_evals_singleton. pure_path.
+        intros xs <-; auto.
       - intros e (-> & ->). pure_match.
         eapply pure_eval_const. encode. reflexivity. }
     intros catch_head Hcatch_head.
@@ -86,18 +95,14 @@ Section proof_pure.
       unfold catch_head_spec; intros l.
       apply pure_please_eval.
       eapply pure_eval_match'_exn.
-      { eapply pure_eval_data. eapply pure_evals_cons.
-        eapply (pure_EApp τ[list A]).
-        { pure_path. eassumption. }
-        { pure_path; apply eq_refl. }
-        simpl.
-        intros ? <- m Hm.
-        eapply pure_ret_mono; [ apply Hm | intros a (t & Ht) ]; fold evals.
-        apply pure_evals_nil.
-        instantiate (4 := (option A)).
-        exists (Some a). split; [ encode | ].
-        instantiate (1 := fun v => ∃ a t, l = a :: t ∧ v = Some a).
-        exists a, t; done. }
+      { instantiate (5:=λ o, ∃ h t, l = h :: t ∧ o = Some h).
+        pure_data.
+        { eapply (pure_EApp τ[list A]).
+          { pure_path. eassumption. }
+          { pure_path. }
+          simpl.
+          intros ? <- m Hm. apply Hm. }
+        intros h (t & ->). exists h, t. eauto. }
       - intros o (a & t & -> & ->).
         pure_match. pure_path.
       - intros e (-> & ->).

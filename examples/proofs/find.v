@@ -15,7 +15,7 @@ Section pure_specifications.
    where we assume that [iter] is being called on the suffix [lsuf] of a larger list. *)
 
 Definition listiter_spec_inv `{Encode A} (f : val) (lsuf : list A) (m : microvx) : Prop :=
-  ∀ (lpre l : list A) (I : list A → Prop) φ,
+  ∀ (lpre l : list A) (I : list A → Prop) `(Encode B) (φ : B → Prop),
     lpre ++ lsuf = l ->
     Spec τ[A] f (λ (X : A) (mf : microvx),
         ∀ (Xs : list A),
@@ -32,7 +32,7 @@ Definition listiter_spec_inv `{Encode A} (f : val) (lsuf : list A) (m : microvx)
 
 Definition listiter_spec `{Encode A} (f : val) (l : list A) (m : microvx) : Prop :=
   (* For any invariant [I] over the list and exception specification [φ]. *)
-  ∀ (I : list A → Prop) φ,
+  ∀ (I : list A → Prop) `(Encode B) (φ : B → Prop),
     (* If [f] is a function taking one argument [X] of type [A]. *)
     Spec τ[A] f (λ (X : A) (mf : microvx),
         (* Such that for any prefix [Xs] of [l] such that [Xs ++ [X]] is also a prefix of [l]. *)
@@ -54,13 +54,24 @@ Definition listiter_spec `{Encode A} (f : val) (l : list A) (m : microvx) : Prop
 
 (* An intermediate specification which holds for the lambda expression used by [iter]. *)
 
-Definition lambda_spec `{Encode A} ℓ (l : list A) φ (X : A) (m : microvx) : Prop :=
+Context `{Encode A}.
+Context (ℓ : loc).
+Inductive exception := Found (a : A).
+
+Local Instance encode_exception : Encode exception :=
+  { encode' := λ e, match e with | Found a => VXData ℓ [ #a ] end }.
+
+Local Instance xdata_found : XData ℓ τ[A] exception :=
+  { xctor_apply := λ a, Found a;
+    xctor_encode := λ a, eq_refl }.
+
+Definition lambda_spec (l : list A) φ (X : A) (m : microvx) : Prop :=
   ∀ (Xs : list A),
     (Xs ++ [X]) `prefix_of` l ->
     Forall (λ x, ¬ (φ x)) Xs ->
     pure m
       (λ (v :()), Forall (λ x, ¬ (φ x)) (Xs ++ [X]))
-      (λ e, (∃ (x : A), e = VXData ℓ [ #x ] ∧ x ∈ l ∧ φ x) ∧ Forall (λ x, ¬ (φ x)) Xs).
+      (λ e, (∃ (x : A), e = Found x ∧ x ∈ l ∧ φ x) ∧ Forall (λ x, ¬ (φ x)) Xs).
 
 End pure_specifications.
 
@@ -77,8 +88,8 @@ Next Obligation. intros; apply wf_inverse_image, lt_wf. Qed.
 
 Section iris_proof.
 
-Context `{!osirisGS Σ}.
 Context `{Encode A}.
+Context `{!osirisGS Σ}.
 
 (* The specification of our [find_first] function. *)
 
@@ -86,7 +97,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
   ∀ (φ : A -> Prop),
     (* Assuming that [pred] is a pure function such that
        [pred x] reflects the pure proposition [φ x]*)
-    ⌜Spec τ[A] pred (λ x mx, pure mx (λ (P : Prop), P <-> φ x) ⊥)⌝ -∗
+    (∀ `(Encode B), ⌜Spec τ[A] pred (λ x mx, pure mx (λ (P : Prop), P <-> φ x) (⊥ : B → Prop))⌝) -∗
     (* Calling [find l pred] returns an option [o] such that
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
@@ -100,9 +111,13 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     [find.ml] file, we get a module with a value in the "find_first"
     field which is specified by [find_spec]." *)
 
+
 Lemma iter_module_pure :
   ⊢ imp (eval_mexpr stdlib_env __main)
-    {{ context [ var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)] {["find_first";"iter"]} }}.
+    {{ context [
+         var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)
+       ]
+       {["find_first";"iter"]} }}.
 Proof.
   (* Enter the module and face the struct items. *)
   iApply imp_module.
@@ -113,7 +128,7 @@ Proof.
      [Spec τ[val; list A] iter listiter_spec]. *)
   instantiate (1 := (λ (ηδ : envs),
             ⌜∃ iter, ηδ = (("iter", iter) :: stdlib_env, [("iter",iter)]) ∧
-                       Spec τ[val; list A] iter listiter_spec⌝)%I).
+                     Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
     iApply (impure_pure (eval_sitem (stdlib_env, []) (ILetRec __bindings3))).
     (* Enter the body of the recursive function. *)
@@ -124,8 +139,8 @@ Proof.
     { (* Enter the body *) simpl.
       intros iter f l IH.
       unfold listiter_spec_inv.
-      intros lpre lsuf I φ Heql Hf HI.
-      apply pure_please_eval. abstract_env.
+      intros lpre lsuf I B HencB φ Heql Hf HI.
+      eapply pure_please_eval. abstract_env.
 
       (* Evaluate the [function] expression. *)
       eapply pure_eval_match. { (* Evaluation the scrutinee. *) pure_path. }
@@ -137,7 +152,7 @@ Proof.
       rename xs' into l.
       eapply pure_eval_seq.
       { (* Evaluate [f x]. *)
-        eapply (pure_EApp τ[A]). { pure_path. eassumption. } { pure_path. apply eq_refl. }
+        eapply (pure_EApp τ[A]). { pure_path. eassumption. } { pure_path. }
         unfold tapp; simpl.
         intros ? <- callsite_f Hcall_f.
         (* Prove that the exceptional postcondition is of the right form. *)
@@ -153,7 +168,7 @@ Proof.
       intros Hlprex.
       eapply (pure_EApp τ[val; list A]).
       { pure_path. eassumption. }
-      { pure_path. apply eq_refl. } { pure_path. apply eq_refl. }
+      { pure_path. } { pure_path. }
       simpl; unfold tapp.
       intros ?? <-<- m Hm; unfold listiter_spec in Hm.
       (* Justify the recursive call: the measure has decreased and
@@ -198,11 +213,13 @@ Proof.
     (* We are done with the effectful part of the program, so we can drop down
        to Horus, the pure program logic. *)
     iApply impure_pure.
+    pose encode_exception := @encode_exception A H found.
+    pose xdata_found := @xdata_found A H found.
     eapply pure_eval_match'_exn.
     { (* Subgoal: evaluate the scrutinee [List.iter _ _]. *)
       eapply (pure_EApp τ[val; list A]); last (simpl; unfold tapp).
       { (* Find iter in the environment. *) pure_path. eassumption. }
-      2:{ (* find [l] in the environment. *) pure_path; apply eq_refl. }
+      2:{ (* find [l] in the environment. *) pure_path. }
       { (* Evaluate the lambda expression we pass to [iter]:
            it is a function with
            - a single argument of type [a]
@@ -214,24 +231,23 @@ Proof.
           apply pure_please_eval.
           eapply pure_eval_ifthen.
           { (* Subgoal: evaluate the conditional [pred x]. *)
+            specialize (Hpred exception encode_exception).
             eapply (pure_EApp τ[A]);
-              [ pure_path; eassumption | pure_path; apply eq_refl | simpl; unfold tapp ].
+              [ pure_path; eassumption | pure_path | simpl; unfold tapp ].
             (* We now connect the specs of [pred] and the lambda.
                They have the same success postcondition, so we only need
                to exploit the fact that [pred] cannot fail. *)
-            intros ? -> m Hm; eapply pure_exn_mono.
-            eapply Hm. contradiction. }
+            intros ? <- m Hm; eapply (pure_exn_widen (B1:=exception)), Hm. }
           - (* Case: [pred x] returned true and we learn [φ x]. *)
             intros Hx.
             apply pure_eval_raise.
             (* Evaluate the constructor [Found x]. *)
-            simpl_eval. rewrite !bind_ret.
-            apply pure_wp_Par_vals_right.
-            eapply pure_wp_ret. eapply pure_wp_ret.
-            simpl. pure_ret. simpl. rewrite <- solve_encode_val. reflexivity.
+            eapply (pure_eval_xdata (l:=found)). reflexivity.
+            eapply pure_evals_singleton. pure_path.
+            intros ? <-.
             (* Prove the failure postcondition of the lambda.
                That is to say, that [φ] holds for some [x ∈ xs]. *)
-            split; try auto.
+            split; last auto.
             exists x; split; first reflexivity.
             split; last assumption.
             eapply elem_of_prefix; last eassumption.
@@ -245,11 +261,9 @@ Proof.
             apply Forall_app_2; [ apply Hforall | ].
             apply Forall_singleton. apply Hnφ. }
         (* Use the spec of [iter] *)
-        intros ? scan Hscan -> m Hm.
-        unfold listiter_spec in Hm.
-        (* Specifiy the invariant that [iter] will maintain. *)
-        specialize (Hm (λ Xs, Forall (λ x, ¬ φ x) Xs)).
-        apply Hm. apply Hscan. apply Forall_nil. done. }
+        intros ? scan Hscan <- m Hm.
+        apply (Hm (λ Xs, Forall (λ x, ¬ φ x) Xs)).
+        apply Hscan. by apply Forall_nil. }
 
     (* We have now finished evaluating the scrutinee of the
        [match .. with ..] expression, we move on to the branches. *)
@@ -261,10 +275,10 @@ Proof.
 
     - (* Case 2: We raised an exception, we get caught by the branch. *)
       simpl. intros ? [(x & -> & Hx) _].
+      rewrite (@encode_encode' exception).
       pure_match.
-      apply pure_eval_data. eapply pure_evals_cons. pure_path. apply pure_evals_nil.
-      exists (Some x). split; [ encode | ].
-      assumption. }
+      pure_data.
+      by intros ? <-. }
 
   (* We conclude: update the environment to add [find_elem] to it. *)
   iIntros (find) "#Hfind".

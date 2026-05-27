@@ -114,7 +114,7 @@ Definition merge_spec (l1 : list Z) (l2 : list Z) (m : microvx) : Prop :=
   Forall representable l1 ∧ Sorted Z.le l1 ->
   Forall representable l2 ∧ Sorted Z.le l2 ->
   (* Specification of the function call [merge l1 l2]. *)
-  pure m (λ l, Sorted Z.le l ∧ Permutation (l1++l2) l) ⊥.
+  pure m (λ l, Sorted Z.le l ∧ Permutation (l1++l2) l) (⊥ : exn → Prop).
 
 
 (* Specification for [split l]. *)
@@ -126,7 +126,7 @@ Local Definition split_post {A} (l : list A) p :=
   /\ length p.2 = Nat.div2 (length l) /\ Permutation (p.1 ++ p.2) l.
 
 Definition split_spec `{Encode A} (l : list A) (m : microvx) : Prop :=
-  pure m (split_post l) ⊥.
+  pure m (split_post l) (⊥ : exn → Prop).
 
 
 (* Specification for [mergesort l]. *)
@@ -135,7 +135,7 @@ Definition mergesort_spec (l : list Z) (m : microvx) : Prop :=
   (* Precondition on [l]. *)
   Forall representable l ->
   (* Specification of the function call [mergesort l]. *)
-  pure m (λ l', Sorted Z.le l' ∧ Permutation l' l) ⊥.
+  pure m (λ l', Sorted Z.le l' ∧ Permutation l' l) (⊥ : exn → Prop).
 
 (* Specification for [mergesort l]. *)
 
@@ -146,7 +146,7 @@ Local Hint Unfold mergesort_pre : core.
 
 Definition mergesort_spec' (l : list Z) (e : microvx) : Prop :=
   mergesort_pre l ->
-  pure e (mergesort_post l) ⊥.
+  pure e (mergesort_post l) (⊥ : exn → Prop).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -158,6 +158,10 @@ Section proof.
    about what it contains when necessary. *)
 
 Variable η : env.
+
+Local Instance cons_data `{Encode A} : Data "::" τ[A; list A] (list A) :=
+  { ctor_apply := λ '(a, l), a :: l;
+    ctor_encode := λ '(a, xs), eq_refl }.
 
 Lemma merge_mkspec merge (l1 l2 : list Z) :
   (lookup_name η "l1" = Some #l1) ->
@@ -175,82 +179,70 @@ Proof.
    unfold merge_spec. intros [Hreprl1 Hsortl1] [Hreprl2 Hsortl2].
    apply pure_please_eval.
    eapply pure_eval_match.
-   { eapply pure_eval_pair.
-     (* pure_path. FIXME *)
-     eapply pure_eval_path. simpl; rewrite Hl1. reflexivity.
-     eapply pure_eval_path. simpl; rewrite Hl2. reflexivity.
-     reflexivity. }
+   { eapply pure_eval_tuple.
+     eapply pure_evals_cons. pure_path.
+     eapply pure_evals_singleton. pure_path.
+     intros ? ? (<- & <-). reflexivity. }
 
-   pure_match; fold eval; abstract_env.
+   pure_match; abstract_env.
 
    { pure_path. auto. }
    { pure_path. split; [ | rewrite app_nil_r ]; auto. }
 
+   rename x0 into h2, x into h1, xs' into t1, xs'0 into t2.
+   all_inversions.
    eapply pure_eval_ifthenelse.
    { (* Evaluate expression "h1 <= h2" *)
-     apply pure_eval_EOpLe. pure_path. pure_path.
-     repeat Forall_inversion; assumption.
-     repeat Forall_inversion; assumption. }
+     apply pure_eval_EOpLe. pure_path. pure_path. assumption. assumption. }
    { (* Evaluate expression "h1 :: (merge t1 l2)" knowing h1 <= h2 *)
      intros.
-     eapply pure_eval_data. eapply pure_evals_cons.
-     pure_path.
-     unfold observe, observe_encode. encode.
-     eapply @pure_evals_cons with (A := list Z).
+     eapply pure_eval_data.
+     eapply pure_evals_cons. pure_path.
+     eapply pure_evals_singleton.
 
      (* Evaluate "merge t1 l2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
      { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
-     { pure_path. apply eq_refl. }
-     { pure_path. apply eq_refl. }
-     simpl; unfold tapp.
-     intros t1 l2 -> Ht1.
-     intros m Hm.
-     unfold merge_spec in Hm.
-     all_inversions.
-     eapply pure_ret_mono.
-     { apply Hm.
-       - simpl; auto with arith. - split; auto. - split; auto. }
-     intros l [Hsorted Hpermutation].
-     eapply pure_evals_nil.
-     exists (x :: l).
-     split; [ encode | split ].
+     { pure_path. }
+     { pure_path. }
+     { simpl; unfold tapp.
+       intros ? l2 <- <-.
+       intros m Hm.
+       unfold merge_spec in Hm.
+       apply Hm; auto with arith. }
+     intros ? l (<- & Hsorted & Hpermutation).
+     split.
      + (* Subgoal: the output is sorted *)
        constructor; [ assumption | ].
        simpl in H.
-       eapply (HdRel_Sorted_Permutation l l2 (x0 :: xs'0)); eauto.
-       constructor. lia.
+       eapply (HdRel_Sorted_Permutation l t1 (h2 :: t2)); eauto.
+       constructor. simpl in H1. lia.
      + (* Subgoal: the output is a permutation of the inputs *)
+       simpl.
        by rewrite_permutation l. }
 
    { (* Evaluate expression "h2 :: (merge l1 t2)" knowing  (h1 > h2) *)
-     simpl; intros. fold eval.
-     eapply pure_eval_data. eapply pure_evals_cons.
-     pure_path.
-     unfold observe, observe_encode. encode.
-     eapply @pure_evals_cons with (A := list Z).
+     simpl; intros.
+     eapply pure_eval_data.
+     eapply pure_evals_cons. pure_path.
+     eapply pure_evals_singleton.
 
      (* Evaluate "merge l1 t2" under the cons *)
      eapply (pure_EApp τ[list Z; list Z]).
      { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
-     { pure_path. apply eq_refl. }
-     { pure_path. apply eq_refl. }
+     { pure_path. }
+     { pure_path. }
 
-     unfold tbind, tapp.
-     intros ? ? <- <-.
-     intros m Hm.
-     eapply pure_ret_mono.
-     { apply Hm.
-       - simpl; lia. - split; auto. - split; by all_inversions. }
+     { unfold tbind, tapp.
+       intros ? ? <- <-.
+       intros m Hm.
+       apply Hm; simpl; first lia; auto. }
 
-     intros l [Hsorted Hpermutation].
-     apply pure_evals_nil.
-     exists (x0 :: l).
-     split; [ encode | split ].
+     intros ? l (<- & Hsorted & Hpermutation).
+     split; simpl ctor_apply.
      + (* Subgoal: the output is sorted *)
        constructor; [ assumption | ].
-       eapply HdRel_Sorted_Permutation; eauto with zarith;
-         by all_inversions.
+       eapply HdRel_Sorted_Permutation; eauto with zarith.
      + (* Subgoal: the output is a permutation of the inputs *)
        rewrite_permutation l.
        apply Permutation_sym. apply Permutation_middle. }
@@ -285,58 +277,53 @@ Proof.
 
   (* First branch of match *)
   { (* Case: l matches [] *)
-    apply pure_eval_pair;
-      repeat (eapply pure_eval_const; encode).
-    (* Establish the (trivial) postcondition *)
-    split; simpl; auto. }
+    pure_tuple. pure_const. apply eq_refl. pure_const. apply eq_refl.
+    intros ?? (<- & <-). unfold split_post; simpl. auto. }
   (* Second branch of match *)
   { (* Case: l matches [x] *)
-    apply pure_eval_pair.
-    eapply pure_eval_data. eapply pure_evals_cons.
-    pure_path. simpl. encode.
-    eapply pure_evals_cons.
-    eapply pure_eval_const with (x := @nil Z). encode.
-    eapply pure_evals_nil.
-    exists ([x]); split; [ encode | ].
-    eapply pure_eval_const. encode.
+    pure_tuple. pure_data. pure_const. apply eq_refl.
+    intros ?? (<- & <-). apply eq_refl.
+    pure_const. apply eq_refl.
+    intros ?? (<- & <-).
     (* Establish postcondition *)
     split; simpl; auto. }
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
+    rename x into x2. rename xs'0 into t.
     eapply pure_eval_let_pair.
-    eapply (pure_EApp τ[list Z]).
-    { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
-    { pure_path. apply eq_refl. }
-    unfold tbind.
-    intros l -> m Hm.
-    unfold split_spec in Hm.
-    eapply pure_ret_mono. { apply Hm. simpl; lia. }
-    intros [l1 l2] Hpost; clear IH; simpl.
-    simpl_eval_pat; simpl; rewrite !bind_ret; fold eval. abstract_env.
+    { (* Recursive call to [split t]. *)
+      eapply (pure_EApp τ[list Z]).
+      { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
+      { pure_path. } simpl.
+      intros ? <- m Hm. apply Hm. lia. }
+    (* Apparte: resolving pattern_matching *)
+    2:{ intros l1 l2 Hpost.
+        eapply pattern_exn_mono.
+
+        rewrite encode_encode'. eapply pat_PPair.
+        reflexivity. reflexivity. pattern_match.
+        instantiate (1:= λ (δ : env), ∃ l1 l2, δ = [("l2", #l2); ("l1", #l1)] ∧ split_post t (l1, l2)).
+        eexists l1, l2; eauto. tauto. }
+    intros ? (l1 & l2 & -> & Hpost).
     (* Eval (x1::l1, x2::l2) *)
-    apply pure_eval_pair.
-    eapply pure_eval_data. eapply pure_evals_cons. pure_path.
-    simpl; encode.
-    eapply pure_evals_cons. pure_path. simpl; encode.
-    eapply pure_evals_nil. exists (x1 :: l1); split; [ encode | ].
-    eapply pure_eval_data. eapply pure_evals_cons. pure_path.
-    simpl; encode.
-    eapply pure_evals_cons. pure_path. simpl; encode.
-    eapply pure_evals_nil. exists (x :: l2); split; [ encode | ].
-    (* Establish postcondition *)
-    unfold split_post in *; simpl in *.
-    subst.
-    destruct Hpost as (Hlength1 & Hlength2 & ?).
-    split; [ | split ].
-    { (* Subgoal: the length of l1 is half the length of xs *)
-      destruct (Nat.even _); rewrite Hlength1; eauto with arith. }
-    { (* Subgoal: the length of l2 is half the length of xs *)
-      rewrite Hlength2; eauto with arith. }
-    { (* Subgoal: l1++l2 is a permutation of xs *)
-      rewrite_permutation l.
-      apply Permutation_skip.
-      apply Permutation_sym.
-      apply Permutation_middle. } }
+    pure_tuple.
+    - pure_data. intros ?? (<- & <-). apply eq_refl.
+    - pure_data. intros ?? (<- & <-). apply eq_refl.
+    - intros ?? (<- & <-).
+      (* Establish postcondition *)
+      unfold split_post in *; simpl in *.
+      subst.
+      destruct Hpost as (Hlength1 & Hlength2 & ?).
+      split; [ | split ].
+      { (* Subgoal: the length of l1 is half the length of xs *)
+        destruct (Nat.even _); rewrite Hlength1; eauto with arith. }
+      { (* Subgoal: the length of l2 is half the length of xs *)
+        rewrite Hlength2; eauto with arith. }
+      { (* Subgoal: l1++l2 is a permutation of xs *)
+        rewrite_permutation t.
+        apply Permutation_skip.
+        apply Permutation_sym.
+        apply Permutation_middle. } }
 Qed.
 
 (* We make a new section, adding the hypotheses that [split] is in the
@@ -363,59 +350,59 @@ Proof.
   (* Branch: "[]"  *)
   { pure_const. auto. }
   (* Branch: "[x]" *)
-  { eapply pure_eval_data. eapply pure_evals_cons.
-    pure_path. simpl; encode.
-    eapply pure_evals_cons. eapply pure_eval_const with (x := @nil Z).
-    encode.
-    eapply pure_evals_nil. exists [x]. split; [ encode | auto ]. }
+  { pure_data. pure_const. apply eq_refl.
+    intros ?? (<- & <-).
+    auto. }
 
   (* Branch: "_" *)
-  assert (exists m, length (x0) = S m) as [m Heql].
-  { subst. destruct x0; [ congruence | eauto ]. }
+  rename x0 into l.
+  assert (exists m, length l = S m) as [m Heql].
+  { subst. destruct l; [ congruence | eauto ]. }
   simpl in IH. rewrite Heql in IH.
   eapply pure_eval_let_pair.
   (* Use knowledge that [split] ⊨ [split_spec] *)
-  eapply (pure_EApp τ[list Z]).
-  { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
-  { pure_path. apply eq_refl. }
+  { eapply (pure_EApp τ[list Z]).
+    { pure_path. rewrite <- solve_encode_val. reflexivity. eassumption. }
+    { pure_path. }
+    intros ? <- ms Hsplitm. apply Hsplitm. }
+    (* Apparte: resolving pattern_matching *)
+    2:{ intros l1 l2 Hpost.
+        eapply pattern_exn_mono.
 
-  unfold tbind.
-  intros l <- ms Hsplitm.
-  eapply pure_ret_mono. { apply Hsplitm. }
-  intros [l1 l2] (Hl1 & Hl2 & Hperm).
-  rewrite <- Hperm in Hpre; apply Forall_app in Hpre as [??].
-  simpl_eval_pat; simpl; fold eval.
-
+        rewrite encode_encode'. eapply pat_PPair.
+        reflexivity. reflexivity. pattern_match.
+        instantiate (1:= λ (δ : env), ∃ l1 l2, δ = [("l2", #l2); ("l1", #l1)] ∧ split_post (x :: l) (l1, l2)).
+        eexists l1, l2; eauto. tauto. }
+  intros ? (l1 & l2 & -> & Hpost).
+  destruct Hpost as (Hl1 & Hl2 & Hperm).
+  assert (Forall representable (l1 ++ l2)) as Hrepr by (rewrite Hperm; done).
+  apply Forall_app in Hrepr as [Hreprl1 Hreprl2].
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
     { pure_path. eassumption. }
-    { pure_path. apply eq_refl. }
-    unfold tbind.
-    intros l -> mm Hcall.
-    apply Hcall.
-    - simpl in Hperm, Hl1, Hl2.
-      rewrite Heql in Hl1, Hl2 |-*.
+    { pure_path. }
+    intros ? <- mm Hcall. apply Hcall.
+    - simpl in Hl1; rewrite Heql in Hl1.
       apply div2_lt_succ. apply Hl1.
-    - assumption. }
+    - apply Hreprl1. }
 
   intros l1' IHl1'.
   eapply pure_eval_let1var.
   { eapply (pure_EApp τ[list Z]).
     { pure_path. eassumption. }
-    { pure_path. apply eq_refl. }
-    unfold tbind.
-    intros ? -> mm Hcall. apply Hcall.
-    - rewrite Hl2. simpl. destruct (length x0); auto with arith.
+    { pure_path. }
+    intros ? <- mm Hcall. apply Hcall.
+    - rewrite Hl2. simpl. destruct (length l); auto with arith.
       inversion Heql. auto with arith.
-    - assumption. }
+    - apply Hreprl2. }
 
   intros l2' IHl2'; clear IH Hl1 Hl2 Heql m.
   abstract_env.
   eapply (pure_EApp τ[list Z; list Z]).
   - (* Use the knowledge that [merge] ∈ [η] *)
     pure_path. rewrite <- solve_encode_val. reflexivity. eassumption.
-  - pure_path. apply eq_refl.
-  - pure_path. apply eq_refl.
+  - pure_path.
+  - pure_path.
   - simpl. intros ? ? <-. unfold tapp. intros <- m Hmerge'.
     unfold merge_spec in Hmerge'.
     simpl in IHl1', IHl2'; destruct IHl1' as [??]; destruct IHl2' as [??].
@@ -426,7 +413,7 @@ Proof.
       (* Subgoal: show that [l'] ⊨ [mergesort_post] *)
       cbn in IH; destruct IH as [??].
       split; [ assumption | ].
-      rewrite_permutation l'. rewrite_permutation (x :: x0).
+      rewrite_permutation l'. rewrite_permutation (x :: l).
       rewrite_permutation l1'. rewrite_permutation l2'.
       reflexivity.
 Qed.

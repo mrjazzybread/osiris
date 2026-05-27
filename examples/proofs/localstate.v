@@ -235,7 +235,7 @@ Section verification.
 
   Definition dummy_env := ("Effect", VStruct [("Deep", VStruct [])]) :: (* stdlib_env *) [].
 
-  Instance xdata_write rl wl : @XDataCtor wl τ[Z] effects (encode_effects rl wl) :=
+  Instance xdata_write rl wl : @XData wl τ[Z] effects (encode_effects rl wl) :=
     { xctor_apply := λ i, Write i; xctor_encode := λ i, eq_refl }.
 
   Lemma module_proof (Q : val -> iProp Σ) :

@@ -122,6 +122,10 @@ Local Fixpoint encode_tree `{Encode A} (t : tree A) : val :=
 #[global] Instance Encode_tree `{Encode A} : Encode (tree A) :=
   { encode' := encode_tree }.
 
+Global Instance data_node `{Encode A} : Data "Node" τ[tree A; A; tree A] (tree A) :=
+  { ctor_apply := λ '(t1, (x, t2)), Node t1 x t2;
+    ctor_encode := λ '(t1, (x, t2)), eq_refl }.
+
 Local Fixpoint encode_zipper `{Encode A} (z : zipper A) : val :=
   let (c, l) :=
     (match z with
@@ -183,6 +187,15 @@ Qed.
 
 #[global] Instance Encode_zipper `{Encode A} : Encode (zipper A) :=
   { encode' := encode_zipper }.
+
+Global Instance data_nodeL `{Encode A} : Data "NodeL" τ[zipper A; A; tree A] (zipper A) :=
+  { ctor_apply := λ '(t1, (x, t2)), NodeL t1 x t2;
+    ctor_encode := λ '(t1, (x, t2)), eq_refl }.
+
+Global Instance data_nodeR `{Encode A} : Data "NodeR" τ[tree A; A; zipper A] (zipper A) :=
+  { ctor_apply := λ '(t1, (x, t2)), NodeR t1 x t2;
+    ctor_encode := λ '(t1, (x, t2)), eq_refl }.
+
 End encode.
 
 (* -------------------------------------------------------------------------- *)
@@ -254,15 +267,15 @@ Definition splay_spec :=
   fun splay =>
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
     pure
-      (call splay #(l, x, r, ctx))
-      (λ t', fringe t' = fringe (fill ctx (Node l x r))) ⊥.
+      (call splay #(l, (x, (r, ctx))))
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))) (⊥ : exn → Prop).
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
     pure
       (call splay_leaf #ctx)
-      (λ t', fringe t' = fringe (fill ctx Leaf)) ⊥.
+      (λ t', fringe t' = fringe (fill ctx Leaf)) (⊥ : exn → Prop).
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
@@ -271,10 +284,10 @@ Definition zlookup_spec :=
       ∀ (t : tree A) (x : A) (ctx : zipper A),
       bst (strict le) t →
       pure
-        (call zlookup #(t, x, ctx))
+        (call zlookup #(t, (x, ctx)))
         (λ '(oy, t'),
           member le x (fringe t) oy ∧
-          fringe t' = fringe (fill ctx t)) ⊥.
+          fringe t' = fringe (fill ctx t)) (⊥ : exn → Prop).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -539,16 +552,15 @@ Proof.
   (* We need to massage the postcondition so we can generalize the argument for
     the recursive call. *)
   change (λ t', fringe t' = fringe (fill ctx (Node l x r))) with
-    ((λ '(l, x, r, ctx) t', fringe t' = fringe (fill ctx (Node l x r)))
-         (l, x, r, ctx)).
+    ((λ '(l, (x, (r, ctx))) t', fringe t' = fringe (fill ctx (Node l x r)))
+         (l, (x, (r, ctx)))).
 
   (* Recursion, with decreasing depth of zipper. *)
-  recursion { measure snd } ∀ (l, x, r, ctx).
-  clear l x r ctx; intros splay [[[l x] r] ctx] IH.
+  recursion { measure (fun p => snd (snd (snd p))) } ∀ (l, (x, (r, ctx))).
+  clear l x r ctx; intros splay [l [x [r ctx]]] IH.
 
   (* Match to destruct the argument tuple *)
   eapply pure_eval_match. { pure_path. }
-
   (* Match on [ctx] *)
   pure_match.
   eapply pure_eval_match. { pure_path. }
@@ -556,57 +568,85 @@ Proof.
   pure_match. (* Very slow. *)
 
   (* Case: [ctx] matches [Root] *)
-  { pure_data. }
+  { pure_data.
+    intros ??? (<- & <- & <-). reflexivity. }
 
   (* Case: [ctx] matches [NodeL (Root, y, ry)] *)
   { pure_data.
-    prove_same_fringe. }
+    - pure_data. intros ??? (<- & <- & <-). apply eq_refl.
+    - intros ??? (<- & <- & <-).
+      prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeL (NodeL (up, z, rz), y, ry)] *)
-  { eapply pure_eval_app. pure_path. exact eq_refl.
-    eapply pure_eval_quadruple.
-    pure_path. pure_path. pure_data. pure_path.
-    apply eq_refl.
-    intros ? ? -> <-.
-    eapply pure_ret_mono.
-    { eapply IH; cbn; unfold zlt; subst; auto with arith. }
-    simpl; intros ? ->.
-    prove_same_fringe. }
+  { eapply pure_eval_app.
+    - pure_path.
+    - pure_tuple.
+      + pure_data.
+        * pure_data.
+          intros ??? (<- & <- & <-). apply eq_refl.
+        * intros ??? (<- & <- & <-). apply eq_refl.
+      + intros ???? (<- & <- & <- & <-).
+        (* FIXME *)
+        instantiate (1:=data_node). instantiate (1:=data_node).
+        apply eq_refl.
+    - intros ? args -> <-.
+      eapply pure_ret_mono.
+      { eapply IH; cbn; unfold zlt; subst; auto with arith. }
+      simpl; intros ? ->.
+      prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeL (NodeR (lz, z, up), y, ry)] *)
-  { eapply pure_eval_app. pure_path. exact eq_refl.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    apply eq_refl.
-    intros ? ? -> <-.
-    eapply pure_ret_mono.
-    { eapply IH; cbn; unfold zlt; subst; auto with arith. }
-    simpl; intros ? ->.
-    prove_same_fringe. }
+  { eapply pure_eval_app.
+    - pure_path.
+    - pure_tuple.
+      + pure_data.
+        instantiate (1:=data_node). (* FIXME *)
+        intros ??? (<- & <- & <-). apply eq_refl.
+      + pure_data. instantiate (1:=data_node). (* FIXME *)
+        intros ??? (<- & <- & <-). apply eq_refl.
+      + simpl. intros ???? (<- & <- & <- & <-).
+        apply eq_refl.
+    - intros ? args -> <-.
+      eapply pure_ret_mono.
+      { eapply IH; cbn; unfold zlt; subst; auto with arith. }
+      simpl; intros ? ->.
+      prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeR (ly, y, Root)] *)
-  { pure_data.
+  { pure_data. pure_data. intros ??? (<- & <- & <-); apply eq_refl.
+    intros ??? (<- & <- & <-).
     prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeR (ly, y, NodeL (up, z, rz))] *)
   { eapply pure_eval_app.
-    pure_path. exact eq_refl.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_data. pure_path.
-    apply eq_refl.
-    intros ? ? -> <-.
-    eapply pure_ret_mono.
-    { eapply IH; cbn; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
+    - pure_path.
+    - pure_tuple.
+      pure_data. instantiate (1:=data_node).
+      intros ??? (<- & <- & <-). apply eq_refl.
+      pure_data. instantiate (1:=data_node).
+      intros ??? (<- & <- & <-). apply eq_refl.
+      intros ???? (<- & <- & <- & <-). apply eq_refl.
+    - intros ?? -> <-.
+      eapply pure_ret_mono.
+      { eapply IH; cbn; unfold zlt; subst; auto with arith. }
+      intros ? ->.
+      prove_same_fringe. }
 
   (* Case: [ctx] matches [NodeR (ly, y, NodeR (lz, z, up))] *)
-  { eapply pure_eval_app. pure_path. exact eq_refl.
-    eapply pure_eval_quadruple. pure_data. pure_path. pure_path. pure_path.
-    apply eq_refl.
-    intros ? ? -> <-.
-    eapply pure_ret_mono.
-    { eapply IH; cbn; unfold zlt; subst; auto with arith. }
-    intros ? ->.
-    prove_same_fringe. }
+  { eapply pure_eval_app.
+    - pure_path.
+    - pure_tuple.
+      pure_data.
+      { pure_data. instantiate (1:=data_node).
+        intros ??? (<- & <- & <-). apply eq_refl. }
+      instantiate (1:=data_node).
+      intros ??? (<- & <- & <-). apply eq_refl.
+      intros ???? (<- & <- & <- & <-). apply eq_refl.
+    - intros ?? -> <-.
+      eapply pure_ret_mono.
+      { eapply IH; cbn; unfold zlt; subst; auto with arith. }
+      intros ? ->.
+      prove_same_fringe. }
 Qed.
 
 Lemma Splay_leaf_spec splay :
@@ -625,24 +665,23 @@ Proof.
   { pure_const. reflexivity. }
 
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
-  { eapply pure_eval_app. pure_path. exact eq_refl.
-    eapply pure_eval_quadruple.
+  { eapply pure_eval_app. pure_path.
+    pure_tuple.
     eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); reflexivity. (* Todo: weird *)
+    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl. (* Todo: weird *)
+    intros ???? (<- & <- & <- & <-). apply eq_refl.
 
-    pure_path. pure_path. pure_path.
-    apply eq_refl.
     intros ? ? -> <-.
     unfold splay_spec in Hsplay.
     specialize (Hsplay _ _ z' Leaf a t).
     apply Hsplay. }
 
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
-  { eapply pure_eval_app. pure_path. exact eq_refl. eapply pure_eval_quadruple.
-    pure_path. pure_path. eapply pure_eval_const.
-    apply (@solve_encode_Leaf A). reflexivity.
-    pure_path.
-    apply eq_refl.
+  { eapply pure_eval_app. pure_path.
+    pure_tuple.
+    eapply pure_eval_const.
+    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
+    intros ???? (<- & <- & <- & <-). apply eq_refl.
     intros ? ? -> <-.
     specialize (Hsplay _ _ z' t a Leaf).
     apply Hsplay. }
@@ -664,15 +703,15 @@ Proof.
   change
     (λ '(oy, t'),
        member le x (fringe t) oy ∧ fringe t' = fringe (fill ctx t)) with
-    ((λ '(t, x, ctx) '(oy, t'),
+    ((λ '(t, (x, ctx)) '(oy, t'),
        member le x (fringe t) oy ∧ fringe t' = fringe (fill ctx t))
-       (t, x, ctx)).
+       (t, (x, ctx))).
 
-  recursion { measure (fun x => fst (fst x)) } ∀ (t, x, ctx) gen (fun x => bst (strict le) x.1.1);
+  recursion { measure fst } ∀ (t, (x, ctx)) gen (fun x => bst (strict le) x.1);
    first done.
 
-  clear x ctx; intros zlookup [(t' & x) ctx] IH.
-  simpl in *. fold eval. clear Hbst; intros Hbst.
+  clear x ctx; intros zlookup [t' [x ctx]] IH.
+  simpl in *. clear Hbst; intros Hbst.
 
   (* Match on tuple argument *)
   eapply pure_eval_match. { pure_path. }
@@ -682,13 +721,12 @@ Proof.
   pure_match.
 
   (* Case: [t] matches [Leaf] *)
-  { eapply pure_eval_pair. pure_const.
-    eapply pure_eval_app. pure_path. exact eq_refl.
-    pure_path. exact eq_refl.
+  { pure_tuple. pure_const. apply eq_refl.
+    eapply pure_eval_app. pure_path.
+    pure_path.
     intros ? ? <- <-.
-    specialize (Hsplay_leaf A H ctx).
-    eapply pure_ret_mono. { exact Hsplay_leaf. }
-    intros a2 ->.
+    apply (Hsplay_leaf A H ctx).
+    intros ? a2 (<- & ->).
     split.
     - repeat intro; by eapply not_elem_of_nil.
     - auto. }
@@ -700,11 +738,11 @@ Proof.
     { (* Evaluate rhs of [let c = ..] *)
       eapply pure_eval_app.
       { eapply pure_eval_app.
-        { pure_path. apply eq_refl. }
-        { pure_path. apply eq_refl. }
+        { pure_path. }
+        { pure_path. }
         intros ? ? <- <-.
         eapply Hcompare. }
-      pure_path. apply eq_refl.
+      pure_path.
       intros ? ? Hcall ->.
       eapply Hcall. }
     (* Evaluate continuation expression after let *)
@@ -719,11 +757,15 @@ Proof.
 
     { (* Case: [c < 0] *)
       intro Clt0.
-      eapply pure_eval_app. { pure_path. apply eq_refl. }
-      eapply pure_eval_triple. pure_path. pure_path. pure_data.
+      eapply pure_eval_app. { pure_path. }
+      pure_tuple.
+      change (encode' ctx) with #ctx.
+      pure_data. instantiate (1:=data_nodeL).
+      intros ??? (<- & <- & <-). apply eq_refl.
+      intros ??? (<- & <- & <-). apply eq_refl.
       intros ? ? -> <-.
       eapply pure_ret_mono.
-      { eapply IH with (y := (t1, x, NodeL ctx a t2));
+      { eapply IH with (y := (t1, (x, NodeL ctx a t2)));
           unfold tlt, tree_size; auto with arith. }
       intros [oy t'] [??]; simpl in *.
       split; [ | assumption ].
@@ -742,11 +784,15 @@ Proof.
 
       { (* Subcase: [c > 0] *)
         intros Cgt0.
-        eapply pure_eval_app. { pure_path. apply eq_refl. }
-        eapply pure_eval_triple. pure_path. pure_path. pure_data.
+        eapply pure_eval_app. { pure_path. }
+        change (encode' ctx) with #ctx.
+        pure_tuple. pure_data.
+        instantiate (1:=data_nodeR).
+        intros ??? (<- & <- & <-). apply eq_refl.
+        intros ??? (<- & <- & <-). apply eq_refl.
         intros ? ? -> <-.
         eapply pure_ret_mono.
-        { eapply IH with (y := (t2, x, NodeR t1 a ctx)).
+        { eapply IH with (y := (t2, (x, NodeR t1 a ctx))).
           { cbn; unfold tlt. cbn. lia. }
           { auto. } }
         intros [oy t'] [??]; simpl in *.
@@ -758,18 +804,18 @@ Proof.
       { (* Subcase: [c <= 0] *)
         intros Cle0.
         (* Deduce [c = 0] *)
-        eapply pure_eval_pair. pure_data.
-        eapply pure_eval_app. { pure_path. apply eq_refl. }
-        eapply pure_eval_quadruple. pure_path. pure_path. pure_path.
-        rewrite <- (@encode_encode' _ Encode_zipper).
-        pure_path.
-        eapply eq_refl.
-        intros ? ? -> <-.
-        eapply pure_ret_mono. eapply Hsplay.
-        intros. split; [ split | ].
-        - apply Heq. simpl in Cge0, Cle0. lia.
+        pure_tuple. pure_data. intros ? <-. apply eq_refl.
+        eapply pure_eval_app. { pure_path. }
+        change (encode' ctx) with #ctx.
+        pure_tuple. intros ???? (<- & <- & <- & <-).
+        apply eq_refl.
+        intros ? ? <- <-.
+        apply Hsplay. intros ?? (<- & <-).
+        simpl in Cge0, Cle0 |- *.
+        split; first split.
+        - apply Heq. lia.
         - apply elem_of_app; right; apply elem_of_cons; left; reflexivity.
-        - assumption. } } }
+        - reflexivity. } } }
 Qed.
 
 Lemma Splay__spec:
@@ -783,14 +829,14 @@ Proof.
   { apply Splay_spec. }
   intros [??] (splay & Hsplay & -> & ->).
   next_item with splay_leaf_spec.
-  { simpl_eval. pure_ret. simpl. rewrite <- solve_encode_val. eauto.
+  { rewrite <- fold_pre_eval. simpl. pure_ret. simpl. rewrite <- solve_encode_val. eauto.
     apply Splay_leaf_spec; assumption. }
   intros [??] (splay_leaf & Hsplay_leaf & -> & ->).
   next_item.
   { apply Zlookup_spec; assumption. }
   intros [??] (zlookup & Hzlookup & -> & ->).
   next_item.
-  { simpl_eval. pure_ret. }
+  { rewrite <- fold_pre_eval. simpl. pure_ret. }
   intros [??] (lookup & Hlookup & -> & ->).
   finished_struct.
   simpl.

@@ -89,7 +89,7 @@ Section verification.
 
   Context (shift_eff : loc).
   Local Instance : Encode effect := encode_effect shift_eff.
-  Local Instance name_effect l : @XDataCtor l τ[val] effect (encode_effect l) :=
+  Local Instance name_effect l : @XData l τ[val] effect (encode_effect l) :=
   { xctor_apply := λ f, Shift f;
     xctor_encode := λ f, eq_refl }.
 

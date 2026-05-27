@@ -200,7 +200,7 @@ Section verification.
     Context  {A : Type} `{Encode A, FinitelyObservable A}.
     Context `{!inG Σ (excl_authR (leibnizO (list A)))}.
 
-    Local Instance data_seq_cons : DataCtor "Cons" τ[A; val] (@seq A) :=
+    Local Instance data_seq_cons : Data "Cons" τ[A; val] (@seq A) :=
       { ctor_apply := λ '(x, s), Cons x s;
         ctor_encode := λ '(x, s), eq_refl }.
 
@@ -297,7 +297,7 @@ Section verification.
 
     Definition invert := (EAnonFun __fun9).
 
-    Local Instance xdata_yield yl `{Encode A} : @XDataCtor yl τ[A] effect (encode_effect A yl) :=
+    Local Instance xdata_yield yl `{Encode A} : @XData yl τ[A] effect (encode_effect A yl) :=
       { xctor_apply := λ a, Yield a;
         xctor_encode := λ a, eq_refl }.
 
