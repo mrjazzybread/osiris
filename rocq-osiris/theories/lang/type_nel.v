@@ -263,8 +263,6 @@ Section types_helpers.
     | @type_nel.Tcons X H b => λ '(x, xs), #x :: @to_vals b xs
     end.
 
-  Eval cbn in @to_vals τ[Z;Z;Z] (0%Z, (1%Z, 2%Z)).
-
   Global Instance observe_types (τ : types) : Observe τ (list val) :=
     { observe τ := to_vals τ }.
 
