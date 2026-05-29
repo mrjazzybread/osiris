@@ -156,30 +156,12 @@ Proof.
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
   - imp_path.
   - (* !x + !x *)
-    iDestruct "Hx" as "(Hx1 & Hx2)".
-    set_postcondition (λ i, ⌜(i = (2 * n)^2)%Z⌝ ∗ lx ↦ #n)%I.
-    imp_arith with "[Hx1] [Hx2]".
-    + iDestruct "Hx1" as "(Hx1.1 & Hx1.2)".
-      set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦{#1 / 2} #n)%I.
-      imp_arith with "[Hx1.1] [Hx1.2]".
-      (* add's postcondition *)
-      iIntros "(-> & Hx1) (-> & Hx2)".
-      iCombine "Hx1" "Hx2" as "$".
-      iPureIntro; lia.
-    + iDestruct "Hx2" as "(Hx2.1 & Hx2.2)".
-      set_postcondition (λ i, ⌜(i = 2 * n)%Z⌝ ∗ lx ↦{#1 / 2} #n)%I.
-      imp_arith with "[Hx2.1] [Hx2.2]".
-      (* add's postcondition *)
-      iIntros "(-> & Hx1) (-> & Hx2)".
-      iCombine "Hx1" "Hx2" as "$".
-      iPureIntro; lia.
-    + (* mul's postcondition *)
-      iIntros "(-> & Hx1) (-> & Hx2)".
-      iCombine "Hx1" "Hx2" as "$".
-      iPureIntro; lia.
+    imp_arith reading "Hx".
   - (* := *)
     iIntros (i) "(-> & Hx)".
-    iFrame. auto.
+    iFrame. iIntros "!> !> Hlx".
+    replace ((n + n) * (n + n))%Z with ((2 * n) ^ 2)%Z by lia.
+    iApply "Hlx".
 Qed.
 
 (* match 1 with _ -> true *)

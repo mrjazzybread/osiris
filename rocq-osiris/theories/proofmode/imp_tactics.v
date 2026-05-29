@@ -30,16 +30,24 @@ Ltac2 imp_load_tac (l : constr option) :=
   iApply ($specialized_load with "[$]").
 
 Ltac2 Type arith_type :=
-  [ Literal | Op | Comparison ].
+  [ Literal | Op | Op_frac(constr) | Comparison ].
 
-Ltac2 fetch_appropriate_arith_lemma (e : constr) : (constr * arith_type) option :=
+Ltac2 fetch_appropriate_arith_lemma (e : constr) (r : constr option) : (constr * arith_type) option :=
   lazy_match! e with
   | EInt _ => Some ('imp_EInt, Literal)
   | EMaxInt => Some ('imp_EMaxInt, Literal)
   | EMinInt => Some ('imp_EMinInt, Literal)
-  | EIntAdd _ _ => Some ('imp_EIntAdd, Op)
+  | EIntAdd _ _ =>
+    match r with
+    | Some r => Some ('imp_EIntAdd_frac, Op_frac r)
+    | None => Some ('imp_EIntAdd, Op)
+    end
   | EIntSub _ _ => Some ('imp_EIntSub, Op)
-  | EIntMul _ _ => Some ('imp_EIntMul, Op)
+  | EIntMul _ _ =>
+    match r with
+    | Some r => Some ('imp_EIntMul_frac, Op_frac r)
+    | None => Some ('imp_EIntMul, Op)
+    end
   | EIntDiv _ _ => Some ('imp_EIntDiv, Op)
   | EIntMod _ _ => Some ('imp_EIntMod, Op)
   | EOpEq _ _ => Some ('imp_EOpEq_Z, Comparison)
@@ -86,47 +94,115 @@ Ltac2 get_pointsto (l : constr) : constr * constr :=
   in
   go spat_hyps.
 
-Ltac2 rec imp_step () :=
-  let e := get_expr () in
-  let e := (eval hnf in $e) in
-  match fetch_appropriate_arith_lemma e with
-  | Some (lemma, arith_kind) =>
-      try (iApply $lemma;
-           match arith_kind with
-           | Literal => ()
-           | Op => Control.extend [] (fun _ => complete imp_step) [ fun _ => simple_intros (); auto ]
-           | Comparison =>
-               lastn [ (fun _ => complete imp_step); (fun _ => complete imp_step) ];
-               firstn [ representable; representable ]
-           end)
-  | None =>
-      lazy_match! e with
-      | EPath _ => imp_path
-      | ELoad _ => imp_load_tac None; try (imp_step ())
-      | ERef _ => Control.plus
-                    (fun _ => iApply imp_ERef;
-                              complete imp_step)
-                    (fun _ => iApply imp_ERef2; try (imp_step ()))
-      | EStore _ _ => Control.plus
-                        (fun _ => iApply (imp_EStore with "[$]");
-                                  Control.dispatch [imp_step; fun _ => complete imp_step])
-                        (fun _ =>
-                           mk_evar @imp_store_A 'Type;
-                           let store_a := Control.hyp @imp_store_A in
-                           mk_evar @imp_store_HA open_constr:(Encode $store_a);
-                           let specialized_store := open_constr:(imp_EStore' (A:=$store_a)) in
-                           iApply ($specialized_store with "[$]");
-                           try (imp_step ()))
-      | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
-      | _ =>
-          Control.zero
-            (Tactic_failure
-               (Some (fprintf "[imp_step] doesn't know how to handle expression %t" e)))
-      end
+Ltac2 is_Some (o : constr option) : bool :=
+  match o with
+  | Some _ => true
+  | None => false
   end.
 
-Ltac2 Notation "imp_step" := imp_step ().
+Ltac2 is_arith_expr (e : constr) : bool :=
+  match! e with
+  | EInt _ => true
+  | EMaxInt => true
+  | EMinInt => true
+  | EIntAdd _ _ => true
+  | EIntSub _ _ => true
+  | EIntMul _ _ => true
+  | EIntDiv _ _ => true
+  | EIntMod _ _ => true
+  | EOpEq _ _ => true
+  | EOpNe _ _ => true
+  | EOpLt _ _ => true
+  | EOpLe _ _ => true
+  | EOpGt _ _ => true
+  | EOpGe _ _ => true
+  | _ => false
+  end.
+
+(* [selpat_from_reading] is used when the tactics are reading from a
+   given resource.
+
+   When we apply lemmas (such as [imp_EIntAdd_frac], for example), the
+   user may have specified a "reading" resource and additional
+   resources to be split amongst the subgoals.
+
+   We get the right selection pattern to feed to [imp_EIntAdd_frac] by
+   concatenating the name of the reading resource and the selection
+   pattern. *)
+
+Ltac2 selpat_from_reading (selpat : constr option) (reading : constr option) : constr :=
+  match selpat, reading with
+  | Some s, Some r => '(String.concat $r $s)
+  | Some s, None => s
+  | None, Some r => r
+  | None, None => '""
+  end.
+
+Ltac2 rec imp_step0 (reading : constr option) :=
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  let complete_steps := fun () => complete (fun () => imp_step0 reading) in
+  if is_arith_expr e then imp_arith_tac None reading else
+  lazy_match! e with
+  | EPath _ => imp_path
+  | ELoad _ => imp_load_tac None; try (imp_step0 reading)
+  | ERef _ => Control.plus
+                (fun _ => iApply imp_ERef;
+                          complete (fun _ => imp_step0 reading))
+                (fun _ => iApply imp_ERef2; try (imp_step0 reading))
+  | EStore _ _ => Control.plus
+                    (fun _ => iApply (imp_EStore with "[$]");
+                              Control.dispatch [(fun _ => imp_step0 reading); complete_steps])
+                    (fun _ =>
+                       mk_evar @imp_store_A 'Type;
+                       let store_a := Control.hyp @imp_store_A in
+                       mk_evar @imp_store_HA open_constr:(Encode $store_a);
+                       let specialized_store := open_constr:(imp_EStore' (A:=$store_a)) in
+                       iApply ($specialized_store with "[$]");
+                       try (imp_step0 reading))
+  | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
+  | _ =>
+      Control.zero
+        (Tactic_failure
+           (Some (fprintf "[imp_step] doesn't know how to handle expression %t" e)))
+  end
+
+with imp_arith_tac (selpat : constr option) (reading : constr option) :=
+  let e := get_expr () in
+  let e := eval hnf in $e in
+  let s := selpat_from_reading selpat reading in
+  match fetch_appropriate_arith_lemma e reading with
+  | Some (lemma, arith_kind) =>
+      iApply ($lemma with $s);
+      match arith_kind with
+      | Literal => ()
+      | Op =>
+          Control.extend [] (fun _ => try (imp_step0 None))
+            [ fun _ =>
+                simple_intros ();
+                lazy_match! get_iris_goal () with
+                | bi_wand _ _ => ()
+                | _ => auto
+                end ]
+      | Op_frac r =>
+        iIntros $r; Control.enter (fun _ => try (imp_step0 reading))
+      | Comparison =>
+          lastn [ (fun _ => imp_step0 reading); (fun _ => imp_step0 reading) ];
+          firstn [ representable; representable ]
+      end
+  | None =>
+      Control.zero
+        (Tactic_failure
+           (Some (fprintf "Expected %t to be an arithmetic expression" e)))
+  end.
+
+
+Ltac2 Notation "imp_step" "reading" c(constr) := imp_step0 (Some c).
+Ltac2 Notation "imp_step" := imp_step0 None.
 Tactic Notation "imp_step" := ltac2:(imp_step).
+Tactic Notation "imp_step" "reading" constr(c) :=
+  let tac := ltac2:(c |- imp_step0 (Ltac1.to_constr c)) in
+  tac c.
 
 Ltac2 Notation "imp_load" l(constr) := imp_load_tac (Some l); try (imp_step).
 Ltac2 Notation "imp_load" := imp_load_tac None; try (imp_step).
@@ -143,7 +219,7 @@ Ltac2 imp_ref_tac (x : constr option) :=
   | None =>
       Control.plus
         (fun _ => iApply imp_ERef;
-                  complete imp_step)
+                  complete (fun _ => imp_step0 None))
         (fun _ => iApply imp_ERef2; try (imp_step))
   end.
 
@@ -192,42 +268,51 @@ Tactic Notation "imp_store2" constr(l) :=
   let tac := ltac2:(l |- imp_store2_tac (Option.get (Ltac1.to_constr l))) in
   tac l.
 
-Ltac2 imp_arith_tac (selpat : constr option) :=
-  let e := get_expr () in
-  let e := eval hnf in $e in
-  let s :=
-    match selpat with
-    | Some s => s
-    | None => '""
-    end
-  in
-  match fetch_appropriate_arith_lemma e with
-  | Some (lemma, arith_kind) =>
-      iApply ($lemma with $s);
-      match arith_kind with
-      | Literal => ()
-      | Op =>
-          Control.extend [] (fun _ => try (imp_step))
-            [ fun _ =>
-                simple_intros ();
-                lazy_match! get_iris_goal () with
-                | bi_wand _ _ => ()
-                | _ => auto
-                end ]
-      | Comparison =>
-          lastn [ (fun _ => imp_step); (fun _ => imp_step) ];
-          firstn [ representable; representable ]
-      end
-  | None =>
-      Control.zero
-        (Tactic_failure
-           (Some (fprintf "Expected %t to be an arithmetic expression" e)))
-  end.
+(* Ltac2 imp_arith_tac (selpat : constr option) (reading : constr option) := *)
+(*   let e := get_expr () in *)
+(*   let e := eval hnf in $e in *)
+(*   let s := *)
+(*     match selpat, reading with *)
+(*     | Some s, Some r => '(String.concat $s $r) *)
+(*     | Some s, None => s *)
+(*     | None, _ => '"" *)
+(*     end *)
+(*   in *)
+(*   match fetch_appropriate_arith_lemma e (is_Some reading) with *)
+(*   | Some (lemma, arith_kind) => *)
+(*       iApply ($lemma with $s); *)
+(*       match arith_kind with *)
+(*       | Literal => () *)
+(*       | Op => *)
+(*           Control.extend [] (fun _ => try (imp_step)) *)
+(*             [ fun _ => *)
+(*                 simple_intros (); *)
+(*                 lazy_match! get_iris_goal () with *)
+(*                 | bi_wand _ _ => () *)
+(*                 | _ => auto *)
+(*                 end ] *)
+(*       | Comparison => *)
+(*           lastn [ (fun _ => imp_step0 reading); (fun _ => imp_step0 reading) ]; *)
+(*           firstn [ representable; representable ] *)
+(*       end *)
+(*   | None => *)
+(*       Control.zero *)
+(*         (Tactic_failure *)
+(*            (Some (fprintf "Expected %t to be an arithmetic expression" e))) *)
+(*   end. *)
 
-Ltac2 Notation "imp_arith" "with" s(constr) := imp_arith_tac (Some s).
-Ltac2 Notation "imp_arith" := imp_arith_tac None.
+Ltac2 Notation "imp_arith" "with" s(constr) "reading" r(constr) := imp_arith_tac (Some s) (Some r).
+Ltac2 Notation "imp_arith" "reading" r(constr) := imp_arith_tac None (Some r).
+Ltac2 Notation "imp_arith" "with" s(constr) := imp_arith_tac (Some s) None.
+Ltac2 Notation "imp_arith" := imp_arith_tac None None.
+Tactic Notation "imp_arith" "with" constr(s) "reading" constr(r) :=
+  let tac := ltac2:(s r |- imp_arith_tac (Ltac1.to_constr s) (Ltac1.to_constr r)) in
+  tac s r.
+Tactic Notation "imp_arith" "reading" constr(r) :=
+  let tac := ltac2:(r |- imp_arith_tac None (Ltac1.to_constr r)) in
+  tac r.
 Tactic Notation "imp_arith" "with" constr(s) :=
-  let tac := ltac2:(s |- imp_arith_tac (Ltac1.to_constr s)) in
+  let tac := ltac2:(s |- imp_arith_tac (Ltac1.to_constr s) None) in
   tac s.
 Tactic Notation "imp_arith" := ltac2:(imp_arith).
 

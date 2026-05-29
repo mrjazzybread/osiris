@@ -360,6 +360,36 @@ Section imp_rules_expr.
     iApply ("Hjoin" with "HΦ1 HΦ2").
   Qed.
 
+  Lemma imp_EIntAdd_frac' `{fractional.AsFractional _ P Q q} {ζ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
+    P -∗
+    (Q (q/2)%Qp -∗ imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a1, Φ1 a1 ∗ Q (q/2)%Qp }}) -∗
+    (Q (q/2)%Qp -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a2, Φ2 a2 ∗ Q (q/2)%Qp }}) -∗
+    ▷ (∀ i j, Φ1 i -∗ Φ2 j -∗ Φ (i + j)) -∗
+    imp eval η (EIntAdd e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ i ∗ P }}.
+  Proof.
+    iIntros "P H1 H2 Hjoin /=". rewrite -{3}fold_pre_eval /= !fold_pre_eval.
+    fold (as_int (eval η e1)) (as_int (eval η e2)).
+    iApply (imp_bind_par_frac with "P [H1] [H2]").
+    { iIntros "Q". iSpecialize ("H1" with "Q").
+      iApply (imp_as_int with "H1"). }
+    { iIntros "Q". iSpecialize ("H2" with "Q").
+      iApply (imp_as_int with "H2"). }
+    iIntros (i j) "HΦ1 HΦ2 !>".
+    iApply imp_ret. encode.
+    iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+  Lemma imp_EIntAdd_frac `{fractional.AsFractional _ P Q q} {ζ} {e1 e2} (x1 x2 : Z) η :
+    P -∗
+    (Q (q/2)%Qp -∗ imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a1, ⌜a1 = x1⌝  ∗ Q (q/2)%Qp }}) -∗
+    (Q (q/2)%Qp -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a2, ⌜a2 = x2⌝ ∗ Q (q/2)%Qp }}) -∗
+    imp eval η (EIntAdd e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = (x1 + x2)%Z⌝  ∗ P }}.
+  Proof.
+    iIntros "P H1 H2 /=".
+    iApply (imp_EIntAdd_frac' with "P H1 H2").
+    iIntros "!>" (??) "-> -> //".
+  Qed.
+
   (** * EIntSub : expr → expr → expr *)
 
   Lemma imp_EIntSub {ζ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
@@ -392,6 +422,36 @@ Section imp_rules_expr.
     iIntros (i j) "HΦ1 HΦ2 !>".
     iApply imp_ret. encode.
     iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+    Lemma imp_EIntMul_frac' `{fractional.AsFractional _ P Q q} {ζ} η e1 e2 (Φ1 Φ2 : Z → iProp Σ) Φ :
+    P -∗
+    (Q (q/2)%Qp -∗ imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a1, Φ1 a1 ∗ Q (q/2)%Qp }}) -∗
+    (Q (q/2)%Qp -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a2, Φ2 a2 ∗ Q (q/2)%Qp }}) -∗
+    ▷ (∀ i j, Φ1 i -∗ Φ2 j -∗ Φ (i * j)) -∗
+    imp eval η (EIntMul e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, Φ i ∗ P }}.
+  Proof.
+    iIntros "P H1 H2 Hjoin /=". rewrite -{3}fold_pre_eval /= !fold_pre_eval.
+    fold (as_int (eval η e1)) (as_int (eval η e2)).
+    iApply (imp_bind_par_frac with "P [H1] [H2]").
+    { iIntros "Q". iSpecialize ("H1" with "Q").
+      iApply (imp_as_int with "H1"). }
+    { iIntros "Q". iSpecialize ("H2" with "Q").
+      iApply (imp_as_int with "H2"). }
+    iIntros (i j) "HΦ1 HΦ2 !>".
+    iApply imp_ret. encode.
+    iApply ("Hjoin" with "HΦ1 HΦ2").
+  Qed.
+
+  Lemma imp_EIntMul_frac `{fractional.AsFractional _ P Q q} {ζ} {e1 e2} (x1 x2 : Z) η :
+    P -∗
+    (Q (q/2)%Qp -∗ imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a1, ⌜a1 = x1⌝ ∗ Q (q/2)%Qp }}) -∗
+    (Q (q/2)%Qp -∗ imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a2, ⌜a2 = x2⌝ ∗ Q (q/2)%Qp }}) -∗
+    imp eval η (EIntMul e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = (x1 * x2)%Z⌝ ∗ P }}.
+  Proof.
+    iIntros "P H1 H2 /=".
+    iApply (imp_EIntMul_frac' with "P H1 H2").
+    iIntros "!>" (??) "-> -> //".
   Qed.
 
   (** * EIntDiv : expr → expr → expr *)

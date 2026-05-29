@@ -91,7 +91,7 @@ Section records_reasoning.
   Local Instance notval_listval : NotVal (list val) := {}.
 
   Lemma imp_ERecord {τ : types} {ζ} (Φs : τ -#> iProp Σ) t es :
-    ⌜τ_length τ ≤ max_array_length⌝ -∗
+    τ_length τ ≤ max_array_length →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
       (λ r, ∃ (xs : τ), ownRecord r 1 t xs ∗ Φs xs).
@@ -164,7 +164,7 @@ Section records_reasoning.
   Qed.
 
   Lemma imp_ERecordAccess {τ : types} {ζ} (r : record) f dq t (xs : τ) e :
-    ⌜valid_field f τ⌝ -∗
+    valid_field f τ →
     ▷ ownRecord r dq t xs -∗
     impure E (eval η e) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η (ERecordAccess e f)) Ψ ζ
@@ -226,7 +226,7 @@ Section records_reasoning.
   Qed.
 
   Lemma imp_ERecordSet {τ : types} {ζ} f (Φ : τ !!! f → iProp Σ) (r : record) t (xs : τ) e1 e2 :
-    ⌜valid_field f τ⌝ -∗
+    valid_field f τ →
     ▷ ownRecord r 1 t xs -∗
     impure E (eval η e1) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗

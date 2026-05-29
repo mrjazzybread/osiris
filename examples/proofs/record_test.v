@@ -5,6 +5,16 @@ From osiris.examples Require Import og_record_test.
 
 Open Scope Z.
 
+Class SimpleExpr (e : expr) := {}.
+Global Hint Mode SimpleExpr ! : typeclass_instances.
+Typeclasses Transparent deco.
+
+Global Instance EPath_simple {p} : SimpleExpr (EPath p) := {}.
+
+Global Instance EAdd_simple `{SimpleExpr e1, SimpleExpr e2} : SimpleExpr (EIntAdd e1 e2) := {}.
+Global Instance EMul_simple `{SimpleExpr e1, SimpleExpr e2} : SimpleExpr (EIntMul e1 e2) := {}.
+Global Instance ERecordAccess_simple `{SimpleExpr e1} {f} : SimpleExpr (ERecordAccess e1 f) := {}.
+
 Section verification.
 
   Context `{!osirisGS Σ}.
@@ -24,43 +34,11 @@ Section verification.
 
     iApply imp_please; iNext.
 
-    (* TODO: split ownership of record here. *)
-    iDestruct "Hown" as "[Hown1 Hown2]".
-
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
-    imp_arith with "[Hown1] [Hown2]".
-    - (* Subgoal: [(v.x * v.x)] *)
-      iDestruct "Hown1" as "[Hown1.1 Hown1.2]".
-      imp_arith with "[Hown1.1] [Hown1.2]".
-      + iApply (imp_ERecordAccess with "[%] Hown1.1").
-        split; simpl; try lia.
-        imp_path.
-      + iApply (imp_ERecordAccess with "[%] Hown1.2").
-        split; simpl; try lia.
-        imp_path.
-      + (* join: Φ1 i -∗ Φ2 j -∗ outer (i * j) *)
-        unfold τ_lookup_total; simpl.
-        instantiate (1:= (λ i, ⌜ i = (x * x)%Z ⌝ ∗ ownRecord r _ t _)%I).
-        iIntros "(-> & Hown1) (-> & Hown2)".
-        by iCombine "Hown1 Hown2" as "$".
-    - (* Subgoal: [(v.y * v.y)] *)
-      iDestruct "Hown2" as "[Hown2.1 Hown2.2]".
-      imp_arith with "[Hown2.1] [Hown2.2]".
-      + iApply (imp_ERecordAccess with "[%] Hown2.1").
-        split; simpl; try lia.
-        imp_path.
-      + iApply (imp_ERecordAccess with "[%] Hown2.2").
-        split; simpl; try lia.
-        imp_path.
-      + (* join: Φ1 i -∗ Φ2 j -∗ outer (i * j) *)
-        unfold τ_lookup_total; simpl.
-        instantiate (1:= (λ i, ⌜ i = (y * y)%Z ⌝ ∗ ownRecord r _ t _)%I).
-        iIntros "(-> & Hown1) (-> & Hown2)".
-        by iCombine "Hown1 Hown2" as "$".
-    - (* join: Φ1 i -∗ Φ2 j -∗ ⌜i + j = x*x + y*y⌝ ∗ ownRecord *)
-      unfold τ_lookup_total; simpl.
-      iIntros "(-> & Hown1) (-> & Hown2)".
-      by iCombine "Hown1 Hown2" as "$".
+    imp_arith reading "Hown";
+    (* All remaining subgoals are of the form [v.x] *)
+    (iApply (imp_ERecordAccess with "Hown");
+     [ split; simpl; lia | imp_path ]).
   Qed.
 
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
@@ -78,7 +56,7 @@ Section verification.
     iApply imp_please; iNext.
     iApply imp_mono_val; last first.
 
-    iApply (imp_ERecordSet with "[%] Hown"). split; simpl; lia.
+    iApply (imp_ERecordSet with "Hown"). split; simpl; lia.
     imp_path.
     imp_path.
     iIntros ([]) "(% & -> & $)".
@@ -97,7 +75,7 @@ Section verification.
 
     iApply (imp_sitems_let (A:=record)).
     { iApply (imp_ERecord (τ:=τ[Z; Z])).
-      { iPureIntro. simpl. lia. }
+      { simpl. lia. }
       set_postcondition (λ '(x, y), ⌜x = 1⌝ ∗ ⌜y = 1⌝)%I. simpl.
       admit. }
 

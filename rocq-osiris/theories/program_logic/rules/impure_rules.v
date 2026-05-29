@@ -582,6 +582,31 @@ Proof.
   iIntros ([??]) "$".
 Qed.
 
+Lemma imp_bind_par_frac `{osirisGS Σ} `{Hfrac : fractional.AsFractional _ P Q q} {E Ψ ζ} `{Observe A V} `{Observe A1 V1} `{Observe A2 V2}
+  (Φ : A → iProp Σ) (Φ1 : A1 → iProp Σ) (Φ2 : A2 → iProp Σ) (m1 : micro V1 exn) (m2 : micro V2 exn) (f : V1 * V2 → micro V exn) :
+  P -∗
+  (Q (q/2)%Qp -∗ impure E m1 Ψ ζ (λ a1, Φ1 a1 ∗ Q (q/2)%Qp)) -∗
+  (Q (q/2)%Qp -∗ impure E m2 Ψ ζ (λ a2, Φ2 a2 ∗ Q (q/2)%Qp)) -∗
+  (∀ a1 a2,
+    Φ1 a1 -∗ Φ2 a2 -∗ ▷ impure E (f (♯a1, ♯a2)) Ψ ζ Φ) -∗
+  impure E (bind (par m1 m2) f) Ψ ζ (λ a, Φ a ∗ P).
+Proof.
+  iIntros "P H1 H2 Hf".
+  iDestruct "P" as "[P1 P2]".
+  iApply (imp_bind with "[-]").
+  { iApply (imp_par' with "[P1 H1] [P2 H2]").
+    iApply ("H1" with "P1"). iApply ("H2" with "P2").
+    iIntros (a1 a2) "(HΦ1 & Q1) (HΦ2 & Q2)".
+    iSpecialize ("Hf" with "HΦ1 HΦ2"). iNext.
+    instantiate (1:=λ '(x, y), (impure E (f (♯x, ♯y)) Ψ ζ Φ ∗ P)%I).
+    iFrame "Hf".
+    iApply fractional.as_fractional.
+    iCombine "Q1 Q2" as "Q".
+    iPoseProof (fractional.as_fractional_fractional (AsFractional := Hfrac) with "Q") as "Q".
+    by rewrite Qp.div_2. }
+  iIntros ((?&?)) "(Hf & $)". iApply "Hf".
+Qed.
+
 Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} `{NotVal X} {E Ψ} (m : micro V X) (ζ : X → Prop) (Φ : A → Prop) :
   pure m Φ ζ →
   ⊢ imp m @ E <|Ψ|> ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
