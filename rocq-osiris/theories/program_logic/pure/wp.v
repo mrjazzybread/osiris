@@ -27,11 +27,8 @@ Global Hint Constructors pure_wp : pure.
 (* -------------------------------------------------------------------------- *)
 (** Specifications *)
 
-(* Predicate type *)
-Local Notation pred A := (A -> Prop).
-
 (* [singleton x] is equivalent to a singleton set containing the element [x]. *)
-Definition singleton {A} (a : A) : pred A := λ x, x = a.
+Definition singleton {A} (a : A) : A → Prop := λ x, x = a.
 
 Lemma singleton_eq {A} (a : A) :
   singleton a a.
@@ -42,7 +39,7 @@ Global Hint Resolve singleton_eq : core.
 (* Bottom instance for predicates, so we can write [⊥] for [λ _, False],
 typically for disallowing exceptions *)
 
-Global Instance Pred_bottom {A} : Bottom (pred A) := λ _, False.
+Global Instance Pred_bottom {A} : Bottom (A → Prop) := λ _, False.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -86,12 +83,6 @@ Section pure_wp_rules.
     pure_wp m φ ψ → (∀ e, ψ e → ψ' e) → pure_wp m φ ψ'.
   Proof.
     induction 1; constructor; auto.
-  Qed.
-
-  Lemma pure_wp_noexn_weaken {A E} {φ ψ : _ -> Prop} (m : micro A E):
-    pure_wp m φ ⊥ → pure_wp m φ ψ.
-  Proof.
-    intro; eapply pure_wp_mono_throw; firstorder eauto.
   Qed.
 
   (* Postconditions can be strengthened since final states must be reachable *)
@@ -263,64 +254,6 @@ Section pure_wp_rules.
     intros. eapply pure_wp_try, pure_wp_mono; eauto.
   Qed.
 
-
-  (** [pure_wp_bind]-like lemmas disallowing exceptions are occasionally useful, they
-  are named [pure_wpv_] for "values" *)
-
-  Lemma pure_wpv_try2_conseq {A' A E E' φ φ'} m (f : outcome2 A E → micro A' E') :
-    pure_wp m φ ⊥ →
-    (∀ a, φ a → pure_wp (continue f a) φ' ⊥) →
-    pure_wp (try2 m f) φ' ⊥.
-  Proof.
-    intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
-  Qed.
-
-  Lemma pure_wpv_try2 {A' A E E' φ} m (f : outcome2 A E → micro A' E') :
-    pure_wp m (λ a, pure_wp (continue f a) φ ⊥) ⊥ →
-    pure_wp (try2 m f) φ ⊥.
-  Proof.
-    intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
-  Qed.
-
-  Lemma pure_wpv_bind {A' A E φ} m (k : A → micro A' E) :
-    pure_wp m (λ a, pure_wp (k a) φ ⊥) ⊥ →
-    pure_wp (bind m k) φ ⊥.
-  Proof.
-    intros; eapply pure_wp_bind_conseq; eauto.
-  Qed.
-
-  Lemma pure_wpv_try {A' A E E' φ} m (f : A → micro A' E') (h : E → micro A' E') :
-    pure_wp m (λ a, pure_wp (f a) φ ⊥) ⊥ →
-    pure_wp (try m f h) φ ⊥.
-  Proof.
-    intros; eapply pure_wp_try2_conseq; eauto. intros _ [].
-  Qed.
-
-  Lemma pure_wpv_orelse {A E} (m1 m2 : micro A E) φ :
-    pure_wp m1 φ ⊥ →
-    pure_wp (orelse m1 m2) φ ⊥.
-  Proof.
-    intros; eapply pure_wp_orelse; eauto. intros _ [].
-  Qed.
-
-  Lemma pure_wpv_bind_conseq {A' A E} (φ : A → Prop) (φ' : A' → Prop) (m : micro A E) k :
-    pure_wp m φ ⊥ →
-    (∀ a, φ a → pure_wp (k a) φ' ⊥) →
-    pure_wp (bind m k) φ' ⊥.
-  Proof.
-    intros; eapply pure_wp_bind_conseq; eauto.
-  Qed.
-
-  Lemma pure_wpv_try_conseq {A' A E E' φ φ'} m (f : A → micro A' E') (h : E → micro A' E') :
-    pure_wp m φ ⊥ →
-    (∀ a, φ a → pure_wp (f a) φ' ⊥) →
-    pure_wp (try m f h) φ' ⊥.
-  Proof.
-    intros; eapply pure_wp_try_conseq; eauto. intros _ [].
-  Qed.
-
-
-
   (** Characterization of [pure_wp] : a computation [m] satisfies some [pure_wp]
   if and only if [m] cannot do infinite [may] steps ([m] satisfies [sn may]) and
   all final computations reachable from [m] also satisfy the same [pure_wp] *)
@@ -388,17 +321,6 @@ Section pure_wp_rules.
     - apply invert_pure_wp_ret in W; eauto.
     - apply invert_pure_wp_throw in W; eauto.
     - apply invert_pure_wp_crash in W; tauto.
-  Qed.
-
-  Lemma pure_wp_sequentialize {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ1 φ2 :
-    pure_wp m1 (λ a1, pure_wp m2 (λ a2, φ1 a1 ∧ φ2 a2) ⊥) ⊥ →
-    pure_wp m1 φ1 ⊥ ∧ pure_wp m2 φ2 ⊥.
-  Proof.
-    intros Hm1. split.
-    - apply (pure_wp_mono_ret _ Hm1).
-      intros a1 []%pure_wp_exists_ret_or_throw; firstorder.
-    - destruct (pure_wp_exists_ret_or_throw _ Hm1) as [(a1 & M & Hm2)| ]; firstorder.
-      eapply (pure_wp_mono_ret _ Hm2). firstorder.
   Qed.
 
   Lemma pure_wp_invert_order {A1 E1 A2 E2} (m1 : micro A1 E1) (m2 : micro A2 E2) φ ψ :
