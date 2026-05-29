@@ -7,11 +7,11 @@ From osiris.program_logic.pure Require Import wp pure_rules judgements pattern_r
 
 (* A judgement for the evaluation of let bindings. *)
 
-Definition bindings η bs (φ : env -> Prop) (ψ : exn -> Prop) :=
-  pure (eval_bindings η bs) φ ψ.
+Definition bindings `{Encode B} η bs (φ : env -> Prop) (ζ : B -> Prop) :=
+  pure (eval_bindings η bs) φ ζ.
 
 Lemma pure_irrefutably_extend `{Observe B E} η δ p v (φ : env → Prop) (ψ : B → Prop) :
-  pure (eval_pat η δ p v) φ (⊥ : unit → Prop) →
+  pattern η δ p v φ False →
   pure (irrefutably_extend η δ p v) φ ψ.
 Proof.
   intros Hpat.
@@ -23,9 +23,9 @@ Qed.
 
 (* Syntax-directed reasoning rules for the auxiliary judgement [bindings]. *)
 
-Lemma bindings_cons_unary `{Encode A} η p e bs φ :
-  pure (eval η e) (λ a : A, bindings η bs (λ η', pattern η η' p #a φ False) ⊥) (⊥ : exn → Prop) ->
-  bindings η (Binding p e :: bs) φ ⊥.
+Lemma bindings_cons_unary `{Encode A, Encode B} η p e bs φ :
+  pure (eval η e) (λ a : A, bindings η bs (λ η', pattern η η' p #a φ False) (⊥ : B → Prop)) (⊥ : B → Prop) ->
+  bindings η (Binding p e :: bs) φ (⊥ : B → Prop).
 Proof.
   unfold bindings. simpl. intros He.
   simpl_eval_bindings. eapply pure_bind_unary.
@@ -37,7 +37,7 @@ Proof.
   exact _.
 Qed.
 
-Lemma bindings_cons `{Encode A} η p e bs (φ1 : A -> Prop) φ2 φ ψ :
+Lemma bindings_cons `{Encode A, Encode B} η p e bs (φ1 : A -> Prop) φ2 φ (ψ : B → Prop) :
   pure (eval η e) φ1 ψ ->
   bindings η bs φ2 ψ ->
   (∀ (a : A) (η' : env), φ1 a -> φ2 η' -> pattern η η' p #a φ False) ->
@@ -52,14 +52,14 @@ Proof.
   apply Hp; auto.
 Qed.
 
-Lemma bindings_nil η (φ : env -> Prop) ψ :
+Lemma bindings_nil `{Encode B} η (φ : env -> Prop) (ψ : B → Prop) :
   φ [] ->
   bindings η [] φ ψ.
 Proof.
   unfold bindings. simpl_eval_bindings. apply pure_ret. encode.
 Qed.
 
-Lemma bindings_var `{Encode A} η v e bs (φ : A -> Prop) φ' ψ :
+Lemma bindings_var `{Encode A, Encode B} η v e bs (φ : A -> Prop) φ' (ψ : B → Prop) :
   pure (eval η e) φ ψ ->
   bindings η bs φ' ψ ->
   bindings η
@@ -73,8 +73,8 @@ Proof.
   eapply pure_ret; eauto.
 Qed.
 
-Lemma bindings_pair `{Encode A, Encode B} η p1 p2 e bs (φ : env → Prop) φ'
-  (φ_pair : τ[A;B] -> Prop) ψ :
+Lemma bindings_pair `{Encode A, Encode B, Encode C} η p1 p2 e bs (φ : env → Prop) φ'
+  (φ_pair : τ[A;B] -> Prop) (ψ : C → Prop) :
   pure (eval η e) φ_pair ψ ->
   bindings η bs φ' ψ ->
   (∀ ab η', φ_pair ab -> φ' η' -> pattern η η' (PPair p1 p2) #ab φ False) ->
@@ -140,10 +140,10 @@ Proof.
   - exists (δ' ++ δ). simpl in Heq. rewrite <- Heq in Hφ. eauto.
 Qed.
 
-Definition binding `{Encode A} η p e φ (ψ : exn → Prop) :=
+Definition binding `{Encode A, Encode B} η p e φ (ψ : B → Prop) :=
   pure (eval η e) (λ a : A, pattern η [] p #a φ False) ψ.
 
-Lemma binding_bindings_conseq `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
+Lemma binding_bindings_conseq `{Encode A, Encode B} η p e bs (φ1 φ2 φ : env → Prop) (ψ : B → Prop) :
   binding (A := A) η p e φ1 ψ →
   bindings η bs φ2 ψ →
   (∀ δ η', φ1 δ → φ2 η' → φ (δ ++ η')) →
@@ -156,12 +156,12 @@ Proof.
   eapply pure_ret_mono. apply Hpa. eauto.
 Qed.
 
-Local Instance name : @ObserveInjective env env _.
+Instance observe_injective_id `{NotVal A} : @ObserveInjective A A _.
 Proof. constructor. intros ??; simpl; auto. Qed.
 
 (* May be easier to use but assumes [e] cannot raise exceptions *)
-Lemma binding_bindings `{Encode A} η p e bs (φ1 φ2 φ : env → Prop) ψ :
-  binding (A := A) η p e (λ δ, bindings η bs (λ η', φ (δ ++ η')) ψ) ⊥ →
+Lemma binding_bindings `{Encode A, Encode B} η p e bs (φ1 φ2 φ : env → Prop) (ψ : B → Prop) :
+  binding (A := A) η p e (λ δ, bindings η bs (λ η', φ (δ ++ η')) ψ) (⊥ : B → Prop) →
   bindings η (Binding p e :: bs) φ ψ.
 Proof.
   intros He.

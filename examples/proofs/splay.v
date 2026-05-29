@@ -268,14 +268,14 @@ Definition splay_spec :=
     ∀ A `(_ : Encode A) (ctx : zipper A) (l : tree A) (x : A) (r : tree A),
     pure
       (call splay #(l, (x, (r, ctx))))
-      (λ t', fringe t' = fringe (fill ctx (Node l x r))) (⊥ : exn → Prop).
+      (λ t', fringe t' = fringe (fill ctx (Node l x r))) (⊥ : void → Prop).
 
 Definition splay_leaf_spec :=
   fun (splay_leaf : val) =>
     ∀ A `(_ : Encode A) (ctx : zipper A),
     pure
       (call splay_leaf #ctx)
-      (λ t', fringe t' = fringe (fill ctx Leaf)) (⊥ : exn → Prop).
+      (λ t', fringe t' = fringe (fill ctx Leaf)) (⊥ : void → Prop).
 
 Definition zlookup_spec :=
   fun (zlookup : val) =>
@@ -287,7 +287,7 @@ Definition zlookup_spec :=
         (call zlookup #(t, (x, ctx)))
         (λ '(oy, t'),
           member le x (fringe t) oy ∧
-          fringe t' = fringe (fill ctx t)) (⊥ : exn → Prop).
+          fringe t' = fringe (fill ctx t)) (⊥ : void → Prop).
 
 (* -------------------------------------------------------------------------- *)
 

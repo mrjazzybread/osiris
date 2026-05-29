@@ -270,8 +270,8 @@ Section imp_spec.
     by iApply prove_iSpec_pers.
   Qed.
 
-  Lemma pure_iSpec τ c P :
-    ⌜@Spec τ c P⌝ -∗
+  Lemma pure_iSpec `{Encode B} τ c P :
+    ⌜Spec τ c P⌝ -∗
     iSpec τ c (bi_pure_spec P)%I.
   Proof.
     iLöb as "IH" forall (τ c P).
@@ -287,12 +287,10 @@ Section imp_spec.
     - destruct a; simpl in *.
       iApply imp_please. iNext.
       iApply imp_wand.
-      { iApply impure_pure. apply wp.invert_pure_wp_eval in HSpec.
-        unfold judgements.pure.
-        apply wp.pure_wp_noexn_weaken.
-        eapply (wp.pure_wp_mono_ret _ HSpec).
-        intros v Hspec. exists v. split; first reflexivity.
-        exact Hspec. }
+      { iApply (impure_pure (B:=B)). apply wp.invert_pure_wp_eval in HSpec.
+        eapply wp.pure_wp_mono. apply HSpec.
+        - intros v Hv. exists v. split; first reflexivity. exact Hv.
+        - intros ? []. }
       iIntros (c); iApply "IH".
     - simpl.
       case_eq (lookup_rec_bindings rbs f).
@@ -301,12 +299,10 @@ Section imp_spec.
         iApply imp_please; iNext.
         apply wp.invert_pure_wp_eval in HSpec.
         iApply imp_wand.
-        { iApply impure_pure.
-          unfold judgements.pure.
-          apply wp.pure_wp_noexn_weaken.
-          eapply (wp.pure_wp_mono_ret _ HSpec).
-          intros v Hspec. exists v. split; first reflexivity.
-          exact Hspec. }
+        { iApply (impure_pure (B:=B)).
+          eapply wp.pure_wp_mono. apply HSpec.
+          - intros v Hv. exists v. split; first reflexivity. exact Hv.
+          - intros ? []. }
         iIntros (c); iApply "IH".
       + intros Heqlookup. rewrite Heqlookup in HSpec.
         simpl in HSpec.

@@ -181,13 +181,13 @@ Definition insert_spec '((y, t) : (Z * tree Z)) (m : microvx) :=
   representable y ->
   pure m
     (λ (t' : tree Z),
-      ∀ x, lookup x t' = Z.eqb x y || lookup x t) (⊥ : exn → Prop).
+      ∀ x, lookup x t' = Z.eqb x y || lookup x t) (⊥ : void → Prop).
 
 Definition member_spec '((x, t) : (Z * tree Z)) (m : microvx) :=
   bst t ->
   representable x ->
   pure m
-    (λ (b : bool), b = lookup x t) (⊥ : exn → Prop).
+    (λ (b : bool), b = lookup x t) (⊥ : void → Prop).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -202,9 +202,7 @@ Lemma insert_mkspec insert (x : Z) (t : tree Z) :
   bst t ->
   representable x ->
   Spec τ[Z * tree Z] insert
-    (λ (x0 : Z * tree Z) (m : microvx),
-      tlt x0.2 (x, t).2 →
-      insert_spec x0 m) ->
+    (λ '(x : Z * tree Z) (m : microvx), tlt x.2 t → insert_spec x m) ->
   η ⊢ₚ { EMatch (EPath ["v"]) __branches4
            ensures λ t' : tree Z, ∀ x0 : Z, lookup x0 t' = (x0 =? x) || lookup x0 t }.
 Proof.
@@ -403,7 +401,7 @@ Proof.
     eapply @pure_eval_match with (A := (Z * tree Z)%type).
     { pure_path. }
     pure_match.
-    eapply insert_mkspec; auto. }
+    eapply insert_mkspec; eauto. }
 
   intros insert Hinsert.
   eapply (@structs_letrec τ[(Z * tree Z)]) with

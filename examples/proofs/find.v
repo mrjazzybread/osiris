@@ -130,9 +130,9 @@ Proof.
             ⌜∃ iter, ηδ = (("iter", iter) :: stdlib_env, [("iter",iter)]) ∧
                      Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
-    iApply (impure_pure (eval_sitem (stdlib_env, []) (ILetRec __bindings3))).
+    iApply (impure_pure (B:=void) (eval_sitem (stdlib_env, []) (ILetRec __bindings3))).
     (* Enter the body of the recursive function. *)
-    eapply (@struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
+    eapply (struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
     { (* Side-condition: the expression is a function. *) repeat eexists. }
     { (* Give the decreasing argument to justify recursive calls *)
       apply list_tuple_wf. }
@@ -152,8 +152,8 @@ Proof.
       rename xs' into l.
       eapply pure_eval_seq.
       { (* Evaluate [f x]. *)
-        eapply (pure_EApp τ[A]). { pure_path. eassumption. } { pure_path. }
-        unfold tapp; simpl.
+        eapply (pure_EApp τ[A]). { pure_path. apply Hf. } pure_path.
+        simpl.
         intros ? <- callsite_f Hcall_f.
         (* Prove that the exceptional postcondition is of the right form. *)
         eapply pure_exn_mono.
@@ -212,7 +212,7 @@ Proof.
     iIntros (δ) "(%found & -> & Hfound)".
     (* We are done with the effectful part of the program, so we can drop down
        to Horus, the pure program logic. *)
-    iApply impure_pure.
+    iApply (impure_pure (B:=void)).
     pose encode_exception := @encode_exception A H found.
     pose xdata_found := @xdata_found A H found.
     eapply pure_eval_match'_exn.

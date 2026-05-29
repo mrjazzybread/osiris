@@ -595,8 +595,8 @@ Proof.
     destruct He as (c & -> & Hc). unfold observe, observe_id. exact Hc.
 Qed.
 
-Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} {E Ψ ζ} (m : micro V exn) Φ :
-  pure m Φ (⊥ : exn → Prop) →
+Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} `{Encode B} {E Ψ ζ} (m : micro V exn) Φ :
+  pure m Φ (⊥ : B → Prop) →
   ⊢ imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).

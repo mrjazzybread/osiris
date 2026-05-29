@@ -100,7 +100,7 @@ Section imp_eval.
     iApply (imp_wand _ _ _ _ (λ η, ⌜∃ η', η = η' ++ δ' ∧ P a η'⌝)%I with "[] [-]"); last first.
     { iIntros (?) "(%η' & -> & %HP)".
       iFrame. by iFrame "%". }
-    iApply impure_pure.
+    iApply (impure_pure (B:=unit)).
     apply binding_rules.pure_irrefutably_extend.
     eapply (iffRL (binding_rules.pattern_app η δ' p #a _ False)).
     eapply pattern_env_mono. { apply Hpat. }

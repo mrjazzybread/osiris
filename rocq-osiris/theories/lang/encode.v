@@ -188,6 +188,15 @@ Global Hint Resolve solve_encode_unit : encode.
 
 (* -------------------------------------------------------------------------- *)
 
+(* The empty type. *)
+
+Global Instance Encode_void : Encode void :=
+  { encode' u := match u with end }.
+  (* We deconstruct [x] because we want an equation [VUnit = #?x] to
+     force an instantiation of [x] with [()]. *)
+
+(* -------------------------------------------------------------------------- *)
+
 (* Booleans. *)
 
 Global Instance Encode_bool : Encode bool :=

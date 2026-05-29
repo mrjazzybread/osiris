@@ -13,22 +13,22 @@ From osiris.program_logic.pure Require Import
 (* A judgement for the evaluation of structure items. *)
 
 Definition struct_item ηδ item (φ : envs -> Prop) :=
-  pure (eval_sitem ηδ item) φ (λ _ : exn, False).
+  pure (eval_sitem ηδ item) φ (λ _ : void, False).
 
 Definition struct_items ηδ sitems (φ : envs -> Prop) :=
-  pure (eval_sitems ηδ sitems) φ (λ _ : exn, False).
+  pure (eval_sitems ηδ sitems) φ (λ _ : void, False).
 
 
 (* A judgement for the evaluation of module expressions. *)
 
 Definition eval_module η me (φ : env -> Prop) :=
-  pure (eval_mexpr η me) φ (λ _ : exn, False).
+  pure (eval_mexpr η me) φ (λ _ : void, False).
 
 
 (* A judgement for module coercion. *)
 
 Definition coerces c η (φ : env -> Prop) :=
-  pure (of_option (coerce c (VStruct η))) φ (λ (_ : exn), False).
+  pure (of_option (coerce c (VStruct η))) φ (λ _ : void, False).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -77,7 +77,7 @@ Qed.
 (* Syntax-directed reasoning rules for the judgement [struct]. *)
 
 Lemma struct_let η δ bs (φ : envs -> Prop) ψ :
-  bindings η bs ψ ⊥ ->
+  bindings η bs ψ (⊥ : void → Prop) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet bs) φ.
 Proof.
@@ -98,7 +98,7 @@ Proof.
 Qed.
 
 Lemma struct_let_single η δ e name (spec : val -> Prop) :
-  pure (eval η e) spec (⊥ : exn → Prop) ->
+  pure (eval η e) spec (⊥ : void → Prop) ->
   struct_item (η, δ) (ILet [Binding (PVar name) e])
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -114,7 +114,7 @@ Proof.
 Qed.
 
 Lemma struct_let_pat η δ p e (spec : val -> Prop) (φ : envs -> Prop) ψ :
-  pure (eval η e) (λ v, pattern η [] p v ψ False) (⊥ : exn → Prop) ->
+  pure (eval η e) (λ v, pattern η [] p v ψ False) (⊥ : void → Prop) ->
   (∀ η', ψ η' -> φ (η' ++ η, η' ++ δ)) ->
   struct_item (η, δ) (ILet [Binding p e]) φ.
 Proof.
@@ -145,7 +145,7 @@ Proof.
 Qed.
 
 Lemma struct_external η δ x e (spec : val -> Prop) :
-  pure (eval [] e) spec (⊥ : exn → Prop) ->
+  pure (eval [] e) spec (⊥ : void → Prop) ->
   struct_item (η, δ) (IExternal x e)
     (λ '(η0, δ0),
       ∃ clo, spec clo /\
@@ -303,7 +303,7 @@ Qed.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->
-  pure (eval_mexpr η me) φ (⊥ : exn → Prop).
+  pure (eval_mexpr η me) φ (⊥ : void → Prop).
 Proof.
   repeat intro.
   eapply pure_mono; intros; eauto with pure.
@@ -321,7 +321,7 @@ Proof.
 Qed.
 
 Lemma module_struct_let η bs sitems φ ψ :
-  bindings η bs ψ ⊥ ->
+  bindings η bs ψ (⊥ : void → Prop) ->
   (∀ η', ψ η' ->
          struct_items (η' ++ η, η') sitems (λ '(_, δ), φ  δ)) ->
   eval_module η (MStruct ((ILet bs) :: sitems)) φ.

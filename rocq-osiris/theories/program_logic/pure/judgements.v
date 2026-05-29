@@ -31,12 +31,12 @@ Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ '}'" :=
-  (pure e Φ (⊥ : exn → Prop))
+  (pure e Φ (⊥ : void → Prop))
    (at level 80, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 Notation "η ⊢ₚ '{' e 'ensures' Φ '}'" :=
-  (pure (eval η e) Φ (⊥ : exn → Prop))
+  (pure (eval η e) Φ (⊥ : void → Prop))
    (at level 80, e, Φ at level 100,
      format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
