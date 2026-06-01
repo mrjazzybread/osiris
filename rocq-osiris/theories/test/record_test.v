@@ -1,7 +1,7 @@
 From osiris Require Import osiris.
 From iris.proofmode Require Import ltac_tactics.
 
-From osiris.examples Require Import og_record_test.
+From osiris.test Require Import og_record_test.
 
 Open Scope Z.
 
