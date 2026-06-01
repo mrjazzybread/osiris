@@ -46,6 +46,8 @@ Section verification.
       ▷ @ownRecord Σ _ τ[Z;Z] r 1 t (x0, y) -∗
       imp m {{ λ (_ : unit), @ownRecord Σ _ τ[Z;Z] r 1 t (x, y) }}.
 
+  Record point : Type := { x : int; y : int }.
+
   Definition eupdate_x := EAnonFun __fun2.
 
   Lemma imp_update_x η :
@@ -58,7 +60,7 @@ Section verification.
 
     iApply (imp_ERecordSet with "Hown"). split; simpl; lia.
     imp_path.
-    imp_path.
+    imp_path. simpl.
     iIntros ([]) "(% & -> & $)".
   Qed.
 
@@ -76,8 +78,8 @@ Section verification.
     iApply (imp_sitems_let (A:=record)).
     { iApply (imp_ERecord (τ:=τ[Z; Z])).
       { simpl. lia. }
-      set_postcondition (λ '(x, y), ⌜x = 1⌝ ∗ ⌜y = 1⌝)%I. simpl.
-      admit. }
+      iApply imp_evals_cons. imp_arith.
+      iApply imp_evals_singleton. imp_arith. }
 
     iIntros (r) "H /=". fold eval_sitems.
     iDestruct "H" as "(% & Hown & Heq)".
@@ -94,6 +96,6 @@ Section verification.
     iIntros (update_x) "#Hupdate_x".
     iApply imp_sitems_nil.
     iFrame "#". simpl. auto.
-  Admitted.
+  Qed.
 
 End verification.
