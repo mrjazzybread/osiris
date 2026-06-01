@@ -94,7 +94,7 @@ Section records_reasoning.
     τ_length τ ≤ max_array_length →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
-      (λ r, ∃ (xs : τ), ownRecord r 1 t xs ∗ Φs xs).
+      (λ r, ∃# (xs : τ), ownRecord r 1 t xs ∗ Φs xs).
   Proof.
     iIntros "%Hlength Hes". simpl_eval.
     iApply (imp_bind with "Hes").
@@ -114,7 +114,7 @@ Section records_reasoning.
       rewrite Hlength_ls. rewrite to_vals_length. assumption. }
     iIntros (r) "(Hmut & Hblocks)".
     iApply imp_ret. encode.
-    iFrame.
+    rewrite bi_texist_equiv. iFrame.
   Qed.
 
   Lemma imp_ERecordAccess2 {τ : types} {ζ} f {Φ : (τ !!! f) → iProp Σ} r ls e :

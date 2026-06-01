@@ -426,3 +426,67 @@ End types_helpers.
 Notation "xs !!τ f" := (τ_lookup_total f xs) (at level 20).
 Notation "<[ f τ= x ]> xs" := (τ_insert f x xs)
   (at level 5, right associativity, format "<[  f  τ=  x  ]>  xs").
+
+(** Quantifiers *)
+
+From iris.bi Require Import interface.
+From iris.base_logic.lib Require Import iprop.
+Include universes.
+
+
+  Definition bi_tforall {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
+    tfold (λ (T : Type@{_}) (b : T → PROP), ∀ x : T, b x)%I Datatypes.id (tbind Ψ).
+  Global Arguments bi_tforall {_ !_} _ /.
+  Definition bi_texist {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
+    tfold (@bi_exist PROP) Datatypes.id (@tbind PROP τ Ψ).
+  Global Arguments bi_texist {_ !_} _ /.
+
+  Notation "'∀#' x .. y , P" := (bi_tforall (λ x, .. (bi_tforall (λ y, P)) .. ))
+                                (at level 200, x binder, y binder, right associativity,
+                                  format "∀#  x  ..  y ,  P") : bi_scope.
+  Notation "'∃#' x .. y , P" := (bi_texist (λ x, .. (bi_texist (λ y, P)) .. ))
+                                (at level 200, x binder, y binder, right associativity,
+                                  format "∃#  x  ..  y ,  P") : bi_scope.
+
+
+  Lemma bi_tforall_equiv {Σ} {τ : types} (P : τ → iProp Σ) :
+    (∀# xs, P xs)%I ≡ (∀ xs, P xs)%I.
+  Proof.
+    unfold bi_tforall.
+    induction τ as [|X H τ IH].
+    - simpl; done.
+    - apply bi.iff_equiv. { apply _. } { apply _. }
+      simpl. apply bi.equiv_iff. apply bi.equiv_entails_2.
+      + apply bi.forall_intro. intros [x xs].
+        specialize (IH (λ xs, P (x, xs))). simpl in IH.
+        etransitivity. { apply (bi.forall_elim x). }
+        etransitivity. { apply bi.equiv_entails_1_1. apply IH. }
+        apply (bi.forall_elim (Ψ:=λ xs, P (x, xs))).
+      + apply bi.forall_intro. intro x.
+        specialize (IH (λ xs, P (x, xs))).
+        etransitivity. 2:{ apply bi.equiv_entails_1_2. apply IH. }
+        apply bi.forall_intro. intros xs.
+        apply bi.forall_elim.
+  Qed.
+
+
+  Lemma bi_texist_equiv {Σ} {τ : types} (P : τ → iProp Σ) :
+    (∃# xs, P xs)%I ≡ (∃ xs, P xs)%I.
+  Proof.
+    unfold bi_tforall.
+    induction τ as [|X H τ IH].
+    - simpl; done.
+    - apply bi.iff_equiv. { apply _. } { apply _. }
+      simpl. apply bi.equiv_iff. apply bi.equiv_entails_2.
+      + apply bi.exist_elim. intro x.
+        specialize (IH (λ xs, P (x, xs))). simpl in IH.
+        etransitivity. { apply bi.equiv_entails_1_1. apply IH. }
+        apply bi.exist_elim. intro xs.
+        apply bi.exist_intro.
+      + apply bi.exist_elim. intros [x xs].
+        etransitivity. 2:{ apply (bi.exist_intro x). }
+        simpl.
+        etransitivity. 2:{ apply bi.equiv_entails_1_2. apply IH. }
+        simpl.
+        apply (bi.exist_intro (Ψ:=λ xs, P (x, xs))).
+  Qed.

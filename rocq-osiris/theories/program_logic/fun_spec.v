@@ -10,59 +10,6 @@ From iris.proofmode Require Import proofmode.
 
 From Equations Require Import Equations.
 
-(** Quantifiers *)
-
-From iris.bi Require Import interface.
-Include universes.
-
-(* Have to redefine [tfold] for universe reasons. *)
-
-Definition tfold {X Y} {τ : types}
-  (step : ∀ {A : Type}, (A → Y) → Y)
-  (base : X → Y)
-  : (τ -#> X) → Y :=
-(*  We use a [fix] because, for better term-printing in proofs. *)
-  (fix rec {τ} : (τ -#> X) → Y :=
-     match τ with
-     | Tbase T =>
-         λ f, step (λ x, base (f x))
-     | type_nel.Tcons T τ' =>
-         λ f, step (λ x, @rec τ' (f x))
-     end) τ.
-Global Arguments tfold {_ _ !_} _ _ /.
-
-Definition bi_tforall {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
-  tfold (λ (T : Type@{_}) (b : T → PROP), ∀ x : T, b x)%I Datatypes.id (tbind Ψ).
-Global Arguments tforall {!_} _ /.
-Definition bi_texists {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
-  tfold (@bi_exist PROP) Datatypes.id (@tbind PROP τ Ψ).
-Global Arguments texists {!_} _ /.
-
-Notation "'∀#' x .. y , P" := (bi_tforall (λ x, .. (bi_tforall (λ y, P)) .. ))
-                                (at level 200, x binder, y binder, right associativity,
-                                  format "∀#  x  ..  y ,  P") : bi_scope.
-Notation "'∃#' x .. y , P" := (bi_texists (λ x, .. (bi_texists (λ y, P)) .. ))
-                                (at level 200, x binder, y binder, right associativity,
-                                  format "∃#  x  ..  y ,  P") : bi_scope.
-
-Lemma bi_tforall_equiv {Σ} {τ : types} (P : τ → iProp Σ) :
-  (∀# xs, P xs)%I ≡ (∀ xs, P xs)%I.
-Proof.
-  unfold bi_tforall.
-  induction τ as [|X H τ IH].
-  - simpl; done.
-  - apply bi.iff_equiv. apply _. apply _.
-    iStartProof.
-    simpl. iSplit.
-    + iIntros "H".
-      iIntros ([x xs]).
-      iSpecialize ("H" $! x).
-      iApply (IH with "H").
-    + iIntros "H %x".
-      iApply IH. iIntros (xs).
-      iApply "H".
-Qed.
-
 Equations bi_pure_spec (PROP: bi) (τ : types) (f : τ -#> microvx -> Prop) : (τ -#> microvx -> PROP) :=
 | PROP, Tbase T, f :=
     λ x m, bi_pure (f x m)
