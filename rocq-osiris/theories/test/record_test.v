@@ -62,6 +62,8 @@ Section verification.
     iIntros ([]) "(% & -> & $)".
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
+
   Lemma module_proof η :
     2 ≤ max_array_length →
     ⊢ imp (eval_mexpr η __main)
@@ -97,106 +99,96 @@ Section verification.
 End verification.
 
 From osiris.logic Require Import big_opLZ.
+From osiris.program_logic.rules Require Import record_rules.
+From iris.bi.lib Require Import fractional.
 
 Section encoded_fields.
 
   Context `{!osirisGS Σ}.
 
-  Hypothesis Hmax : 2 ≤ max_array_length.
+  Hypothesis Hmax : (2 ≤ max_array_length)%Z.
 
   Record point : Type := { x : Z; y : Z }.
 
-  Definition ownPoint (r : record) (qp : Qp) (xs : point) : iProp Σ :=
-    (∃ ls, isBlockLocs r ls ∗ r⤇{#qp} Mut ∗
-          [∗ listZ] l;v ∈ ls; [ #xs.(x); #xs.(y)], l ↦{#qp} v)%I.
+  Class RecordRepr (A : Type) (τ : types) (t : mut_tag) :=
+    { repr_to_types : A → τ;
+      types_to_repr : τ -#> A;
+      repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
 
-  Instance name' r p : fractional.Fractional (λ qp, ownPoint r qp p). admit. Admitted.
+  Instance point_record : RecordRepr point τ[Z;Z] Mut :=
+    { repr_to_types p := ((x p), (y p));
+      types_to_repr := λ x y, {| x:=x; y:=y |};
+      repr_id := λ '(x, y), eq_refl }.
 
-  Instance name r qp p : fractional.AsFractional (ownPoint r qp p) (λ qp, ownPoint r qp p) qp.
+  Definition ownRepr `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
+    ownRecord (τ:=τ) r qp t (repr_to_types a).
+
+  Instance ownRepr_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRepr r qp a) := _.
+
+  Global Instance ownRepr_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
+    AsFractional (ownRepr r q a) (λ q, ownRepr r q a) q.
+  Proof. constructor; done || apply _. Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
+  Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ -#> iProp Σ) :
+    (τ_length τ ≤ max_array_length)%Z →
+    impure E (evals η es) Ψ ζ Φs -∗
+    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRepr r 1 (types_to_repr xs) ∗ Φs xs).
   Proof.
-    constructor. reflexivity. apply _.
+    iIntros (Hlength) "Hes".
+    iApply (imp_wand with "[-]").
+    { iApply (imp_ERecord with "Hes"). assumption. }
+    iIntros (r).
+    rewrite !bi_texist_equiv.
+    iIntros "(%xs & Hr & HΦ)".
+    iFrame. unfold ownRepr.
+    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
+    iApply "Hr".
   Qed.
+
+  Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (qp : Qp) (a : A) (e : expr) :
+    valid_field f τ →
+    ▷ ownRepr r qp a -∗
+    impure E (eval η e) Ψ ζ (λ r', ⌜r' = r⌝) -∗
+    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRepr r qp a).
+  Proof.
+    iIntros (Hvalid) "Hown He".
+    iApply (imp_wand with "[-]").
+    { iApply (imp_ERecordAccess with "Hown He"). assumption. }
+    iIntros (x) "($ & $)".
+  Qed.
+
+  Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
+    valid_field f τ →
+    ▷ ownRepr r 1 a -∗
+    impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
+    impure E (eval η e2) Ψ ζ Φ -∗
+    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
+  Proof.
+    iIntros (Hvf) "Hown He1 He2".
+    iApply (imp_wand with "[-]").
+    { iApply (imp_ERecordSet with "Hown He1 He2"). exact Hvf. }
+    iIntros (_) "(%x & HΦ & Hrecord)".
+    iExists x. iFrame "HΦ".
+    unfold ownRepr.
+    replace (repr_to_types (types_to_repr (<[ f τ= x ]> (repr_to_types a)))) with
+      (<[ f τ= x ]> (repr_to_types a)).
+    iExact "Hrecord".
+    exact (eq_sym (repr_id (<[ f τ= x ]> (repr_to_types a)))).
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
 
   Definition point_length_spec r (m : microvx) : iProp Σ :=
     ∀ qp (p : point),
-      ▷ ownPoint r qp p -∗
-      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ ownPoint r qp p }}.
+      ▷ ownRepr r qp p -∗
+      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ ownRepr r qp p }}.
 
   Definition point_update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ (p : point),
-      ▷ ownPoint r 1 p -∗
-      imp m {{ λ (_ : unit), ownPoint r 1 {| x := x; y:=p.(y) |} }}.
-
-
-  Lemma ownRecord_ownPoint r qp (x y : Z) :
-    ownRecord (τ:=τ[Z;Z]) r qp Mut (x, y) -∗
-    ownPoint r qp {| x:=x; y:=y |}.
-  Proof.
-    iIntros "(% & Hblock & Htag & Hown)".
-    iFrame.
-  Qed.
-
-  Lemma ownPoint_ownRecord r qp (x y : Z) :
-    ownPoint r qp {| x:=x; y:=y |} -∗
-    ownRecord (τ:=τ[Z;Z]) r qp Mut (x, y).
-  Proof.
-    iIntros "(% & Hblock & Htag & Hown)".
-    iFrame.
-  Qed.
-
-  Lemma imp_point {η E Ψ ζ} e1 e2 (Φs : τ[Z;Z] -#> iProp Σ) :
-    impure E (evals η [e1; e2]) Ψ ζ Φs -∗
-    impure E (eval η (ERecord Mut [e1; e2])) Ψ ζ (λ r, ∃ x y, ownPoint r 1 {| x := x; y := y |} ∗ Φs x y)%I.
-  Proof.
-    iIntros "Hes".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecord with "Hes"). assumption. }
-    iIntros (r) "(% & % & Hrecord & $)".
-    iApply (ownRecord_ownPoint with "Hrecord").
-  Qed.
-
-  Lemma imp_point_x {η : env} {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}
-    (r : record) (dq : Qp) (p : point) (e : expr) :
-    ▷ ownPoint r dq p -∗
-    imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ r' : record, ⌜r' = r⌝ }} -∗
-    imp eval η (ERecordAccess e 0%Z) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ i : Z, ⌜i = x p⌝ ∗ ownPoint r dq p }}.
-  Proof.
-    iIntros "Hown He".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordAccess (τ:=τ[Z;Z]) _ 0 with "[Hown] He").
-      split; simpl; lia.
-      iApply (ownPoint_ownRecord with "Hown"). }
-    iIntros (x) "(-> & $)". iPureIntro. reflexivity.
-  Qed.
-
-  Lemma imp_point_y {η : env} {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}
-    (r : record) (dq : Qp) (p : point) (e : expr) :
-    ▷ ownPoint r dq p -∗
-    imp eval η e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ r' : record, ⌜r' = r⌝ }} -∗
-    imp eval η (ERecordAccess e 1%Z) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ i : Z, ⌜i = y p⌝ ∗ ownPoint r dq p }}.
-  Proof.
-    iIntros "Hown He".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordAccess (τ:=τ[Z;Z]) with "[Hown] He").
-      split; simpl; lia.
-      iApply (ownPoint_ownRecord with "Hown"). }
-    iIntros (x) "(-> & $)". iPureIntro. reflexivity.
-  Qed.
-
-  Lemma point_update_x {η E Ψ ζ} (r : record) p e1 e2 (Φ : Z → iProp Σ) :
-    ▷ ownPoint r 1 p -∗
-    impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η e2) Ψ ζ Φ -∗
-    impure E (eval η (ERecordSet e1 0 e2)) Ψ ζ (λ (_ : ()), ∃ x, Φ x ∗ ownPoint r 1 {| x:=x; y:=p.(y) |})%I.
-  Proof.
-    iIntros "Hown He1 He2".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordSet (τ:=τ[Z;Z]) with "[Hown] He1 [He2]").
-      { split; simpl; lia. }
-      iApply (ownPoint_ownRecord with "Hown").
-      iApply "He2". }
-    iIntros ([]) "(%x & $ & $)".
-  Qed.
+      ▷ ownRepr r 1 p -∗
+      imp m {{ λ (_ : unit), ownRepr r 1 {| x := x; y:=p.(y) |} }}.
 
   Lemma imp_point_length η :
     ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length point_length_spec }}.
@@ -209,10 +201,10 @@ Section encoded_fields.
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
     imp_arith reading "Hown".
     (* All remaining subgoals are of the form [v.x] *)
-    - iApply (imp_point_x with "Hown"); imp_path.
-    - iApply (imp_point_x with "Hown"); imp_path.
-    - iApply (imp_point_y with "Hown"); imp_path.
-    - iApply (imp_point_y with "Hown"); imp_path.
+    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
+    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
+    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
+    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
   Qed.
 
   Lemma imp_point_update_x η :
@@ -223,28 +215,26 @@ Section encoded_fields.
     iApply imp_please; iNext.
 
     iApply imp_mono_val; last first.
-    { iApply (point_update_x with "Hown"). imp_path. imp_path. }
+    { iApply (imp_record_update with "Hown"). split; simpl; lia. imp_path. imp_path. }
     iIntros ([]) "(% & -> & $)".
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
 
   Lemma point_module_proof η :
-    2 ≤ max_array_length →
     ⊢ imp (eval_mexpr η __main)
       {{ context
            [ var_spec "length" (λ length, iSpec τ[record] length point_length_spec);
              var_spec "update_x" (λ update, iSpec τ[record;Z] update point_update_x_spec) ]
            {[ "vec"; "length"; "update_x" ]} }}.
   Proof.
-    intros Hmax_array.
     iApply imp_module.
 
     iApply (imp_sitems_let (A:=record)).
-    { iApply imp_point.
+    { iApply (imp_record (A:=point)). assumption.
       iApply imp_evals_cons. imp_arith.
       iApply imp_evals_singleton. imp_arith. }
-
-    iIntros (r) "(% & % & Hown & (-> & ->))".
+    iIntros (r) "(%x & %y & Hown & (-> & ->))".
 
     iApply (imp_sitems_let (A:=val)).
     { iApply imp_point_length. }
