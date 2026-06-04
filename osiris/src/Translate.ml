@@ -278,6 +278,11 @@ let is_extensible (constructor_desc : Data_types.constructor_description) =
   | Data_types.Cstr_extension _ ->
       true
 
+let is_inline (constructor_desc : Data_types.constructor_description) =
+  match constructor_desc.cstr_inlined with
+  | None -> false
+  | Some _ -> true
+
 (* -------------------------------------------------------------------------- *)
 
 (* Patterns, also known as value patterns. *)
@@ -423,6 +428,8 @@ let rec translate_expr (e: expression) : expr =
      let tuple = translate_exprs es in
      if is_extensible constructor_desc then
        EXData (translate_longident (txt id), tuple)
+     else if is_inline constructor_desc then
+       EUnsupported
      else
        let data = translate_data_constructor id constructor_desc in
        EData (data, tuple)
