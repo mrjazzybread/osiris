@@ -173,22 +173,38 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
   let s := selpat_from_reading selpat reading in
   match fetch_appropriate_arith_lemma e reading with
   | Some (lemma, arith_kind) =>
-      iApply ($lemma with $s);
       match arith_kind with
-      | Literal => ()
-      | Op =>
-          Control.extend [] (fun _ => try (imp_step0 None))
-            [ fun _ =>
-                simple_intros ();
-                lazy_match! get_iris_goal () with
-                | bi_wand _ _ => ()
-                | _ => auto
-                end ]
       | Op_frac r =>
-        iIntros $r; Control.enter (fun _ => try (imp_step0 reading))
-      | Comparison =>
-          lastn [ (fun _ => imp_step0 reading); (fun _ => imp_step0 reading) ];
-          firstn [ representable; representable ]
+          (* Try direct application first; if the postcondition shape doesn't
+             unify with the lemma's conclusion, fall back via imp_wand so the
+             user only needs to close the resulting monotonicity subgoal. *)
+          Control.plus
+            (fun _ =>
+               iApply ($lemma with $s);
+               iIntros $r; Control.enter (fun _ => try (imp_step0 reading)))
+            (fun _ =>
+               let select_all := '"[-]" in
+               iApply (imp_wand with $select_all);
+               Control.focus 1 1 (fun _ =>
+                 iApply ($lemma with $s);
+                 iIntros $r; Control.enter (fun _ => try (imp_step0 reading))))
+      | _ =>
+          iApply ($lemma with $s);
+          match arith_kind with
+          | Literal => ()
+          | Op =>
+              Control.extend [] (fun _ => try (imp_step0 None))
+                [ fun _ =>
+                    simple_intros ();
+                    lazy_match! get_iris_goal () with
+                    | bi_wand _ _ => ()
+                    | _ => auto
+                    end ]
+          | Op_frac _ => ()
+          | Comparison =>
+              lastn [ (fun _ => imp_step0 reading); (fun _ => imp_step0 reading) ];
+              firstn [ representable; representable ]
+          end
       end
   | None =>
       Control.zero

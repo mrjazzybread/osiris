@@ -108,15 +108,15 @@ Section encoded_fields.
 
   Hypothesis Hmax : (2 ≤ max_array_length)%Z.
 
-  Record point : Type := { x : Z; y : Z }.
-
   Class RecordRepr (A : Type) (τ : types) (t : mut_tag) :=
     { repr_to_types : A → τ;
       types_to_repr : τ -#> A;
       repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
 
+  Record point : Type := { x : Z; y : Z }.
+
   Instance point_record : RecordRepr point τ[Z;Z] Mut :=
-    { repr_to_types p := ((x p), (y p));
+    { repr_to_types p := (p.(x), p.(y));
       types_to_repr := λ x y, {| x:=x; y:=y |};
       repr_id := λ '(x, y), eq_refl }.
 
@@ -164,7 +164,8 @@ Section encoded_fields.
     ▷ ownRepr r 1 a -∗
     impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
-    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
+    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
+      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
   Proof.
     iIntros (Hvf) "Hown He1 He2".
     iApply (imp_wand with "[-]").
@@ -172,10 +173,8 @@ Section encoded_fields.
     iIntros (_) "(%x & HΦ & Hrecord)".
     iExists x. iFrame "HΦ".
     unfold ownRepr.
-    replace (repr_to_types (types_to_repr (<[ f τ= x ]> (repr_to_types a)))) with
-      (<[ f τ= x ]> (repr_to_types a)).
-    iExact "Hrecord".
-    exact (eq_sym (repr_id (<[ f τ= x ]> (repr_to_types a)))).
+    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
+    iApply "Hrecord".
   Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -200,7 +199,7 @@ Section encoded_fields.
 
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
     imp_arith reading "Hown".
-    (* All remaining subgoals are of the form [v.x] *)
+    (* Subgoals of the form [v.x]: *)
     - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
     - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
     - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
@@ -214,8 +213,10 @@ Section encoded_fields.
     iIntros "!>" (r x p) "Hown".
     iApply imp_please; iNext.
 
-    iApply imp_mono_val; last first.
+    iApply (imp_wand with "[Hown]").
     { iApply (imp_record_update with "Hown"). split; simpl; lia. imp_path. imp_path. }
+    simpl. unfold types_lookup_total. simpl.
+    unfold tapp.
     iIntros ([]) "(% & -> & $)".
   Qed.
 
@@ -235,6 +236,7 @@ Section encoded_fields.
       iApply imp_evals_cons. imp_arith.
       iApply imp_evals_singleton. imp_arith. }
     iIntros (r) "(%x & %y & Hown & (-> & ->))".
+    unfold types_to_repr. simpl.
 
     iApply (imp_sitems_let (A:=val)).
     { iApply imp_point_length. }
