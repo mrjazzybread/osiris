@@ -6,5 +6,6 @@ _build
 *.aux
 *.html
 osiris-archive*
+_RocqProject
 osirisvenv
 .mcp.json

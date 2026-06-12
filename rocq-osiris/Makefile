@@ -13,7 +13,7 @@ core:
 
 .PHONY: stdlib
 stdlib:
-	@ dune build stdlib/Stdlib.vo --display=short
+	@ dune build stdlib/ --display=short
 
 .PHONY: ocaml-libs
 ocaml-libs:
@@ -27,27 +27,3 @@ clean:
 lint:
 	@ dune build rocq-osiris.opam
 	@ opam lint rocq-osiris.opam
-
-# [make axioms] looks for suspicious keywords in the Rocq sources.
-
-.PHONY: axioms
-axioms:
-	@ for word in Axiom Abort Admitted ; do \
-	    git grep $${word} '*.v' || true ; \
-	  done
-
-# [make tutorial] builds the tutorial. This requires Alectryon.
-
-.PHONY: tutorial
-tutorial: all
-	@ dune build tutorial/tutorial.html
-
-# [make view] opens the tutorial.
-
-.PHONY: view
-view: tutorial
-	@ if command -v open >/dev/null ; then \
-	    open tutorial/tutorial.html ; \
-	  else \
-	    firefox tutorial/tutorial.html ; \
-	  fi
