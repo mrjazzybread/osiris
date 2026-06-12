@@ -9,5 +9,6 @@
 (rocq.theory
   (package osiris-interpreter)
   (name osiris.interp)
+  (generate_project_file)
   (theories osiris osiris.stdlib)
 )

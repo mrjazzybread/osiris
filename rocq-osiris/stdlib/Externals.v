@@ -4,10 +4,10 @@ From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
-From osiris.lang Require Import type_nel encode int notations locations.
+From osiris.olang Require Import type_nel encode int notations locations.
 From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import env_lookups.
-From osiris.logic Require Import list_z.
+From osiris.utils Require Import list_z.
 
 Notation VEta1 body :=
   (

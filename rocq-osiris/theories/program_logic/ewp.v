@@ -4,9 +4,10 @@ From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
-From osiris.lang Require Import locations.
-From osiris.program_logic Require Import thread_step.
-From osiris Require Export thread_ids syntax semantics.
+From osiris.olang Require Import locations.
+Require Import thread_step.
+Require Export protocols.
+From osiris.olang Require Export thread_ids syntax semantics.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
 
@@ -460,9 +461,6 @@ Proof. destruct m; try by inversion 1. destruct c; discriminate 1. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Definition of protocols, inherited from [Hazel] *)
-From osiris.Hazel Require Export protocols.
-
 (** *Definition of the effectful weakest precondition *)
 
 Section ewp_def.
@@ -602,7 +600,7 @@ End ewp_properties.
 
 (* ========================================================================== *)
 
-From osiris.lang Require Import encode.
+From osiris.olang Require Import encode.
 
 Definition impure {A V X} `{osirisGS Σ} `{Observe A V}
   (E : coPset) (m : micro V X) (Ψ : iEff Σ) (ζ : X → iProp Σ) (Φ : A → iProp Σ) : iProp Σ :=
@@ -679,4 +677,4 @@ Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)
 From osiris Require Export syntax.
-From osiris.semantics Require Export code micro step.
+From osiris.olang Require Export code micro step.

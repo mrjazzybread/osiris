@@ -1,5 +1,5 @@
 From Stdlib Require Import Wellfounded.Inverse_Image.
-From osiris.logic Require Import orders sorting.
+From osiris.utils Require Import orders sorting.
 From osiris Require Import osiris.
 From osiris.examples Require Import og_bst.
 
@@ -385,8 +385,8 @@ End Proofs.
 (* -------------------------------------------------------------------------- *)
 
 
-Lemma Module__spec :
-  eval_module stdlib_env __main (λ _, True).
+Lemma Module__spec η :
+  eval_module η __main (λ _, True).
 Proof.
   apply module_struct.
   eapply (@structs_letrec τ[(Z * tree Z)]) with

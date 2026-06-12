@@ -1,0 +1,6 @@
+(include_subdirs qualified)
+(rocq.theory
+ (name osiris.lib)
+ (generate_project_file)
+ (package rocq-osiris)
+ (theories Stdlib Ltac2 iris stdpp))

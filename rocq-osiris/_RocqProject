@@ -1,4 +1,0 @@
--arg -set -arg Debug=-backtrace
--Q ../_build/default/rocq-osiris/theories osiris
--Q ../_build/default/rocq-osiris/stdlib osiris.stdlib
--Q ../_build/default/rocq-osiris/stdlib/proofs osiris.stdlib.proofs

@@ -1,5 +1,7 @@
-From osiris.logic Require Import orders sorting.
+From osiris.utils Require Import orders sorting.
 From osiris Require Import osiris.
+From osiris.stdlib Require Import Stdlib.
+
 From osiris.examples Require Import og_splay.
 
 (* The algebraic data types of ['a tree] and ['a zipper]. *)

@@ -1,8 +1,8 @@
 From iris Require Import gen_heap proofmode.proofmode.
-From osiris Require Import lang.
-From osiris.tactics Require Import osiris_utils.
-From osiris.program_logic Require Import ewp tactics fun_spec escrows.
-From osiris.program_logic.rules Require Import
+From osiris.olang Require Import lang.
+Require Import osiris_utils.
+Require Import ewp tactics fun_spec escrows.
+Require Import
   basic_rules impure_rules stop_rules
   handler_rules auxiliary_rules atomic_rules.
 

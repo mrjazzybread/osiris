@@ -1,15 +1,8 @@
-From osiris.lang Require Import type_nel encode notations int locations.
-From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import proofmode.
+From osiris Require Import osiris.
+From osiris.stdlib Require Import Externals Stdlib array.
 
 From osiris.stdlib Require Import og_iarray.
-From osiris Require Import Externals.
-From osiris.stdlib.proofs Require Import array.
-
-From iris Require Import ltac_tactics.
-
-From osiris.logic Require Export list_z big_opLZ.
-From osiris.tactics Require Import osiris_utils.
+From osiris.utils Require Import list_z big_opLZ.
 
 Definition iarray : Type := syntax.array.
 

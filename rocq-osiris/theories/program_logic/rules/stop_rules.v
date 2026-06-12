@@ -4,34 +4,23 @@ From iris.proofmode Require Import proofmode.
 
 From iris.base_logic.lib Require Import own.
 
-From osiris Require Import base.
-From osiris.tactics Require Import osiris_utils.
-From osiris.lang Require Import lang.
-From osiris.program_logic Require Import thread_step ewp tactics basic_rules escrows.
-From osiris.semantics Require Import semantics.
-From osiris.logic Require Import big_opLZ.
-
-From osiris.program_logic.rules Require Import impure_rules micro_rules.
-
+From osiris.utils Require Import base big_opLZ.
+From osiris.olang Require Import lang semantics.
+Require Import thread_step ewp tactics basic_rules escrows.
+Require Import osiris_utils.
+Require Import impure_rules micro_rules.
 Import ewp_rules_tactics.
-
 Definition is_Ret {A X} (m : micro A X) := ∃ a, m = ret a.
-
 Lemma is_Ret_Throw {A X} (e : X) : ¬ is_Ret (@Throw A X e).
 Proof. intros (a & H). discriminate H. Qed.
-
 Lemma is_Ret_Crash {A X} : ¬ is_Ret (@Crash A X).
 Proof. intros (a & H). discriminate H. Qed.
-
 Lemma is_Ret_Handle {A X} m k : ¬ is_Ret (@Handle A X m k).
 Proof. intros (a & H). discriminate H. Qed.
-
 Lemma is_Ret_Stop {A E X Y E'} c x k : ¬ is_Ret (@Stop A E X Y E' c x k).
 Proof. intros (a & H). discriminate H. Qed.
-
 Lemma is_Ret_Par {A E A1 A2 E'} m1 m2 k : ¬ is_Ret (@Par A E A1 A2 E' m1 m2 k).
 Proof. intros (a & H). discriminate H. Qed.
-
 Definition is_Ret_proj {A X} (m : micro A X) :=
   match m as mx0 return (is_Ret mx0 → A) with
   | Ret x => λ _ : is_Ret (ret x), x
@@ -41,23 +30,15 @@ Definition is_Ret_proj {A X} (m : micro A X) :=
   | Stop c x k => False_rect A ∘ (is_Ret_Stop c x k)
   | Par m1 m2 k => False_rect A ∘ (is_Ret_Par m1 m2 k)
   end.
-
 (* ------------------------------------------------------------------------ *)
-
 (** This file contains [imp] rules for [Stop] system calls, concurrency primitives, and loop combinators. *)
-
 Section imp_stop.
-
   Context `{!osirisGS Σ}.
-
   Context {A X : Type} `{Hobs : Observe Encoded A}.
   Context {E : coPset} {Ψ : iEff Σ} {ζ : X → iProp Σ} {Φ : Encoded → iProp Σ}.
-
   Implicit Type m : micro A X.
-
   (* ------------------------------------------------------------------------ *)
   (* [CFlip]. *)
-
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma imp_stop_flip u (k: _ → micro A X) :
     ▷(imp continue k true @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp continue k false @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }})
@@ -73,10 +54,8 @@ Section imp_stop.
     { iApply (bi.and_elim_l with "H"). }
     { iApply (bi.and_elim_r with "H"). }
   Qed.
-
   (* ------------------------------------------------------------------------ *)
   (* [CAlloc]. *)
-
   Lemma imp_stop_alloc' v (k : _ → micro A X) :
     ▷ (∀ (l : loc),
           (l ↦ v ∗ meta_token l ⊤) -∗
@@ -86,14 +65,11 @@ Section imp_stop.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
-
     destruct_thread_step.
-
     iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta & _)".
     iIntros "!> !>". iSpecialize ("H" with "[$Hl $Hmeta]").
     ewp_mask_elim. iFrame.
   Qed.
-
   Lemma imp_stop_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), l ↦ v -∗
             imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
@@ -104,11 +80,9 @@ Section imp_stop.
     iIntros "!>" (l) "(Hpts & _)".
     iApply ("H" with "Hpts").
   Qed.
-
   (* [CAllocBlock]. *)
-
   Lemma imp_stop_alloc_block t ls (k : _ → micro A X) :
-    ⌜length ls ≤ max_array_length⌝ -∗
+    ⌜list_z.length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : loc),
          l ⤇ t -∗
          isBlockLocs l ls -∗
@@ -131,7 +105,6 @@ Section imp_stop.
 
   (* ------------------------------------------------------------------------ *)
   (* [CLoad]. *)
-
   Lemma imp_stop_load l v (dq : dfrac) (k: _ → micro A X) :
     ▷ l ↦{dq} v ⊢
     ▷ (
@@ -156,7 +129,6 @@ Section imp_stop.
   Qed.
 
   (* [CLoadBlock]. *)
-
   Lemma imp_stop_load_block (l : loc) t ls (dq : dfrac) (k: _ → micro A X) :
     ▷ pointsto l dq (Dict t ls) ⊢
     ▷ (
@@ -182,7 +154,6 @@ Section imp_stop.
 
   (* [CLoadBlock] via ghost map: use the persistent [isBlockLocs] to justify the step.
      This avoids requiring physical block ownership for read-only array operations. *)
-
   Lemma imp_stop_load_block_ghost (l : loc) ls (k: _ → micro A X) :
     ▷ isBlockLocs l ls -∗
     ▷ (∀ t,
@@ -754,7 +725,7 @@ Section imp_combinators.
   Qed.
   (* [CAllocBlock]. *)
   Lemma imp_alloc_block2 {Φ : loc → iProp Σ} t ls :
-    ⌜length ls ≤ max_array_length⌝ -∗
+    ⌜list_z.length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : loc), l ⤇ t -∗ isBlockLocs l ls -∗ Φ l) -∗
     impure E (alloc_block t ls) Ψ ζ Φ.
   Proof.
@@ -765,7 +736,7 @@ Section imp_combinators.
     iApply ("H" with "Hl Harr").
   Qed.
   Lemma imp_alloc_block t ls :
-    ⌜length ls ≤ max_array_length⌝ -∗
+    ⌜list_z.length ls ≤ max_array_length⌝ -∗
     impure E (alloc_block t ls) Ψ ζ (λ (l : loc), l ⤇ t ∗ isBlockLocs l ls).
   Proof.
     iIntros "%Hbound".
@@ -975,7 +946,7 @@ Section imp_combinators.
     iApply ("Hwp" with "HisCont").
   Qed.
 
-  Local Instance notval_outcome3 : NotVal (outcome3 val exn) := {}.
+  Local Instance notval_outcome3 : NotVal (code.outcome3 val exn) := {}.
 
   Lemma imp_wrap_eval_branches `{Encode A} {Φ : A → iProp Σ} l η bs e :
     (∀ l',

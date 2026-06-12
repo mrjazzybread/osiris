@@ -2,11 +2,10 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import gen_heap.
 
 From osiris Require Import base.
-From osiris.lang Require Import lang.
-From osiris.semantics Require Import semantics.
-From osiris.program_logic Require Import thread_step ewp tactics.
+From osiris.olang Require Import lang semantics.
+Require Import thread_step ewp tactics.
 
-From osiris.program_logic.rules Require Import basic_rules.
+Require Import basic_rules.
 
 Import ewp_rules_tactics.
 

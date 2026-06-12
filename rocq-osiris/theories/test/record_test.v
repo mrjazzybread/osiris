@@ -1,7 +1,8 @@
 From osiris Require Import osiris.
-From iris.proofmode Require Import ltac_tactics.
+From osiris.utils Require Import big_opLZ.
 
-From osiris.test Require Import og_record_test.
+
+Require Import og_record_test.
 
 Open Scope Z.
 
@@ -98,8 +99,6 @@ Section verification.
 
 End verification.
 
-From osiris.logic Require Import big_opLZ.
-From osiris.program_logic.rules Require Import record_rules.
 From iris.bi.lib Require Import fractional.
 
 Section encoded_fields.

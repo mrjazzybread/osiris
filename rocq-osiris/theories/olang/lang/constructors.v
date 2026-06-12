@@ -1,0 +1,85 @@
+From osiris Require Import base.
+Require Import syntax type_nel encode locations.
+
+(* -------------------------------------------------------------------------- *)
+
+(* TODO: Comment. *)
+
+Class Data (c : data) (τ : types) (A : Type) `{Encode A} : Type :=
+  { ctor_apply  : τ → A;
+    ctor_encode : ∀ xs : τ, VData c (to_vals xs) = #(ctor_apply xs) }.
+
+Global Hint Mode Data ! - ! - : typeclass_instances.
+
+Global Instance Data_Some `{Encode A} : Data "Some" τ[A] (option A) :=
+  { ctor_apply  := Some;
+    ctor_encode := λ _, eq_refl }.
+
+Global Instance Data_Cons `{Encode A} : Data "::" τ[A; list A] (list A) :=
+  { ctor_apply  := λ '(x, xs), x :: xs;
+    ctor_encode := λ '(_, _), eq_refl }.
+
+Class XData (l : loc) (τ : types) (A : Type) `{Encode A} : Type :=
+  { xctor_apply  : τ → A;
+    xctor_encode : ∀ (xs : τ), VXData l (to_vals xs) = #(xctor_apply xs) }.
+
+Global Hint Mode XData ! - ! - : typeclass_instances.
+
+Definition encode_tuple {τ : types} : τ → val :=
+  λ xs, VTuple (@to_vals τ xs).
+
+Global Instance Encode_tuple {τ : types} : Encode τ :=
+  { encode' := encode_tuple }.
+
+Lemma encode_tuple_is_encode {τ : types} :
+  ∀ (xs : τ),
+    encode_tuple xs = #xs.
+Proof. auto. Qed.
+
+Lemma solve_encode_tuple {τ : types} vs (xs : τ) :
+  vs = to_vals xs →
+  VTuple vs = #xs.
+Proof. intros ->. auto. Qed.
+
+Global Hint Resolve encode_tuple_is_encode solve_encode_tuple : encode.
+
+(* [TypesOf A] computes the [types] value corresponding to the plain Rocq
+   type [A], along with a proof that [coerce_to_type types_of = A].
+
+   This lets [Encode_from_types] provide flat tuple encoding for any
+   right-nested product type without requiring an explicit [τ[...]]
+   annotation at use sites.
+
+   Priority: [TypesOf_cons | 10] fires before [TypesOf_base | 100], so
+   product types get the cons branch rather than a single-element base. *)
+Class TypesOf (A : Type) : Type :=
+  { types_of : types; types_of_eq : coerce_to_type types_of = A }.
+
+Global Arguments types_of A {_}.
+Global Arguments types_of_eq A {_}.
+
+Global Instance TypesOf_base {A : Type} {HA : Encode A} : TypesOf A | 100 :=
+  {| types_of := Tbase A; types_of_eq := eq_refl |}.
+
+Global Instance TypesOf_cons {B C : Type} {HB : Encode B} {HC : TypesOf C}
+    : TypesOf (B * C) | 10 :=
+  {| types_of := Tcons B (types_of C);
+     types_of_eq := f_equal (prod B) (types_of_eq C) |}.
+
+(* Provides flat [VTuple] encoding for any right-nested product type.
+   Priority 50 ensures direct [Encode] instances (priority ~1) still win,
+   while this instance covers product types with no direct instance. *)
+Global Instance Encode_from_types {A : Type} {HA : TypesOf A}
+    : Encode A | 50.
+Proof.
+  rewrite <- (types_of_eq A).
+  exact (@Encode_tuple (types_of A)).
+Defined.
+
+(* Provides [Observe (B * C) val] when [Encode B] and [Encode C] are available.
+   The explicit @type_nel.Tcons/@Tbase construction avoids the deferred-evar
+   problem that arises when τ[B;C] is used as a type annotation inside a ∀. *)
+Global Instance observe_prod_val {B C : Type} {HB : Encode B} {HC : Encode C}
+    : Observe (B * C) val | 100 :=
+  let enc : Encode (B * C) := @Encode_tuple (@type_nel.Tcons B HB (@Tbase C HC)) in
+  Build_Observe _ _ (encode' (Encode := enc)).

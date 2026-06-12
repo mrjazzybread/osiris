@@ -2,8 +2,7 @@ From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import gmap fin_map_dom fin_sets.
 From osiris Require Import base.
-From osiris.lang Require Import locations lang.
-From osiris.semantics Require Import code eval step.
+From osiris.olang Require Import locations lang code eval step.
 
 From iris.base_logic.lib Require Import iprop own.
 
@@ -202,8 +201,6 @@ Global Opaque can_progress.
 Global Hint Resolve
   can_progress_join
   can_progress_fork : can_progress.
-
-From osiris.semantics Require Import pure.
 
 Section Atomicity.
 

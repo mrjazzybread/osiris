@@ -1,10 +1,8 @@
 From osiris Require Import osiris.
-From iris.proofmode Require Import ltac_tactics.
-
-From osiris.examples Require Import og_fold_array.
+From osiris.utils Require Import list_z.
 From osiris.stdlib.proofs Require Import array.
 
-From Stdlib.Logic Require Import FunctionalExtensionality.
+From osiris.examples Require Import og_fold_array.
 
 Section verification.
 
@@ -118,4 +116,3 @@ Section verification.
   Qed.
 
 End verification.
-(* test *)

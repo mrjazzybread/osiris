@@ -1,10 +1,10 @@
 From iris.proofmode Require Export proofmode.
 
-From osiris.tactics Require Export
+From osiris.program_logic Require Export
   osiris_utils
 .
 
-From osiris.proofmode Require Export
+Require Export
   equality
   pure_tactics
   env_lookups
@@ -12,6 +12,6 @@ From osiris.proofmode Require Export
   handler_tactics
 .
 (* [setup.v] should be exported last. *)
-From osiris.proofmode Require Export
+Require Export
   setup
 .

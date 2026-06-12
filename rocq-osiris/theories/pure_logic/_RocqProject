@@ -1,0 +1,21 @@
+-arg -w
+-arg -deprecated-native-compiler-option
+-arg -w
+-arg -native-compiler-disabled
+-arg -native-compiler
+-arg ondemand
+-arg -boot
+-R /home/rseassau/.opam/osiris/lib/coq/theories Corelib
+-Q /home/rseassau/.opam/osiris/lib/coq/user-contrib/Equations Equations
+-Q /home/rseassau/.opam/osiris/lib/coq/user-contrib/iris iris
+-Q /home/rseassau/.opam/osiris/lib/coq/user-contrib/stdpp stdpp
+-Q /home/rseassau/.opam/osiris/lib/coq/user-contrib/Stdlib Stdlib
+-Q /home/rseassau/.opam/osiris/lib/coq/user-contrib/Ltac2 Ltac2
+-Q ../../utils osiris.utils
+-Q ../../../_build/default/rocq-osiris/utils osiris.utils
+-Q ../../lib osiris.lib
+-Q ../../../_build/default/rocq-osiris/lib osiris.lib
+-Q ../olang osiris.olang
+-Q ../../../_build/default/rocq-osiris/theories/olang osiris.olang
+-R . osiris.pure_logic
+-R ../../../_build/default/rocq-osiris/theories/pure_logic osiris.pure_logic

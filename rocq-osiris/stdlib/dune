@@ -2,6 +2,6 @@
 (rocq.theory
   (package rocq-osiris)
   (name osiris.stdlib)
-  (modules :standard \ Stdlib Externals)
+  (generate_project_file)
   (theories osiris)
 )

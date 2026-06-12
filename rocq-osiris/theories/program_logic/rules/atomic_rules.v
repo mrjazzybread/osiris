@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import gen_heap invariants.
 
-From osiris.lang Require Import lang.
-From osiris.tactics Require Import osiris_utils.
-From osiris.program_logic Require Import thread_step ewp tactics.
-From osiris.program_logic.rules Require Import basic_rules impure_rules stop_rules.
+From osiris.olang Require Import lang.
+Require Import osiris_utils.
+Require Import thread_step ewp tactics.
+Require Import basic_rules impure_rules stop_rules.
 
 Import ewp_rules_tactics.
 

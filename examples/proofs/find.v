@@ -112,8 +112,8 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     field which is specified by [find_spec]." *)
 
 
-Lemma iter_module_pure :
-  ⊢ imp (eval_mexpr stdlib_env __main)
+Lemma iter_module_pure η :
+  ⊢ imp (eval_mexpr η __main)
     {{ context [
          var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)
        ]
@@ -127,10 +127,10 @@ Proof.
      environment with some value [iter] such that
      [Spec τ[val; list A] iter listiter_spec]. *)
   instantiate (1 := (λ (ηδ : envs),
-            ⌜∃ iter, ηδ = (("iter", iter) :: stdlib_env, [("iter",iter)]) ∧
+            ⌜∃ iter, ηδ = (("iter", iter) :: η, [("iter",iter)]) ∧
                      Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
-    iApply (impure_pure (B:=void) (eval_sitem (stdlib_env, []) (ILetRec __bindings3))).
+    iApply (impure_pure (B:=void) (eval_sitem (η, []) (ILetRec __bindings3))).
     (* Enter the body of the recursive function. *)
     eapply (struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
     { (* Side-condition: the expression is a function. *) repeat eexists. }

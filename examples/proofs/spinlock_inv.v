@@ -54,8 +54,8 @@ Definition release_spec (l : loc) (m : microvx) : iProp Σ :=
 (* ------------------------------------------------------------------ *)
 (* Module-level theorem *)
 
-Lemma spinlock_inv_proof :
-  ⊢ imp (eval_mexpr stdlib_env __main)
+Lemma spinlock_inv_proof η :
+  ⊢ imp (eval_mexpr η __main)
     {{ context [
          var_spec "create"  (λ create,  □ iSpec τ[unit] create create_spec);
          var_spec "acquire" (λ acquire, □ iSpec τ[loc]  acquire acquire_spec);

@@ -1,7 +1,7 @@
 From stdpp Require Import gmap.
-From osiris Require Import base.
-From osiris.lang Require Import syntax locations notations thread_ids.
-From osiris.semantics Require Import code step strategy eval.
+From osiris.utils Require Import base.
+From osiris.olang Require Import syntax locations notations thread_ids.
+From osiris.olang Require Import code step strategy eval.
 From osiris.stdlib Require Import Stdlib.
 
 (** Final micro states. They correspond to [micro] constructs that cannot
@@ -47,8 +47,8 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   | Stop CEval (η, e) k => Some (σ, try2 (pre_eval η e) k)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
   | Stop CAlloc v k => Some (let l := fresh (dom σ) in (<[l:=Val v]>σ, continue k l))
-  | Stop CAllocBlock ls k => Some (let l := fresh (A:=loc) (dom σ) in
-                                   (insert (Insert:=insert_block) l (Dict Mut ls) σ, continue k l))
+  | Stop CAllocBlock (t, ls) k => Some (let l := fresh (A:=loc) (dom σ) in
+                                   (insert l (Dict t ls) σ, continue k l))
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
   | Handle Crash h => Some (σ, Crash)
@@ -118,8 +118,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CLoop (η, x, i1, i2, e) k => Step [(σ, try2 (loop η x i1 i2 e) k)]
   | Stop CAlloc v k => let l := fresh (dom σ) in
                        Step [(<[l:=Val v]>σ, continue k l)]
-  | Stop CAllocBlock ls k => let l := fresh (A:=loc) (dom σ) in
-                             Step [(insert (Insert:=insert_block) l (Dict Mut ls) σ, continue k l)]
+  | Stop CAllocBlock (t, ls) k => let l := fresh (A:=loc) (dom σ) in
+                             Step [(insert l (Dict t ls) σ, continue k l)]
   | Stop CSetBlockTag (t, l) k =>
       Step [step_set_tag σ t l k]
 
@@ -266,6 +266,8 @@ Definition string_of_Z (z : Z) : string := NilZero.string_of_int (Z.to_int z).
 
 Definition string_of_char (c : char) : string := String c EmptyString.
 
+Definition string_of_field (f : Z) : string := NilZero.string_of_int (Z.to_int f).
+
 Definition string_of_pair {A B} (pa : A → string) (pb : B → string) : A * B → string :=
   λ '(a, b), ("(" ++ pa a ++ ", " ++ pb b ++ ")")%string.
 
@@ -279,7 +281,8 @@ Fixpoint string_of_pat (p : pat) : string :=
   | PTuple list_pat => "PTuple(" ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PData data list_pat => "PData(" ++ data ++ ", " ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PXData path list_pat => "PXData(" ++ String.concat "." path ++ ", " ++ String.concat "," (map string_of_pat list_pat) ++ ")"
-  | PRecord fs => "PRecord(" ++ String.concat "," (map (string_of_pair id string_of_pat) fs) ++ ")"
+  | PRecord fs => "PRecord(" ++ String.concat "," (map (string_of_pair string_of_field string_of_pat) fs) ++ ")"
+  | PArray list_pat => "PArray(" ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PInt Z => "PInt(" ++ string_of_Z Z ++ ")"
   | PChar char => "PChar(" ++ string_of_char char ++ ")"
   | PString string => "PString(" ++ string ++ ")"
@@ -299,6 +302,12 @@ Fixpoint string_of_coercion (c : coercion) : string :=
   | CStruct l => "CStruct(" ++ String.concat "," (map (string_of_pair id string_of_coercion) l) ++ ")"
   end.
 
+Definition string_of_mut_tag (t : mut_tag) :=
+  match t with
+  | Mut => "Mut"
+  | Immut => "Immut"
+  end.
+
 Fixpoint string_of_expr (e : expr) : string :=
   match e with
   | EUnsupported => "EUnsupported"
@@ -308,9 +317,10 @@ Fixpoint string_of_expr (e : expr) : string :=
   | ETuple list_expr => "ETuple(" ++ String.concat "," (map string_of_expr list_expr) ++ ")"
   | EData data es => "EData(" ++ data ++ ", [" ++  String.concat "; " (map string_of_expr es) ++ "])"
   | EXData path es => "EXData([" ++ String.concat "." path ++ "], [" ++  String.concat "; " (map string_of_expr es) ++ "])"
-  | ERecord fes => "ERecord( " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
+  | ERecord t fes => "ERecord(" ++ string_of_mut_tag t ++ ", [" ++ String.concat "; " (map string_of_expr fes) ++ "]" ++ ")"
   | ERecordUpdate expr fes => "ERecordUpdate(" ++ string_of_expr expr ++ ", " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
-  | ERecordAccess expr field => "ERecordAccess(" ++ string_of_expr expr ++ ", " ++ field ++ ")"
+  | ERecordAccess expr field => "ERecordAccess(" ++ string_of_expr expr ++ ", " ++ string_of_field field ++ ")"
+  | ERecordSet e1 f e2 => "ERecordSet(" ++ string_of_expr e1 ++ ", " ++ string_of_field f ++ ", " ++ string_of_expr e2 ++ ")"
   | EArrayLit list_expr => "EArrayLit(" ++ String.concat "," (map string_of_expr list_expr) ++ ")"
   | EArrayLength expr => "EArrayLength(" ++ string_of_expr expr ++ ")"
   | EArrayGet e1 e2 => "EArrayGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
@@ -376,7 +386,7 @@ Fixpoint string_of_expr (e : expr) : string :=
   end
   with string_of_fexpr (x : fexpr) : string :=
   match x with
-  | Fexpr field e => field ++ "=" ++ string_of_expr e
+  | Fexpr field e => string_of_field field ++ "=" ++ string_of_expr e
   end
   with string_of_branch (x : branch) : string :=
   match x with
@@ -432,10 +442,10 @@ Fixpoint string_of_val (v : val) : string :=
   | VData data vs => "VData(" ++ data ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
   | VXData loc vs => "VXData(" ++ string_of_Z loc.(address) ++ ", [" ++ String.concat "; " (map string_of_val vs) ++ "])"
   | VLoc l   => "VLoc("   ++ string_of_Z l.(address) ++ ")"
-  | VBlock l => "VBlock(" ++ string_of_Z l.(address) ++ ")"
   | VCont l  => "VCont("  ++ string_of_Z l.(address) ++ ")"
   | VThread thread => "VLoc(" ++ string_of_Z thread.(tid) ++ ")"
-  | VRecord fields => "VRecord(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
+  | VRecord l => "VRecord(" ++ string_of_Z l.(address) ++ ")"
+  | VArray l => "VArray(" ++ string_of_Z l.(address) ++ ")"
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
@@ -487,8 +497,8 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CLoop (η, x, a, b, e) k => "Stop(CLoop, (<env>, " ++ x ++ ", " ++ string_of_int a ++ ", " ++ string_of_int b ++ ", " ++ string_of_expr e ++ "), <cont>)"
   | Stop CFlip () k => "Stop(CFlip" ++ ", (), <cont>)"
   | Stop CAlloc v k => "Stop(CAlloc" ++ ", " ++ string_of_val v ++ ", <cont>)"
-  | Stop CAllocBlock ls k =>
-      "Stop(CAllocBlock" ++ ", " ++ "[" ++ String.concat ";" (List.map (fun l => string_of_Z l.(address)) ls) ++ "], <cont>)"
+  | Stop CAllocBlock (t, ls) k =>
+      "Stop(CAllocBlock" ++ ", " ++ string_of_mut_tag t ++ ", " ++ "[" ++ String.concat ";" (List.map (fun l => string_of_Z l.(address)) ls) ++ "], <cont>)"
   | Stop CLoad loc k => "Stop(CLoad" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
   | Stop CLoadBlock loc k => "Stop(CLoadBlock" ++ ", " ++ string_of_Z loc.(address) ++ ", <cont>)"
   | Stop CExchange (loc, v) k => "Stop(CExchange" ++ ", " ++ string_of_Z loc.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"

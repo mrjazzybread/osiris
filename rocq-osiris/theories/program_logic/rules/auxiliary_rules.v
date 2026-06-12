@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
 
 From osiris Require Import lang.
-From osiris.program_logic Require Import ewp.
-From osiris.program_logic.rules Require Import impure_rules stop_rules.
+Require Import ewp.
+Require Import impure_rules stop_rules.
 
-From osiris.program_logic.pure Require Import pattern_rules.
+From osiris.pure_logic Require Import pattern_rules.
 
 (** This file contains [imp] rules for module and binding evaluation. *)
 

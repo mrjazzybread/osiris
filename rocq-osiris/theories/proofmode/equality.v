@@ -1,5 +1,5 @@
 From osiris Require Import base.
-From osiris.lang Require Import lang.
+From osiris.olang Require Import lang.
 
 (* This file defines a tactic that is supposed to prove equality goals. *)
 

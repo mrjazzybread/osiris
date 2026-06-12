@@ -1,10 +1,10 @@
 From iris Require Import gen_heap proofmode.proofmode.
 From iris.bi.lib Require Import fractional.
 From osiris Require Import lang type_nel.
-From osiris.tactics Require Import osiris_utils.
-From osiris.program_logic Require Import ewp.
-From osiris.program_logic.rules Require Import impure_rules stop_rules.
-From osiris.logic Require Import list_z big_opLZ.
+Require Import osiris_utils.
+Require Import ewp.
+Require Import impure_rules stop_rules.
+From osiris.utils Require Import list_z big_opLZ.
 
 (** This file defines record resource predicates and [imp] rules for record expressions. *)
 

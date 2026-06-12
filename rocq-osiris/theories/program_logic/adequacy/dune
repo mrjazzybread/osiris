@@ -1,0 +1,12 @@
+(include_subdirs qualified)
+(rocq.theory
+ (name osiris.program_logic.adequacy)
+ (generate_project_file)
+ (package rocq-osiris)
+ (theories
+   iris stdpp
+   osiris.olang
+   osiris.pure_logic
+   osiris.program_logic
+ )
+)

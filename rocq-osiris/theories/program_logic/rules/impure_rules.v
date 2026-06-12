@@ -1,10 +1,9 @@
-From osiris.lang Require Import encode locations.
-
 From osiris Require Import base.
-From osiris.semantics Require Import code.
-From osiris.program_logic Require Import ewp tactics.
+From osiris.olang Require Import encode locations code.
 
-From osiris.program_logic.rules Require Import basic_rules micro_rules.
+Require Import ewp tactics.
+
+Require Import basic_rules micro_rules.
 
 From iris.proofmode Require Import proofmode.
 

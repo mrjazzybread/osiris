@@ -1,10 +1,10 @@
 From iris.proofmode Require Import proofmode.
 
-From osiris.lang Require Import encode type_nel.
+From osiris.olang Require Import encode type_nel.
 From osiris.program_logic Require Import program_logic.
 
-From osiris.tactics Require Import utils iris_bindings.
-From osiris.proofmode Require Import equality.
+From osiris.utils Require Import tactics.
+Require Import equality.
 
 (* This file defines the [imp_path] tactic, used for solving goals of the
    form [imp (eval η (EPath p)) {{ Φ }}]. *)

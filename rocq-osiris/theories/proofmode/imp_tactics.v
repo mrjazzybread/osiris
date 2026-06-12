@@ -1,7 +1,7 @@
-From osiris.tactics Require Import tactics.
-From osiris.lang Require Import encode type_nel.
-From osiris.program_logic Require Import program_logic.
-From osiris.proofmode Require Import env_lookups.
+From osiris.utils Require Import tactics.
+From osiris.olang Require Import encode type_nel.
+From osiris.program_logic Require Import program_logic osiris_utils.
+Require Import env_lookups.
 From stdpp Require Import strings.
 From Ltac2 Require Import Ltac2 Printf.
 

@@ -41,7 +41,11 @@ let var = string
 let name = string
 let path = list string
 let data = string
-let field = string
+let field = z
+
+let mut_tag : O.mut_tag -> E.mut_tag = function
+  | Mut -> Mut
+  | Immut -> Immut
 
 let rec pat : O.pat -> E.pat = function
   | PUnsupported    -> PUnsupported
@@ -71,7 +75,7 @@ let rec coercion : O.coercion -> E.coercion = function
   | CIdentity -> CIdentity
   | CStruct fcs -> CStruct (fcoercions fcs)
 
-and fcoercions l = list (prod field coercion) l
+and fcoercions l = list (fun (_, c) -> (EmptyString, coercion c)) l
 
 
 let rec expr : O.expr -> E.expr = function
@@ -83,9 +87,10 @@ let rec expr : O.expr -> E.expr = function
   | ETuple es -> ETuple (exprs es)
   | EData (d, es) -> EData (data d, exprs es)
   | EXData (p, es) -> EXData (path p, exprs es)
-  | ERecord fes -> ERecord (fexprs fes)
+  | ERecord (t, es) -> ERecord (mut_tag t, exprs es)
   | ERecordUpdate (e, fes) -> ERecordUpdate (expr e, fexprs fes)
   | ERecordAccess (e, f) -> ERecordAccess (expr e, field f)
+  | ERecordSet (e1, f, e2) -> ERecordSet (expr e1, field f, expr e2)
   | EArrayLit es -> EArrayLit (exprs es)
   | EArrayLength e -> EArrayLength (expr e)
   | EArrayGet (e1, e2) -> EArrayGet (expr e1, expr e2)

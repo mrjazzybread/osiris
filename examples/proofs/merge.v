@@ -1,8 +1,7 @@
 From Stdlib Require Import Wellfounded.Inverse_Image.
-From osiris.logic Require Import orders sorting.
 From osiris Require Import osiris.
+From osiris.utils Require Import orders sorting.
 
-From osiris.logic Require Import sorting.
 From osiris.examples Require Import og_merge.
 
 (* -------------------------------------------------------------------------- *)
@@ -425,8 +424,8 @@ End proof.
 (* We chain together the lemmas in the [proof] section to verify the
    whole [merge.ml] file. *)
 
-Lemma Module__spec' :
-  eval_module stdlib_env __main (λ _, True).
+Lemma Module__spec' η :
+  eval_module η __main (λ _, True).
 Proof.
   apply module_struct.
   (* Proof that [merge] satisfies [merge_spec]. *)

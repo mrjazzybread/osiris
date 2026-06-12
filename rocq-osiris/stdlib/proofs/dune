@@ -1,5 +1,6 @@
 (rocq.theory
   (package rocq-osiris)
   (name osiris.stdlib.proofs)
+  (generate_project_file)
   (theories osiris osiris.stdlib)
 )
