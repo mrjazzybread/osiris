@@ -18,8 +18,7 @@ USER opam
 # the full source would bust the dependency-install cache on every change.
 WORKDIR /tmp/osiris-deps
 COPY --chown=opam:opam Makefile ./Makefile
-RUN opam update --yes \
- && make pin SWITCH_NAME=$(opam switch show) \
+RUN make pin SWITCH_NAME=$(opam switch show) \
  && rm -rf /tmp/osiris-deps
 
 WORKDIR /home/opam
