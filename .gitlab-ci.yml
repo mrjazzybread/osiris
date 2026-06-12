@@ -65,10 +65,8 @@ translate:
     - job: translator
   script:
     - dune build @rocq-osiris/stdlib/src/all @examples/src/all --display=short
-    - ls _build/default/examples/src/ | head -5
-    - (cd osiris && dune exec src/Main.exe -- --root "$CI_PROJECT_DIR" --out "$CI_PROJECT_DIR" --mark og_ --decorate all)
-    - ls examples/src/
-    - cd rocq-osiris/stdlib && mv src/*.v .
+    - (cd osiris && dune exec src/Main.exe -- --root "$CI_PROJECT_DIR" --out "$CI_PROJECT_DIR" --mark og_ --no-warnings --decorate all)
+    - mv rocq-osiris/stdlib/src/*.v rocq-osiris/stdlib/
     - mv examples/src/*.v examples/
   <<: *cache
   artifacts:
