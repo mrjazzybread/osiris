@@ -28,8 +28,7 @@ all:
 	     all \
 	  )
 # Copy the translated files to a place where dune and rocq will see them.
-	@ cd rocq-osiris/stdlib && mv src/*.v .  # TODO these files are not yet used
-#	@ cd rocq-osiris/stdlib && rm -f src/*.v # TODO so we just remove them
+	@ cd rocq-osiris/stdlib && mv src/*.v .
 	@ cd examples && mv src/*.v .
 # Compile the stdlib and examples Rocq theories.
 	@ make --no-print-directory -C rocq-osiris all
