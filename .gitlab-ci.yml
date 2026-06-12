@@ -65,7 +65,7 @@ translate:
     - job: translator
   script:
     - dune build @rocq-osiris/stdlib/src/all @examples/src/all --display=short
-    - cd osiris && dune exec src/Main.exe -- --root "$CI_PROJECT_DIR" --out "$CI_PROJECT_DIR" --mark og_ --no-warnings --decorate all
+    - (cd osiris && dune exec src/Main.exe -- --root "$CI_PROJECT_DIR" --out "$CI_PROJECT_DIR" --mark og_ --no-warnings --decorate all)
     - cd rocq-osiris/stdlib && mv src/*.v .
     - mv examples/src/*.v examples/
   <<: *cache
