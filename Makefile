@@ -86,7 +86,6 @@ pin:
 	$(INSTALL) pprint ocaml-compiler-libs
 	$(ADD) rocq-released https://rocq-prover.org/opam/released
 	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
-	opam update --switch=$(SWITCH_NAME) --yes
 	$(PIN) rocq-core 9.1.0
 	$(PIN) rocq-stdlib 9.1.0
 	$(PIN) rocq-stdpp https://gitlab.mpi-sws.org/iris/stdpp.git#f5017975
