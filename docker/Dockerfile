@@ -18,7 +18,8 @@ USER opam
 # the full source would bust the dependency-install cache on every change.
 WORKDIR /tmp/osiris-deps
 COPY --chown=opam:opam Makefile ./Makefile
-RUN make pin SWITCH_NAME=$(opam switch show) \
+RUN opam repo set-url default https://opam.ocaml.org --yes \
+ && make pin SWITCH_NAME=$(opam switch show) \
  && rm -rf /tmp/osiris-deps
 
 WORKDIR /home/opam
