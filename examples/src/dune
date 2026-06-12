@@ -4,10 +4,10 @@
 ;; Compile these OCaml source files.
 (library
   (flags (:standard -bin-annot))
-  (name CoqOsirisExamples)
+  (name RocqOsirisExamples)
 )
 
 (alias
   (name default)
-  (deps coqosirisexamples.cma)
+  (deps RocqOsirisExamples.cma)
 )
