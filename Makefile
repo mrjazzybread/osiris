@@ -117,7 +117,7 @@ vscode:
 
 .PHONY: runtests
 runtests:
-	@ cd interp && dune build
+	@ dune build interp
 	@ cd tests && ./runtests.sh
 
 .PHONY: check-axioms

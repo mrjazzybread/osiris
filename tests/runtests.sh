@@ -4,11 +4,13 @@ set -euo pipefail
 # This tests that the osiris interpreter produces the same output as ocaml on
 # each of the test files
 
+INTERP="${INTERP:-../_build/default/interp/interp.exe}"
+
 find * -type f -name '*.ml' | while read -r f
 do
     test=${f%.ml}
     echo -ne "test: $test\t"
-    ./interp.exe "$test.ml" > "$test.olang"
+    "$INTERP" "$test.ml" > "$test.olang"
     #./interp.exe "$test.ml" --detcheck
     ocaml "$test.ml" > "$test.ocaml"
     diff "$test.ocaml" "$test.olang" && echo ok || echo NOK
