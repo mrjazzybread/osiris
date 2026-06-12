@@ -15,6 +15,14 @@
 -Q ../../_build/default/rocq-osiris/utils osiris.utils
 -Q ../lib osiris.lib
 -Q ../../_build/default/rocq-osiris/lib osiris.lib
+-Q ../theories/olang osiris.olang
+-Q ../../_build/default/rocq-osiris/theories/olang osiris.olang
+-Q ../theories/pure_logic osiris.pure_logic
+-Q ../../_build/default/rocq-osiris/theories/pure_logic osiris.pure_logic
+-Q ../theories/program_logic osiris.program_logic
+-Q ../../_build/default/rocq-osiris/theories/program_logic osiris.program_logic
+-Q ../theories/proofmode osiris.proofmode
+-Q ../../_build/default/rocq-osiris/theories/proofmode osiris.proofmode
 -Q ../theories osiris
 -Q ../../_build/default/rocq-osiris/theories osiris
 -R . osiris.stdlib

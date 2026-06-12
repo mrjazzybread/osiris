@@ -12,5 +12,9 @@
     Equations
     osiris.utils
     osiris.lib
+    osiris.olang
+    osiris.pure_logic
+    osiris.program_logic
+    osiris.proofmode
   )
 )
