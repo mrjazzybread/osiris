@@ -27,7 +27,7 @@ build-deps-image:
         - Makefile
     - if: $REBUILD_DEPS_IMAGE
   script:
-    - docker build -f docker/Dockerfile -t "$DEPS_IMAGE" .
+    - docker build --no-cache -f docker/Dockerfile -t "$DEPS_IMAGE" .
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker push "$DEPS_IMAGE"
 
