@@ -1,29 +1,26 @@
 stages:
   - image
   - translator
-  - theory
-  - all
+  - translate
+  - rocq-osiris
+  - stdlib
+  - examples
+  - interp
+  - test
   - pages
 
 variables:
   DEPS_IMAGE: $CI_REGISTRY_IMAGE/deps:latest
 
 # Build the dependency image (opam switch with rocq, iris, stdpp, …) and push
-# it to the project's container registry. Only runs when:
-#   - the inputs (Dockerfile / Makefile) actually change, or
-#   - a pipeline is run with REBUILD_DEPS_IMAGE set (via "Run Pipeline" UI).
-# Otherwise the job is absent from the pipeline, so downstream jobs (which
-# need it `optional: true`) start immediately against the existing image.
+# it to the project's container registry. Only runs when the Dockerfile or
+# Makefile change, or when REBUILD_DEPS_IMAGE is set via the "Run Pipeline" UI.
 build-deps-image:
   stage: image
   tags:
     - ci
   image: docker:27-cli
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - docker/Dockerfile
-        - Makefile
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
         - docker/Dockerfile
@@ -34,18 +31,11 @@ build-deps-image:
     - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
     - docker push "$DEPS_IMAGE"
 
-# Per-job dune cache: each job keeps its own _build/ across pipelines, keyed
-# on the branch + job + the files that pin tool / dependency versions. This
-# avoids the merge problem of multiple jobs uploading partial _build/ trees
-# as artifacts. translator/theory/all still run in parallel-or-sequence per
-# their `needs:`, but each pulls its OWN warm cache from the prior pipeline.
-.dune_cache: &dune_cache
+# Shared _build/ cache, scoped to the pipeline so each pipeline starts clean
+# but sequential jobs accumulate each other's build outputs.
+.cache: &cache
   cache:
-    key:
-      files:
-        - Makefile
-        - osiris/dune-project
-      prefix: $CI_COMMIT_REF_SLUG-$CI_JOB_NAME
+    key: $CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
     paths:
       - _build/
 
@@ -60,58 +50,100 @@ translator:
     - job: build-deps-image
       optional: true
   script:
-    - cd osiris
-    - dune build
-    - dune runtest
-  <<: *dune_cache
-  # Upload only translator's disjoint slice of _build/. Top-level dune state
-  # files (_build/.db, _build/log, ...) are intentionally excluded — when
-  # `all` merges this with theory's slice, those would clobber each other.
-  artifacts:
-    when: always
-    expire_in: 1 hour
-    paths:
-      - _build/default/osiris/
-      - _build/**/junit-*.xml
-    reports:
-      junit: _build/**/junit-*.xml
+    - make translator
+    - cd osiris && dune runtest
+  <<: *cache
 
-theory:
-  stage: theory
+translate:
+  stage: translate
   tags:
     - ci
   image: $DEPS_IMAGE
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
-    - job: build-deps-image
-      optional: true
+    - job: translator
+  script:
+    - make --no-print-directory -C rocq-osiris ocaml-libs
+    - dune build @examples/src/all --display=short
+    - cd osiris && dune exec src/Main.exe -- --root "$CI_PROJECT_DIR" --out "$CI_PROJECT_DIR" --mark og_ --no-warnings --decorate all
+    - mv rocq-osiris/stdlib/src/*.v rocq-osiris/stdlib/
+    - mv examples/src/*.v examples/
+  <<: *cache
+  artifacts:
+    paths:
+      - rocq-osiris/stdlib/og_*.v
+      - examples/og_*.v
+    expire_in: 1 hour
+
+rocq-osiris:
+  stage: rocq-osiris
+  tags:
+    - ci
+  image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: translate
   script:
     - make theory
-  <<: *dune_cache
-  artifacts:
-    when: always
-    expire_in: 1 hour
-    paths:
-      - _build/default/rocq-osiris/theories/
+  <<: *cache
 
-all:
-  stage: all
+stdlib:
+  stage: stdlib
   tags:
     - ci
   image: $DEPS_IMAGE
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   needs:
-    - job: build-deps-image
-      optional: true
-    - job: translator
-      artifacts: true
-    - job: theory
+    - job: rocq-osiris
+    - job: translate
       artifacts: true
   script:
-    - make
-  <<: *dune_cache
+    - dune build rocq-osiris/stdlib
+  <<: *cache
+
+examples:
+  stage: examples
+  tags:
+    - ci
+  image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: stdlib
+    - job: translate
+      artifacts: true
+  script:
+    - dune build examples
+  <<: *cache
+
+interp:
+  stage: interp
+  tags:
+    - ci
+  image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: examples
+  script:
+    - dune build interp
+  <<: *cache
+
+test:
+  stage: test
+  tags:
+    - ci
+  image: $DEPS_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: interp
+  script:
+    - make runtests
+  <<: *cache
 
 pages:
   stage: pages
@@ -120,7 +152,6 @@ pages:
     - cp -r rocq-osiris/tutorial/* public
   artifacts:
     paths:
-      # The folder that contains the files to be exposed at the Page URL
       - public
   rules:
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
