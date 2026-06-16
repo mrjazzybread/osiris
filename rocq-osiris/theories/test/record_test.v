@@ -107,74 +107,12 @@ Section encoded_fields.
 
   Hypothesis Hmax : (2 ≤ max_array_length)%Z.
 
-  Class RecordRepr (A : Type) (τ : types) (t : mut_tag) :=
-    { repr_to_types : A → τ;
-      types_to_repr : τ -#> A;
-      repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
-
   Record point : Type := { x : Z; y : Z }.
 
   Instance point_record : RecordRepr point τ[Z;Z] Mut :=
     { repr_to_types p := (p.(x), p.(y));
       types_to_repr := λ x y, {| x:=x; y:=y |};
       repr_id := λ '(x, y), eq_refl }.
-
-  Definition ownRepr `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
-    ownRecord (τ:=τ) r qp t (repr_to_types a).
-
-  Instance ownRepr_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRepr r qp a) := _.
-
-  Global Instance ownRepr_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
-    AsFractional (ownRepr r q a) (λ q, ownRepr r q a) q.
-  Proof. constructor; done || apply _. Qed.
-
-  (* -------------------------------------------------------------------------- *)
-
-  Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ -#> iProp Σ) :
-    (τ_length τ ≤ max_array_length)%Z →
-    impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRepr r 1 (types_to_repr xs) ∗ Φs xs).
-  Proof.
-    iIntros (Hlength) "Hes".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecord with "Hes"). assumption. }
-    iIntros (r).
-    rewrite !bi_texist_equiv.
-    iIntros "(%xs & Hr & HΦ)".
-    iFrame. unfold ownRepr.
-    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
-    iApply "Hr".
-  Qed.
-
-  Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (qp : Qp) (a : A) (e : expr) :
-    valid_field f τ →
-    ▷ ownRepr r qp a -∗
-    impure E (eval η e) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRepr r qp a).
-  Proof.
-    iIntros (Hvalid) "Hown He".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordAccess with "Hown He"). assumption. }
-    iIntros (x) "($ & $)".
-  Qed.
-
-  Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
-    valid_field f τ →
-    ▷ ownRepr r 1 a -∗
-    impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η e2) Ψ ζ Φ -∗
-    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
-  Proof.
-    iIntros (Hvf) "Hown He1 He2".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordSet with "Hown He1 He2"). exact Hvf. }
-    iIntros (_) "(%x & HΦ & Hrecord)".
-    iExists x. iFrame "HΦ".
-    unfold ownRepr.
-    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
-    iApply "Hrecord".
-  Qed.
 
   (* -------------------------------------------------------------------------- *)
 
