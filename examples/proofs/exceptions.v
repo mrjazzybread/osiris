@@ -1,10 +1,6 @@
 (** This file contains both a "pure" and "effectful" proof of exceptions.v, to guide the
    generalization of lemmas about [pure] to non-trivial exceptional postconditions.  *)
 
-From iris.proofmode Require Import base proofmode classes ltac_tactics.
-From iris.bi Require Import weakestpre.
-From iris Require Import base_logic.lib.gen_heap.
-
 From osiris Require Import osiris.
 From osiris.examples Require Import og_exception.
 

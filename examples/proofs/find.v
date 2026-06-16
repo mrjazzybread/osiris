@@ -1,7 +1,3 @@
-From iris.proofmode Require Import base proofmode classes ltac_tactics.
-From iris.bi Require Import weakestpre.
-From iris Require Import base_logic.lib.gen_heap.
-
 From osiris Require Import osiris.
 From osiris.examples Require Import og_find.
 

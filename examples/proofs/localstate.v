@@ -1,6 +1,4 @@
 From stdpp Require Import telescopes.
-
-From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
