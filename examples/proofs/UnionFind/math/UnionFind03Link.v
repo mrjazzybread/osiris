@@ -1,40 +1,50 @@
-Set Implicit Arguments.
-From TLC Require Import LibTactics LibLogic LibFun LibProd LibContainer
-     LibSet LibRelation LibPer.
-Local Notation path := rtclosure.
-From iris_time.union_find.math Require Import TLCBuffer UnionFind01Data.
+From osiris Require Import osiris.
+From stdpp Require Import relations propset.
+Require Import UnionFind01Data.
 
 (* -------------------------------------------------------------------------- *)
 
+(* We consider what happens when one installs a new link from [x] to [y],
+   where [x] and [y] are distinct roots and are in the domain D.
+
+   We drop the original's rank-based linking (link_by_rank_F/K/R,
+   new_repr_by_rank) and the descendants/cardinality lemmas that supported
+   its amortized-complexity analysis (descendants_link_1, descendants_link_2,
+   card_descendants_link_2_le, etc.); those existed purely to bound the cost
+   of [union], which this port
+   isn't redoing. We also drop the PER-algebra characterization
+   (is_equiv_per_add_edge, per_add_edge_confine, dsf_per_add_edge) and the
+   "converse" lemmas (is_root_link_converse, is_root_link_not_x,
+   x_no_longer_a_root, path_link_*_converse), none of which UnionFind.v's
+   Inv/Mem layer needs. *)
+
 Section Link.
 
-(* We now consider what happens when one installs a new link from [x] to [y],
-   where [x] and [y] are distinct roots and are in the domain D. *)
-
 Variable V : Type.
-Variable D : set V.
-Variable F : binary V.
+Variable EqV : EqDecision V.
+Variable CountableV : Countable V.
+Variable D : gset V.
+Variable F : relation V.
 Variable x y : V.
 
-Hypothesis is_dsf_F:  is_dsf D F.
-Hypothesis x_in_D:    x \in D.
-Hypothesis y_in_D:    y \in D.
-Hypothesis is_root_x: is_root F x.
-Hypothesis is_root_y: is_root F y.
+Hypothesis is_dsf_F:  is_dsf V EqV CountableV D F.
+Hypothesis x_in_D:    x ∈ D.
+Hypothesis y_in_D:    y ∈ D.
+Hypothesis is_root_x: is_root V F x.
+Hypothesis is_root_y: is_root V F y.
 Hypothesis distinct:  x <> y.
 
-(* The link is installed as follows. *)
+(* The link is installed as follows: we add the single edge [x -> y] to [F]. *)
 
-Definition link :=
-  union F (per_single x y).
+Definition per_single (a b : V) : Prop := a = x /\ b = y.
+
+Definition link : relation V := fun a b => F a b \/ per_single a b.
 
 (* This does install an edge from [x] to [y]. *)
 
 Lemma link_appears:
   link x y.
-Proof using.
-  unfold link, union, per_single. eauto.
-Qed.
+Proof. right. split; reflexivity. Qed.
 
 (* This preserves every pre-existing edge. *)
 
@@ -42,64 +52,73 @@ Lemma link_previous:
   forall w z,
   F w z ->
   link w z.
-Proof using.
-  unfold link, union, per_single. eauto.
-Qed.
+Proof. intros w z HF. left. exact HF. Qed.
 
 (* Installing the new link preserves [functional]. *)
 
 Lemma functional_link:
-  functional link.
+  functional V link.
 Proof.
-  unfold link, union, per_single. intros.
-  intros x' y' z' ? ?. repeat branches; unpack; subst;
-    try solve [ false; eauto using a_root_has_no_parent ].
-    { exploit_functional F. eauto. }
-    { eauto. }
+  destruct is_dsf_F as [_ [Hfunc _]].
+  intros a b1 b2 H1 H2.
+  destruct H1 as [HF1 | [Ha1 Hb1]]; destruct H2 as [HF2 | [Ha2 Hb2]].
+  - eapply Hfunc; eauto.
+  - subst a. exfalso. eapply is_root_x; eauto.
+  - subst a. exfalso. eapply is_root_x; eauto.
+  - subst. reflexivity.
 Qed.
 
 (* Every vertex that could reach [x] can now reach [y]. *)
 
 Lemma path_link_1:
   forall w,
-  path F w x ->
-  path link w y.
+  rtc F w x ->
+  rtc link w y.
 Proof.
-  unfold link, union, per_single.
-  induction 1 using rtclosure_ind_l; eauto with rtclosure.
+  apply (rtc_ind_l (R:=F) (fun w => rtc link w y) x).
+  - apply rtc_once. apply link_appears.
+  - intros a b HF Hpath IH. eapply rtc_l; [apply link_previous; exact HF | exact IH].
 Qed.
 
 (* Every pre-existing path is preserved. *)
 
 Lemma path_link_2:
   forall w z,
-  path F w z ->
-  path link w z.
+  rtc F w z ->
+  rtc link w z.
 Proof.
-  unfold link, union, per_single.
-  induction 1 using rtclosure_ind_l; eauto with rtclosure.
+  intros w z Hpath.
+  apply (rtc_ind_l (R:=F) (fun w => rtc link w z) z).
+  - apply rtc_refl.
+  - intros a b HF Hpath' IH. eapply rtc_l; [apply link_previous; exact HF | exact IH].
+  - exact Hpath.
 Qed.
 
 (* Every root other than [x] remains a root. *)
 
 Lemma is_root_link:
   forall z,
-  is_root F z ->
+  is_root V F z ->
   x <> z ->
-  is_root link z.
+  is_root V link z.
 Proof.
-  unfold is_root, link, union, per_single, not.
-  intuition eauto.
+  intros z Hrootz Hneq w Hlink.
+  destruct Hlink as [HF | [Heq Heq2]].
+  - eapply Hrootz; eauto.
+  - exact (Hneq (eq_sym Heq)).
 Qed.
 
 (* Every vertex whose representative was [x] now has representative [y]. *)
 
 Lemma is_repr_link_1:
   forall w,
-  is_repr F w x ->
-  is_repr link w y.
+  is_repr V F w x ->
+  is_repr V link w y.
 Proof.
-  unfold is_repr. intuition eauto using path_link_1, is_root_link.
+  intros w [Hpath Hrootx].
+  split.
+  - apply path_link_1. exact Hpath.
+  - apply is_root_link; [exact is_root_y | exact distinct].
 Qed.
 
 (* Every vertex whose representative was some vertex [r] other than [x] still
@@ -107,257 +126,71 @@ Qed.
 
 Lemma is_repr_link_2:
   forall w r,
-  is_repr F w r ->
+  is_repr V F w r ->
   r <> x ->
-  is_repr link w r.
+  is_repr V link w r.
 Proof.
-  unfold is_repr. intuition eauto using path_link_2, is_root_link.
+  intros w r [Hpath Hrootr] Hneq.
+  split.
+  - apply path_link_2. exact Hpath.
+  - apply is_root_link; [exact Hrootr | intro Heq; apply Hneq; exact (eq_sym Heq)].
 Qed.
 
 (* Installing the new link preserves [defined]. *)
 
 Lemma defined_link:
-  defined (is_repr link).
+  defined V (is_repr V link).
 Proof.
-  (* Let [w] be an arbitrary vertex. Let [r] be its representative. *)
-  intros w. forwards [ r ? ]: is_dsf_defined_is_repr w. eauto.
-  destruct (classic (r = x)).
-    (* If [r] is [x], then, after linking, [w] has representative [y]. *)
-    { exists y. subst r. eauto using is_repr_link_1. }
-    (* If [r] is not [x], then, after linking, [x'] still has representative [r]. *)
-    { exists r. eauto using is_repr_link_2. }
+  destruct is_dsf_F as [_ [_ Hdef]].
+  intros w. destruct (Hdef w) as [r Hr].
+  destruct (decide (r = x)) as [-> | Hneq].
+  - exists y. apply is_repr_link_1. exact Hr.
+  - exists r. apply is_repr_link_2; [exact Hr | exact Hneq].
 Qed.
 
 (* Installing the new link preserves [is_dsf]. *)
 
 Lemma is_dsf_link:
-  is_dsf D link.
+  is_dsf V EqV CountableV D link.
 Proof.
-  unfold is_dsf, link. eauto 6 using functional_link, defined_link with confined.
+  destruct is_dsf_F as [Hconf _].
+  split; [|split].
+  - intros a b [HF | [-> ->]].
+    + exact (Hconf a b HF).
+    + split; assumption.
+  - exact functional_link.
+  - exact defined_link.
 Qed.
-
-(* The effect of the new link on [is_equiv] is to fuse the equivalence classes
-   of [x] and [y]. *)
-
-Lemma is_equiv_per_add_edge:
-  is_equiv link =
-  per_add_edge (is_equiv F) x y.
-Proof.
-  (* This short, algebraic proof relies on the fact that we already have a
-     characterization of [is_equiv F] -- it is the reflexive, symmetric,
-     transitive closure of [F] -- and a similar characterization of [is_equiv
-     link]. *)
-  erewrite is_equiv_rstclosure by eapply is_dsf_link.
-  erewrite is_equiv_rstclosure by eauto.
-  unfold per_add_edge, link.
-  (* There remains to prove a basic fact about unions and closures, which
-     is relatively easy to establish. *)
-  rewrite stclosure_eq_rstclosure_of_refl by eauto using refl_union_l, refl_rstclosure.
-  eapply antisym_rel_incl.
-  { eauto using covariant_rstclosure, covariant_union, rel_incl_rstclosure, refl_rel_incl. }
-  { eapply rel_incl_rstclosure_rstclosure.
-    eapply trans_rel_incl; [ | eapply rel_incl_union_rstclosure ].
-    eauto using covariant_union, rel_incl_rstclosure, incl_refl. }
-  (* This proof replaces an earlier proof which was much longer and required
-     no less than 8 auxiliary lemmas relating the post-state and the pre-state
-     (drawing conclusions about the past from hypotheses about the future).
-     See attic/UnionFindMath.v. *)
-Qed.
-
-(* Confinement within [D] commutes with the addition of this edge. *)
-
-Lemma per_add_edge_confine:
-  per_add_edge (confine D (is_equiv F)) x y =
-  confine D (per_add_edge (is_equiv F) x y).
-Proof.
-  unfold per_add_edge.
-  assert (x \in D <-> y \in D). { tauto. }
-  rewrite confine_stclosure by eauto with sticky.
-  f_equal.
-  eauto using confine_union_left, confined_per_single.
-Qed.
-
-(* The effect of the new link on [dsf_per] is to fuse the equivalence classes
-   of [x] and [y]. *)
-
-Lemma dsf_per_add_edge:
-  dsf_per D link =
-  per_add_edge (dsf_per D F) x y.
-Proof.
-  unfold dsf_per.
-  rewrite per_add_edge_confine.
-  rewrite is_equiv_per_add_edge.
-  reflexivity.
-Qed.
-
-(* Every vertex [r] that is a root after the link was already a root before
-   the link, and is not [x]. *)
-
-Lemma is_root_link_converse:
-  forall z,
-  is_root link z ->
-  is_root F z.
-Proof.
-  unfold is_root, link, union, per_single, not. intuition eauto.
-Qed.
-
-Lemma is_root_link_not_x:
-  forall z,
-  is_root link z ->
-  z <> x.
-Proof.
-  unfold is_root, link, union, per_single, not. eauto.
-Qed.
-
-Lemma x_no_longer_a_root:
-  ~ is_root link x.
-Proof.
-  intro.
-  forwards: is_root_link_not_x x. assumption.
-  tauto.
-Qed.
-
-(* If a path from [w] to [y] exists after the link, then before the link there
-   was a path from [w] to either [x] or [y]. *)
-
-Lemma path_link_1_converse:
-  forall w,
-  path link w y ->
-  path F w x \/ path F w y.
-Proof.
-  (* One could prove that this statement is a consequence of
-     [is_equiv_per_add_edge], but it seems more straightforward
-     to perform a direct analysis. *)
-  induction 1 using rtclosure_ind_l; intros.
-  { eauto with rtclosure. }
-  { unfold link, union, per_single in *. branches; unpack; subst.
-    { forwards: IHrtclosure; eauto. branches; eauto with rtclosure. }
-    { eauto with rtclosure. }}
-Qed.
-
-(* If a path from [w] to [z] exists after the link, and [z] is not [y], then
-   this path existed before the link. *)
-
-Lemma path_link_2_converse:
-  forall w z,
-  path link w z ->
-  z <> y ->
-  path F w z.
-Proof.
-  (* One could prove that this statement is a consequence of
-     [is_equiv_per_add_edge], but it seems more straightforward
-     to perform a direct analysis. *)
-  unfold link, union, per_single.
-  (* This takes care of the easy cases. *)
-  induction 1 using rtclosure_ind_l; intros; repeat branches; unpack; subst; eauto with rtclosure.
-  (* This is the interesting case, where the path of interest
-     begins with an edge of [x] to [y]. Because [y] is a root,
-     this path must stop there, so we must have [y = y']. This
-     yields a contradiction. *)
-  false. forwards: a_path_out_of_a_root_is_trivial; eauto.
-Qed.
-
-(* The descendants of [y] after the link are the former descendants of [x] and
-   [y]. *)
-
-Lemma descendants_link_1:
-  descendants link y =
-  descendants F x \u descendants F y.
-Proof.
-  unfold descendants. eapply set_ext. intro. rew_set in *. split; intro.
-  { eauto using path_link_1_converse. }
-  { intuition eauto using path_link_1, path_link_2. }
-Qed.
-
-(* If [z] is other than [y], then the descendants of [z] after the link are
-   its descendants before the link. *)
-
-Lemma descendants_link_2:
-  forall z,
-  z <> y ->
-  descendants link z =
-  descendants F z.
-Proof.
-  unfold descendants. intros.
-  eapply set_ext. intro. rew_set in *. split; intro.
-  { eauto using path_link_2_converse. }
-  { eauto using path_link_2. }
-Qed.
-
-(* The set of descendants of a vertex [v] can only grow during a link. *)
-
-Lemma descendants_link_2_incl:
-  forall z,
-  descendants F z \c descendants link z.
-Proof.
-  (* The proof is redundant with the proof of the previous lemma, but
-     never mind. *)
-  unfold descendants. intros. eapply incl_prove. intros. rew_set in *.
-  eauto using path_link_2.
-Qed.
-
-(* The number of descendants of a vertex [v] can only grow during a link. *)
-
-Lemma card_descendants_link_2_le:
-  forall z,
-  finite D ->
-  card (descendants F z) <= card (descendants link z).
-Proof.
-  intros.
-  eapply card_le_of_incl.
-    { eauto using finite_descendants, is_dsf_link. }
-    { eauto using descendants_link_2_incl. }
-Qed.
-
-End Link.
-
-Global Hint Resolve is_root_link is_root_link_converse : is_root.
-
-Ltac by_cases_on_link :=
-  match goal with
-  h: link ?F ?x ?y ?v ?w |- _ =>
-    unfold link, union, per_single in h; branches; unpack; subst;
-    repeat rewrite fupdate_neq
-      by eauto using a_root_has_no_parent_disequality, edges_have_distinct_endpoints;
-    repeat rewrite fupdate_eq
-      by eauto
-  end.
 
 (* -------------------------------------------------------------------------- *)
 
 (* If one wishes to reason in terms of the function [R], which maps every
    vertex to its representative, here is how the effect of a link operation
-   is described. *)
+   is described: every vertex in the equivalence class of [x] (as seen by
+   [R]) gets remapped to [y]; everything else is unchanged. *)
 
-Definition link_R V (R : V -> V) x y :=
-  fun t => If R t = R x then y else R t.
+Definition link_R (R : V -> V) : V -> V :=
+  fun t => if decide (R t = R x) then y else R t.
 
 (* The agreement between [R] and [is_repr F] is preserved when one
    applies [link_R] and [link] to [R] and [F], respectively. *)
 
 Lemma link_R_link_agree:
-  forall V (D : set V) R F x y,
-  is_dsf D F ->
-  fun_in_rel R (is_repr F) ->
-  x \in D ->
-  y \in D ->
-  is_root F x ->
-  is_root F y ->
-  x <> y ->
-  fun_in_rel
-    (link_R R x y)
-    (is_repr (link F x y)).
+  forall R,
+  fun_in_rel V R (is_repr V F) ->
+  fun_in_rel V (link_R R) (is_repr V link).
 Proof.
-  intros. intro w.
-  assert (R x = x). { eauto using is_root_R_self. }
-  assert (R y = y). { eauto using is_root_R_self. }
-  unfold link_R. cases_if; unpack.
-  (* Case: [w] is equivalent to [x]. *)
-  { eapply is_repr_link_1; eauto.
-    eapply is_repr_is_equiv_is_repr; eauto using is_root_is_repr.
-    eauto using same_R_incl_is_equiv. }
-  (* Case: [w] is not equivalent to [x]. *)
-  { eapply is_repr_link_2; eauto.
-    congruence. }
+  intros R Hincl w.
+  assert (HRx : R x = x) by (eapply is_root_R_self; eauto).
+  assert (HRy : R y = y) by (eapply is_root_R_self; eauto).
+  unfold link_R. destruct (decide (R w = R x)) as [Heq | Hneq].
+  - apply is_repr_link_1.
+    assert (Hxx : is_repr V F x x) by (apply is_root_is_repr; exact is_root_x).
+    assert (Heqv : is_equiv V F x w).
+    { eapply same_R_incl_is_equiv; eauto. }
+    eapply is_repr_is_equiv_is_repr; eauto.
+  - apply is_repr_link_2; [apply Hincl |].
+    intro Hc. apply Hneq. rewrite Hc. symmetry. exact HRx.
 Qed.
 
+End Link.

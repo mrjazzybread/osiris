@@ -1,7 +1,7 @@
 From osiris Require Import osiris.
 From osiris.examples Require Import og_UnionFindBasic.
 
-Require Import UnionFind01Data.
+Require Import UnionFind01Data UnionFind02EmptyCreate UnionFind03Link UnionFind04Compress.
 
 (* An object in the Union Find data structure is represented by an
    heap_lang location. *)
@@ -32,14 +32,8 @@ Local Instance link_data `{Encode A} : Data "Link" τ[record] (@content A _) :=
 (* [root]/[link] are mutable OCaml records, so at the heap level a vertex's
    content (Root/Link) only stores a [record], i.e. a pointer to a *separate*
    heap block holding the record's own fields (rank/value, or parent). The
-   [RecordRepr] class (mirrored from rocq-osiris's record_test.v) lets us
-   reason about that second block using the named [root]/[link] types instead
-   of raw [types] tuples. *)
-
-Class RecordRepr (A : Type) (τ : types) (t : mut_tag) :=
-  { repr_to_types : A → τ;
-    types_to_repr : τ -#> A;
-    repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
+   [RecordRepr] class (in record_rules.v) lets us reason about that second
+   block using the named [root]/[link] types instead of raw [types] tuples. *)
 
 Instance root_record : RecordRepr (root (A:=val)) τ[Z; val] Mut :=
   { repr_to_types rt := (rt.(rank), rt.(value));
@@ -94,12 +88,9 @@ Local Hint Resolve Inv_dsf Inv_incl Inv_data : core.
 
 (* -------------------------------------------------------------------------- *)
 
-(* [ownRepr r qp a] owns the fields of the record block pointed to by [r],
-   viewed through the named record type [A] (here [root] or [link]) rather
-   than as a raw [types] tuple. *)
-
-Definition ownRepr `{RecordRepr A τ t} (rr : record) qp (a : A) : iProp Σ :=
-  ownRecord (τ:=τ) rr qp t (repr_to_types a).
+(* [ownRepr r qp a] (from record_rules.v) owns the fields of the record
+   block pointed to by [r], viewed through the named record type [A] (here
+   [root] or [link]) rather than as a raw [types] tuple. *)
 
 (* The *logical* content of a vertex, as exposed to [Mem]/[Inv] — i.e. with
    the rank dropped and the record-pointer indirection hidden. [pointsto_M]
@@ -112,7 +103,9 @@ Inductive lcontent :=
 
 (* The predicate [Mem ...] relates the mathematical graph encoded by [D/F/V]
    and the memory encoded by the finite map [LM]. In short,
-    1. elements of [D] have a mapping in [LM];
+    1. [LM]'s domain is exactly [D] (in particular, no entries outside [D] —
+       this is what lets us derive that a freshly-allocated vertex is not in
+       [D] from the fact that it cannot already have an [LM] entry);
     2. the links in [LM] coincide with the links in [F];
     3. the data stored at a root in [LM] agrees with [V]. (We don't track the
        rank's value at all, having dropped the complexity analysis it was
@@ -120,6 +113,7 @@ Inductive lcontent :=
        quantified away in [pointsto_M] below.) *)
 
 Definition Mem D F V (LM : gmap elem lcontent) : Prop :=
+  dom LM = D /\
   forall x, x ∈ D ->
     match LM !! x with
     | Some (LLink y) => F x y
@@ -203,19 +197,23 @@ Qed.
 (* The invariant is preserved when a new element [r] is created and the
    function [V] is updated at [r] in an arbitrary manner. *)
 
-Lemma Inv_make : forall D R F K V D' V' r v,
-  Inv D F K R V ->
-  r \notin D ->
-  D' = D \u \{r} ->
+Lemma Inv_make : forall D R F V D' V' r v,
+  Inv D F R V ->
+  r ∉ D ->
+  D' = D ∪ {[r]} ->
   V' = update1 V R r v ->
-  Inv D' F K R V'.
-Proof using.
-  introv HI Dr ED EV. subst D'. lets [Hrdsf Hroots Hdata]: HI.
+  Inv D' F R V'.
+Proof.
+  intros D R F V D' V' r v [Hdsf Hincl Hdata] Hr -> ->.
   constructor.
-  { eauto using is_rdsf_create. }
-  { auto. }
-  { subst V'. eapply fcupdate_absorbs; intros; eauto.
-    rewrites* (>> idempotent_R R). }
+  - apply is_dsf_create. exact Hdsf.
+  - exact Hincl.
+  - intros x0. unfold update1, fcupdate.
+    assert (Hidem : R (R x0) = R x0) by (eapply idempotent_R; eauto).
+    rewrite Hidem.
+    destruct (decide (R x0 = R r)) as [Heq | Hneq].
+    + reflexivity.
+    + apply Hdata.
 Qed.
 
 (* The invariant is preserved by updating [V] at one equivalence class. *)
@@ -236,62 +234,48 @@ Qed.
 
 (* The invariant is preserved by a [link] operation. *)
 
-(* The hypothesis is that the invariant holds and [x] and [y] are distinct roots
-   in the domain. The conclusion is that the invariant holds again and the
-   potential [Phi] grows by at most 2. The domain [D] is unchanged, while the
-   other parameters [F'/K'/R'/V'/z] are described by five equations. *)
+(* The hypothesis is that the invariant holds and [x] and [y] are distinct
+   roots in the domain. The conclusion is that the invariant holds again,
+   with [x]'s equivalence class folded into [y]'s (so [y] becomes the new
+   representative).
 
-Lemma Inv_link: forall D R F K V F' K' V' x y z,
-  (* Hypotheses: *)
-  Inv D F K R V ->
+   The original picked whichever of [x]/[y] becomes the new representative
+   based on rank (new_repr_by_rank/link_by_rank_F/K/R), to keep the trees
+   balanced for its complexity bound. We drop that: here [y] is *always*
+   the side that wins, and the (deferred) function spec for [link]/[union]
+   is responsible for calling this with [x]/[y] in whichever order the
+   actual rank comparison picked — the math doesn't care which. We also drop
+   the potential ([Phi]) conclusion, and the [Inv_link] Ltac helper that
+   existed to discharge the rank-equations side goals (not needed once
+   there's no rank to compute). *)
+
+Lemma Inv_link: forall D R F V F' V' x y,
+  Inv D F R V ->
   x ≠ y ->
-  x \in D ->
-  y \in D ->
+  x ∈ D ->
+  y ∈ D ->
   R x = x ->
   R y = y ->
-  (* Five equations, describing the situation after the link: *)
-  z = new_repr_by_rank K x y ->
-  F' = link_by_rank_F F K x y ->
-  K' = link_by_rank_K K x y ->
-  V' = update2 V R x y (V z) ->
-  let R' := link_by_rank_R R x y z in
-  (* Conclusions: *)
-  Inv D F' K' R' V' /\
-  (Phi D F' K' <= Phi D F K + 2)%nat.
+  F' = UnionFind03Link.link elem F x y ->
+  V' = update2 V R x y (V y) ->
+  Inv D F' (UnionFind03Link.link_R elem _ x y R) V'.
 Proof.
-  introv HI. intros. subst R' F' K' V' z. split. constructor.
-  (* Preservation of [is_rdsf]. *)
-  { eauto 8 using is_rdsf_link, R_self_is_root. }
-  (* Preservation of the agreement between [R] and [F]. *)
-  { eauto 8 using link_by_rank_R_link_by_rank_F_agree, R_self_is_root. }
-  (* Preservation of the agreement between [V] and [R]. *)
-  { intros w.
-    unfold update2, fcupdate, link_by_rank_R. repeat case_if~.
-    { false. forwards* HR: idempotent_R R. rewrite ->HR in *. tauto. }
-    { rewrites~ <- (>> Inv_data HI). }
-  }
-  (* Change in potential. *)
-  { eapply potential_increase_during_link; eauto using R_self_is_root. }
+  intros D R F V F' V' x y [Hdsf Hincl Hdata] Hneq Hx Hy HRx HRy -> ->.
+  assert (Hrootx : is_root elem F x) by (eapply R_self_is_root; eauto).
+  assert (Hrooty : is_root elem F y) by (eapply R_self_is_root; eauto).
+  constructor.
+  - eapply is_dsf_link; eauto.
+  - eapply link_R_link_agree; eauto.
+  - intros w.
+    unfold update2, fcupdate, link_R.
+    assert (Hidem : forall t, R (R t) = R t) by (intros t; eapply idempotent_R; eauto).
+    destruct (decide (R w = R x)) as [Hwx | Hwx].
+    + destruct (decide (R w = R x \/ R w = R y)) as [_|Hc].
+      * destruct (decide (R y = R x \/ R y = R y)); reflexivity.
+      * exfalso; apply Hc; left; exact Hwx.
+    + rewrite (Hidem w).
+      destruct (decide (R w = R x \/ R w = R y)) as [_|_]; [reflexivity | apply Hdata].
 Qed.
-
-(* This tactic helps apply the above lemma. The user is supposed to supply
-   expressions for [F'/K'/V'/z], which we prove equal to what we expect.
-   This allows some flexibility. *)
-
-Ltac Inv_link F' K' V' x y z :=
-  match goal with HInv: Inv ?D ?F ?K ?R ?V |- _ =>
-    let Hpotential := fresh in
-    (* Apply [Inv_link] to appropriate parameters. *)
-    forwards* (?&Hpotential):
-      (Inv_link _ _ _ _ _ F' K' V' x y z HInv);
-    (* We expect to see some equations as sub-goals. We prove them by
-       unfolding definitions and performing a simple case analysis. *)
-    try solve [
-       unfold new_repr_by_rank, link_by_rank_F, link_by_rank_K;
-       case_if; solve [ eauto | math ]
-     | congruence
-    ]
-  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -300,156 +284,260 @@ Ltac Inv_link F' K' V' x y z :=
 (* If [x] is in the domain and is a root, then [M] maps [x] to [Root]
    with rank [K x] and data [V x]. *)
 
-Lemma Mem_root : forall D R F K M V x,
-  Inv D F K R V ->
-  Mem D F K V M ->
-  x \in D ->
+Lemma Mem_root : forall D R F M V x,
+  Inv D F R V ->
+  Mem D F V M ->
+  x ∈ D ->
   R x = x ->
-  M!!x = Some (Root (K x) (V x)).
-Proof using.
-  introv HI HM Dx Rxx.
-  forwards~ HV: HM x. destruct (M!!x) as [[]|]; [| |done].
-    destruct HV as (?&?&?). congruence.
-    false* (>> R_self_is_root HI HV).
+  M !! x = Some (LRoot (V x)).
+Proof.
+  intros D R F M V x HInv [Hdom HM] Dx Rxx.
+  specialize (HM x Dx).
+  destruct (M !! x) as [[w | y] | ] eqn:Heq.
+  - f_equal. f_equal. destruct HM as [_ Hv]. congruence.
+  - exfalso. assert (Hrootx : is_root elem F x) by (eapply R_self_is_root; eauto).
+    eapply Hrootx; eauto.
+  - exfalso. exact HM.
 Qed.
 
-(* Conversely, if [M] maps [x] to [Root], then [x] is a root whose
-   rank and data are as predicted by [M]. *)
+(* Conversely, if [M] maps [x] to [LRoot], then [x] is a root whose data is
+   as predicted by [M]. (We don't track a rank value at all anymore.) *)
 
-Lemma Mem_root_inv : forall D F K M V x rx vx,
-  Mem D F K V M ->
-  x \in D ->
-  M!!x = Some(Root rx vx) ->
-  is_root F x /\ rx = K x /\ vx = V x.
-Proof using.
-  introv HM Dx HE. forwards~ HVx: HM x.
-  destruct (M!!x) as [[]|]; [|false|done]. inverts* HE.
+Lemma Mem_root_inv : forall D F M V x vx,
+  Mem D F V M ->
+  x ∈ D ->
+  M !! x = Some (LRoot vx) ->
+  is_root elem F x /\ vx = V x.
+Proof.
+  intros D F M V x vx [Hdom HM] Dx HE.
+  specialize (HM x Dx). rewrite HE in HM. exact HM.
 Qed.
 
-(* [Mem] is preserved when a new element [r] is created with rank 0 and the
-   function [V] is updated at [r] in an arbitrary manner. *)
+(* [Mem] is preserved when a new element [r] is created and the function
+   [V] is updated at [r] in an arbitrary manner. (The original also
+   inserted rank 0 at [r]; since we don't track rank, there's nothing to
+   record there beyond [LRoot v].) *)
 
-Lemma Mem_make : forall D R F K D' r M V v,
-  Inv D F K R V ->
-  Mem D F K V M ->
-  is_rdsf D F K ->
-  r \notin D ->
-  D' = D \u \{r} ->
-  Mem D' F K (update1 V R r v) (<[r:=Root 0 v]>M).
-Proof using.
-  introv HI HV HG Dr -> Dx.
-  rewrite in_union_eq in_single_eq in Dx. destruct Dx as [Dx| ->].
-  { rewrite lookup_insert_ne; [|naive_solver].
-    rewrite /update1 fcupdate_miss; [by apply HV|].
-    intro. forwards* : R_is_identity_outside_D R r.
-    forwards* : Inv_root x (R x). intuition congruence. }
-  { rewrite lookup_insert_eq /update1 fcupdate_hit //. splits.
-    { eauto using only_roots_outside_D with is_dsf. }
-    { (* We use the fact that [K] is zero outside the domain. *)
-      erewrite is_rdsf_zero_rank_outside_domain; eauto. }
-    { done. } }
+Lemma Mem_make : forall D R F D' r M V v,
+  Inv D F R V ->
+  Mem D F V M ->
+  r ∉ D ->
+  D' = D ∪ {[r]} ->
+  Mem D' F (update1 V R r v) (<[r:=LRoot v]>M).
+Proof.
+  intros D R F D' r M V v HInv [Hdom HM] Hr ->.
+  split.
+  - rewrite dom_insert_L. rewrite Hdom. set_solver.
+  - intros x Hx.
+    apply elem_of_union in Hx. destruct Hx as [Hx | Hx%elem_of_singleton].
+    + assert (Hxr : x <> r) by set_solver.
+      rewrite lookup_insert_ne; [|exact (not_eq_sym Hxr)].
+      specialize (HM x Hx).
+      destruct (M !! x) as [[v0|y]|] eqn:Heq; [|exact HM|exact HM].
+      split; [tauto|].
+      unfold update1, fcupdate. destruct (decide (R x = R r)) as [Heqr|Hner].
+      * exfalso. assert (HRr : R r = r) by (eapply R_is_identity_outside_D; eauto).
+        destruct HInv as [Hdsf Hincl _].
+        assert (Hxd : R x ∈ D) by (eapply sticky_R; eauto).
+        rewrite Heqr HRr in Hxd. set_solver.
+      * tauto.
+    + subst x. rewrite lookup_insert_eq. split.
+      * eapply only_roots_outside_D; eauto.
+      * unfold update1, fcupdate.
+        destruct (decide (R r = R r)) as [_|Hc]; [reflexivity|exfalso; apply Hc; reflexivity].
 Qed.
 
-(* [Mem] is preserved by installing a link from a root [x] to a root [y]
-   without updating any rank. *)
+(* [Mem] is preserved by installing a link from a root [x] to a root [y].
+   (The original had a separate [Mem_link_incr] for the case where [x] and
+   [y] have equal rank, which also increments [y]'s rank; since we don't
+   track rank, that's just this same lemma — the rank field still gets
+   incremented in memory, but [Mem] doesn't care what value ends up there.) *)
 
-Lemma Mem_link : forall D F R K F' M V V' x y,
-  Inv D F K R V ->
-  Mem D F K V M ->
-  x \in D ->
+Lemma Mem_link : forall D F R M V V' x y,
+  Inv D F R V ->
+  Mem D F V M ->
+  x ∈ D ->
   x = R x ->
   y = R y ->
-  F' = UnionFind03Link.link F x y ->
   V' = update2 V R x y (V y) ->
-  Mem D F' K V' (<[x:=Link y]>M).
-Proof using.
-  introv HI HR Dx Rx Ry EG' HV. subst F'.
-  intros a Da. specializes HR Da.
-  destruct (decide (x = a)) as [->|].
-  { rewrite lookup_insert_eq. eauto using link_appears. }
-  rewrite lookup_insert_ne //. destruct (M!!a) as [[]|]; [| |done]; first last.
-  { eauto using link_previous. }
-  rewrite~ HV. destruct HR as (?&?&E). splits*.
-  { applys* is_root_link. }
-  rewrites (rm E).
-  unfold update2, fcupdate. rewrites <- (rm Rx). rewrites <- (rm Ry).
-  forwards* Ra: is_root_R_self a. rewrite Ra. case_if~.
-  branches. false. congruence.
-Qed.
-
-(* [Mem] is preserved by installing a link from a root [x] to a root [y]
-   and incrementing the rank of [y]. *)
-
-Lemma Mem_link_incr : forall D F R K F' K' M V V' x y (rx : nat) v,
-  Inv D F K R V ->
-  Mem D F K V M ->
-  x \in D ->
-  y \in D ->
-  x = R x ->
-  y = R y ->
-  x ≠ y ->
-  rx = K x ->
-  F' = UnionFind03Link.link F x y ->
-  K' = fupdate K y (1 + K x)%nat ->
-  v = V y ->
-  V' = update2 V R x y (V y) ->
-  Mem D F' K' V' (<[y:=Root (rx + 1) v]>(<[x:=Link y]>M)).
-Proof using.
-  introv HI HM Dx Dy Rx Ry HN Hy Kx HK. introv Hv HV'.
-  forwards* HV: (>> Mem_link V V' x y HM).
-  sets M': (<[x := Link y]>M). clearbody M'.
-  intros a Da. specializes HV Da. destruct (decide (y = a)) as [->|].
-  { rewrite lookup_insert_eq. splits.
-    { subst F'. applys* is_root_link. applys* R_self_is_root. }
-    { subst K'. subst rx. rewrite fupdate_same. math. }
-    { subst v. subst V'. rewrite /update2 fcupdate_hit; by auto. } }
-  rewrite lookup_insert_ne //. destruct (M'!!a) as [[]|]; [| |done].
-  { subst F' K'. destruct HV. split~. unfolds fupdate. case_if~. }
-  { subst F'. auto. }
+  Mem D (UnionFind03Link.link elem F x y) V' (<[x:=LLink y]>M).
+Proof.
+  intros D F R M V V' x y HInv [Hdom HM] Hx Hxr Hyr ->.
+  split.
+  - rewrite dom_insert_L. rewrite Hdom. set_solver.
+  - intros a Da.
+    specialize (HM a Da).
+    destruct (decide (x = a)) as [<-|Hne].
+    + rewrite lookup_insert_eq. apply link_appears.
+    + rewrite lookup_insert_ne; [|congruence].
+      destruct (M !! a) as [[w|y']|] eqn:Heq; [|apply link_previous; exact HM | exact HM].
+      destruct HM as [Hroota Hva].
+      split.
+      * apply is_root_link; [exact Hroota | congruence].
+      * assert (Hra : R a = a) by (eapply is_root_R_self; eauto).
+        unfold update2, fcupdate.
+        destruct (decide (R a = R x \/ R a = R y)) as [Hin|Hout].
+        -- rewrite Hra in Hin. destruct Hin as [Hin|Hin].
+           ++ exfalso. apply Hne. congruence.
+           ++ congruence.
+        -- congruence.
 Qed.
 
 (* [Mem] is preserved by installing a direct link from [x] to [y] during
    path compression. *)
 
-Lemma Mem_compress : forall D F K F' M V x y,
-  Mem D F K V M ->
-  x \in D ->
-  F' = compress F x y ->
-  Mem D F' K V (<[x:=Link y]>M).
-Proof using.
-  introv HR Dx EG'. subst.
-  intros a Da. specializes HR Da. destruct (decide (x = a)) as [->|].
-  { rewrite lookup_insert_eq. eauto using compress_x_z. }
-  { rewrite lookup_insert_ne //. destruct (M!!a) as [[]|];
-      [|by eauto using compress_preserves_other_edges|done].
-    destruct HR. split*.
-    eauto using compress_preserves_roots_other_than_x. }
+Lemma Mem_compress : forall D F M V x y,
+  Mem D F V M ->
+  x ∈ D ->
+  Mem D (compress elem F x y) V (<[x:=LLink y]>M).
+Proof.
+  intros D F M V x y [Hdom HM] Dx.
+  split.
+  - rewrite dom_insert_L. rewrite Hdom. set_solver.
+  - intros a Da.
+    specialize (HM a Da).
+    destruct (decide (x = a)) as [<-|Hne].
+    + rewrite lookup_insert_eq. apply compress_x_z.
+    + rewrite lookup_insert_ne; [|congruence].
+      destruct (M !! a) as [[w|y']|] eqn:Heq;
+        [|apply compress_preserves_other_edges; [exact HM | congruence] | exact HM].
+      destruct HM as [Hroota Hva]. split; [|exact Hva].
+      apply compress_preserves_roots_other_than_x; [congruence | exact Hroota].
 Qed.
 
 (* [Mem] is preserved when [V] is updated at one equivalence class and [M]
    is updated at the representative element. *)
 
-Lemma Mem_update1 : forall D R F K M V r x v,
-  Inv D F K R V ->
-  Mem D F K V M ->
-  x \in D ->
+Lemma Mem_update1 : forall D R F M V r x v,
+  Inv D F R V ->
+  Mem D F V M ->
+  x ∈ D ->
   r = R x ->
-  Mem D F K (update1 V R x v) (<[r := Root (K r) v]>M).
-Proof using.
-  introv HI HM E Rx. forwards* (Dr&Rr): Inv_root x r.
-  intros y Dy. specializes HM Dy. destruct (decide (r = y)) as [->|].
-  { rewrite lookup_insert_eq. splits.
-    { applys* R_self_is_root. }
-    { done. }
-    { rewrite /update1 fcupdate_hit; congruence. } }
-  { rewrite lookup_insert_ne // /update1 /fcupdate. case_if~.
-    destruct~ (M!!y) as [[]|]; [|done..]. destruct HM as (H1&H2&H3).
-    forwards* : is_root_R_self H1. congruence. }
+  Mem D F (update1 V R x v) (<[r := LRoot v]>M).
+Proof.
+  intros D R F M V r x v HInv [Hdom HM] Hx ->.
+  assert (Hrr : R x ∈ D /\ R (R x) = R x) by (apply (Inv_root _ _ _ _ _ _ HInv Hx eq_refl)).
+  destruct Hrr as [Hrd Hrr].
+  split.
+  - rewrite dom_insert_L. rewrite Hdom. set_solver.
+  - intros a Da.
+    specialize (HM a Da).
+    destruct (decide (R x = a)) as [<-|Hne].
+    + rewrite lookup_insert_eq. split.
+      * eapply R_self_is_root; eauto.
+      * unfold update1, fcupdate.
+        rewrite Hrr. destruct (decide (R x = R x)) as [_|Hc]; [reflexivity|exfalso; apply Hc; reflexivity].
+    + rewrite lookup_insert_ne; [|exact Hne].
+      destruct (M !! a) as [[v0|y]|] eqn:Heq; [|exact HM|exact HM].
+      destruct HM as [Hroota Hva]. split; [exact Hroota|].
+      unfold update1, fcupdate. destruct (decide (R a = R x)) as [Heqr|_]; [|exact Hva].
+      exfalso. apply Hne. assert (HRa : R a = a) by (eapply is_root_R_self; eauto). congruence.
+Qed.
+
+(* A vertex with no [LM] entry is, by [Mem]'s domain equation, not in [D]. *)
+
+Lemma Mem_not_elem_of_dom : forall D F V M x,
+  Mem D F V M ->
+  M !! x = None ->
+  x ∉ D.
+Proof.
+  intros D F V M x [Hdom _] Heq.
+  rewrite -Hdom. eapply not_elem_of_dom_2. exact Heq.
+Qed.
+
+(* If [pointsto_M LM] and [x ↦ v] are both owned, [x] cannot already be an
+   [LM] entry (otherwise we'd own [x] twice). Combined with [Mem]'s domain
+   equation, this is how we show a freshly-allocated vertex is not in [D]. *)
+
+Lemma pointsto_M_fresh : forall (LM : gmap elem lcontent) x v,
+  pointsto_M LM -∗ x ↦ v -∗ ⌜LM !! x = None⌝.
+Proof.
+  iIntros (LM x v) "HM Hx".
+  destruct (LM !! x) as [lc|] eqn:Heq; [|done].
+  iExFalso.
+  iDestruct (big_sepM_lookup with "HM") as "Hc"; [exact Heq|].
+  destruct lc as [vv | y].
+  - iDestruct "Hc" as (rr k) "[Hx' _]".
+    iCombine "Hx Hx'" gives %Hbad.
+    destruct Hbad as [Hbad _]. exfalso; eapply dfrac_full_exclusive; exact Hbad.
+  - iDestruct "Hc" as (lr) "[Hx' _]".
+    iCombine "Hx Hx'" gives %Hbad.
+    destruct Hbad as [Hbad _]. exfalso; eapply dfrac_full_exclusive; exact Hbad.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Private lemmas about the representation predicate and about [pointsto_M]. *)
+(* Verification of [make]. *)
+
+(* [record]/[ERecord] operations need the records they build to fit within
+   [max_array_length] (records are heap blocks, like arrays); since our
+   records only ever have 1 or 2 fields, this is a mild assumption. *)
+
+Hypothesis Hmax2 : (2 ≤ max_array_length)%Z.
+
+(* The function call [make v] requires [UF D R V]. It returns a new element
+   [x], that is, [x] is not in [D]. It updates the data structure to
+   [UF D' R V'], where:
+   1. [D'] is [D] extended with [x];
+   2. [R'] is [R];
+   3. [V'] is [V] extended with a mapping of [x] to [v].
+   (The original additionally required/tracked O(1) time credits; we don't,
+   having dropped the complexity analysis.) *)
+
+Definition make_spec : val → microvx → iProp Σ :=
+  λ v m,
+    (∀ D R V,
+       UF D R V -∗
+       imp m {{ λ (x : elem), UF (D ∪ {[x]}) R (update1 V R x v) ∗ ⌜x ∉ D /\ R x = x⌝ }})%I.
+
+Definition make := EAnonFun __fun1.
+
+Lemma imp_make η :
+  ⊢ imp (eval η make) {{ λ c, □ iSpec τ[val] c make_spec }}.
+Proof.
+  iApply imp_EAnon_pers.
+  iIntros "!>" (v).
+  unfold make_spec.
+  iIntros (D R V) "HUF".
+  iApply imp_please; iNext.
+  imp_match val.
+  iApply (imp_wand with "[]").
+  { iApply (imp_ERef2 (A:=@content val _)
+              (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ ownRepr rr 1 ({|rank:=0;value:=v|}:root(A:=val)))%I).
+    iApply (imp_EData (τ:=τ[record]) _ _ (λ rr, ownRepr rr 1 ({|rank:=0;value:=v|}:root(A:=val)))%I).
+    - iApply (imp_wand with "[]").
+      { iApply imp_evals_singleton.
+        iApply (imp_record (A:=root(A:=val)) (τ:=τ[Z;val])
+                  [EInt 0; EPath ["v"]] (λ k vv, ⌜k=0⌝ ∗ ⌜vv=v⌝)%I).
+        - rewrite /τ_length /=. lia.
+        - iApply imp_evals_cons.
+          + iApply imp_EInt.
+          + iApply imp_evals_singleton. iApply imp_EPath.
+            simpl. f_equal. encode. instantiate (1:=v); reflexivity.
+            iPureIntro; reflexivity. }
+      iIntros (r) "H". rewrite bi_texist_equiv. iDestruct "H" as ([k vv]) "(Hown & -> & ->)".
+      iApply "Hown".
+    - iIntros (rr) "Hown". iNext. iExists rr. eauto. }
+  iIntros (x) "(%a & (%rr & -> & Hown) & Hx)".
+  iDestruct "HUF" as (F LM) "(%HInv & %HMem & HptM)".
+  iDestruct (pointsto_M_fresh with "HptM Hx") as %HxLM.
+  assert (HxD : x ∉ D) by (eapply Mem_not_elem_of_dom; eauto).
+  iSplitR "".
+  - iExists F, (<[x:=LRoot v]>LM).
+    iSplit; [iPureIntro; eapply Inv_make; eauto|].
+    iSplit; [iPureIntro; eapply Mem_make; eauto|].
+    rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
+    iSplitL "Hown Hx"; [iExists rr, 0; iFrame|iFrame].
+  - iPureIntro. split; [exact HxD|].
+    eapply R_is_identity_outside_D; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Private lemmas about the representation predicate and about [pointsto_M].
+   (These are part of the old, not-yet-ported function-specification
+   machinery below — they still reference the single-level [content]/
+   [val_of_content] encoding, not our two-level [lcontent]/[pointsto_M].) *)
 
 
 Lemma pointsto_M_acc : forall M x c,
