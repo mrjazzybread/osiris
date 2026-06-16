@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import locations lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 Require Import wp.
 Require Import judgements pattern_rules expr_rules.
 Require Import pure_rules.

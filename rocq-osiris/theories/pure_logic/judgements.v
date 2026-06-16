@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import lang code eval.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import code eval.
 Require Import wp.
 
 (** This file defines the judgements for pure computations. *)

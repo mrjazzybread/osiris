@@ -1,5 +1,6 @@
 From Ltac2 Require Import Ltac2 Printf.
 From osiris.utils Require Export tactics.
+From osiris.semantics Require Export eval.
 Require Import ewp.
 From stdpp Require Import strings.
 

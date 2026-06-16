@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 
-From osiris.olang Require Import encode type_nel.
+From osiris.lang Require Import encode type_nel.
+From osiris.semantics Require Import eval.
 From osiris.program_logic Require Import program_logic.
 
 From osiris.utils Require Import tactics.

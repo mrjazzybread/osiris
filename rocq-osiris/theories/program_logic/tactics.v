@@ -1,5 +1,5 @@
 From iris.proofmode Require Import ltac_tactics.
-From osiris.olang Require Import step code.
+From osiris.semantics Require Import step code.
 Require Import thread_step ewp.
 
 From Ltac2 Require Import Ltac2.

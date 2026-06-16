@@ -1,6 +1,8 @@
 From iris.proofmode Require Import base ltac_tactics classes.
 From iris.base_logic.lib Require Import iprop wsat gen_heap saved_prop token.
 
+From osiris.lang Require Import thread_ids.
+From osiris.semantics Require Import eval.
 From osiris.program_logic Require Import
   thread_step ewp basic_rules micro_rules tactics.
 Require Import satisfiable.base_logic_extension satisfiable.

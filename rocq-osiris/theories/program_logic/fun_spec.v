@@ -1,7 +1,8 @@
 From iris.bi Require Import interface.
 
 From osiris Require Import base.
-From osiris.olang Require Import type_nel locations lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 Require Import ewp impure_rules stop_rules.
 From osiris.pure_logic Require Import fun_spec.
 

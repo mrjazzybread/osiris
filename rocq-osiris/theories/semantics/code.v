@@ -1,6 +1,6 @@
 From osiris Require Import base.
-Require Import locations thread_ids lang.
-Require Export outcome micro.
+From osiris.lang Require Import lang.
+Require Export micro.
 
 (* This module fixes the specific set of codes that are needed in the Osiris
    project. We use the [micro] monad to define an interpreter for OCaml. We

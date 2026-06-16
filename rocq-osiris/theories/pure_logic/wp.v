@@ -1,7 +1,7 @@
 From Stdlib Require Import Program.Equality.
 From osiris Require Import base lang.
 From stdpp Require Import relations.
-From osiris.olang Require Import code step eval pure.
+From osiris.semantics Require Import code step eval pure.
 
 (** This file defines the [pure_wp] predicate and its properties, which is used
   to state judgements about pure computations. *)

@@ -1,7 +1,7 @@
 From Stdlib Require Import Logic.FunctionalExtensionality Program.Equality.
 From stdpp Require Import gmap relations.
 From osiris Require Import base.
-Require Import locations lang.
+From osiris.lang Require Import lang.
 Require Import code eval.
 
 (* This file equips the [micro] monad with an operational semantics, that is,

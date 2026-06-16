@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import encode locations code.
+From osiris.lang Require Import encode thread_ids locations.
+From osiris.semantics Require Import code eval.
 
 Require Import ewp tactics.
 

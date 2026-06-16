@@ -1,5 +1,6 @@
 From Stdlib Require Import Extraction String Ascii.
-From osiris.olang Require notations strategy eval.
+From osiris.lang Require notations.
+From osiris.semantics Require Import strategy eval.
 From osiris.stdlib Require Import Stdlib Externals.
 From osiris.interp Require run.
 
@@ -35,6 +36,6 @@ Separate Extraction
   ascii_of_N list_ascii_of_string
   notations
   strategy
-  eval
+  semantics.eval
   run
 .

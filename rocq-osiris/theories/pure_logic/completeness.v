@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import syntax encode notations locations semantics.
+From osiris.lang Require Import syntax encode notations locations.
+From osiris.semantics Require Import semantics.
 Require Import pure_rules pattern_rules.
 
 (* Completeness/reversibility of some rules -- useful to check that we did not

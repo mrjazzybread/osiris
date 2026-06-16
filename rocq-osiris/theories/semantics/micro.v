@@ -2,7 +2,7 @@ From Stdlib.Logic Require Import FunctionalExtensionality.
 From Stdlib Require Import Program.Equality.
 From osiris.utils Require Import base.
 
-Require Export outcome.
+From osiris.lang Require Export outcome.
 
 (* This module defines a meta-language (a monad) within which one can
    implement an interpreter for an object language (such as OCaml). *)

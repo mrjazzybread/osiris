@@ -1,7 +1,7 @@
 From stdpp Require Import gmap.
 From osiris.utils Require Import base.
-From osiris.olang Require Import syntax locations notations thread_ids.
-From osiris.olang Require Import code step strategy eval.
+From osiris.lang Require Import syntax locations notations thread_ids.
+From osiris.semantics Require Import code step strategy eval.
 From osiris.stdlib Require Import Stdlib.
 
 (** Final micro states. They correspond to [micro] constructs that cannot

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import gen_heap invariants.
 
-From osiris.olang Require Import lang.
+From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import thread_step ewp tactics.
 Require Import basic_rules impure_rules stop_rules.

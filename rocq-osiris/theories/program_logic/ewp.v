@@ -4,10 +4,10 @@ From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
 
-From osiris.olang Require Import locations.
+From osiris.lang Require Import thread_ids syntax locations encode.
+From osiris.semantics Require Import semantics.
 Require Import thread_step.
 Require Export protocols.
-From osiris.olang Require Export thread_ids syntax semantics.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
 
@@ -600,8 +600,6 @@ End ewp_properties.
 
 (* ========================================================================== *)
 
-From osiris.olang Require Import encode.
-
 Definition impure {A V X} `{osirisGS Σ} `{Observe A V}
   (E : coPset) (m : micro V X) (Ψ : iEff Σ) (ζ : X → iProp Σ) (Φ : A → iProp Σ) : iProp Σ :=
   ewp_def E m Ψ (ilift ζ (ireturns Φ)).
@@ -676,5 +674,5 @@ Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)
-From osiris Require Export syntax.
-From osiris.olang Require Export code micro step.
+From osiris.lang Require Export syntax.
+From osiris.semantics Require Export code micro step.

@@ -8,6 +8,7 @@ Require Export
   thread_ids
   syntax
   notations
+  outcome
   encode
   type_nel
   constructors

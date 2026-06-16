@@ -5,7 +5,9 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import own.
 
 From osiris.utils Require Import base big_opLZ.
-From osiris.olang Require Import lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
+
 Require Import thread_step ewp tactics basic_rules escrows.
 Require Import osiris_utils.
 Require Import impure_rules micro_rules.

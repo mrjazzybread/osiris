@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import locations lang code eval.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import code eval.
 Require Export wp judgements.
 
 (** This file defines basic reasoning rules over [pure] judgements. *)

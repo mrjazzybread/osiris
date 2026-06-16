@@ -6,7 +6,8 @@
   (theories
     iris
     stdpp
-    osiris.olang
+    osiris.lang
+    osiris.semantics
     osiris.pure_logic
     osiris.program_logic
   )

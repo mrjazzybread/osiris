@@ -1,5 +1,6 @@
 From osiris Require Import base.
-From osiris.olang Require Import lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 Require Import pure_rules.
 Require Import toplevel_rules.
 Require Import fun_spec.

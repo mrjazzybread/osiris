@@ -1,7 +1,7 @@
 From Stdlib Require Import Orders Sorting.
 From osiris.utils Require Import base list_z.
 
-Require Import lang.
+From osiris.lang Require Import lang.
 Require Import code strategy.
 
 Module EvalF (Strat : Strategy).

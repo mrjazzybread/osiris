@@ -12,7 +12,7 @@ The Rocq development offers:
 - a deep embedding of a fragment of OCaml in Rocq
 - two program logics to reason about OCaml programs
 
-### Model of the Language (`rocq-osiris/theories/olang/`)
+### Model of the Language (`rocq-osiris/theories/`)
 
 - `lang/`: core AST (`syntax.v`), the `Encode A` typeclass (`encode.v`), numeric types, memory locations, thread identifiers, notations, and induction principles. Re-exported via `lang.v`.
 
@@ -104,7 +104,7 @@ Tests are in `tests/`:
 The translator from OCaml source files to Rocq definitions is under `osiris/`.
 
 - `osiris/src/`
-  - `Syntax.ml`: definition of the Osiris AST; must stay in sync with `rocq-osiris/theories/olang/lang/syntax.v`
+  - `Syntax.ml`: definition of the Osiris AST; must stay in sync with `rocq-osiris/theories/lang/syntax.v`
   - `Translate.ml`: transforms OCaml parsetree expressions into the Osiris AST
   - `Rocqify.ml`: transforms the Osiris AST into Rocq source text
   - `Main.ml`: entry point; reads `.cmt` files, calls dune for module discovery, writes `og_*.v` files
@@ -117,23 +117,23 @@ We give a correspondence between features of the paper and their Rocq mechanizat
 
 ### Section 3: A Monadic Interpreter
 
-* OCaml expressions and patterns → `rocq-osiris/theories/olang/lang/syntax.v`
+* OCaml expressions and patterns → `rocq-osiris/theories/lang/syntax.v`
 * Translator → `osiris/`
-* OLang's type of values → `rocq-osiris/theories/olang/lang/syntax.v`
-* eval_expr/eval_pat → `rocq-osiris/theories/olang/semantics/eval.v`
-* internals of eval + other auxiliary functions → `rocq-osiris/theories/olang/semantics/eval.v`
-* outcomes → `rocq-osiris/theories/olang/semantics/outcome.v`
-* The micro public interface → `rocq-osiris/theories/olang/semantics/code.v` (and some bits in `micro.v`)
+* OLang's type of values → `rocq-osiris/theories/lang/syntax.v`
+* eval_expr/eval_pat → `rocq-osiris/theories/semantics/eval.v`
+* internals of eval + other auxiliary functions → `rocq-osiris/theories/semantics/eval.v`
+* outcomes → `rocq-osiris/theories/lang/outcome.v`
+* The micro public interface → `rocq-osiris/theories/semantics/code.v` (and some bits in `micro.v`)
 
 ### Section 4: The Micro Monad
 
-* The micro monad definition → `rocq-osiris/theories/olang/semantics/micro.v`
-* Codes/system calls → `rocq-osiris/theories/olang/semantics/code.v`
+* The micro monad definition → `rocq-osiris/theories/semantics/micro.v`
+* Codes/system calls → `rocq-osiris/theories/semantics/code.v`
 
 ### Section 5: Small-step semantics for the Micro Monad
 
-* Configurations/stores → `rocq-osiris/theories/olang/semantics/step.v`
-* Stepping relation → `rocq-osiris/theories/olang/semantics/step.v`
+* Configurations/stores → `rocq-osiris/theories/semantics/step.v`
+* Stepping relation → `rocq-osiris/theories/semantics/step.v`
 
 ### Section 6: Validation
 
@@ -144,11 +144,11 @@ We give a correspondence between features of the paper and their Rocq mechanizat
 
 ### Section 7: Horus
 
-* Pure reductions → `rocq-osiris/theories/olang/semantics/pure.v`
-* Claims about pure steps → `rocq-osiris/theories/olang/semantics/pure_step.v`
+* Pure reductions → `rocq-osiris/theories/semantics/pure.v`
+* Claims about pure steps → `rocq-osiris/theories/semantics/pure_step.v`
 * Pure wp → `rocq-osiris/theories/pure_logic/wp.v`
 * Pure rules for micro → `rocq-osiris/theories/pure_logic/pure_rules.v`
-* encoding → `rocq-osiris/theories/olang/lang/encode.v`
+* encoding → `rocq-osiris/theories/lang/encode.v`
 * Definition of pure__# (`pure` in the development) → `rocq-osiris/theories/pure_logic/judgements.v`
 * Definition of expr → `rocq-osiris/theories/pure_logic/judgements.v` (just notation)
 * Rules for expressions → `rocq-osiris/theories/pure_logic/expr_rules.v`

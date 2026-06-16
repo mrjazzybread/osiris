@@ -12,7 +12,8 @@
     Equations
     osiris.utils
     osiris.lib
-    osiris.olang
+    osiris.lang
+    osiris.semantics
     osiris.pure_logic
     osiris.program_logic
     osiris.proofmode

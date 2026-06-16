@@ -6,7 +6,8 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import own.
 
 From osiris Require Import base.
-From osiris.olang Require Import lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 
 Require Import thread_step ewp tactics.
 

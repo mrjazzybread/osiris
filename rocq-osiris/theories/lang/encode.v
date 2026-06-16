@@ -1,5 +1,5 @@
 From osiris Require Import base.
-Require Import semantics.outcome.
+Require Import outcome.
 Require Import syntax locations thread_ids notations.
 From iris.base_logic.lib Require Import iprop.
 

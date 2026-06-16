@@ -13,7 +13,8 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export lib.iprop.
 
-From osiris.olang Require Import syntax semantics encode.
+From osiris.lang Require Import syntax encode.
+From osiris.semantics Require Import semantics.
 Set Default Proof Using "Type".
 
 (* ========================================================================== *)

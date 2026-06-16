@@ -1,5 +1,6 @@
 From osiris.utils Require Import base.
-From osiris.olang Require Import lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
 Local Ltac pat_PTuple :=

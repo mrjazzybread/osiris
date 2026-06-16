@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode environments ltac_tactics.
 
-From osiris.olang Require Import lang.
+From osiris.lang Require Import lang.
 
 From osiris.program_logic Require Import program_logic osiris_utils.
 Require Import pure_tactics.

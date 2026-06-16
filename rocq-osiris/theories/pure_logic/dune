@@ -3,4 +3,4 @@
  (name osiris.pure_logic)
  (generate_project_file)
  (package rocq-osiris)
- (theories Equations iris stdpp osiris.olang))
+ (theories Equations iris stdpp osiris.lang osiris.semantics))

@@ -2,7 +2,8 @@
 (* From iris.bi Require Import weakestpre. *)
 (* From iris Require Import base_logic.lib.gen_heap. *)
 
-From osiris.olang Require Import lang semantics.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import semantics.
 From osiris.utils Require Import orders.
 Require Export Externals.
 From osiris.program_logic Require Import program_logic.

@@ -1,5 +1,5 @@
 From iris Require Import gen_heap proofmode.proofmode.
-From osiris.olang Require Import lang.
+From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import ewp tactics fun_spec escrows.
 Require Import

@@ -1,5 +1,5 @@
 From osiris.utils Require Import tactics.
-From osiris.olang Require Import encode type_nel.
+From osiris.lang Require Import encode type_nel.
 From osiris.program_logic Require Import program_logic osiris_utils.
 Require Import env_lookups.
 From stdpp Require Import strings.

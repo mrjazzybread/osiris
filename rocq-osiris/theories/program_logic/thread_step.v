@@ -2,7 +2,8 @@ From Stdlib Require Import Program.Equality.
 
 From stdpp Require Import gmap fin_map_dom fin_sets.
 From osiris Require Import base.
-From osiris.olang Require Import locations lang code eval step.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import code eval step.
 
 From iris.base_logic.lib Require Import iprop own.
 

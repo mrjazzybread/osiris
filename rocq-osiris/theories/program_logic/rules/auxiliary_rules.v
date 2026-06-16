@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 
-From osiris Require Import lang.
+From osiris.lang Require Import lang.
+From osiris.semantics Require Import eval.
 Require Import ewp.
 Require Import impure_rules stop_rules.
 

@@ -1,6 +1,7 @@
 From Stdlib.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
-From osiris.olang Require Import lang ind semantics.
+From osiris.lang Require Import lang ind.
+From osiris.semantics Require Import semantics.
 
 Require Import wp pure_rules judgements pattern_rules.
 
