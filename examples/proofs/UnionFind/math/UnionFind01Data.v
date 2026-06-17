@@ -494,6 +494,18 @@ Proof.
   intros x y HF. eapply paths_have_distinct_endpoints. apply tc_once. exact HF.
 Qed.
 
+(* An edge can never be followed by a path leading back to its source
+   (otherwise, together with the edge, this path would form a cycle). *)
+
+Lemma edge_no_return_path:
+  forall x y,
+  F x y ->
+  path F y x ->
+  False.
+Proof.
+  intros x y HF Hpath. eapply acyclicity. eapply tc_rtc_r; [apply tc_once, HF | exact Hpath].
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Descendants. *)
