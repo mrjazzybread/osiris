@@ -71,7 +71,8 @@ let rec find (x : 'a elem) : 'a elem =
   match !x with
   | Root _ ->
       x
-  | Link ({ parent = y } as link) ->
+  | Link link ->
+      let y = link.parent in
       let z = find y in
       if z != y then
         link.parent <- z;
