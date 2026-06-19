@@ -86,4 +86,16 @@ Section evals_rules.
     simpl. apply DC.(xctor_encode).
   Qed.
 
+  Lemma imp_ETuple {τ : types} {Φs : τ → iProp Σ} η es :
+    impure E (evals η es) Ψ ζ Φs -∗
+    impure E (eval η (ETuple es)) Ψ ζ Φs.
+  Proof.
+    iIntros "Hes".
+    simpl_eval.
+    iApply (imp_bind with "Hes").
+    iIntros (xs) "HΦs".
+    iApply (imp_ret with "HΦs").
+    encode.
+  Qed.
+
 End evals_rules.

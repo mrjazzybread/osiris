@@ -358,6 +358,25 @@ Qed.
    existed to discharge the rank-equations side goals (not needed once
    there's no rank to compute). *)
 
+(* [Inv_link]'s own [R'] is stated via [link_R] (the math-side construction:
+   redirect every element of [x]'s class to [y]), but [union]'s spec states
+   its postcondition via [update2 R R x y (R y)] (mapping *both* [x]'s and
+   [y]'s classes to [y]'s value, matching [union]/[link]'s general shape).
+   They agree pointwise given [y] is already its own representative — that's
+   what this lemma packages, so [union_proof] can equate the two. *)
+
+Lemma link_R_eq_update2 :
+  forall R x y, R y = y -> forall t, UnionFind03Link.link_R elem _ x y R t = update2 R R x y y t.
+Proof.
+  intros R x y Hy t. unfold UnionFind03Link.link_R, update2, fcupdate.
+  destruct (decide (R t = R x)) as [H1|H1].
+  - destruct (decide (R t = R x \/ R t = R y)) as [_|Hc]; [reflexivity|exfalso; apply Hc; left; exact H1].
+  - destruct (decide (R t = R x \/ R t = R y)) as [[H2|H2]|H3].
+    + congruence.
+    + rewrite H2. exact Hy.
+    + reflexivity.
+Qed.
+
 Lemma Inv_link: forall D R F V F' V' x y,
   Inv D F R V ->
   x ≠ y ->
@@ -692,6 +711,121 @@ Proof.
   iSpecialize ("HM" $! lc with "Hx Hrec"). by rewrite insert_id.
 Qed.
 
+(* The two-location variant of [pointsto_M_acc]: gives access to two
+   *distinct* vertices [x]/[y] at once, with a wand to put both back
+   (possibly updated). Needed for scrutinees like [!x, !y] that read both
+   sides before deciding what to write (e.g. [union]'s [match !x, !y with
+   Root _, Root _ -> ... end]), where extracting one location at a time via
+   two separate [pointsto_M_acc] calls doesn't compose (the second access
+   would need to be performed on the *already-modified* map returned by the
+   first wand, instead of being independent of it). *)
+
+Lemma pointsto_M_acc2 ρ LM x y lcx lcy :
+  x ≠ y ->
+  LM !! x = Some lcx ->
+  LM !! y = Some lcy ->
+  pointsto_M ρ LM -∗
+    x ↦ #(content_of (ρ x) lcx) ∗ rec_repr (ρ x) lcx ∗
+    y ↦ #(content_of (ρ y) lcy) ∗ rec_repr (ρ y) lcy ∗
+    (∀ lcx' lcy',
+       x ↦ #(content_of (ρ x) lcx') -∗ rec_repr (ρ x) lcx' -∗
+       y ↦ #(content_of (ρ y) lcy') -∗ rec_repr (ρ y) lcy' -∗
+       pointsto_M ρ (<[x:=lcx']> (<[y:=lcy']> LM))).
+Proof.
+  intros Hne HLMx HLMy. iIntros "HM". unfold pointsto_M.
+  iDestruct (big_sepM_delete _ LM x lcx HLMx with "HM") as "[[Hx Hrecx] HM]".
+  assert (HLMy' : (delete x LM) !! y = Some lcy) by (rewrite lookup_delete_ne; [exact HLMy | exact Hne]).
+  iDestruct (big_sepM_delete _ (delete x LM) y lcy HLMy' with "HM") as "[[Hy Hrecy] HM]".
+  iFrame "Hx Hrecx Hy Hrecy".
+  iIntros (lcx' lcy') "Hx Hrecx Hy Hrecy".
+  unfold pointsto_M.
+  rewrite -(insert_delete_eq (<[y:=lcy']> LM) x lcx').
+  rewrite (delete_insert_ne LM x y lcy' Hne).
+  rewrite -(insert_delete_eq (delete x LM) y lcy').
+  rewrite (big_sepM_insert _ (<[y:=lcy']> (delete y (delete x LM))) x lcx').
+  2: { apply lookup_insert_None.
+       split.
+       - rewrite lookup_delete_ne; [apply lookup_delete_eq | exact (not_eq_sym Hne)].
+       - exact (not_eq_sym Hne). }
+  iSplitL "Hx Hrecx"; [iFrame|].
+  rewrite (big_sepM_insert _ (delete y (delete x LM)) y lcy'); [|apply lookup_delete_eq].
+  iFrame.
+Qed.
+
+(* Like [pointsto_M_acc2], but the put-back wand also lets the caller swap
+   in a *different* record at [x]/[y] — not just a different [lcontent] tag
+   at the same record. Needed for [link]/[union]: installing a [Link]
+   allocates a brand-new record block (OCaml's [{parent = y}]), so the
+   vertex's record-location entry in [ρ] genuinely changes, unlike [find]'s
+   in-place field mutation (which is exactly why [pointsto_M_acc2] alone,
+   with [ρ] held fixed, can't close this case). *)
+
+Lemma pointsto_M_acc2_realloc ρ LM x y lcx lcy :
+  x ≠ y ->
+  LM !! x = Some lcx ->
+  LM !! y = Some lcy ->
+  pointsto_M ρ LM -∗
+    x ↦ #(content_of (ρ x) lcx) ∗ rec_repr (ρ x) lcx ∗
+    y ↦ #(content_of (ρ y) lcy) ∗ rec_repr (ρ y) lcy ∗
+    (∀ rx' ry' lcx' lcy',
+       x ↦ #(content_of rx' lcx') -∗ rec_repr rx' lcx' -∗
+       y ↦ #(content_of ry' lcy') -∗ rec_repr ry' lcy' -∗
+       pointsto_M (fun z => if decide (z = x) then rx' else if decide (z = y) then ry' else ρ z)
+         (<[x:=lcx']> (<[y:=lcy']> LM))).
+Proof.
+  intros Hne HLMx HLMy. iIntros "HM". unfold pointsto_M.
+  iDestruct (big_sepM_delete _ LM x lcx HLMx with "HM") as "[[Hx Hrecx] HM]".
+  assert (HLMy' : (delete x LM) !! y = Some lcy) by (rewrite lookup_delete_ne; [exact HLMy | exact Hne]).
+  iDestruct (big_sepM_delete _ (delete x LM) y lcy HLMy' with "HM") as "[[Hy Hrecy] HM]".
+  iFrame "Hx Hrecx Hy Hrecy".
+  iIntros (rx' ry' lcx' lcy') "Hx Hrecx Hy Hrecy".
+  unfold pointsto_M.
+  rewrite -(insert_delete_eq (<[y:=lcy']> LM) x lcx').
+  rewrite (delete_insert_ne LM x y lcy' Hne).
+  rewrite -(insert_delete_eq (delete x LM) y lcy').
+  rewrite (big_sepM_insert _ (<[y:=lcy']> (delete y (delete x LM))) x lcx').
+  2: { apply lookup_insert_None.
+       split.
+       - rewrite lookup_delete_ne; [apply lookup_delete_eq | exact (not_eq_sym Hne)].
+       - exact (not_eq_sym Hne). }
+  rewrite decide_True; [|reflexivity].
+  iSplitL "Hx Hrecx"; [iFrame|].
+  rewrite (big_sepM_insert _ (delete y (delete x LM)) y lcy'); [|apply lookup_delete_eq].
+  rewrite decide_False; [|exact (not_eq_sym Hne)].
+  rewrite decide_True; [|reflexivity].
+  iSplitL "Hy Hrecy"; [iFrame|].
+  iApply (big_sepM_proper with "HM").
+  intros z lc Hz.
+  rewrite decide_False.
+  2: { intro Heqzx. subst z.
+       rewrite lookup_delete_ne in Hz; [|exact (not_eq_sym Hne)].
+       rewrite lookup_delete_eq in Hz. discriminate. }
+  rewrite decide_False; [done|].
+  intro Heqzy. subst z. rewrite lookup_delete_eq in Hz. discriminate.
+Qed.
+
+(* The read-only variant, mirroring [pointsto_M_acc_same]. *)
+
+Lemma pointsto_M_acc2_same ρ LM x y lcx lcy :
+  x ≠ y ->
+  LM !! x = Some lcx ->
+  LM !! y = Some lcy ->
+  pointsto_M ρ LM -∗
+    x ↦ #(content_of (ρ x) lcx) ∗ rec_repr (ρ x) lcx ∗
+    y ↦ #(content_of (ρ y) lcy) ∗ rec_repr (ρ y) lcy ∗
+    (x ↦ #(content_of (ρ x) lcx) -∗ rec_repr (ρ x) lcx -∗
+     y ↦ #(content_of (ρ y) lcy) -∗ rec_repr (ρ y) lcy -∗
+     pointsto_M ρ LM).
+Proof.
+  intros Hne HLMx HLMy. iIntros "HM".
+  iDestruct (pointsto_M_acc2 with "HM") as "(Hx & Hrecx & Hy & Hrecy & HM)"; [exact Hne|exact HLMx|exact HLMy|].
+  iFrame "Hx Hrecx Hy Hrecy". iIntros "Hx Hrecx Hy Hrecy".
+  iSpecialize ("HM" $! lcx lcy with "Hx Hrecx Hy Hrecy").
+  rewrite (insert_id LM y lcy HLMy).
+  rewrite (insert_id LM x lcx HLMx).
+  iFrame.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Public lemmas about the representation predicate. *)
@@ -953,8 +1087,8 @@ Proof.
     + intros _. exists lr. reflexivity.
 Qed.
 
-Lemma pat_Root_var η0 (c : @content val _) s :
-  pattern η0 η0 (PData "Root" [PVar s]) #c
+Lemma pat_Root_var δ0 η0 (c : @content val _) s :
+  pattern δ0 η0 (PData "Root" [PVar s]) #c
     (λ η', ∃ rr, c = Root rr ∧ η' = (s, #rr)::η0 )
     (∃ lr, c = Link lr).
 Proof.
@@ -1309,9 +1443,163 @@ Proof.
   { eapply Mem_root; eauto. }
   assert (M !! (R y) = Some (LRoot (V (R y)))) as Heq_y.
   { eapply Mem_root; eauto. }
-Admitted.
 
+  destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [ congruence | ].
 
+  iPoseProof (pointsto_M_acc2_realloc with "HM") as "(Hx & Hrepr_x & Hy & Hrepr_y & Hback)".
+  eassumption. eassumption. eassumption.
+
+  imp_match (@content val _ * @content val _)%type with "[Hx Hy]".
+  { iApply (imp_ETuple (τ:=τ[content;content])).
+    iApply (imp_evals_cons with "[Hx]"). imp_load.
+    iApply imp_evals_singleton. imp_load. }
+  destruct a as [??].
+  iIntros "((-> & Hx) & (-> & Hy))".
+  simpl.
+  iApply deep_handle_cons.
+  { iPureIntro. apply cpat_CVal.
+    eapply pat_PTuple. rewrite encode_encode'. reflexivity.
+    eapply pats_PCons. apply pat_Root_var.
+    intros ? (? & HeqRoot & ->).
+    inversion_clear HeqRoot. clear x0.
+    eapply pats_PCons. eapply pat_Root_var.
+    intros ? (? & HeqRoot & ->).
+    inversion_clear HeqRoot. clear x0.
+    eapply pats_PNil. apply eq_refl. }
+  iSplit; last first.
+  { iIntros "%HF". exfalso.
+    destruct HF as [(? & HF) | [(? & HF) | []]]; congruence. }
+  iIntros (?) "<-".
+
+  iDestruct "Hrepr_x" as "(%x_rank & Hown_x)".
+  iDestruct "Hrepr_y" as "(%y_rank & Hown_y)".
+  iApply (imp_ELet_pair (A:=Z) (B:=Z) with "[Hown_x Hown_y]").
+  { iApply imp_ETuple.
+    iApply (imp_evals_cons with "[Hown_x]").
+    { iApply (imp_record_access with "Hown_x"). split; simpl; lia. imp_path. }
+    iApply (imp_evals_singleton with "[Hown_y]").
+    iApply (imp_record_access with "Hown_y"). split;simpl;lia. imp_path. }
+  iIntros (??) "((-> & Hown_x) & (-> & Hown_y))".
+
+  iApply (imp_EIfThenElse).
+  { iApply imp_EOpLt_Z_weak. imp_path. imp_path. }
+  iIntros ([|]) "_".
+
+  { iApply (imp_ESeq with "[Hx]").
+    { iApply (imp_EStore'
+        (A:=@content val Encode_val)
+        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
+        with "Hx"). imp_path.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R y |})%I.
+      iApply imp_EData.
+      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
+        iApply imp_evals_singleton.
+        set_postcondition (λ y', ⌜y' = R y⌝)%I. imp_path. equality.
+      - iIntros (?). iIntros "(% & Hown & ->)".
+        by iFrame.
+      - iIntros "!>" (?) "(% & -> & Hown) $".
+        iApply "Hown". }
+    iIntros "(% & Hown_link & Hlink)".
+    imp_path. iSplit; last (iPureIntro; tauto).
+    unfold UF.
+    iExists (UnionFind03Link.link elem F (R x) (R y)).
+    iExists (fun z => if decide (z = R x) then r else if decide (z = R y) then ρ (R y) else ρ z).
+    iExists (<[R x:=LLink (R y)]> M).
+    iSpecialize ("Hback" $! _ _ (LLink (R y)) (LRoot (V (R y))) with "Hlink Hown_link Hy [Hown_y]").
+    { iFrame. }
+    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    split.
+    - rewrite -(update2_root _ R R x y (R y) HRidem).
+      assert (update2 R R (R x) (R y) (R y) = UnionFind03Link.link_R elem _ (R x) (R y) R) as ->.
+      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
+      eapply Inv_link; eauto.
+      rewrite -(update2_root _ V R x y (V (R y)) HRidem). reflexivity.
+    - eapply Mem_link; eauto.
+      rewrite -(update2_root _ V R x y (V (R y)) HRidem). reflexivity. }
+
+  iApply imp_EIfThenElse. { iApply imp_EOpGt_Z_weak. imp_path. imp_path. }
+  iIntros ([|]) "_".
+
+  { iApply (imp_ESeq with "[Hy]").
+    { iApply (imp_EStore'
+        (A:=@content val Encode_val)
+        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        with "Hy"). imp_path.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
+      iApply imp_EData.
+      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
+        iApply imp_evals_singleton.
+        set_postcondition (λ x', ⌜x' = R x⌝)%I. imp_path. equality.
+      - iIntros (?). iIntros "(% & Hown & ->)".
+        by iFrame.
+      - iIntros "!>" (?) "(% & -> & Hown) $".
+        iApply "Hown". }
+    iIntros "(% & Hown_link & Hlink)".
+    imp_path. iSplit; last (iPureIntro; tauto).
+    unfold UF.
+    iExists (UnionFind03Link.link elem F (R y) (R x)).
+    iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).
+    iExists (<[R y:=LLink (R x)]> M).
+    iSpecialize ("Hback" $! _ _ (LRoot (V (R x))) (LLink (R x)) with "Hx [Hown_x] Hlink Hown_link").
+    { iFrame. }
+    rewrite insert_insert_ne; last (assumption).
+    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    split.
+    - rewrite -(update2_root _ R R x y (R x) HRidem).
+      rewrite (update2_sym _ R R (R x) (R y) (R x)).
+      assert (update2 R R (R y) (R x) (R x) = UnionFind03Link.link_R elem _ (R y) (R x) R) as ->.
+      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
+      eapply Inv_link; eauto.
+      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
+      rewrite (update2_root _ V R x y (V (R x)) HRidem).
+      reflexivity.
+    - eapply Mem_link; eauto.
+      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
+      rewrite (update2_root _ V R x y (V (R x)) HRidem).
+      reflexivity. }
+
+  iApply (imp_ESeq with "[Hy]").
+    { iApply (imp_EStore'
+        (A:=@content val Encode_val)
+        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        with "Hy"). imp_path.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
+      iApply imp_EData.
+      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
+        iApply imp_evals_singleton.
+        set_postcondition (λ x', ⌜x' = R x⌝)%I. imp_path. equality.
+      - iIntros (?). iIntros "(% & Hown & ->)".
+        by iFrame.
+      - iIntros "!>" (?) "(% & -> & Hown) $".
+        iApply "Hown". }
+    iIntros "(% & Hown_link & Hlink)".
+    iApply (imp_ESeq with "[Hown_x]").
+    { iApply (imp_record_update with "Hown_x"). split;simpl;lia.
+      imp_path. set_postcondition (λ i, ⌜(i = x_rank + 1)%Z⌝)%I. imp_arith. }
+    iIntros "(% & -> & Hown_x) /=".
+    imp_path. iSplit; last (iPureIntro; tauto).
+    unfold UF.
+    iExists (UnionFind03Link.link elem F (R y) (R x)).
+    iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).
+    iExists (<[R y:=LLink (R x)]> M).
+    iSpecialize ("Hback" $! _ _ (LRoot (V (R x))) (LLink (R x)) with "Hx [Hown_x] Hlink Hown_link").
+    { iFrame. }
+    rewrite insert_insert_ne; last (assumption).
+    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    split.
+    - rewrite -(update2_root _ R R x y (R x) HRidem).
+      rewrite (update2_sym _ R R (R x) (R y) (R x)).
+      assert (update2 R R (R y) (R x) (R x) = UnionFind03Link.link_R elem _ (R y) (R x) R) as ->.
+      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
+      eapply Inv_link; eauto.
+      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
+      rewrite (update2_root _ V R x y (V (R x)) HRidem).
+      reflexivity.
+    - eapply Mem_link; eauto.
+      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
+      rewrite (update2_root _ V R x y (V (R x)) HRidem).
+      reflexivity.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 

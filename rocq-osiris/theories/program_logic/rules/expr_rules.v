@@ -639,6 +639,21 @@ Section imp_rules_expr.
     iPureIntro. rewrite lt_repr_repr; try representable.
   Qed.
 
+  (* If we don't care about the value of the result for functional
+     correctness, we can drop the representability assumptions in
+     exchange for loosing any information about the result. *)
+
+  Lemma imp_EOpLt_Z_weak {ζ} η e1 e2 (i j : Z) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = i⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = j⌝ }} -∗
+    imp eval η (EOpLt e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (b : bool), True }}.
+  Proof.
+    iIntros "H1 H2".
+    iApply (imp_EOpLt with "H1 H2").
+    iIntros "!>" (v1 v2) "-> ->".
+    iApply imp_ret; first encode. done.
+  Qed.
+
   (** * EOpLe : expr → expr → expr *)
 
   Lemma imp_EOpLe `{Encode A1, Encode A2} {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
@@ -710,8 +725,18 @@ Section imp_rules_expr.
     by rewrite Z.gtb_ltb.
   Qed.
 
-  (** * EOpGe : expr → expr → expr *)
+  Lemma imp_EOpGt_Z_weak {ζ} η e1 e2 (i j : Z) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = i⌝ }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = j⌝ }} -∗
+    imp eval η (EOpGt e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (b : bool), True }}.
+  Proof.
+    iIntros "H1 H2".
+    iApply (imp_EOpGt with "H1 H2").
+    iIntros "!>" (v1 v2) "-> ->".
+    iApply imp_ret; first encode. done.
+  Qed.
 
+  (** * EOpGe : expr → expr → expr *)
 
   Lemma imp_EOpGe `{Encode A1, Encode A2} {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
     imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
