@@ -4,6 +4,8 @@ From osiris.examples Require Import og_UnionFindBasic.
 Require Import UnionFind01Data UnionFind02EmptyCreate UnionFind03Link UnionFind04Compress
   UnionFind06Join UnionFind05IteratedCompression UnionFind07Reachable.
 
+From Stdlib Require Import FunctionalExtensionality.
+
 (* An object in the Union Find data structure is represented by an
    heap_lang location. *)
 Notation elem := loc.
@@ -182,6 +184,96 @@ Definition update1 {B : Type} (f : elem -> B) R x (b : B) :=
 
 Definition update2 {B : Type} (f : elem -> B) R x y (b : B) :=
   fcupdate f (fun z => R z = R x \/ R z = R y) b.
+
+Lemma update2_V_self :
+  ∀ D F R V x,
+    Inv D F R V →
+    update2 V R x x (V x) = V.
+Proof.
+  intros. unfold update2. unfold fcupdate.
+  extensionality a. case_decide; last reflexivity.
+  pose proof H.(Inv_data D F R V) as HeqR.
+  rewrite (HeqR x) (HeqR a).
+  destruct H0; by rewrite H0.
+Qed.
+
+Lemma update2_R_self :
+  ∀ R x,
+    R x = x →
+    update2 R R x x x = R.
+Proof.
+  intros R x HeqR. unfold update2. unfold fcupdate.
+  extensionality a. case_decide; last reflexivity.
+  rewrite -HeqR.
+  destruct H; by rewrite H.
+Qed.
+
+Lemma update2_root :
+  ∀ (B : Type) (f : elem → B) R x y b,
+    idempotent elem R →
+    update2 f R (R x) (R y) b = update2 f R x y b.
+Proof.
+  intros B f R x y b Hidem.
+  unfold update2, fcupdate.
+  extensionality a.
+  rewrite !Hidem.
+  case_decide; reflexivity.
+Qed.
+
+Lemma update2_sym :
+  ∀ B (f : elem → B) R x y b,
+    update2 f R x y b = update2 f R y x b.
+Proof.
+  intros B F R x y b.
+  unfold update2, fcupdate.
+  extensionality a.
+  case_decide; case_decide; tauto.
+Qed.
+
+(* When [x] and [y] are already in the same equivalence class ([R x = R y]),
+   updating both their classes to [R x] (the "diagonal" case, as opposed to
+   [update2_R_self]'s [x = y]) is a no-op on [R]/[V]. This is what [union]'s
+   fast path (testing [x == y] physically after [find]-ing both) needs: when
+   the test succeeds, no actual merge happened, so the invariant carries
+   over unchanged. *)
+
+Lemma update2_R_diag :
+  ∀ R x y, R x = R y → update2 R R x y (R x) = R.
+Proof.
+  intros R x y Heq.
+  unfold update2, fcupdate.
+  extensionality a.
+  case_decide as Hcase; [|reflexivity].
+  destruct Hcase as [Hax|Hay].
+  - symmetry; exact Hax.
+  - rewrite Heq. symmetry; exact Hay.
+Qed.
+
+Lemma update2_V_diag :
+  ∀ D F R V x y,
+    Inv D F R V → R x = R y → update2 V R x y (V (R x)) = V.
+Proof.
+  intros D F R V x y HI Heq.
+  pose proof (Inv_data _ _ _ _ HI) as HVeq.
+  unfold update2, fcupdate.
+  extensionality a.
+  case_decide as Hcase; [|reflexivity].
+  rewrite (HVeq a).
+  destruct Hcase as [Hax|Hay].
+  - rewrite Hax. reflexivity.
+  - rewrite Hay Heq. reflexivity.
+Qed.
+
+Lemma Inv_update2_diag :
+  ∀ D F R V x y,
+    Inv D F R V → R x = R y →
+    Inv D F (update2 R R x y (R x)) (update2 V R x y (V (R x))).
+Proof.
+  intros D F R V x y HI Heq.
+  rewrite (update2_R_diag R x y Heq).
+  rewrite (update2_V_diag D F R V x y HI Heq).
+  exact HI.
+Qed.
 
 (* TODO: the algebraic lemmas about [update1]/[update2] (update2_V_self,
    update2_R_self, update2_root, update2_sym in the original) are only used
@@ -1159,6 +1251,67 @@ Proof.
   iFrame "Hback". iPureIntro.
   eauto using Inv_update1, Mem_update1.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Definition union_spec (x y : elem) (m : microvx) : iProp Σ :=
+  ∀ D R V,
+    ⌜x ∈ D⌝ -∗
+    ⌜y ∈ D⌝ -∗
+    UF D R V -∗
+    imp m {{ λ z, UF D (update2 R R x y z) (update2 V R x y (V z)) ∗ ⌜z = R x ∨ z = R y⌝ }}.
+
+Definition union := EAnonFun (AnonFun "x" (EAnonFun __fun41)).
+
+Lemma union_proof η :
+  in_env "find" (λ c, □ iSpec τ[elem] c find_spec) η -∗
+  imp (eval η union) {{ λ c, □ iSpec τ[elem;elem] c union_spec }}.
+Proof.
+  iIntros "#Hfind".
+  iApply imp_EAnon_pers.
+  iIntros "!>" (x y).
+  unfold union_spec.
+  iIntros (D R V) "%Hin_x %Hin_y HUF".
+  iApply imp_please; iNext.
+  imp_match elem. rewrite -encode_encode'.
+  iApply (imp_ELet_var (B:=elem) with "[HUF]").
+  { imp_app τ[elem].
+    iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
+  iIntros (?) "(-> & HUF)".
+  iApply (imp_ELet_var (B:=elem) with "[HUF]").
+  { imp_app τ[elem].
+    iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
+  iIntros (?) "(-> & HUF)".
+
+  imp_if.
+  { set_postcondition (λ b, ⌜b = locations.eqb (R x) (R y)⌝)%I.
+    iApply imp_EOpPhysEq_loc; [imp_path|imp_path|].
+    iIntros "!>" (??) "-> -> //". }
+
+  { iIntros "%Heq".
+    imp_path.
+    iSplit; last (iPureIntro; tauto).
+    iDestruct "HUF" as "(%F & %ρ & %M & %HI & %HM & Hpts)".
+    iFrame. iPureIntro. simpl.
+    eexists. split.
+    - destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [|congruence].
+      eapply Inv_update2_diag; [exact HI | exact HReq].
+    - destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [|congruence].
+      rewrite (update2_V_diag D F R V x y HI HReq).
+      exact HM. }
+
+  iIntros "%Hneq".
+  iPoseProof (UF_image with "HUF") as "%HRD_x"; first apply Hin_x.
+  iPoseProof (UF_image with "HUF") as "%HRD_y"; first apply Hin_y.
+  iPoseProof (UF_idempotent with "HUF") as "%HRidem".
+  iDestruct "HUF" as (F ρ M HI HM) "HM".
+  assert (M !! (R x) = Some (LRoot (V (R x)))) as Heq_x.
+  { eapply Mem_root; eauto. }
+  assert (M !! (R y) = Some (LRoot (V (R y)))) as Heq_y.
+  { eapply Mem_root; eauto. }
+Admitted.
+
+
 
 (* -------------------------------------------------------------------------- *)
 

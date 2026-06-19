@@ -129,11 +129,12 @@ let set (x : 'a elem) (v : 'a) : unit =
    is made, and the rank of the new root is incremented by one. *)
 
 let union (x : 'a elem) (y : 'a elem) : 'a elem =
-  let x = find x
-  and y = find y in
+  let x = find x in
+  let y = find y in
   if x == y then x else
     match !x, !y with
-    | Root ({ rank = rx; _ } as rootx), Root { rank = ry; _ } ->
+    | Root rootx, Root rooty ->
+        let rx, ry = rootx.rank, rooty.rank in
         if rx < ry then begin
           x := Link { parent = y };
           y
