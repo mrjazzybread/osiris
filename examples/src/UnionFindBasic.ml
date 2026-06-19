@@ -102,8 +102,8 @@ let eq (x : 'a elem) (y : 'a elem) : bool =
 let get (x : 'a elem) : 'a =
   let x = find x in
   match !x with
-  | Root { value = v; _ } ->
-      v
+  | Root root ->
+      root.value
   | Link _ ->
       assert false
 

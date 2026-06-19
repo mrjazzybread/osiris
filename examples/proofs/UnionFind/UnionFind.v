@@ -122,32 +122,34 @@ Definition Mem D F V (LM : gmap elem lcontent) : Prop :=
     | None => False
     end.
 
-(* [content_repr lc c] owns the record block that the content value [c]
-   points to, and ties [c]'s shape to [lc]. Kept separate from the content
-   *cell* (the [x ↦ #c] points-to fact) below, so that a vertex's identity
-   as a ref cell — [∃ c, x ↦ #c] — is available uniformly, without needing
-   to case on [lc] (i.e. on whether [x] is a root or a link) first.
+(* [rec_repr lr lc] owns the record block at [lr] backing a vertex whose
+   logical content is [lc]. A root's rank is not tracked, so it stays
+   existential; a link stores its parent directly. *)
 
-   Cases on [c] (not [lc]): the OCaml-level pattern match (and hence
-   [imp_branches]'s automatic dispatch) is driven by [c]'s own shape, so
-   [destruct c] alone needs to both pick the branch *and* resolve
-   [content_repr] — it shouldn't additionally require committing to [lc]'s
-   shape, which is the math-level case split, ahead of time. *)
-
-Definition content_repr (lc : lcontent) (c : @content val _) : iProp Σ :=
-  match c with
-  | Root rr => ∃ (k : Z) (v : val),
-      ⌜lc = LRoot v⌝ ∗ ownRepr rr 1 ({| rank := k; value := v |} : root (A:=val))
-  | Link lr => ∃ (y : elem),
-      ⌜lc = LLink y⌝ ∗ ownRepr lr 1 ({| parent := y |} : link (A:=val))
+Definition rec_repr (lr : record) (lc : lcontent) : iProp Σ :=
+  match lc with
+  | LRoot v => ∃ k : Z, ownRepr lr 1 ({| rank := k; value := v |} : root (A:=val))
+  | LLink y => ownRepr lr 1 ({| parent := y |} : link (A:=val))
   end.
 
-(* [pointsto_M LM] asserts ownership of the whole two-level heap shape
-   described by [LM]: for each vertex [x], ownership of its [content] cell,
-   and ownership of the record block that content points to. *)
+(* The content *value* stored in [x]'s ref cell: a [Root]/[Link] tag wrapping
+   the pointer [lr] to [x]'s record block. *)
 
-Definition pointsto_M (LM : gmap elem lcontent) : iProp Σ :=
-  ([∗ map] x ↦ lc ∈ LM, ∃ c, x ↦ #c ∗ content_repr lc c)%I.
+Definition content_of (lr : record) (lc : lcontent) : @content val _ :=
+  match lc with LRoot _ => Root lr | LLink _ => Link lr end.
+
+(* [pointsto_M ρ LM] asserts ownership of the whole two-level heap: for each
+   vertex [x], its content cell [x ↦ #(content_of (ρ x) lc)] and the record
+   block [ρ x] it points to. Crucially the record-location map [ρ] is *exposed*
+   rather than existentially hidden per entry. Since [find] only ever mutates
+   record *fields* (never a content cell, and never reallocating a record),
+   [ρ] is an invariant of [find]: it comes back verbatim from the recursive
+   call, so [x]'s own record is recoverable by name afterwards. This is what
+   lets [find] recurse on the *whole* structure — no framing of [x]'s
+   resources out of the recursion, and no reachable-set restriction. *)
+
+Definition pointsto_M (ρ : elem -> record) (LM : gmap elem lcontent) : iProp Σ :=
+  ([∗ map] x ↦ lc ∈ LM, x ↦ #(content_of (ρ x) lc) ∗ rec_repr (ρ x) lc)%I.
 
 (* [UF D R V] is the representation predicate. It is an abstract predicate:
    the client uses this predicate, but does not know how it is defined. It
@@ -155,10 +157,10 @@ Definition pointsto_M (LM : gmap elem lcontent) : iProp Σ :=
    the client. *)
 
 Definition UF D R V : iProp Σ :=
-  (∃ F LM,
+  (∃ F ρ LM,
   ⌜ Inv D F R V ⌝ ∗
   ⌜ Mem D F V LM ⌝ ∗
-  pointsto_M LM)%I.
+  pointsto_M ρ LM)%I.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -245,29 +247,6 @@ Proof.
   destruct (decide (R x0 = R x)) as [Heq | Hneq].
   - reflexivity.
   - apply Hdata.
-Qed.
-
-(* The invariant restricts to a forward-closed subset [D2] of the domain,
-   together with [F]/[R] cut down to [D2] (off [D2], [R] is taken to be the
-   identity). See [is_dsf_restrict]/[is_repr_restrict] in
-   [UnionFind07Reachable.v]. Used by [find_spec_inductive] to describe the
-   sub-structure handed to the recursive call. *)
-
-Lemma Inv_restrict : forall D F R V (D2 : gset elem),
-  Inv D F R V ->
-  D2 ⊆ D ->
-  (forall pa pb, pa ∈ D2 -> F pa pb -> pb ∈ D2) ->
-  Inv D2 (fun pa pb => F pa pb /\ pa ∈ D2)
-         (fun pv => if decide (pv ∈ D2) then R pv else pv) V.
-Proof.
-  intros D F R V D2 HInv Hsub Hclosed. split.
-  - eapply is_dsf_restrict; eauto using Inv_dsf.
-  - intros pv. destruct (decide (pv ∈ D2)) as [HpvD2|HpvD2].
-    + eapply is_repr_restrict; [eapply (Inv_incl _ _ _ _ HInv) | exact HpvD2 | exact Hclosed].
-    + split; [apply rtc_refl|]. intros pb [_ Ha]. exact (HpvD2 Ha).
-  - intros pv. destruct (decide (pv ∈ D2)) as [HpvD2|HpvD2].
-    + eapply (Inv_data _ _ _ _ HInv).
-    + reflexivity.
 Qed.
 
 (* The invariant is preserved by a [link] operation. *)
@@ -487,14 +466,13 @@ Qed.
    [LM] entry (otherwise we'd own [x] twice). Combined with [Mem]'s domain
    equation, this is how we show a freshly-allocated vertex is not in [D]. *)
 
-Lemma pointsto_M_fresh : forall (LM : gmap elem lcontent) x v,
-  pointsto_M LM -∗ x ↦ v -∗ ⌜LM !! x = None⌝.
+Lemma pointsto_M_fresh : forall ρ (LM : gmap elem lcontent) x v,
+  pointsto_M ρ LM -∗ x ↦ v -∗ ⌜LM !! x = None⌝.
 Proof.
-  iIntros (LM x v) "HM Hx".
+  iIntros (ρ LM x v) "HM Hx".
   destruct (LM !! x) as [lc|] eqn:Heq; [|done].
   iExFalso.
-  iDestruct (big_sepM_lookup with "HM") as "Hc"; [exact Heq|].
-  iDestruct "Hc" as (c) "[Hx' _]".
+  iDestruct (big_sepM_lookup with "HM") as "[Hx' _]"; [exact Heq|].
   iCombine "Hx Hx'" gives %Hbad.
   destruct Hbad as [Hbad _]. exfalso; eapply dfrac_full_exclusive; exact Hbad.
 Qed.
@@ -553,17 +531,19 @@ Proof.
       iApply "Hown".
     - iIntros (rr) "Hown". iNext. iExists rr. eauto. }
   iIntros (x) "(%a & (%rr & -> & Hown) & Hx)".
-  iDestruct "HUF" as (F LM) "(%HInv & %HMem & HptM)".
+  iDestruct "HUF" as (F ρ LM) "(%HInv & %HMem & HptM)".
   iDestruct (pointsto_M_fresh with "HptM Hx") as %HxLM.
   assert (HxD : x ∉ D) by (eapply Mem_not_elem_of_dom; eauto).
   iSplitR "".
-  - iExists F, (<[x:=LRoot v]>LM).
+  - (* extend [ρ] at the fresh vertex [x] with its just-allocated record [rr]. *)
+    iExists F, (fun z => if decide (z = x) then rr else ρ z), (<[x:=LRoot v]>LM).
     iSplit; [iPureIntro; eapply Inv_make; eauto|].
     iSplit; [iPureIntro; eapply Mem_make; eauto|].
     rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
     iSplitL "Hown Hx".
-    + iExists (Root rr). iSplitL "Hx"; [iFrame|]. iExists 0, v. iFrame. done.
-    + iFrame.
+    + rewrite decide_True; [|reflexivity]. unfold content_of, rec_repr. iFrame "Hx". iExists 0. iFrame.
+    + iApply (big_sepM_mono with "HptM"). iIntros (z lc Hz) "He".
+      rewrite decide_False; [done|]. intros ->. rewrite Hz in HxLM. discriminate.
   - iPureIntro. split; [exact HxD|].
     eapply R_is_identity_outside_D; eauto.
 Qed.
@@ -576,230 +556,48 @@ Qed.
    [val_of_content] encoding, not our two-level [lcontent]/[pointsto_M].) *)
 
 
-(* [pointsto_M_acc] gives access to the two-level representation of a single
-   vertex's content: the content cell itself (always read-only — the content
-   cell's tag/pointer never changes after path compression, only the record
-   it points to does) plus ownership of the pointed-to record, together with
-   a wand to put back the record (possibly with an updated field) and
-   recover [pointsto_M] at the correspondingly updated map. *)
+(* [pointsto_M] depends on [ρ] only through the vertices in [LM]'s domain, so
+   two record-location maps that agree there yield the same predicate. (Used by
+   [make] to extend [ρ] at the fresh vertex without disturbing the rest.) *)
 
-(* [x ↦ #c] (the content cell) is exposed uniformly here, for *some*
-   abstract [c : content] — without needing to know yet whether [x] is a
-   root or a link — since an [elem] is first and foremost a ref cell, and
-   only secondarily a value of type [content]. The actual shape of [c] (and
-   the record ownership it implies) only comes from [content_repr lc c],
-   matched on [lc]. The put-back wand takes both the content-cell points-to
-   and the [content_repr] back as inputs (possibly for a different [lc'/c'],
-   to support path compression's update), exactly like the old single-level
-   [pointsto_M_acc]'s wand took back [x ↦ v']. *)
+Lemma pointsto_M_proper ρ1 ρ2 LM :
+  (forall x lc, LM !! x = Some lc -> ρ1 x = ρ2 x) ->
+  pointsto_M ρ1 LM ⊣⊢ pointsto_M ρ2 LM.
+Proof.
+  intros Hag. apply big_sepM_proper. intros x lc Hx. rewrite (Hag x lc Hx). done.
+Qed.
 
-Lemma pointsto_M_acc : forall LM x lc,
+(* [pointsto_M_acc] gives access to a single vertex [x]'s content cell and its
+   record block [ρ x], plus a wand to put the record back — possibly with an
+   updated field, for path compression — and recover [pointsto_M] at the
+   updated map. The record location [ρ x] is named (not existential), so the
+   wand reinstalls *that* record: this is what makes [find]'s in-place
+   [link.parent <- z] go through unchanged after the recursive call. *)
+
+Lemma pointsto_M_acc ρ LM x lc :
   LM !! x = Some lc ->
-  pointsto_M LM -∗
-    ∃ c, x ↦ #c ∗ content_repr lc c ∗
-    (∀ lc' c', x ↦ #c' -∗ content_repr lc' c' -∗ pointsto_M (<[x:=lc']> LM)).
+  pointsto_M ρ LM -∗
+    x ↦ #(content_of (ρ x) lc) ∗ rec_repr (ρ x) lc ∗
+    (∀ lc', x ↦ #(content_of (ρ x) lc') -∗ rec_repr (ρ x) lc' -∗ pointsto_M ρ (<[x:=lc']> LM)).
 Proof.
-  intros LM x lc HLM. iIntros "HM".
-  unfold pointsto_M.
-  iDestruct (big_sepM_delete _ LM x lc HLM with "HM") as "[Hc HM]".
-  iDestruct "Hc" as (c) "[Hx Hrepr]".
-  iExists c. iFrame "Hx Hrepr". iIntros (lc' c') "Hx Hrepr".
-  unfold pointsto_M. rewrite -insert_delete_eq big_sepM_insert; [|apply lookup_delete_eq].
-  iSplitL "Hx Hrepr".
-  - iExists c'. iFrame.
-  - iFrame "HM".
+  intros HLM. iIntros "HM". unfold pointsto_M.
+  iDestruct (big_sepM_delete _ LM x lc HLM with "HM") as "[[Hx Hrec] HM]".
+  iFrame "Hx Hrec". iIntros (lc') "Hx Hrec".
+  unfold pointsto_M. rewrite -insert_delete_eq big_sepM_insert; [|apply lookup_delete_eq]. iFrame.
 Qed.
 
-Lemma pointsto_M_acc_same : forall LM x lc,
+(* The read-only variant: read [x]'s cell/record, then put both back unchanged. *)
+
+Lemma pointsto_M_acc_same ρ LM x lc :
   LM !! x = Some lc ->
-  pointsto_M LM -∗
-    ∃ c, x ↦ #c ∗ content_repr lc c ∗ (x ↦ #c -∗ content_repr lc c -∗ pointsto_M LM).
+  pointsto_M ρ LM -∗
+    x ↦ #(content_of (ρ x) lc) ∗ rec_repr (ρ x) lc ∗
+    (x ↦ #(content_of (ρ x) lc) -∗ rec_repr (ρ x) lc -∗ pointsto_M ρ LM).
 Proof.
-  intros LM x lc HLM. iIntros "HM".
-  iDestruct (pointsto_M_acc _ _ _ HLM with "HM") as (c) "(Hx & Hrepr & HM)".
-  iExists c. iFrame "Hx Hrepr". iIntros "Hx Hrepr".
-  iSpecialize ("HM" with "Hx Hrepr"). by rewrite insert_id.
-Qed.
-
-(* Unlike [pointsto_M_acc], gives back the rest of the map directly (as
-   [pointsto_M (delete x LM)]) rather than a put-back wand. This is what
-   lets a caller keep a vertex's own record syntactically identified across
-   an operation (e.g. a recursive call) that never touches it, instead of
-   losing that identity by folding it back into the map and re-extracting
-   it afterwards. *)
-
-Lemma pointsto_M_acc_delete : forall LM x lc,
-  LM !! x = Some lc ->
-  pointsto_M LM -∗
-    ∃ c, x ↦ #c ∗ content_repr lc c ∗ pointsto_M (delete x LM).
-Proof.
-  intros LM x lc HLM. iIntros "HM".
-  unfold pointsto_M.
-  iDestruct (big_sepM_delete _ LM x lc HLM with "HM") as "[Hc HM]".
-  iDestruct "Hc" as (c) "[Hx Hrepr]".
-  iExists c. iFrame.
-Qed.
-
-(* The inverse of [pointsto_M_acc_delete]: fold a vertex's content cell and
-   record block back into the map. Used to reassemble [pointsto_M] after an
-   operation that kept a single vertex's resources on the side. *)
-
-Lemma pointsto_M_acc_delete_inv (e : elem) (lc : lcontent) (c : content) (LM : gmap elem lcontent) :
-  LM !! e = Some lc ->
-  e ↦ #c -∗ content_repr lc c -∗ pointsto_M (delete e LM) -∗ pointsto_M LM.
-Proof.
-  intros HLM. iIntros "Hx Hrepr HMdel". unfold pointsto_M.
-  rewrite (big_sepM_delete _ LM e lc HLM).
-  iSplitR "HMdel"; [iExists c; iFrame | iFrame].
-Qed.
-
-(* [Mem] and [pointsto_M] restrict cleanly to a forward-closed subset [D2] of
-   vertices (see [UnionFind07Reachable.v] for the analogous, [elem]-agnostic
-   facts about [is_dsf]/[bw_ipc]). This is what lets [find_spec_inductive]'s
-   recursive call hand over only the part of the heap reachable from the
-   vertex it recurses on, keeping the caller's own vertex untouched. *)
-
-Lemma Mem_restrict_real :
-  forall D F V M (D2 : gset elem),
-  Mem D F V M ->
-  D2 ⊆ D ->
-  (forall pa pb, pa ∈ D2 -> F pa pb -> pb ∈ D2) ->
-  Mem D2 (fun pa pb => F pa pb /\ pa ∈ D2) V (filter (fun kv => kv.1 ∈ D2) M).
-Proof.
-  intros D F V M D2 [Hdom HMfun] Hsub Hclosed.
-  split.
-  - apply (dom_filter_L _ M D2). intros i. split.
-    + intros HiD2. assert (HiD : i ∈ D) by (eapply Hsub; eauto).
-      assert (i ∈ dom M) by (rewrite Hdom; exact HiD).
-      apply elem_of_dom in H as [x Hx]. exists x. split; [exact Hx | exact HiD2].
-    + intros [x [_ Hx2]]. exact Hx2.
-  - intros pa HpaD2.
-    assert (HpaD : pa ∈ D) by (eapply Hsub; eauto).
-    pose proof (HMfun pa HpaD) as Hfact.
-    rewrite map_lookup_filter.
-    destruct (M !! pa) as [lc|] eqn:Heqlc; simpl.
-    + rewrite option_guard_True; [|exact HpaD2].
-      destruct lc as [v|y].
-      * split; [|exact (proj2 Hfact)]. intros pb [HFpb _]. eapply (proj1 Hfact); exact HFpb.
-      * split; [exact Hfact | exact HpaD2].
-    + exact Hfact.
-Qed.
-
-(* The [Mem]-level counterpart of [find]'s heap reassembly: the framed-out
-   vertex [e] (with its single new edge [e -> e']), the recursively-compressed
-   reachable part [M'], and the untouched remainder still form a valid [Mem]
-   for the post-recursion relation [F0]. [F0] is required to agree with [F]
-   outside [D2] (the recursion's reachable set); given the original edge
-   [F e e'], the new edge [F0 e e'] is recovered from that agreement. *)
-
-Lemma Mem_reassemble : forall D (D2 : gset elem) F F0 V M M' e e',
-  Mem D F V M ->
-  Mem D2 (fun pa pb => F0 pa pb /\ pa ∈ D2) V M' ->
-  D2 ⊆ D ->
-  e ∈ D ->
-  e ∉ D2 ->
-  F e e' ->
-  (forall pa, pa ∉ D2 -> forall pb, F0 pa pb <-> F pa pb) ->
-  Mem D F0 V (<[e:=LLink e']> (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
-Proof.
-  intros D D2 F F0 V M M' e e' Hmem Hmem' Hsub HeD Hne2 HFee Hout.
-  assert (Hdom_mrest : dom (filter (fun kv => kv.1 ∉ D2) (delete e M)) = D ∖ D2 ∖ {[e]}).
-  { apply set_eq. intro x. rewrite elem_of_dom. split.
-    - intros [v0 Hv0]. apply map_lookup_filter_Some in Hv0 as [Hv0 Hnin].
-      apply lookup_delete_Some in Hv0 as [Hne Hv0]. simpl in Hnin.
-      assert (x ∈ D) by (destruct Hmem as [Hdom _]; rewrite -Hdom; apply elem_of_dom; eauto).
-      set_solver.
-    - intros Hx.
-      assert (x ∈ D) by set_solver.
-      assert (x ≠ e) by set_solver.
-      assert (x ∉ D2) by set_solver.
-      destruct Hmem as [Hdom HMfun0].
-      pose proof (HMfun0 x ltac:(assumption)) as Hfact.
-      destruct (M !! x) as [v0|] eqn:Heqx; [|exfalso; exact Hfact].
-      exists v0. rewrite map_lookup_filter.
-      rewrite (lookup_delete_ne M e x (not_eq_sym H0)).
-      rewrite Heqx. simpl. rewrite option_guard_True; [reflexivity|assumption]. }
-  split.
-  - rewrite dom_insert_L dom_union_L Hdom_mrest (proj1 Hmem').
-    apply set_eq. intro x.
-    rewrite elem_of_union elem_of_singleton elem_of_union elem_of_difference elem_of_difference elem_of_singleton.
-    split.
-    + intros [->|[HxD2|[[HxD _]_]]]; [exact HeD|eapply Hsub; eauto|exact HxD].
-    + intros HxD. destruct (decide (x = e)) as [->|Hne]; [left; reflexivity|right].
-      destruct (decide (x ∈ D2)) as [HxD2|HxD2]; [left; exact HxD2|right; split; [split|]; assumption].
-  - intros x HxD. destruct (decide (x = e)) as [->|Hxne].
-    + rewrite lookup_insert_eq. exact (proj2 (Hout e Hne2 e') HFee).
-    + rewrite lookup_insert_ne; [|exact (not_eq_sym Hxne)].
-      destruct (decide (x ∈ D2)) as [HxD2|HxD2].
-      * assert (Hlookup_x : (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M)) !! x = M' !! x).
-        { apply lookup_union_l'. apply (elem_of_dom (D:=gset elem)).
-          destruct Hmem' as [Hdom2' _]. rewrite Hdom2'. exact HxD2. }
-        rewrite Hlookup_x.
-        destruct Hmem' as [_ HMfun2'].
-        pose proof (HMfun2' x HxD2) as Hfact2.
-        destruct (M' !! x) as [[v0|y0]|] eqn:Heqx2; simpl in Hfact2.
-        -- split; [|exact (proj2 Hfact2)].
-           intros pb HF0xpb. eapply (proj1 Hfact2). split; [exact HF0xpb | exact HxD2].
-        -- exact (proj1 Hfact2).
-        -- exact Hfact2.
-      * assert (Hxin : x ∈ D ∖ D2 ∖ {[e]}) by set_solver.
-        assert (Hlookup_x2 : (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M)) !! x =
-                              filter (fun kv => kv.1 ∉ D2) (delete e M) !! x).
-        { apply lookup_union_r. destruct Hmem' as [Hdom2' _]. apply not_elem_of_dom. rewrite Hdom2'. exact HxD2. }
-        rewrite Hlookup_x2.
-        rewrite -Hdom_mrest in Hxin.
-        apply elem_of_dom in Hxin as [v0 Hv0].
-        rewrite Hv0.
-        pose proof Hv0 as Hv0'.
-        apply map_lookup_filter_Some in Hv0' as [Hv0'' _].
-        apply lookup_delete_Some in Hv0'' as [_ Hv0'''].
-        pose proof (proj2 Hmem x HxD) as Hfact.
-        rewrite Hv0''' in Hfact.
-        destruct v0 as [v1|y1]; simpl in Hfact.
-        -- split; [|exact (proj2 Hfact)].
-           intros pb HF0xpb. eapply (proj1 Hfact). apply (Hout x HxD2 pb). exact HF0xpb.
-        -- apply (Hout x HxD2 y1). exact Hfact.
-Qed.
-
-(* [pointsto_M] splits along any partition of the underlying [gmap], in
-   particular along membership in a chosen [gset]. *)
-
-Lemma pointsto_M_split (LM : gmap elem lcontent) (D2 : gset elem) :
-  pointsto_M LM ⊢
-  pointsto_M (filter (fun kv => kv.1 ∈ D2) LM) ∗
-  pointsto_M (filter (fun kv => kv.1 ∉ D2) LM).
-Proof.
-  unfold pointsto_M.
-  rewrite -{1}(map_filter_union_complement (fun kv => kv.1 ∈ D2) LM).
-  rewrite big_sepM_union; [done|].
-  apply map_disjoint_filter_complement.
-Qed.
-
-(* Reassemble a [Link] vertex [e]'s cell and record block, together with the
-   recursively-returned sub-heap [Ma] (domain [D2 ∌ e]) and the untouched
-   remainder [filter (∉ D2) (delete e M)], into a single [pointsto_M]. The
-   inverse-and-merge step at the end of [find]'s [Link] branch: it glues [e]'s
-   freshly path-compressed edge back onto the two framed-apart pieces. The
-   shapes of the two pieces make [e]'s absence and their disjointness
-   automatic, so the caller supplies only [dom Ma = D2] and [e ∉ D2]. *)
-
-Lemma pointsto_M_reassemble (e : elem) (lr : record) (y : elem)
-    (D2 : gset elem) (Ma M : gmap elem lcontent) :
-  dom Ma = D2 -> e ∉ D2 ->
-  e ↦ #(Link lr : @content val _) -∗ ownRepr lr 1 ({| parent := y |} : link (A:=val)) -∗
-  pointsto_M Ma -∗ pointsto_M (filter (fun kv => kv.1 ∉ D2) (delete e M)) -∗
-  pointsto_M (<[e:=LLink y]> (Ma ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
-Proof.
-  intros HdomMa He. iIntros "Hx Hown Ha Hb". unfold pointsto_M.
-  rewrite big_sepM_insert; last first.
-  { apply lookup_union_None. split.
-    - apply not_elem_of_dom. rewrite HdomMa. exact He.
-    - rewrite map_lookup_filter lookup_delete_eq //. }
-  iSplitL "Hx Hown". { iExists (Link lr). iFrame. done. }
-  rewrite big_sepM_union; last first.
-  { apply map_disjoint_dom_2. rewrite HdomMa. intros x Hx1 Hx2.
-    apply elem_of_dom in Hx2 as [w Hw]. apply map_lookup_filter_Some in Hw as [_ Hnin]. exact (Hnin Hx1). }
-  iFrame.
+  intros HLM. iIntros "HM".
+  iDestruct (pointsto_M_acc _ _ _ _ HLM with "HM") as "(Hx & Hrec & HM)".
+  iFrame "Hx Hrec". iIntros "Hx Hrec".
+  iSpecialize ("HM" $! lc with "Hx Hrec"). by rewrite insert_id.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -811,7 +609,7 @@ Qed.
 Theorem UF_idempotent : forall D R V,
   UF D R V -∗ ⌜ idempotent elem R ⌝.
 Proof using.
-  iIntros (D R V) "HUF". iDestruct "HUF" as (F LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
+  iIntros (D R V) "HUF". iDestruct "HUF" as (F ρ LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
   iPureIntro. eapply idempotent_R; eauto.
 Qed.
 
@@ -820,7 +618,7 @@ Qed.
 Theorem UF_image : forall D R V x, x ∈ D ->
   UF D R V -∗ ⌜ R x ∈ D ⌝.
 Proof using.
-  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
+  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F ρ LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
   iPureIntro. eapply sticky_R; eauto.
 Qed.
 
@@ -829,7 +627,7 @@ Qed.
 Theorem UF_identity : forall D R V x, x ∉ D ->
   UF D R V -∗ ⌜ R x = x ⌝.
 Proof using.
-  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
+  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F ρ LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
   iPureIntro. eapply R_is_identity_outside_D; eauto.
 Qed.
 
@@ -838,7 +636,7 @@ Qed.
 Theorem UF_compatible : forall D R V x, x ∈ D ->
   UF D R V -∗ ⌜ V x = V (R x) ⌝.
 Proof using.
-  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
+  iIntros (D R V x Hx) "HUF". iDestruct "HUF" as (F ρ LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
   iPureIntro. apply Hdata.
 Qed.
 
@@ -849,7 +647,7 @@ Qed.
 
 Theorem UF_create : forall V, ⊢ UF ∅ id V.
 Proof.
-  iIntros (V). iExists (UnionFind02EmptyCreate.empty elem), ∅.
+  iIntros (V). iExists (UnionFind02EmptyCreate.empty elem), (λ x, x), ∅.
   iSplit; [|iSplit].
   - iPureIntro. constructor.
     + apply is_dsf_empty.
@@ -872,21 +670,21 @@ Qed.
    generic in the per-vertex resource (it never inspects [lcontent]), so it's
    ported unchanged from the old single-level version. *)
 
-Lemma pointsto_M_disjoint : forall LM1 LM2,
-  pointsto_M LM1 -∗ pointsto_M LM2 -∗ ⌜ LM1 ##ₘ LM2 ⌝.
+Lemma pointsto_M_disjoint : forall ρ1 ρ2 LM1 LM2,
+  pointsto_M ρ1 LM1 -∗ pointsto_M ρ2 LM2 -∗ ⌜ LM1 ##ₘ LM2 ⌝.
 Proof.
   iIntros "* HM1 HM2" (x).
   destruct (LM1 !! x) as [lc1|] eqn:Heq1, (LM2 !! x) as [lc2|] eqn:Heq2=>//.
-  iDestruct (pointsto_M_acc_same _ _ _ Heq1 with "HM1") as (c1) "(Hx1 & _ & _)".
-  iDestruct (pointsto_M_acc_same _ _ _ Heq2 with "HM2") as (c2) "(Hx2 & _ & _)".
+  iDestruct (pointsto_M_acc_same _ _ _ _ Heq1 with "HM1") as "(Hx1 & _ & _)".
+  iDestruct (pointsto_M_acc_same _ _ _ _ Heq2 with "HM2") as "(Hx2 & _ & _)".
   iCombine "Hx1 Hx2" gives %Hbad. exfalso. destruct Hbad as [Hbad _]. eapply dfrac_full_exclusive; exact Hbad.
 Qed.
 
-Lemma pointsto_M_union : forall LM1 LM2,
+Lemma pointsto_M_union : forall ρ LM1 LM2,
   LM1 ##ₘ LM2 ->
-  pointsto_M LM1 ∗ pointsto_M LM2 ⊣⊢ pointsto_M (LM1 ∪ LM2).
+  pointsto_M ρ LM1 ∗ pointsto_M ρ LM2 ⊣⊢ pointsto_M ρ (LM1 ∪ LM2).
 Proof.
-  intros LM1 LM2 HLM12. unfold pointsto_M.
+  intros ρ LM1 LM2 HLM12. unfold pointsto_M.
   induction LM1 as [|l x LM1 ? IH] using map_ind.
   { by rewrite big_opM_empty !left_id. }
   rewrite -insert_union_l !big_sepM_insert //; last first.
@@ -904,8 +702,8 @@ Theorem UF_join : forall D1 R1 V1 D2 R2 V2,
   ∗ ⌜ D1 ## D2 ⌝.
 Proof.
   iIntros (D1 R1 V1 D2 R2 V2) "HUF1 HUF2".
-  iDestruct "HUF1" as (F1 LM1 HInv1 HMem1) "HM1".
-  iDestruct "HUF2" as (F2 LM2 HInv2 HMem2) "HM2".
+  iDestruct "HUF1" as (F1 ρ1 LM1 HInv1 HMem1) "HM1".
+  iDestruct "HUF2" as (F2 ρ2 LM2 HInv2 HMem2) "HM2".
   destruct HInv1 as [Hdsf1 Hincl1 Hdata1].
   destruct HInv2 as [Hdsf2 Hincl2 Hdata2].
   destruct HMem1 as [Hdom1 HMfun1].
@@ -919,7 +717,8 @@ Proof.
     eapply map_disjoint_spec; eauto. }
   assert (HnotD2 : forall x, x ∈ D1 -> x ∉ D2) by (intros x Hx1 Hx2; eapply HD12; eauto).
   assert (HnotD1 : forall x, x ∈ D2 -> x ∉ D1) by (intros x Hx2 Hx1; eapply HD12; eauto).
-  iSplit; [|done]. iExists (union elem F1 F2), (LM1 ∪ LM2).
+  iSplit; [|done].
+  iExists (union elem F1 F2), (λ x, if decide (x ∈ D1) then ρ1 x else ρ2 x), (LM1 ∪ LM2).
   iSplit.
   - (* Preservation of [Inv]. *)
     iPureIntro. constructor.
@@ -964,7 +763,15 @@ Proof.
         split; [|destruct (decide (x ∈ D1)) as [Hc | _]; [tauto | exact Hv2]].
         apply is_root_join. split; [|exact Hroot2].
         intros y' HF1. destruct (proj1 Hdsf1 x y' HF1) as [Hx1' _]. eapply HxnD1; exact Hx1'.
-    + iApply pointsto_M_union; [exact HLM12|]. iFrame.
+    + (* The joined record-location map agrees with [ρ1] on [LM1] and [ρ2] on
+         [LM2], so [pointsto_M] of each piece is recovered unchanged. *)
+      iApply pointsto_M_union; [exact HLM12|].
+      iSplitL "HM1".
+      * unfold pointsto_M. iApply (big_sepM_mono with "HM1"). iIntros (x lc Hx) "He".
+        apply elem_of_dom_2 in Hx. rewrite Hdom1 in Hx. rewrite decide_True //.
+      * unfold pointsto_M. iApply (big_sepM_mono with "HM2"). iIntros (x lc Hx) "He".
+        apply elem_of_dom_2 in Hx. rewrite Hdom2 in Hx.
+        rewrite decide_False; [done| apply HnotD1; exact Hx].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -986,14 +793,14 @@ Qed.
 
 Definition find := (EAnonFun (AnonFunction __branches7)).
 
-Definition find_spec ( e : elem) (m : microvx) : iProp Σ :=
-  ∀ d D R F F' M V,
+Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
+  ∀ ρ d D R F F' M V,
     ⌜Inv D F R V⌝ -∗
     ⌜Mem D F V M⌝ -∗
     ⌜e ∈ D⌝ -∗
     ⌜bw_ipc _ F e d F'⌝ -∗
-    pointsto_M M -∗
-    imp m {{ λ (x : elem), ∃ M', ⌜x = R e⌝ ∗ pointsto_M M' ∗ ⌜Mem D F' V M'⌝ }}.
+    pointsto_M ρ M -∗
+    imp m {{ λ (x : elem), ∃ M', ⌜x = R e⌝ ∗ pointsto_M ρ M' ∗ ⌜Mem D F' V M'⌝ }}.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1054,6 +861,26 @@ Proof.
     + intros _. exists lr. reflexivity.
 Qed.
 
+Lemma pat_Root_var η0 (c : @content val _) s :
+  pattern η0 η0 (PData "Root" [PVar s]) #c
+    (λ η', ∃ rr, c = Root rr ∧ η' = (s, #rr)::η0 )
+    (∃ lr, c = Link lr).
+Proof.
+  destruct c as [rr | lr].
+  - eapply pattern_exn_mono.
+    + eapply pat_PData_eq.
+      * erewrite solve_encode_Root; eauto.
+      * eapply pats_PCons.
+        2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. }
+        eapply pat_PVar. exists rr; split; [reflexivity | reflexivity].
+    + intros [[]|[]].
+  - eapply pattern_exn_mono.
+    + eapply pat_PData_neq.
+      * erewrite solve_encode_Link; eauto.
+      * eauto.
+    + intros _. exists lr. reflexivity.
+Qed.
+
 Lemma pat_Link_fixed η0 (c : @content val _) :
   pattern η0 η0 (PData "Link" [PVar "link"]) #c
     (λ η', ∃ lr, c = Link lr ∧ η' = ("link" ~> #lr; η0))
@@ -1074,189 +901,210 @@ Proof.
     + intros [[]|[]].
 Qed.
 
-(* The whole framing argument for [find]'s recursive call, packaged as one
-   lemma. From the vertex [e] (a [Link] to [e']) and the iterated-compression
-   derivation on [e], it carves out the part of the structure reachable from
-   [e'] — forward-closed under [F], hence excluding [e] — as a self-contained
-   sub-DSF [(D2, restrict F, restrict R)] on which [find e'] can run, and
-   bundles everything the caller needs afterwards: the resulting relation
-   [F0], that [F'] is [F0] compressed at [e], that [F0] agrees with [F]
-   outside [D2], and that [e] and [e'] share a representative. *)
-
-Lemma find_restrict : forall D F R V M e e' d F',
-  Inv D F R V -> Mem D F V M -> e ∈ D -> F e e' -> bw_ipc elem F e d F' ->
-  exists (D2 : gset elem) l0 F0,
-    F' = compress elem F0 e (R e') /\
-    e ∉ D2 /\ D2 ⊆ D /\ e' ∈ D2 /\
-    Inv D2 (fun pa pb => F pa pb /\ pa ∈ D2)
-           (fun pv => if decide (pv ∈ D2) then R pv else pv) V /\
-    Mem D2 (fun pa pb => F pa pb /\ pa ∈ D2) V (filter (fun kv => kv.1 ∈ D2) M) /\
-    bw_ipc elem (fun pa pb => F pa pb /\ pa ∈ D2) e' l0 (fun pa pb => F0 pa pb /\ pa ∈ D2) /\
-    (forall pa, pa ∉ D2 -> forall pb, F0 pa pb <-> F pa pb) /\
-    R e = R e'.
-Proof.
-  intros D F R V M e e' d F' HInv HMem HeD HFee' Hbw.
-  pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
-  assert (He'D : e' ∈ D) by (eapply (proj1 Hdsf); eauto).
-  assert (exists xrepr l0 F0, is_repr elem F e' xrepr /\ bw_ipc elem F e' l0 F0
-            /\ F' = compress elem F0 e xrepr) as (xrepr & l0 & F0 & Hrepr0 & Hipc0 & HFeq0).
-  { inversion Hbw as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl'].
-    - exfalso. rewrite -H1 in Hr0. eapply Hr0. eauto.
-    - assert (y0 = e') as -> by (eapply (proj1 (proj2 Hdsf)); eauto). eauto 10. }
-  assert (xrepr = R e') as -> by
-    (eapply functional_is_repr; [exact Hdsf | exact Hrepr0 | eapply (Inv_incl _ _ _ _ HInv)]).
-  destruct (bw_ipc_reach_dom _ _ _ _ (proj1 (proj2 Hdsf)) _ _ _ Hipc0)
-    as (D2 & He'D2 & Hreach & Hclosed).
-  assert (HenD2 : e ∉ D2)
-    by (intro He2; eapply edge_no_return_path; [exact Hdsf | exact HFee' | exact (Hreach e He2)]).
-  assert (HD2subD : D2 ⊆ D).
-  { intros pa Ha. eapply (proj1 (sticky_path elem _ _ D F Hdsf e' pa (Hreach pa Ha))); exact He'D. }
-  exists D2, l0, F0.
-  split; [exact HFeq0|]. split; [exact HenD2|]. split; [exact HD2subD|]. split; [exact He'D2|].
-  split; [eapply Inv_restrict; eauto|].
-  split; [eapply Mem_restrict_real; eauto|].
-  split; [eapply bw_ipc_restrict; eauto|].
-  split.
-  - intros pa HpanD2 pb. eapply (bw_ipc_outside_unchanged elem _ _ F e' l0 F0 Hipc0).
-    intro Hc. exact (HpanD2 (rtc_forward_closed_in elem F (fun z => z ∈ D2) e' He'D2 Hclosed pa Hc)).
-  - eapply (is_equiv_incl_same_R elem _ _ D F Hdsf R (Inv_incl _ _ _ _ HInv) e e').
-    eapply path_is_equiv; eauto using rtc_l, rtc_refl.
-Qed.
-
-(* Deleting a vertex [e ∉ D2] before filtering on [∈ D2] is a no-op: bridges
-   the heap [pointsto_M_split] gives to the [filter (∈ D2) M] that [find]'s
-   recursive call (via [find_restrict]) expects. *)
-
-Lemma filter_in_delete_eq (D2 : gset elem) (M : gmap elem lcontent) e :
-  e ∉ D2 ->
-  filter (fun kv => kv.1 ∈ D2) (delete e M) = filter (fun kv => kv.1 ∈ D2) M.
-Proof.
-  intros He. apply map_filter_strong_ext_1. intros k w.
-  rewrite lookup_delete_Some. split.
-  - intros [Hk2 [_ Hw]]. done.
-  - intros [Hk2 Hw]. split; [exact Hk2|]. split; [|exact Hw]. intros ->. exact (He Hk2).
-Qed.
-
 Lemma find_spec_inductive η :
-  ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec) η -∗
-  imp (eval η find) {{ λ c, □ iSpec τ[elem] c find_spec }}.
+  ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
+  imp (eval η find) {{ λ c, □ iSpec τ[elem] c find_spec' }}.
 Proof.
   iIntros "#IH".
   iApply imp_EAnon_pers.
   iIntros "!>" (e).
-  unfold find_spec at 2.
-  iIntros (d D R F F' M V HInv HMem Hin Hbw_ipc) "HM".
+  unfold find_spec' at 2.
+  iIntros (ρ d D R F F' M V HInv HMem Hin Hbw_ipc) "HM".
   iApply imp_please; iNext.
   (* The outer, always-matching [PAlias PAny "x"] binder for the function's
      own argument; unrelated to the source-level [match !x with ...]. *)
   imp_match elem. rewrite -encode_encode'.
-  (* [e] is a ref cell: load its content uniformly, before any case split.
-     [Hlc] records the [Mem] fact about [e]'s content (refined to a concrete
-     edge/root once the branch is known). The [_delete] variant of the
-     accessor keeps [e]'s own record syntactically identified across the
-     recursive call in the [Link] branch below. *)
+  (* Read [e]'s content cell with the *read-only* accessor: since [find]
+     recurses on the whole structure, [e] stays in the heap and is put back
+     unchanged by [Hback]. [Hlc] is the [Mem] fact about [e]'s content. *)
   destruct (M !! e) as [lc|] eqn:Heq;
     pose proof (proj2 HMem e Hin) as Hlc; rewrite Heq in Hlc; [|contradiction].
-  iDestruct (pointsto_M_acc_delete _ _ _ Heq with "HM") as (c) "(Hx & Hrepr & HMdel)".
+  iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
   iApply (imp_EMatch (A:=elem) (A':=@content val _) with "[Hx]").
   { iApply (imp_ELoad with "Hx"). imp_step. }
   iIntros (a) "[-> Hx]". iNext.
-  (* Apply [deep_handle_cons] manually for the [Root] branch (see the comment
-     above [pat_Root_fixed] for why [imp_branches] doesn't apply here). *)
+  (* Dispatch the [Root]/[Link] match. The scrutinee is [content_of (ρ e) lc],
+     so each branch destructs [lc] to learn its shape (and that the record is
+     [ρ e]). See the comment above [pat_Root_fixed]. *)
   iApply deep_handle_cons.
   { iPureIntro. apply cpat_CVal. apply pat_Root_fixed. }
   iSplit.
 
   - (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
-    iIntros (η1) "(%rr & -> & ->)".
-    iDestruct "Hrepr" as (k v) "[-> Hown]". destruct Hlc as [Hroot HVeq].
+    iIntros (η1) "(%rr & %Hc & ->)".
+    destruct lc as [v|y]; simpl in Hc; [injection Hc as <-|discriminate].
+    destruct Hlc as [Hroot HVeq].
     imp_path.
     iExists M. iSplitR.
     { iPureIntro. symmetry. eapply is_root_R_self; eauto. }
-    iSplitL "Hown Hx HMdel".
-    { iApply (pointsto_M_acc_delete_inv with "Hx [Hown] HMdel").
-      eassumption.
-      iExists k, v. by iFrame. }
+    iSplitL "Hx Hrec Hback". { iApply ("Hback" with "Hx Hrec"). }
     iPureIntro.
     assert (F' = F) as ->
       by (inversion Hbw_ipc; subst; [reflexivity | exfalso; eapply Hroot; eauto]).
     assumption.
 
-  - (* [Link link -> ...]: recurse on [e]'s parent, then path-compress. *)
-    iIntros "(%rr & ->)".
+  - (* [Link link -> ...]: here [link = ρ e]. Recurse on [e]'s parent [y],
+       then compress [e]'s record in place. *)
+    iIntros "(%rr & %Hc)".
+    destruct lc as [v|y]; simpl in Hc; [discriminate|injection Hc as <-].
+    rename Hlc into HFey.
+    simpl.
     iApply deep_handle_cons.
     { iPureIntro. apply cpat_CVal. apply pat_Link_fixed. }
-    (* Prove exhaustiveness of the match *)
+    (* Discharge match exhaustiveness. *)
     iSplit; last first. { iIntros "(% & %HF)". discriminate HF. }
+    iIntros (?) "(%lr & %Hinv & ->)". inversion_clear Hinv.
+    (* Read [link.parent], i.e. [e]'s parent [y]. *)
+    iApply (imp_ELet_var (B:=elem) with "[Hrec]").
+    { iApply (imp_record_access with "Hrec"). split; simpl; lia. imp_path. }
+    simpl. iIntros (?) "(-> & Hrec)". unfold "!!τ". simpl.
 
-    iIntros (?) "(% & %Hinv & ->)". inversion_clear Hinv.
-    iDestruct "Hrepr" as (e') "[-> Hown]". rename Hlc into HFee'.
-    (* Read [link.parent], i.e. [e]'s parent [e']. *)
-    iApply (imp_ELet_var (B:=elem) with "[Hown]").
-    { iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path. }
-    simpl. iIntros (?) "(-> & Hown)". unfold "!!τ". simpl.
+    (* Decompose the iterated-compression derivation at [e]: it steps to [y]
+       and recurses, with [F' = compress F0 e (R y)]. *)
+    pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
+    assert (HyD : y ∈ D) by (eapply (proj1 Hdsf); eauto).
+    assert (exists l0 F0, bw_ipc elem F y l0 F0 /\ F' = compress elem F0 e (R y))
+      as (l0 & F0 & Hipc0 & HFeq0).
+    { inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl'].
+      - exfalso. rewrite -H1 in Hr0. eapply Hr0. eauto.
+      - assert (y0 = y) as -> by (eapply (proj1 (proj2 Hdsf)); eauto).
+        assert (z0 = R y) as -> by
+          (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
+        eauto 10. }
 
-    (* Frame the recursion ([find_restrict]): carve out the part of the
-       structure reachable from [e'] (forward-closed, hence excluding [e]) and
-       hand only that to the recursive call, keeping [e]'s own cell
-       ([Hx]/[Hown]) on the side — needed because [link.parent <- z] updates
-       [e]'s record in place. *)
-    destruct (find_restrict _ _ _ _ _ _ _ _ _ HInv HMem Hin HFee' Hbw_ipc)
-      as (D2 & l0 & F0 & HFeq0 & HenD2 & HD2subD & He'D2 & HInv2 & HMem2 & Hipc2 & Houtside & HRee').
-    iDestruct (pointsto_M_split (delete e M) D2 with "HMdel") as "[HM2 HMrest]".
-    rewrite (filter_in_delete_eq D2 M e HenD2).
-
-    (* Recursive call [find e'] on the restricted structure; its result is
-       [R e'] (the restricted [R] coincides with [R] on [D2 ∋ e']). *)
-    iApply (imp_ELet_var (B:=elem) with "[HM2]").
-    { iApply (imp_EApp τ[elem]).
-      { imp_path. }
-      imp_path.
+    (* Put [e] back and recurse [find y] on the *whole* heap — no restriction:
+       [ρ] is preserved by the call, so [e]'s record is recoverable below. *)
+    iDestruct ("Hback" with "Hx Hrec") as "HM".
+    iApply (imp_ELet_var (B:=elem) with "[HM]").
+    { iApply (imp_EApp τ[elem]). { imp_path. } imp_path.
       simpl. iIntros (x) "->". iIntros (m) "Hm".
-      iApply ("Hm" with "[%//] [%//] [%//] [%//] HM2"). }
-
+      iApply ("Hm" with "[%//] [%//] [%//] [%//] HM"). }
     simpl.
-    iIntros (z) "(%M2' & -> & HM2' & %HMem2')".
-    rewrite decide_True; [|exact He'D2].
+    iIntros (z) "(%M2' & -> & HM' & %HMem')".
 
+    (* The recursion never touches [e] ([e] is not reachable from [y]), so [e]
+       is still a [Link] to [y] in the returned [M2'], with the same record. *)
+    assert (Hdsf0 : is_dsf elem _ _ D F0) by (eapply is_dsf_bw_ipc; eauto).
+    assert (HF0ey : F0 e y).
+    { assert (Hnr : ¬ rtc F y e)
+        by (intro Hc; eapply edge_no_return_path; [exact Hdsf|exact HFey|exact Hc]).
+      apply (proj2 (bw_ipc_outside_unchanged elem _ _ F y l0 F0 Hipc0 e Hnr y)). exact HFey. }
+    assert (Heq2 : M2' !! e = Some (LLink y)).
+    { pose proof (proj2 HMem' e Hin) as Hf2. destruct (M2' !! e) as [[v2|y2]|] eqn:E.
+      - exfalso. eapply (proj1 Hf2); exact HF0ey.
+      - do 2 f_equal. eapply (proj1 (proj2 Hdsf0)); [exact Hf2 | exact HF0ey].
+      - exfalso; exact Hf2. }
+    iDestruct (pointsto_M_acc _ _ _ _ Heq2 with "HM'") as "(Hx & Hrec & Hback)".
+
+    (* [if z != y then link.parent <- z]; either way [e]'s record ends up
+       [LLink (R y)]. Put it back, then conclude with [Mem_compress]. *)
     iApply (imp_ESeq with "[-]").
-    set_postcondition
-      (λ _, pointsto_M (<[e:=LLink (R e')]> (M2' ∪ filter (λ (kv : elem * lcontent), kv.1 ∉ D2) (delete e M)))).
+    set_postcondition (λ _, pointsto_M ρ (<[e:=LLink (R y)]> M2')).
     iApply imp_EIfThen.
-    { set_postcondition (λ b, ⌜b = negb (locations.eqb (R e') e')⌝)%I.
+    { set_postcondition (λ b, ⌜b = negb (locations.eqb (R y) y)⌝)%I.
       iApply imp_EBoolNeg.
       iApply (imp_EOpPhysEq_loc with "[] []"); [imp_path|imp_path|].
       iIntros "!>" (l1 l2) "-> -> //". }
     iIntros (b) "->".
+    destruct (locations.eqb_spec (R y) y) as [HRy|HRy]; simpl.
 
-    (* Both branches leave [e]'s cell holding [LLink (R e')] (the [R e' = e']
-       branch redundantly), so a uniform postcondition assembled by
-       [pointsto_M_reassemble] serves both. *)
-    destruct (locations.eqb_spec (R e') e') as [HRe'|HRe']; simpl.
+    + (* [R y = y]: no write; [e]'s record already points to [y = R y]. *)
+      rewrite HRy. iApply ("Hback" $! (LLink y) with "Hx Hrec").
 
-    + (* [R e' = e']: no-op compression, [e]'s record is already correct. *)
-      rewrite HRe'.
-      iApply (pointsto_M_reassemble with "Hx Hown HM2' HMrest").
-      apply HMem2'. apply HenD2.
+    + (* [R y ≠ y]: perform [link.parent <- R y]. *)
+      iApply (imp_wand with "[Hrec]").
+      { iApply (imp_record_update with "Hrec [] []"); [split; simpl; lia|imp_path|imp_path]. }
+      iIntros (?) "(%w & -> & Hrec)".
+      iApply ("Hback" $! (LLink (R y)) with "Hx Hrec").
 
-    + (* [R e' ≠ e']: perform [link.parent <- R e']. *)
-      iApply (imp_wand with "[Hown]").
-      { iApply (imp_record_update with "Hown [] []"); [split; simpl; lia|imp_path|imp_path]. }
-      iIntros (?) "(%w & -> & Hown)".
-      iApply (pointsto_M_reassemble with "Hx Hown HM2' HMrest").
-      apply HMem2'. apply HenD2.
-
-    + (* Continuation: [e] and [e'] share a representative ([HRee']); the
-         framed heap is a valid [Mem] for [F0] ([Mem_reassemble]) and the final
-         [link.parent <- R e'] write compresses it ([Mem_compress]). *)
+    + (* Continuation: [e] and [y] share a representative, and the updated heap
+         is a [Mem] for [F' = compress F0 e (R y)] directly by [Mem_compress]. *)
       iIntros "HMfinal". imp_path.
-      iFrame "HMfinal".
-      iPureIntro; split.
-      * symmetry; assumption.
-      * rewrite HFeq0. erewrite <- insert_insert_eq.
-        apply Mem_compress. eapply Mem_reassemble; eauto. assumption.
+      iExists (<[e:=LLink (R y)]> M2'). iFrame "HMfinal".
+      iSplitR.
+      { iPureIntro. symmetry.
+        eapply (is_equiv_incl_same_R elem _ _ D F Hdsf R (Inv_incl _ _ _ _ HInv) e y).
+        eapply path_is_equiv; eauto using rtc_l, rtc_refl. }
+      iPureIntro. rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin].
 Qed.
 
+Definition find_spec (e : elem) (m : microvx) : iProp Σ :=
+  ∀ D R V,
+    ⌜e ∈ D⌝ -∗
+    UF D R V -∗
+    imp m {{ λ (x : elem), ⌜x = R e⌝ ∗ UF D R V }}.
+
+Lemma find_proof :
+  ∀ find, iSpec τ[elem] find find_spec' -∗ iSpec τ[elem] find find_spec.
+Proof.
+  iIntros (find) "Hspec".
+  iApply (iSpec_mono with "Hspec").
+  iIntros (x m) "Hspec".
+  unfold find_spec, find_spec', tapp.
+  iIntros (D R V) "%Hin HUF".
+  iDestruct "HUF" as "(%F & %ρ & %LM & %HInv & %HMem & Hpointsto)".
+  pose proof (Inv_dsf D F R V HInv) as Hdsf.
+  edestruct (ipc_defined elem _ _ D F Hdsf x) as (d & F' & Hipc).
+  iSpecialize ("Hspec" with "[//] [//] [//] [//] Hpointsto").
+  iApply (imp_wand with "Hspec").
+  iIntros (y) "(%M' & -> & Hpointsto & %HMem')".
+  iSplit; first done.
+  iFrame "∗%". iPureIntro.
+  split; eauto 10 using is_dsf_bw_ipc, bw_ipc_preserves_RF_agreement.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Definition get_spec (e : elem) (m : microvx) : iProp Σ :=
+  ∀ D R V,
+    ⌜e ∈ D⌝ -∗
+    UF D R V -∗
+    imp m {{ λ (x : val), ⌜x = V e⌝ ∗ UF D R V }}.
+
+Definition get := (EAnonFun __fun19).
+
+Lemma get_proof η :
+  in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
+  imp (eval η get) {{ λ c, □ iSpec τ[elem] c get_spec }}.
+Proof.
+  iIntros "#Hfind".
+  iApply imp_EAnon_pers.
+  iIntros "!>" (e).
+  unfold get_spec.
+  iIntros (D R V) "%Hin HUF".
+  iApply imp_please; iNext.
+
+  imp_match elem. rewrite -encode_encode'.
+  iApply (imp_ELet_var (B:=elem) with "[HUF]").
+  { imp_app τ[elem].
+    iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
+  iIntros (?) "(-> & HUF)".
+  iPoseProof (UF_image with "HUF") as "%HRD"; first eassumption.
+  iPoseProof (UF_idempotent with "HUF") as "%HRidem".
+  iPoseProof (UF_compatible with "HUF") as "%HRV"; first apply Hin.
+  iDestruct "HUF" as (F ρ M HI HM) "HM".
+  assert (M !! (R e) = Some (LRoot (V (R e)))) as Heq.
+  { eapply Mem_root; eauto. }
+  iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
+
+  imp_match (@content val _) with "[Hx]".
+  iIntros "(-> & Hx)".
+  simpl.
+
+  iApply deep_handle_cons. { iPureIntro. apply cpat_CVal. apply pat_Root_var. }
+  iSplit; last first.
+  { iIntros "(% & %HF)". discriminate HF. }
+  iIntros (?) "(%rr & %HRoot & ->)". inversion_clear HRoot.
+  iDestruct "Hrec" as "(%rank & Hown)".
+  iApply (imp_wand with "[Hown]").
+  { iApply (imp_record_access with "Hown"). split; simpl; lia.
+    imp_path. }
+  iIntros (?) "(-> & Hown)".
+  iSplit; first iPureIntro. { by rewrite HRV. }
+  iSpecialize ("Hback" with "Hx [Hown]").
+  { iFrame. }
+  iFrame "∗%".
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
