@@ -1036,8 +1036,8 @@ Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
 
 Lemma pat_Root_fixed η0 (c : @content val _) :
   pattern η0 η0 (PData "Root" [PAny]) #c
-    (fun η' => (exists rr, c = Root rr) /\ η' = η0)
-    (exists lr, c = Link lr).
+    (λ η', ∃ rr, c = Root rr ∧ η' = η0)
+    (∃ lr, c = Link lr).
 Proof.
   destruct c as [rr | lr].
   - eapply pattern_exn_mono.
@@ -1045,7 +1045,7 @@ Proof.
       * erewrite solve_encode_Root; eauto.
       * eapply pats_PCons.
         2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. }
-        eapply pat_PAny. split; [exists rr; reflexivity | reflexivity].
+        eapply pat_PAny. exists rr; split; [reflexivity | reflexivity].
     + intros [[]|[]].
   - eapply pattern_exn_mono.
     + eapply pat_PData_neq.
@@ -1056,8 +1056,8 @@ Qed.
 
 Lemma pat_Link_fixed η0 (c : @content val _) :
   pattern η0 η0 (PData "Link" [PVar "link"]) #c
-    (fun η' => exists lr, c = Link lr /\ η' = ("link" ~> #lr; η0))
-    (exists rr, c = Root rr).
+    (λ η', ∃ lr, c = Link lr ∧ η' = ("link" ~> #lr; η0))
+    (∃ rr, c = Root rr).
 Proof.
   destruct c as [rr | lr].
   - eapply pattern_exn_mono.
@@ -1149,7 +1149,7 @@ Proof.
   iApply imp_please; iNext.
   (* The outer, always-matching [PAlias PAny "x"] binder for the function's
      own argument; unrelated to the source-level [match !x with ...]. *)
-  imp_match elem.
+  imp_match elem. rewrite -encode_encode'.
   (* [e] is a ref cell: load its content uniformly, before any case split.
      [Hlc] records the [Mem] fact about [e]'s content (refined to a concrete
      edge/root once the branch is known). The [_delete] variant of the
@@ -1163,20 +1163,19 @@ Proof.
   iIntros (a) "[-> Hx]". iNext.
   (* Apply [deep_handle_cons] manually for the [Root] branch (see the comment
      above [pat_Root_fixed] for why [imp_branches] doesn't apply here). *)
-  iApply (deep_handle_cons _ _ _ _ _ _
-    (fun η' => (exists rr, c = Root rr) /\ η' =
-      ("x" ~> encode' e; "__osiris_anonymous_arg" ~> encode' e; η)) _).
+  iApply deep_handle_cons.
   { iPureIntro. apply cpat_CVal. apply pat_Root_fixed. }
   iSplit.
 
   - (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
-    iIntros (η1) "%Hp". destruct Hp as [[rr ->] ->].
+    iIntros (η1) "(%rr & -> & ->)".
     iDestruct "Hrepr" as (k v) "[-> Hown]". destruct Hlc as [Hroot HVeq].
     imp_path.
     iExists M. iSplitR.
     { iPureIntro. symmetry. eapply is_root_R_self; eauto. }
     iSplitL "Hown Hx HMdel".
-    { iApply (pointsto_M_acc_delete_inv e (LRoot v) (Root rr) M Heq with "Hx [Hown] HMdel").
+    { iApply (pointsto_M_acc_delete_inv with "Hx [Hown] HMdel").
+      eassumption.
       iExists k, v. by iFrame. }
     iPureIntro.
     assert (F' = F) as ->
@@ -1185,11 +1184,11 @@ Proof.
 
   - (* [Link link -> ...]: recurse on [e]'s parent, then path-compress. *)
     iIntros "(%rr & ->)".
-    iApply (deep_handle_cons _ _ _ _ _ _
-      (fun η' => exists lr : record, (Link rr : @content val _) = Link lr /\
-        η' = ("link" ~> #lr; ("x" ~> encode' e; "__osiris_anonymous_arg" ~> encode' e; η))) _).
-    { iPureIntro. ltac2:(specify_cpattern ()). apply pat_Link_fixed. }
+    iApply deep_handle_cons.
+    { iPureIntro. apply cpat_CVal. apply pat_Link_fixed. }
+    (* Prove exhaustiveness of the match *)
     iSplit; last first. { iIntros "(% & %HF)". discriminate HF. }
+
     iIntros (?) "(% & %Hinv & ->)". inversion_clear Hinv.
     iDestruct "Hrepr" as (e') "[-> Hown]". rename Hlc into HFee'.
     (* Read [link.parent], i.e. [e]'s parent [e']. *)
@@ -1212,48 +1211,50 @@ Proof.
     iApply (imp_ELet_var (B:=elem) with "[HM2]").
     { iApply (imp_EApp τ[elem]).
       { imp_path. }
-      simpl. unfold tapp, tbind. simpl. imp_path.
+      imp_path.
       simpl. iIntros (x) "->". iIntros (m) "Hm".
-      iApply ("Hm" $! l0 D2 _ _ _ _ V HInv2 HMem2 He'D2 Hipc2 with "HM2"). }
+      iApply ("Hm" with "[%//] [%//] [%//] [%//] HM2"). }
+
     simpl.
     iIntros (z) "(%M2' & -> & HM2' & %HMem2')".
-    rewrite decide_True; [|exact He'D2]. unfold "!!τ"; simpl.
+    rewrite decide_True; [|exact He'D2].
 
     iApply (imp_ESeq with "[-]").
+    set_postcondition
+      (λ _, pointsto_M (<[e:=LLink (R e')]> (M2' ∪ filter (λ (kv : elem * lcontent), kv.1 ∉ D2) (delete e M)))).
     iApply imp_EIfThen.
-    { iApply imp_EBoolNeg.
+    { set_postcondition (λ b, ⌜b = negb (locations.eqb (R e') e')⌝)%I.
+      iApply imp_EBoolNeg.
       iApply (imp_EOpPhysEq_loc with "[] []"); [imp_path|imp_path|].
-      iIntros "!>" (l1 l2) "-> ->".
-      instantiate (1 := (fun b => ⌜b = negb (locations.eqb (R e') e')⌝)%I).
-      iPureIntro. reflexivity. }
+      iIntros "!>" (l1 l2) "-> -> //". }
     iIntros (b) "->".
+
     (* Both branches leave [e]'s cell holding [LLink (R e')] (the [R e' = e']
        branch redundantly), so a uniform postcondition assembled by
        [pointsto_M_reassemble] serves both. *)
-    instantiate (1 := (fun _ => pointsto_M (<[e:=LLink (R e')]>
-      (M2' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))) ∗ True)%I).
     destruct (locations.eqb_spec (R e') e') as [HRe'|HRe']; simpl.
 
     + (* [R e' = e']: no-op compression, [e]'s record is already correct. *)
-      iSplitL "Hx Hown HM2' HMrest"; [|done]. rewrite HRe'.
-      iApply (pointsto_M_reassemble e lr _ D2 M2' M (proj1 HMem2') HenD2 with "Hx Hown HM2' HMrest").
+      rewrite HRe'.
+      iApply (pointsto_M_reassemble with "Hx Hown HM2' HMrest").
+      apply HMem2'. apply HenD2.
 
     + (* [R e' ≠ e']: perform [link.parent <- R e']. *)
       iApply (imp_wand with "[Hown]").
       { iApply (imp_record_update with "Hown [] []"); [split; simpl; lia|imp_path|imp_path]. }
       iIntros (?) "(%w & -> & Hown)".
-      iSplitL "Hx Hown HM2' HMrest"; [|done].
-      iApply (pointsto_M_reassemble e lr _ D2 M2' M (proj1 HMem2') HenD2 with "Hx Hown HM2' HMrest").
+      iApply (pointsto_M_reassemble with "Hx Hown HM2' HMrest").
+      apply HMem2'. apply HenD2.
 
     + (* Continuation: [e] and [e'] share a representative ([HRee']); the
          framed heap is a valid [Mem] for [F0] ([Mem_reassemble]) and the final
          [link.parent <- R e'] write compresses it ([Mem_compress]). *)
-      iIntros "[HMfinal _]". imp_path.
-      iExists (<[e:=LLink (R e')]> (M2' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
+      iIntros "HMfinal". imp_path.
       iFrame "HMfinal".
-      iSplitR. { iPureIntro. symmetry. exact HRee'. }
-      iPureIntro. rewrite HFeq0 -(insert_insert_eq _ e (LLink (R e')) (LLink e')).
-      apply Mem_compress; [eapply Mem_reassemble; eauto | exact Hin].
+      iPureIntro; split.
+      * symmetry; assumption.
+      * rewrite HFeq0. erewrite <- insert_insert_eq.
+        apply Mem_compress. eapply Mem_reassemble; eauto. assumption.
 Qed.
 
 
