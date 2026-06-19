@@ -1108,6 +1108,60 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+Definition set_spec (e : elem) (v : val) (m : microvx) : iProp Σ :=
+  ∀ D R V,
+    ⌜e ∈ D⌝ -∗
+    UF D R V -∗
+    imp m {{ λ (x : unit), UF D R (update1 V R e v) }}.
+
+Definition set := (EAnonFun (AnonFun "x" (EAnonFun __fun23))).
+
+Lemma set_proof η :
+  in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
+  imp (eval η set) {{ λ c, □ iSpec τ[elem;val] c set_spec }}.
+Proof.
+  iIntros "#Hfind".
+  iApply imp_EAnon_pers.
+  iIntros "!>" (e v).
+  unfold set_spec.
+  iIntros (D R V) "%Hin HUF".
+  iApply imp_please; iNext.
+
+  imp_match val.
+  iApply (imp_ELet_var (B:=elem) with "[HUF]").
+  { imp_app τ[elem].
+    iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
+  iIntros (?) "(-> & HUF)".
+  iPoseProof (UF_image with "HUF") as "%HRD"; first eassumption.
+  iPoseProof (UF_idempotent with "HUF") as "%HRidem".
+  iPoseProof (UF_compatible with "HUF") as "%HRV"; first apply Hin.
+  iDestruct "HUF" as (F ρ M HI HM) "HM".
+  assert (M !! (R e) = Some (LRoot (V (R e)))) as Heq.
+  { eapply Mem_root; eauto. }
+  iDestruct (pointsto_M_acc _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
+
+  imp_match (@content val _) with "[Hx]".
+  iIntros "(-> & Hx)".
+  simpl.
+
+  iApply deep_handle_cons. { iPureIntro. apply cpat_CVal. apply pat_Root_var. }
+  iSplit; last first.
+  { iIntros "(% & %HF)". discriminate HF. }
+  iIntros (?) "(%rr & %HRoot & ->)". inversion_clear HRoot.
+  iDestruct "Hrec" as "(%rank & Hown)".
+  iApply (imp_wand with "[Hown]").
+  { iApply (imp_record_update with "Hown"). split; simpl; lia.
+    imp_path. imp_path. }
+  iIntros ([]) "(% & -> & Hown) /=".
+
+  iSpecialize ("Hback" $! (LRoot _) with "Hx [Hown]").
+  { iFrame. }
+  iFrame "Hback". iPureIntro.
+  eauto using Inv_update1, Mem_update1.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* The rest of this file is the original CFML/TLC-based development,
    not yet ported to Osiris (and using notations/tactics that don't exist
    here, e.g. [\in], [TC], [«...»], [wp_tick_*]). Commented out for now so
