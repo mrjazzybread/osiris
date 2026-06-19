@@ -2,7 +2,7 @@ From osiris Require Import osiris.
 From osiris.examples Require Import og_UnionFindBasic.
 
 Require Import UnionFind01Data UnionFind02EmptyCreate UnionFind03Link UnionFind04Compress
-  UnionFind06Join UnionFind05IteratedCompression.
+  UnionFind06Join UnionFind05IteratedCompression UnionFind07Reachable.
 
 (* An object in the Union Find data structure is represented by an
    heap_lang location. *)
@@ -245,6 +245,29 @@ Proof.
   destruct (decide (R x0 = R x)) as [Heq | Hneq].
   - reflexivity.
   - apply Hdata.
+Qed.
+
+(* The invariant restricts to a forward-closed subset [D2] of the domain,
+   together with [F]/[R] cut down to [D2] (off [D2], [R] is taken to be the
+   identity). See [is_dsf_restrict]/[is_repr_restrict] in
+   [UnionFind07Reachable.v]. Used by [find_spec_inductive] to describe the
+   sub-structure handed to the recursive call. *)
+
+Lemma Inv_restrict : forall D F R V (D2 : gset elem),
+  Inv D F R V ->
+  D2 ⊆ D ->
+  (forall pa pb, pa ∈ D2 -> F pa pb -> pb ∈ D2) ->
+  Inv D2 (fun pa pb => F pa pb /\ pa ∈ D2)
+         (fun pv => if decide (pv ∈ D2) then R pv else pv) V.
+Proof.
+  intros D F R V D2 HInv Hsub Hclosed. split.
+  - eapply is_dsf_restrict; eauto using Inv_dsf.
+  - intros pv. destruct (decide (pv ∈ D2)) as [HpvD2|HpvD2].
+    + eapply is_repr_restrict; [eapply (Inv_incl _ _ _ _ HInv) | exact HpvD2 | exact Hclosed].
+    + split; [apply rtc_refl|]. intros pb [_ Ha]. exact (HpvD2 Ha).
+  - intros pv. destruct (decide (pv ∈ D2)) as [HpvD2|HpvD2].
+    + eapply (Inv_data _ _ _ _ HInv).
+    + reflexivity.
 Qed.
 
 (* The invariant is preserved by a [link] operation. *)
@@ -598,6 +621,187 @@ Proof.
   iSpecialize ("HM" with "Hx Hrepr"). by rewrite insert_id.
 Qed.
 
+(* Unlike [pointsto_M_acc], gives back the rest of the map directly (as
+   [pointsto_M (delete x LM)]) rather than a put-back wand. This is what
+   lets a caller keep a vertex's own record syntactically identified across
+   an operation (e.g. a recursive call) that never touches it, instead of
+   losing that identity by folding it back into the map and re-extracting
+   it afterwards. *)
+
+Lemma pointsto_M_acc_delete : forall LM x lc,
+  LM !! x = Some lc ->
+  pointsto_M LM -∗
+    ∃ c, x ↦ #c ∗ content_repr lc c ∗ pointsto_M (delete x LM).
+Proof.
+  intros LM x lc HLM. iIntros "HM".
+  unfold pointsto_M.
+  iDestruct (big_sepM_delete _ LM x lc HLM with "HM") as "[Hc HM]".
+  iDestruct "Hc" as (c) "[Hx Hrepr]".
+  iExists c. iFrame.
+Qed.
+
+(* The inverse of [pointsto_M_acc_delete]: fold a vertex's content cell and
+   record block back into the map. Used to reassemble [pointsto_M] after an
+   operation that kept a single vertex's resources on the side. *)
+
+Lemma pointsto_M_acc_delete_inv (e : elem) (lc : lcontent) (c : content) (LM : gmap elem lcontent) :
+  LM !! e = Some lc ->
+  e ↦ #c -∗ content_repr lc c -∗ pointsto_M (delete e LM) -∗ pointsto_M LM.
+Proof.
+  intros HLM. iIntros "Hx Hrepr HMdel". unfold pointsto_M.
+  rewrite (big_sepM_delete _ LM e lc HLM).
+  iSplitR "HMdel"; [iExists c; iFrame | iFrame].
+Qed.
+
+(* [Mem] and [pointsto_M] restrict cleanly to a forward-closed subset [D2] of
+   vertices (see [UnionFind07Reachable.v] for the analogous, [elem]-agnostic
+   facts about [is_dsf]/[bw_ipc]). This is what lets [find_spec_inductive]'s
+   recursive call hand over only the part of the heap reachable from the
+   vertex it recurses on, keeping the caller's own vertex untouched. *)
+
+Lemma Mem_restrict_real :
+  forall D F V M (D2 : gset elem),
+  Mem D F V M ->
+  D2 ⊆ D ->
+  (forall pa pb, pa ∈ D2 -> F pa pb -> pb ∈ D2) ->
+  Mem D2 (fun pa pb => F pa pb /\ pa ∈ D2) V (filter (fun kv => kv.1 ∈ D2) M).
+Proof.
+  intros D F V M D2 [Hdom HMfun] Hsub Hclosed.
+  split.
+  - apply (dom_filter_L _ M D2). intros i. split.
+    + intros HiD2. assert (HiD : i ∈ D) by (eapply Hsub; eauto).
+      assert (i ∈ dom M) by (rewrite Hdom; exact HiD).
+      apply elem_of_dom in H as [x Hx]. exists x. split; [exact Hx | exact HiD2].
+    + intros [x [_ Hx2]]. exact Hx2.
+  - intros pa HpaD2.
+    assert (HpaD : pa ∈ D) by (eapply Hsub; eauto).
+    pose proof (HMfun pa HpaD) as Hfact.
+    rewrite map_lookup_filter.
+    destruct (M !! pa) as [lc|] eqn:Heqlc; simpl.
+    + rewrite option_guard_True; [|exact HpaD2].
+      destruct lc as [v|y].
+      * split; [|exact (proj2 Hfact)]. intros pb [HFpb _]. eapply (proj1 Hfact); exact HFpb.
+      * split; [exact Hfact | exact HpaD2].
+    + exact Hfact.
+Qed.
+
+(* The [Mem]-level counterpart of [find]'s heap reassembly: the framed-out
+   vertex [e] (with its single new edge [e -> e']), the recursively-compressed
+   reachable part [M'], and the untouched remainder still form a valid [Mem]
+   for the post-recursion relation [F0]. [F0] is required to agree with [F]
+   outside [D2] (the recursion's reachable set); given the original edge
+   [F e e'], the new edge [F0 e e'] is recovered from that agreement. *)
+
+Lemma Mem_reassemble : forall D (D2 : gset elem) F F0 V M M' e e',
+  Mem D F V M ->
+  Mem D2 (fun pa pb => F0 pa pb /\ pa ∈ D2) V M' ->
+  D2 ⊆ D ->
+  e ∈ D ->
+  e ∉ D2 ->
+  F e e' ->
+  (forall pa, pa ∉ D2 -> forall pb, F0 pa pb <-> F pa pb) ->
+  Mem D F0 V (<[e:=LLink e']> (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
+Proof.
+  intros D D2 F F0 V M M' e e' Hmem Hmem' Hsub HeD Hne2 HFee Hout.
+  assert (Hdom_mrest : dom (filter (fun kv => kv.1 ∉ D2) (delete e M)) = D ∖ D2 ∖ {[e]}).
+  { apply set_eq. intro x. rewrite elem_of_dom. split.
+    - intros [v0 Hv0]. apply map_lookup_filter_Some in Hv0 as [Hv0 Hnin].
+      apply lookup_delete_Some in Hv0 as [Hne Hv0]. simpl in Hnin.
+      assert (x ∈ D) by (destruct Hmem as [Hdom _]; rewrite -Hdom; apply elem_of_dom; eauto).
+      set_solver.
+    - intros Hx.
+      assert (x ∈ D) by set_solver.
+      assert (x ≠ e) by set_solver.
+      assert (x ∉ D2) by set_solver.
+      destruct Hmem as [Hdom HMfun0].
+      pose proof (HMfun0 x ltac:(assumption)) as Hfact.
+      destruct (M !! x) as [v0|] eqn:Heqx; [|exfalso; exact Hfact].
+      exists v0. rewrite map_lookup_filter.
+      rewrite (lookup_delete_ne M e x (not_eq_sym H0)).
+      rewrite Heqx. simpl. rewrite option_guard_True; [reflexivity|assumption]. }
+  split.
+  - rewrite dom_insert_L dom_union_L Hdom_mrest (proj1 Hmem').
+    apply set_eq. intro x.
+    rewrite elem_of_union elem_of_singleton elem_of_union elem_of_difference elem_of_difference elem_of_singleton.
+    split.
+    + intros [->|[HxD2|[[HxD _]_]]]; [exact HeD|eapply Hsub; eauto|exact HxD].
+    + intros HxD. destruct (decide (x = e)) as [->|Hne]; [left; reflexivity|right].
+      destruct (decide (x ∈ D2)) as [HxD2|HxD2]; [left; exact HxD2|right; split; [split|]; assumption].
+  - intros x HxD. destruct (decide (x = e)) as [->|Hxne].
+    + rewrite lookup_insert_eq. exact (proj2 (Hout e Hne2 e') HFee).
+    + rewrite lookup_insert_ne; [|exact (not_eq_sym Hxne)].
+      destruct (decide (x ∈ D2)) as [HxD2|HxD2].
+      * assert (Hlookup_x : (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M)) !! x = M' !! x).
+        { apply lookup_union_l'. apply (elem_of_dom (D:=gset elem)).
+          destruct Hmem' as [Hdom2' _]. rewrite Hdom2'. exact HxD2. }
+        rewrite Hlookup_x.
+        destruct Hmem' as [_ HMfun2'].
+        pose proof (HMfun2' x HxD2) as Hfact2.
+        destruct (M' !! x) as [[v0|y0]|] eqn:Heqx2; simpl in Hfact2.
+        -- split; [|exact (proj2 Hfact2)].
+           intros pb HF0xpb. eapply (proj1 Hfact2). split; [exact HF0xpb | exact HxD2].
+        -- exact (proj1 Hfact2).
+        -- exact Hfact2.
+      * assert (Hxin : x ∈ D ∖ D2 ∖ {[e]}) by set_solver.
+        assert (Hlookup_x2 : (M' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M)) !! x =
+                              filter (fun kv => kv.1 ∉ D2) (delete e M) !! x).
+        { apply lookup_union_r. destruct Hmem' as [Hdom2' _]. apply not_elem_of_dom. rewrite Hdom2'. exact HxD2. }
+        rewrite Hlookup_x2.
+        rewrite -Hdom_mrest in Hxin.
+        apply elem_of_dom in Hxin as [v0 Hv0].
+        rewrite Hv0.
+        pose proof Hv0 as Hv0'.
+        apply map_lookup_filter_Some in Hv0' as [Hv0'' _].
+        apply lookup_delete_Some in Hv0'' as [_ Hv0'''].
+        pose proof (proj2 Hmem x HxD) as Hfact.
+        rewrite Hv0''' in Hfact.
+        destruct v0 as [v1|y1]; simpl in Hfact.
+        -- split; [|exact (proj2 Hfact)].
+           intros pb HF0xpb. eapply (proj1 Hfact). apply (Hout x HxD2 pb). exact HF0xpb.
+        -- apply (Hout x HxD2 y1). exact Hfact.
+Qed.
+
+(* [pointsto_M] splits along any partition of the underlying [gmap], in
+   particular along membership in a chosen [gset]. *)
+
+Lemma pointsto_M_split (LM : gmap elem lcontent) (D2 : gset elem) :
+  pointsto_M LM ⊢
+  pointsto_M (filter (fun kv => kv.1 ∈ D2) LM) ∗
+  pointsto_M (filter (fun kv => kv.1 ∉ D2) LM).
+Proof.
+  unfold pointsto_M.
+  rewrite -{1}(map_filter_union_complement (fun kv => kv.1 ∈ D2) LM).
+  rewrite big_sepM_union; [done|].
+  apply map_disjoint_filter_complement.
+Qed.
+
+(* Reassemble a [Link] vertex [e]'s cell and record block, together with the
+   recursively-returned sub-heap [Ma] (domain [D2 ∌ e]) and the untouched
+   remainder [filter (∉ D2) (delete e M)], into a single [pointsto_M]. The
+   inverse-and-merge step at the end of [find]'s [Link] branch: it glues [e]'s
+   freshly path-compressed edge back onto the two framed-apart pieces. The
+   shapes of the two pieces make [e]'s absence and their disjointness
+   automatic, so the caller supplies only [dom Ma = D2] and [e ∉ D2]. *)
+
+Lemma pointsto_M_reassemble (e : elem) (lr : record) (y : elem)
+    (D2 : gset elem) (Ma M : gmap elem lcontent) :
+  dom Ma = D2 -> e ∉ D2 ->
+  e ↦ #(Link lr : @content val _) -∗ ownRepr lr 1 ({| parent := y |} : link (A:=val)) -∗
+  pointsto_M Ma -∗ pointsto_M (filter (fun kv => kv.1 ∉ D2) (delete e M)) -∗
+  pointsto_M (<[e:=LLink y]> (Ma ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
+Proof.
+  intros HdomMa He. iIntros "Hx Hown Ha Hb". unfold pointsto_M.
+  rewrite big_sepM_insert; last first.
+  { apply lookup_union_None. split.
+    - apply not_elem_of_dom. rewrite HdomMa. exact He.
+    - rewrite map_lookup_filter lookup_delete_eq //. }
+  iSplitL "Hx Hown". { iExists (Link lr). iFrame. done. }
+  rewrite big_sepM_union; last first.
+  { apply map_disjoint_dom_2. rewrite HdomMa. intros x Hx1 Hx2.
+    apply elem_of_dom in Hx2 as [w Hw]. apply map_lookup_filter_Some in Hw as [_ Hnin]. exact (Hnin Hx1). }
+  iFrame.
+Qed.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Public lemmas about the representation predicate. *)
@@ -870,6 +1074,69 @@ Proof.
     + intros [[]|[]].
 Qed.
 
+(* The whole framing argument for [find]'s recursive call, packaged as one
+   lemma. From the vertex [e] (a [Link] to [e']) and the iterated-compression
+   derivation on [e], it carves out the part of the structure reachable from
+   [e'] — forward-closed under [F], hence excluding [e] — as a self-contained
+   sub-DSF [(D2, restrict F, restrict R)] on which [find e'] can run, and
+   bundles everything the caller needs afterwards: the resulting relation
+   [F0], that [F'] is [F0] compressed at [e], that [F0] agrees with [F]
+   outside [D2], and that [e] and [e'] share a representative. *)
+
+Lemma find_restrict : forall D F R V M e e' d F',
+  Inv D F R V -> Mem D F V M -> e ∈ D -> F e e' -> bw_ipc elem F e d F' ->
+  exists (D2 : gset elem) l0 F0,
+    F' = compress elem F0 e (R e') /\
+    e ∉ D2 /\ D2 ⊆ D /\ e' ∈ D2 /\
+    Inv D2 (fun pa pb => F pa pb /\ pa ∈ D2)
+           (fun pv => if decide (pv ∈ D2) then R pv else pv) V /\
+    Mem D2 (fun pa pb => F pa pb /\ pa ∈ D2) V (filter (fun kv => kv.1 ∈ D2) M) /\
+    bw_ipc elem (fun pa pb => F pa pb /\ pa ∈ D2) e' l0 (fun pa pb => F0 pa pb /\ pa ∈ D2) /\
+    (forall pa, pa ∉ D2 -> forall pb, F0 pa pb <-> F pa pb) /\
+    R e = R e'.
+Proof.
+  intros D F R V M e e' d F' HInv HMem HeD HFee' Hbw.
+  pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
+  assert (He'D : e' ∈ D) by (eapply (proj1 Hdsf); eauto).
+  assert (exists xrepr l0 F0, is_repr elem F e' xrepr /\ bw_ipc elem F e' l0 F0
+            /\ F' = compress elem F0 e xrepr) as (xrepr & l0 & F0 & Hrepr0 & Hipc0 & HFeq0).
+  { inversion Hbw as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl'].
+    - exfalso. rewrite -H1 in Hr0. eapply Hr0. eauto.
+    - assert (y0 = e') as -> by (eapply (proj1 (proj2 Hdsf)); eauto). eauto 10. }
+  assert (xrepr = R e') as -> by
+    (eapply functional_is_repr; [exact Hdsf | exact Hrepr0 | eapply (Inv_incl _ _ _ _ HInv)]).
+  destruct (bw_ipc_reach_dom _ _ _ _ (proj1 (proj2 Hdsf)) _ _ _ Hipc0)
+    as (D2 & He'D2 & Hreach & Hclosed).
+  assert (HenD2 : e ∉ D2)
+    by (intro He2; eapply edge_no_return_path; [exact Hdsf | exact HFee' | exact (Hreach e He2)]).
+  assert (HD2subD : D2 ⊆ D).
+  { intros pa Ha. eapply (proj1 (sticky_path elem _ _ D F Hdsf e' pa (Hreach pa Ha))); exact He'D. }
+  exists D2, l0, F0.
+  split; [exact HFeq0|]. split; [exact HenD2|]. split; [exact HD2subD|]. split; [exact He'D2|].
+  split; [eapply Inv_restrict; eauto|].
+  split; [eapply Mem_restrict_real; eauto|].
+  split; [eapply bw_ipc_restrict; eauto|].
+  split.
+  - intros pa HpanD2 pb. eapply (bw_ipc_outside_unchanged elem _ _ F e' l0 F0 Hipc0).
+    intro Hc. exact (HpanD2 (rtc_forward_closed_in elem F (fun z => z ∈ D2) e' He'D2 Hclosed pa Hc)).
+  - eapply (is_equiv_incl_same_R elem _ _ D F Hdsf R (Inv_incl _ _ _ _ HInv) e e').
+    eapply path_is_equiv; eauto using rtc_l, rtc_refl.
+Qed.
+
+(* Deleting a vertex [e ∉ D2] before filtering on [∈ D2] is a no-op: bridges
+   the heap [pointsto_M_split] gives to the [filter (∈ D2) M] that [find]'s
+   recursive call (via [find_restrict]) expects. *)
+
+Lemma filter_in_delete_eq (D2 : gset elem) (M : gmap elem lcontent) e :
+  e ∉ D2 ->
+  filter (fun kv => kv.1 ∈ D2) (delete e M) = filter (fun kv => kv.1 ∈ D2) M.
+Proof.
+  intros He. apply map_filter_strong_ext_1. intros k w.
+  rewrite lookup_delete_Some. split.
+  - intros [Hk2 [_ Hw]]. done.
+  - intros [Hk2 Hw]. split; [exact Hk2|]. split; [|exact Hw]. intros ->. exact (He Hk2).
+Qed.
+
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec) η -∗
   imp (eval η find) {{ λ c, □ iSpec τ[elem] c find_spec }}.
@@ -880,80 +1147,126 @@ Proof.
   unfold find_spec at 2.
   iIntros (d D R F F' M V HInv HMem Hin Hbw_ipc) "HM".
   iApply imp_please; iNext.
-  (* This first [imp_match elem] processes the outer, always-matching
-     [PAlias PAny "x"] pattern that binds the function's own argument
-     (i.e. [__branches7]'s single branch) — it is unrelated to the [match
-     !x with ...] in the OCaml source. It needs no resources and leaves a
-     single goal: the inner [EMatch (ELoad x) __branches6]. *)
+  (* The outer, always-matching [PAlias PAny "x"] binder for the function's
+     own argument; unrelated to the source-level [match !x with ...]. *)
   imp_match elem.
-  destruct HMem as [Hdom HMfun].
-  assert (Hsome : exists lc, M !! e = Some lc).
-  { specialize (HMfun e Hin). destruct (M !! e) as [lc|]; [exists lc; reflexivity | exfalso; exact HMfun]. }
-  destruct Hsome as [lc Heq].
-  (* [x] is first and foremost a ref cell: [pointsto_M_acc] now gives us
-     [e ↦ #c] for *some* abstract content value [c], without needing to
-     know yet whether [x] is a root or a link. This lets us do the load
-     uniformly, before any case split. *)
-  iDestruct (pointsto_M_acc _ _ _ Heq with "HM") as (c) "(Hx & Hrepr & Hback)".
-  (* Prove the scrutinee [!x] directly via [imp_EMatch], steering the
-     [with "[Hx]"] selector so [Hx] (and only [Hx]) is consumed by the
-     inline load proof; [Hrepr]/[Hback] are left untouched for the branches
-     below. (Plain [imp_match]/[iApply imp_EMatch] without an explicit
-     bracketed selector defaults to giving the load step *no* resources at
-     all, since its postcondition is still an evar at that point —
-     discovered by stepping through this interactively.) *)
+  (* [e] is a ref cell: load its content uniformly, before any case split.
+     [Hlc] records the [Mem] fact about [e]'s content (refined to a concrete
+     edge/root once the branch is known). The [_delete] variant of the
+     accessor keeps [e]'s own record syntactically identified across the
+     recursive call in the [Link] branch below. *)
+  destruct (M !! e) as [lc|] eqn:Heq;
+    pose proof (proj2 HMem e Hin) as Hlc; rewrite Heq in Hlc; [|contradiction].
+  iDestruct (pointsto_M_acc_delete _ _ _ Heq with "HM") as (c) "(Hx & Hrepr & HMdel)".
   iApply (imp_EMatch (A:=elem) (A':=@content val _) with "[Hx]").
   { iApply (imp_ELoad with "Hx"). imp_step. }
   iIntros (a) "[-> Hx]". iNext.
-  (* Apply [deep_handle_cons] manually for the [Root] branch, with an [Hη]
-     that genuinely carries [c = Root rr] — see the comment above
-     [pat_Root_fixed] for why we can't just use [imp_branches] here. *)
+  (* Apply [deep_handle_cons] manually for the [Root] branch (see the comment
+     above [pat_Root_fixed] for why [imp_branches] doesn't apply here). *)
   iApply (deep_handle_cons _ _ _ _ _ _
     (fun η' => (exists rr, c = Root rr) /\ η' =
       ("x" ~> encode' e; "__osiris_anonymous_arg" ~> encode' e; η)) _).
   { iPureIntro. apply cpat_CVal. apply pat_Root_fixed. }
   iSplit.
-  - (* [Root _ -> x] branch body. *)
+
+  - (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
     iIntros (η1) "%Hp". destruct Hp as [[rr ->] ->].
-    iDestruct "Hrepr" as (k v) "[-> Hown]".
-    assert (is_root elem F e ∧ v = V e) as [Hroot HVeq].
-    { pose proof (HMfun e Hin) as Hfact.
-      by rewrite Heq in Hfact. }
-    destruct HInv as [Hdsf Hincl Hdata].
+    iDestruct "Hrepr" as (k v) "[-> Hown]". destruct Hlc as [Hroot HVeq].
     imp_path.
     iExists M. iSplitR.
-    { iPureIntro. apply eq_sym. eapply is_root_R_self; eauto. }
-    iSplitL "Hown Hx Hback".
-    { iSpecialize ("Hback" with "Hx [Hown]").
-      { by iFrame. }
-      by rewrite insert_id. }
+    { iPureIntro. symmetry. eapply is_root_R_self; eauto. }
+    iSplitL "Hown Hx HMdel".
+    { iApply (pointsto_M_acc_delete_inv e (LRoot v) (Root rr) M Heq with "Hx [Hown] HMdel").
+      iExists k, v. by iFrame. }
     iPureIntro.
     assert (F' = F) as ->
-      by (inversion Hbw_ipc; subst;
-          [reflexivity | exfalso; eapply Hroot; eauto]).
-    split; eassumption.
-  - (* [Link {parent=y} as link -> ...] branch: process the second
-       alternative, again applying [deep_handle_cons] manually for the
-       same reason. *)
-    iIntros "%Hp". destruct Hp as [rr ->].
+      by (inversion Hbw_ipc; subst; [reflexivity | exfalso; eapply Hroot; eauto]).
+    assumption.
+
+  - (* [Link link -> ...]: recurse on [e]'s parent, then path-compress. *)
+    iIntros "(%rr & ->)".
     iApply (deep_handle_cons _ _ _ _ _ _
       (fun η' => exists lr : record, (Link rr : @content val _) = Link lr /\
         η' = ("link" ~> #lr; ("x" ~> encode' e; "__osiris_anonymous_arg" ~> encode' e; η))) _).
     { iPureIntro. ltac2:(specify_cpattern ()). apply pat_Link_fixed. }
     iSplit; last first. { iIntros "(% & %HF)". discriminate HF. }
+    iIntros (?) "(% & %Hinv & ->)". inversion_clear Hinv.
+    iDestruct "Hrepr" as (e') "[-> Hown]". rename Hlc into HFee'.
+    (* Read [link.parent], i.e. [e]'s parent [e']. *)
+    iApply (imp_ELet_var (B:=elem) with "[Hown]").
+    { iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path. }
+    simpl. iIntros (?) "(-> & Hown)". unfold "!!τ". simpl.
 
-    iIntros (?) "(% & %Hinv & ->)".
-    inversion_clear Hinv.
-    admit.
+    (* Frame the recursion ([find_restrict]): carve out the part of the
+       structure reachable from [e'] (forward-closed, hence excluding [e]) and
+       hand only that to the recursive call, keeping [e]'s own cell
+       ([Hx]/[Hown]) on the side — needed because [link.parent <- z] updates
+       [e]'s record in place. *)
+    destruct (find_restrict _ _ _ _ _ _ _ _ _ HInv HMem Hin HFee' Hbw_ipc)
+      as (D2 & l0 & F0 & HFeq0 & HenD2 & HD2subD & He'D2 & HInv2 & HMem2 & Hipc2 & Houtside & HRee').
+    iDestruct (pointsto_M_split (delete e M) D2 with "HMdel") as "[HM2 HMrest]".
+    rewrite (filter_in_delete_eq D2 M e HenD2).
 
-Admitted.
+    (* Recursive call [find e'] on the restricted structure; its result is
+       [R e'] (the restricted [R] coincides with [R] on [D2 ∋ e']). *)
+    iApply (imp_ELet_var (B:=elem) with "[HM2]").
+    { iApply (imp_EApp τ[elem]).
+      { imp_path. }
+      simpl. unfold tapp, tbind. simpl. imp_path.
+      simpl. iIntros (x) "->". iIntros (m) "Hm".
+      iApply ("Hm" $! l0 D2 _ _ _ _ V HInv2 HMem2 He'D2 Hipc2 with "HM2"). }
+    simpl.
+    iIntros (z) "(%M2' & -> & HM2' & %HMem2')".
+    rewrite decide_True; [|exact He'D2]. unfold "!!τ"; simpl.
 
-Definition make_spec : val → microvx → iProp Σ :=
-  λ v m,
-    (∀ D R V,
-       UF D R V -∗
-       imp m {{ λ (x : elem), UF (D ∪ {[x]}) R (update1 V R x v) ∗ ⌜x ∉ D /\ R x = x⌝ }})%I.
+    iApply (imp_ESeq with "[-]").
+    iApply imp_EIfThen.
+    { iApply imp_EBoolNeg.
+      iApply (imp_EOpPhysEq_loc with "[] []"); [imp_path|imp_path|].
+      iIntros "!>" (l1 l2) "-> ->".
+      instantiate (1 := (fun b => ⌜b = negb (locations.eqb (R e') e')⌝)%I).
+      iPureIntro. reflexivity. }
+    iIntros (b) "->".
+    (* Both branches leave [e]'s cell holding [LLink (R e')] (the [R e' = e']
+       branch redundantly), so a uniform postcondition assembled by
+       [pointsto_M_reassemble] serves both. *)
+    instantiate (1 := (fun _ => pointsto_M (<[e:=LLink (R e')]>
+      (M2' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))) ∗ True)%I).
+    destruct (locations.eqb_spec (R e') e') as [HRe'|HRe']; simpl.
 
+    + (* [R e' = e']: no-op compression, [e]'s record is already correct. *)
+      iSplitL "Hx Hown HM2' HMrest"; [|done]. rewrite HRe'.
+      iApply (pointsto_M_reassemble e lr _ D2 M2' M (proj1 HMem2') HenD2 with "Hx Hown HM2' HMrest").
+
+    + (* [R e' ≠ e']: perform [link.parent <- R e']. *)
+      iApply (imp_wand with "[Hown]").
+      { iApply (imp_record_update with "Hown [] []"); [split; simpl; lia|imp_path|imp_path]. }
+      iIntros (?) "(%w & -> & Hown)".
+      iSplitL "Hx Hown HM2' HMrest"; [|done].
+      iApply (pointsto_M_reassemble e lr _ D2 M2' M (proj1 HMem2') HenD2 with "Hx Hown HM2' HMrest").
+
+    + (* Continuation: [e] and [e'] share a representative ([HRee']); the
+         framed heap is a valid [Mem] for [F0] ([Mem_reassemble]) and the final
+         [link.parent <- R e'] write compresses it ([Mem_compress]). *)
+      iIntros "[HMfinal _]". imp_path.
+      iExists (<[e:=LLink (R e')]> (M2' ∪ filter (fun kv => kv.1 ∉ D2) (delete e M))).
+      iFrame "HMfinal".
+      iSplitR. { iPureIntro. symmetry. exact HRee'. }
+      iPureIntro. rewrite HFeq0 -(insert_insert_eq _ e (LLink (R e')) (LLink e')).
+      apply Mem_compress; [eapply Mem_reassemble; eauto | exact Hin].
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* The rest of this file is the original CFML/TLC-based development,
+   not yet ported to Osiris (and using notations/tactics that don't exist
+   here, e.g. [\in], [TC], [«...»], [wp_tick_*]). Commented out for now so
+   the file parses end-to-end; kept around since we may want to reuse/adapt
+   these proofs (in particular [link_spec]) when porting [link]/[get]/[set]/
+   etc. the same way [make]/[find] were ported above. *)
+
+(*
 Lemma find_spec_inductive: forall d D R F K F' M V x,
   Inv D F K R V ->
   Mem D F K V M ->
@@ -1266,9 +1579,15 @@ Proof using.
   wp_apply (link_spec _ _ _ _ _ Hnmax with "[//] [$TC3 $UF]")=>//.
   iIntros (z). by rewrite !update2_root.
 Qed.
+*)
 
 End UnionFind.
 
+(* [final_theorems] referenced names ([get_spec]/[set_spec]/[eq_spec]/
+   [union_spec]/[UF_idempotent]/[UF_image]/[UF_identity]/[UF_compatible]/
+   [UF_create]/[UF_join]) that aren't defined anywhere in the ported part of
+   this file yet; commented out alongside the CFML dead code above. *)
+(*
 Definition final_theorems :=
   (@UF_idempotent,
    @UF_image,
@@ -1282,4 +1601,6 @@ Definition final_theorems :=
    @set_spec,
    @eq_spec,
    @union_spec).
+
 Print Assumptions final_theorems.
+*)

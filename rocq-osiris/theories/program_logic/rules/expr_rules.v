@@ -520,6 +520,22 @@ Section imp_rules_expr.
   (** * EString : string → expr *)
   (** * EOpPhysEq : expr → expr → expr *)
 
+  Lemma imp_EOpPhysEq_loc {ζ} η e1 e2 (Φ1 Φ2 : loc → iProp Σ) (Φ : bool → iProp Σ) :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    ▷ (∀ l1 l2, Φ1 l1 -∗ Φ2 l2 -∗ Φ (locations.eqb l1 l2)) -∗
+    imp eval η (EOpPhysEq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 Hjoin /=". simpl_eval.
+    iApply (imp_bind_par with "H1 H2").
+    iIntros (l1 l2) "HΦ1 HΦ2 !>".
+    rewrite /phys_eq_val /=.
+    iApply (imp_bind with "[]").
+    { iApply imp_ret; first reflexivity.
+      instantiate (1 := (λ b, ⌜b = locations.eqb l1 l2⌝)%I). done. }
+    iIntros (b) "->". iApply (imp_ret with "(Hjoin HΦ1 HΦ2)"). encode.
+  Qed.
+
   (** * EOpEq : expr → expr → expr *)
 
   Lemma imp_EOpEq `{Encode A1, Encode A2} {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
