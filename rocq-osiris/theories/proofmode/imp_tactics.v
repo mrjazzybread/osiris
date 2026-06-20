@@ -161,6 +161,7 @@ Ltac2 rec imp_step0 (reading : constr option) :=
                        iApply ($specialized_store with "[$]");
                        try (imp_step0 reading))
   | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
+  | ERecordAccess _ _ => imp_record_access0 None
   | _ =>
       Control.zero
         (Tactic_failure
@@ -210,8 +211,25 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
       Control.zero
         (Tactic_failure
            (Some (fprintf "Expected %t to be an arithmetic expression" e)))
-  end.
+  end
 
+with imp_record_access0 (r : constr option) :=
+  let specialized_load :=
+    match r with
+    | Some r => open_constr:(imp_record_access _ $r)
+    | None => 'imp_record_access
+    end
+  in
+  iApply ($specialized_load with "[$]");
+  Control.dispatch [ (fun _ => split; simpl; ltac1:(lia)); (fun _ => imp_step0 None) ].
+
+Ltac2 Notation "imp_record" r(constr) := imp_record_access0 (Some r).
+Ltac2 Notation "imp_record" := imp_record_access0 None.
+
+Tactic Notation "imp_record" constr(r) :=
+  let tac := ltac2:(r |- imp_record_access0 (Ltac1.to_constr r)) in
+  tac r.
+Tactic Notation "imp_record" := ltac2:(imp_record).
 
 Ltac2 Notation "imp_step" "reading" c(constr) := imp_step0 (Some c).
 Ltac2 Notation "imp_step" := imp_step0 None.

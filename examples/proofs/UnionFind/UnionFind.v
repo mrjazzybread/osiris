@@ -1182,7 +1182,8 @@ Proof.
     iIntros (?) "(%lr & %Hinv & ->)". inversion_clear Hinv.
     (* Read [link.parent], i.e. [e]'s parent [y]. *)
     iApply (imp_ELet_var (B:=elem) with "[Hrec]").
-    { iApply (imp_record_access with "Hrec"). split; simpl; lia. imp_path. }
+    { imp_record. }
+
     simpl. iIntros (?) "(-> & Hrec)". unfold "!!τ". simpl.
 
     (* Decompose the iterated-compression derivation at [e]: it steps to [y]
@@ -1323,8 +1324,7 @@ Proof.
   iIntros (?) "(%rr & %HRoot & ->)". inversion_clear HRoot.
   iDestruct "Hrec" as "(%rank & Hown)".
   iApply (imp_wand with "[Hown]").
-  { iApply (imp_record_access with "Hown"). split; simpl; lia.
-    imp_path. }
+  { imp_record. }
   iIntros (?) "(-> & Hown)".
   iSplit; first iPureIntro. { by rewrite HRV. }
   iSpecialize ("Hback" with "Hx [Hown]").
@@ -1476,9 +1476,9 @@ Proof.
   iApply (imp_ELet_pair (A:=Z) (B:=Z) with "[Hown_x Hown_y]").
   { iApply imp_ETuple.
     iApply (imp_evals_cons with "[Hown_x]").
-    { iApply (imp_record_access with "Hown_x"). split; simpl; lia. imp_path. }
+    { imp_record. }
     iApply (imp_evals_singleton with "[Hown_y]").
-    iApply (imp_record_access with "Hown_y"). split;simpl;lia. imp_path. }
+    imp_record. }
   iIntros (??) "((-> & Hown_x) & (-> & Hown_y))".
 
   iApply (imp_EIfThenElse).

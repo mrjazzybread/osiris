@@ -136,11 +136,6 @@ Section encoded_fields.
 
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
     imp_arith reading "Hown".
-    (* Subgoals of the form [v.x]: *)
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
   Qed.
 
   Lemma imp_point_update_x η :
