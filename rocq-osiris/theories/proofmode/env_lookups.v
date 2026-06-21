@@ -581,13 +581,35 @@ Ltac2 rec solve_path_spec () :=
 (** User-level tactics. *)
 
 Ltac2 solve_eq_goal () :=
+  (* The postcondition may be wrapped in the [tapp] coercion (from the
+     n-ary application machinery used for tuples and records), which
+     hides the postcondition evar behind [tapp].  When [tapp] is applied
+     to an evar, unfold it so that the evar appears as the head of the
+     goal and the evar branch below fires.  We only do so for an evar,
+     to leave concrete postconditions untouched for downstream tactics.
+     ([cbn]/[simpl] do not reduce [tapp], because of the [Arguments tapp
+     ... /] simpl-nomatch hint.) *)
+  (lazy_match! get_iris_goal () with
+   | tapp ?f _ => if Constr.is_evar f then ltac1:(unfold tapp) else ()
+   | _ => ()
+   end);
   lazy_match! get_iris_goal () with
   | (⌜_ = _⌝)%I => ltac1:(equality)
   | ?spec ?x =>
       match Constr.Unsafe.kind spec with
       | Constr.Unsafe.Evar _ _ =>
           let prop := '(λ x,⌜x=$x⌝)%I in
-          try_complete (fun _ => Std.unify spec prop; auto)
+          (* Instantiate the postcondition evar to [λ x, ⌜x = v⌝], then
+             discharge the resulting equality with [equality] (as in the
+             concrete branch above).  We must instantiate the evar
+             unconditionally (not under [try_complete]): otherwise a
+             failure to fully close would roll the instantiation back and
+             leave an evar postcondition, on which the subsequent
+             [iFrame] raises a unification error.  We use [equality]
+             rather than [auto], which is too weak to close the pure
+             equality. *)
+          Std.unify spec prop;
+          try (ltac1:(equality))
       | _ => ()
       end
   end.
