@@ -86,9 +86,29 @@ Section evals_rules.
     simpl. apply DC.(xctor_encode).
   Qed.
 
-  Lemma imp_ETuple {τ : types} {Φs : τ → iProp Σ} η es :
+  Lemma imp_ETuple {τ : types} {Φ : τ → iProp Σ} (Φs : τ → iProp Σ) η es :
     impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (ETuple es)) Ψ ζ Φs.
+    (∀# (xs : τ), Φs xs -∗ Φ xs) -∗
+    impure E (eval η (ETuple es)) Ψ ζ Φ.
+  Proof.
+    iIntros "Hes Hk".
+    simpl_eval.
+    iApply (imp_bind with "Hes").
+    iIntros (xs) "HΦs".
+    rewrite bi_tforall_equiv.
+    iDestruct ("Hk" with "HΦs") as "HΦ".
+    iApply (imp_ret with "HΦ").
+    encode.
+  Qed.
+
+  (* Tuple construction without a monotonicity premise: the elements
+     are evaluated directly against the tuple postcondition [Φ].  This
+     is the version to use when [Φ] is still an evar, since the split
+     amongst the elements then determines [Φ] and no monotonicity goal
+     is needed. *)
+  Lemma imp_ETuple_evar {τ : types} {Φ : τ → iProp Σ} η es :
+    impure E (evals η es) Ψ ζ Φ -∗
+    impure E (eval η (ETuple es)) Ψ ζ Φ.
   Proof.
     iIntros "Hes".
     simpl_eval.
@@ -97,5 +117,13 @@ Section evals_rules.
     iApply (imp_ret with "HΦs").
     encode.
   Qed.
+
+  (* Reflexivity of the [imp_ETuple] monotonicity premise.  Used by the
+     [imp_step] automation to discharge that premise when a tuple is
+     solved without a selection pattern: applying it unifies the
+     intermediate postcondition with the tuple postcondition. *)
+  Lemma tuple_mono_refl {τ : types} (Φ : τ → iProp Σ) :
+    ⊢ ∀# (xs : τ), Φ xs -∗ Φ xs.
+  Proof. rewrite bi_tforall_equiv. iIntros (xs) "H". iApply "H". Qed.
 
 End evals_rules.

@@ -1448,14 +1448,13 @@ Proof.
 
   iPoseProof (pointsto_M_acc2_realloc with "HM") as "(Hx & Hrepr_x & Hy & Hrepr_y & Hback)".
   eassumption. eassumption. eassumption.
+  simpl.
 
   imp_match (@content val _ * @content val _)%type with "[Hx Hy]".
-  { iApply (imp_ETuple (τ:=τ[content;content])).
-    iApply (imp_evals_cons with "[Hx]"). imp_load.
-    iApply imp_evals_singleton. imp_load. }
+  { imp_tuple with "[Hx] [Hy]". }
+
   destruct a as [??].
   iIntros "((-> & Hx) & (-> & Hy))".
-  simpl.
   iApply deep_handle_cons.
   { iPureIntro. apply cpat_CVal.
     eapply pat_PTuple. rewrite encode_encode'. reflexivity.
@@ -1474,12 +1473,8 @@ Proof.
   iDestruct "Hrepr_x" as "(%x_rank & Hown_x)".
   iDestruct "Hrepr_y" as "(%y_rank & Hown_y)".
   iApply (imp_ELet_pair (A:=Z) (B:=Z) with "[Hown_x Hown_y]").
-  { iApply imp_ETuple.
-    iApply (imp_evals_cons with "[Hown_x]").
-    { imp_record. }
-    iApply (imp_evals_singleton with "[Hown_y]").
-    imp_record. }
-  iIntros (??) "((-> & Hown_x) & (-> & Hown_y))".
+  { imp_tuple with "[Hown_x] [Hown_y]". }
+  iIntros (??) "((-> & Hown_x) & (-> & Hown_y)) /=".
 
   iApply (imp_EIfThenElse).
   { iApply imp_EOpLt_Z_weak. imp_path. imp_path. }
@@ -1491,10 +1486,7 @@ Proof.
         (Φ := ∃ (r : record), ownRepr r 1 {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
         with "Hx"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R y |})%I.
-      iApply imp_EData.
-      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
-        iApply imp_evals_singleton.
-        set_postcondition (λ y', ⌜y' = R y⌝)%I. imp_path. equality.
+      imp_step. { iApply imp_record. simpl; lia. ltac2:(unfold_impure_evals Init.None). set_postcondition (λ y', ⌜y' = R y⌝)%I. imp_path. auto. }
       - iIntros (?). iIntros "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".

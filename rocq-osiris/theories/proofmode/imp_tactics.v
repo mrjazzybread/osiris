@@ -5,6 +5,20 @@ Require Import env_lookups.
 From stdpp Require Import strings.
 From Ltac2 Require Import Ltac2 Printf.
 
+Ltac2 rec utypes_from_exprs (es : constr) : constr :=
+  lazy_match! es with
+  | cons _ nil => open_constr:(type_nel.Tbase _)
+  | cons _ ?es  =>
+    let base := utypes_from_exprs es in
+    open_constr:(type_nel.Tcons _ $base)
+  | nil =>
+    Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Cannot build empty [types]. ")))
+  end.
+
+
 Ltac2 imp_int_tac () :=
   let e := get_expr () in
   lazy_match! eval hnf in $e with
@@ -19,15 +33,6 @@ Ltac2 imp_int_tac () :=
 
 Ltac2 Notation "imp_int" := imp_int_tac ().
 Tactic Notation "imp_int" := ltac2:(imp_int).
-
-Ltac2 imp_load_tac (l : constr option) :=
-  let specialized_load :=
-    match l with
-    | Some l => open_constr:(imp_ELoad _ _ $l)
-    | None => 'imp_ELoad
-    end
-  in
-  iApply ($specialized_load with "[$]").
 
 Ltac2 Type arith_type :=
   [ Literal | Op | Op_frac(constr) | Comparison ].
@@ -138,6 +143,57 @@ Ltac2 selpat_from_reading (selpat : constr option) (reading : constr option) : c
   | None, None => '""
   end.
 
+(* [unfold_impure_evals] dispatches resources amongst the elements of
+   a tuple via a selection pattern with one bracketed group per
+   element, e.g. ["[Hx] [Hy]"].  Each [imp_evals_cons] is a binary
+   wand splitting the head element from the tail; we peel the first
+   group off for the head and pass the remaining groups down the
+   recursion.  Because an under-specified pattern leaves the trailing
+   premise with whatever spatial resources the leading premises did
+   not claim, naming only the head group at each step is enough.
+
+   [selpat_head] returns the first ["[...]"] group, [selpat_tail] the
+   rest of the pattern. *)
+
+Definition selpat_head (s : string) : string :=
+  match String.index 0 "]" s with
+  | Some j => String.substring 0 (S j) s
+  | None => s
+  end.
+
+Definition selpat_tail (s : string) : string :=
+  match String.index 0 "]" s with
+  | Some j => String.substring (S j) (String.length s - S j) s
+  | None => ""
+  end.
+
+Ltac2 rec unfold_impure_evals (selpat : constr option) :=
+  let e := get_iris_goal () in
+  lazy_match! e with
+  | impure _ (evals _ [_]) _ _ _  =>
+    match selpat with
+    | None => iApply imp_evals_singleton
+    | Some s => iApply (imp_evals_singleton with (selpat_head $s))
+    end
+  | impure _ (evals _ (_ :: _)) _ _ _ =>
+    match selpat with
+    | None =>
+      iApply imp_evals_cons >
+      [ | unfold_impure_evals None ]
+    | Some s =>
+      iApply (imp_evals_cons with (selpat_head $s)) >
+      [ | unfold_impure_evals (Some '(selpat_tail $s)) ]
+    end
+  end.
+
+(* Discharges the monotonicity goal left by [imp_ETuple] when the
+   tuple is being solved automatically (i.e. without a user-provided
+   selection pattern): the per-element postcondition is taken to be
+   the tuple postcondition itself, which closes the goal whenever the
+   latter is still an evar or already has the per-element shape. *)
+Ltac2 discharge_tuple_mono () :=
+  iApply tuple_mono_refl.
+
 Ltac2 rec imp_step0 (reading : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
@@ -145,11 +201,8 @@ Ltac2 rec imp_step0 (reading : constr option) :=
   if is_arith_expr e then imp_arith_tac None reading else
   lazy_match! e with
   | EPath _ => imp_path
-  | ELoad _ => imp_load_tac None; try (imp_step0 reading)
-  | ERef _ => Control.plus
-                (fun _ => iApply imp_ERef;
-                          complete (fun _ => imp_step0 reading))
-                (fun _ => iApply imp_ERef2; try (imp_step0 reading))
+  | ELoad _ => imp_load0 None reading
+  | ERef _ => imp_alloc0 None reading
   | EStore _ _ => Control.plus
                     (fun _ => iApply (imp_EStore with "[$]");
                               Control.dispatch [(fun _ => imp_step0 reading); complete_steps])
@@ -160,12 +213,95 @@ Ltac2 rec imp_step0 (reading : constr option) :=
                        let specialized_store := open_constr:(imp_EStore' (A:=$store_a)) in
                        iApply ($specialized_store with "[$]");
                        try (imp_step0 reading))
-  | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
+  | EData _ _ => imp_data0 reading
+  | ETuple _ =>
+      (* Without a selection pattern we cannot, in general, split the
+         resources between the elements.  Rather than leave the proof
+         in a half-finished state, we wrap the whole tuple resolution
+         in [complete]: either it clears the goal (elements stepped and
+         the monotonicity goal discharged), or it fails atomically and
+         leaves the goal untouched. *)
+      complete (fun () =>
+        imp_tuple0 None reading;
+        Control.enter (fun () =>
+          Control.plus
+            (fun () => imp_step0 reading)
+            (fun _ => discharge_tuple_mono ())))
   | ERecordAccess _ _ => imp_record_access0 None
   | _ =>
       Control.zero
         (Tactic_failure
            (Some (fprintf "[imp_step] doesn't know how to handle expression %t" e)))
+  end
+
+with imp_tuple0 (selpat : constr option) (reading : constr option) :=
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  lazy_match! e with
+  | ETuple ?es =>
+    let τ := utypes_from_exprs es in
+    (* Once the [evals] of the elements is in focus, split the
+       resources amongst the elements (according to [selpat]) and step
+       each one. *)
+    let step_elements () :=
+      unfold_impure_evals selpat;
+      Control.enter (fun () => try (imp_step0 reading))
+    in
+    (* Inspect the tuple postcondition to pick the right rule. *)
+    let post :=
+      lazy_match! get_iris_goal () with
+      | impure _ _ _ _ ?phi => phi
+      end
+    in
+    if Constr.is_evar post then
+      (* The postcondition is still an evar: the split amongst the
+         elements determines it, so we use the monotonicity-free rule
+         and no monotonicity goal is left behind. *)
+      let specialized_tuple := '(imp_ETuple_evar (τ:=$τ)) in
+      iApply $specialized_tuple; step_elements ()
+    else
+      (* The postcondition is fixed: use the rule with the built-in
+         monotonicity premise.  We send all the spatial resources to
+         the [evals] premise (["[-] []"]) so they can be split amongst
+         the elements, step them, and leave only the monotonicity goal
+         to the user. *)
+      let specialized_tuple := '(imp_ETuple (τ:=$τ)) in
+      let select_evals := '"[-] []" in
+      iApply ($specialized_tuple with $select_evals) >
+      [ step_elements () | simpl type_nel.tforall ]
+  end
+
+with imp_data0 (reading : constr option) :=
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  lazy_match! e with
+  | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
+  | EData _ _ =>
+    iApply imp_EData >
+    [ unfold_impure_evals None | simpl constructors.ctor_apply; simpl type_nel.tforall ];
+    Control.extend [] (fun _ => try (imp_step0 reading)) [fun _ => ()]
+  end
+
+with imp_load0 (l : constr option) (reading : constr option) :=
+  let specialized_load :=
+    match l with
+    | Some l => open_constr:(imp_ELoad _ _ $l)
+    | None => 'imp_ELoad
+    end
+  in
+  iApply ($specialized_load with "[$]");
+  try (imp_step0 reading)
+
+with imp_alloc0 (x : constr option) (reading : constr option) :=
+  match x with
+  | Some x =>
+      let spec_ref := open_constr:(imp_ERef $x) in
+      iApply $spec_ref; try (imp_step0 reading)
+  | None =>
+      Control.plus
+        (fun _ => iApply imp_ERef;
+                  complete (fun _ => imp_step0 None))
+        (fun _ => iApply imp_ERef2; try (imp_step0 reading))
   end
 
 with imp_arith_tac (selpat : constr option) (reading : constr option) :=
@@ -223,46 +359,31 @@ with imp_record_access0 (r : constr option) :=
   iApply ($specialized_load with "[$]");
   Control.dispatch [ (fun _ => split; simpl; ltac1:(lia)); (fun _ => imp_step0 None) ].
 
-Ltac2 Notation "imp_record" r(constr) := imp_record_access0 (Some r).
-Ltac2 Notation "imp_record" := imp_record_access0 None.
+Tactic Notation "imp_load" constr(l) :=
+  let tac := ltac2:(l |- imp_load0 (Ltac1.to_constr l) None) in
+  tac l.
+Tactic Notation "imp_load" := ltac2:(imp_load0 None None).
+
+Tactic Notation "imp_tuple" := ltac2:(imp_tuple0 None None).
+Tactic Notation "imp_tuple" "with" constr(sel) :=
+  let tac := ltac2:(sel |- imp_tuple0 (Ltac1.to_constr sel) None) in
+  tac sel.
 
 Tactic Notation "imp_record" constr(r) :=
   let tac := ltac2:(r |- imp_record_access0 (Ltac1.to_constr r)) in
   tac r.
-Tactic Notation "imp_record" := ltac2:(imp_record).
+Tactic Notation "imp_record" := ltac2:(imp_record_access0 None).
 
-Ltac2 Notation "imp_step" "reading" c(constr) := imp_step0 (Some c).
-Ltac2 Notation "imp_step" := imp_step0 None.
-Tactic Notation "imp_step" := ltac2:(imp_step).
+Tactic Notation "imp_step" := ltac2:(imp_step0 None).
 Tactic Notation "imp_step" "reading" constr(c) :=
   let tac := ltac2:(c |- imp_step0 (Ltac1.to_constr c)) in
   tac c.
 
-Ltac2 Notation "imp_load" l(constr) := imp_load_tac (Some l); try (imp_step).
-Ltac2 Notation "imp_load" := imp_load_tac None; try (imp_step).
-Tactic Notation "imp_load" constr(l) :=
-  let tac := ltac2:(l |- imp_load_tac (Ltac1.to_constr l); try (imp_step)) in
-  tac l.
-Tactic Notation "imp_load" := ltac2:(imp_load).
 
-Ltac2 imp_ref_tac (x : constr option) :=
-  match x with
-  | Some x =>
-      let spec_ref := open_constr:(imp_ERef $x) in
-      iApply $spec_ref; try (imp_step)
-  | None =>
-      Control.plus
-        (fun _ => iApply imp_ERef;
-                  complete (fun _ => imp_step0 None))
-        (fun _ => iApply imp_ERef2; try (imp_step))
-  end.
-
-Ltac2 Notation "imp_ref" x(constr) := imp_ref_tac (Some x).
-Ltac2 Notation "imp_ref" := imp_ref_tac None.
 Tactic Notation "imp_ref" constr(x) :=
-  let tac := ltac2:(x |- imp_ref_tac (Ltac1.to_constr x)) in
+  let tac := ltac2:(x |- imp_alloc0 (Ltac1.to_constr x) None) in
   tac x.
-Tactic Notation "imp_ref" := ltac2:(imp_ref).
+Tactic Notation "imp_ref" := ltac2:(imp_alloc0 None None).
 
 Ltac2 imp_store_tac (l : constr) (x : constr option) :=
   let (hl, a) := get_pointsto l in
@@ -270,11 +391,11 @@ Ltac2 imp_store_tac (l : constr) (x : constr option) :=
   | Some x =>
       let specialized_store := open_constr:(imp_EStore $l $x) in
       iApply ($specialized_store with $hl) >
-       [try (imp_step) | try (imp_step) ]
+       [try (imp_step0 None) | try (imp_step0 None) ]
   | None =>
       let specialized_store := open_constr:(imp_EStore' (A:=$a) _ $l) in
       iApply ($specialized_store with $hl) >
-        [try (imp_step) | try (imp_step) |
+        [try (imp_step0 None) | try (imp_step0 None) |
           iIntros "!>"; cbn beta;
           lazy_match! get_iris_goal () with
           | bi_forall (λ a, bi_wand (bi_pure (a = _)) _) =>
@@ -287,7 +408,7 @@ Ltac2 imp_store_tac (l : constr) (x : constr option) :=
 
 Ltac2 imp_store2_tac (l : constr) :=
   let specialized_store2 := open_constr:(imp_EStore2 $l) in
-  iApply $specialized_store2; try (imp_step).
+  iApply $specialized_store2; try (imp_step0 None).
 
 Ltac2 Notation "imp_store" l(constr) x(constr) := imp_store_tac l (Some x).
 Ltac2 Notation "imp_store" l(constr) := imp_store_tac l None.
@@ -312,13 +433,13 @@ Tactic Notation "imp_store2" constr(l) :=
 (*     | None, _ => '"" *)
 (*     end *)
 (*   in *)
-(*   match fetch_appropriate_arith_lemma e (is_Some reading) with *)
+(*   match fetch_appropriate_arith_lemma e reading with *)
 (*   | Some (lemma, arith_kind) => *)
 (*       iApply ($lemma with $s); *)
 (*       match arith_kind with *)
 (*       | Literal => () *)
 (*       | Op => *)
-(*           Control.extend [] (fun _ => try (imp_step)) *)
+(*           Control.extend [] (fun _ => try (imp_step0 reading)) *)
 (*             [ fun _ => *)
 (*                 simple_intros (); *)
 (*                 lazy_match! get_iris_goal () with *)
@@ -367,7 +488,7 @@ Ltac2 imp_app_tac (types : constr) (sel : constr option) :=
   | None => iApply $specialized_eapp
   end;
   let arg_tacs :=
-    List.init num_arg_goals (fun _ => (fun _ => try (imp_step)))
+    List.init num_arg_goals (fun _ => (fun _ => try (imp_step0 None)))
   in
   let conseq_tac () :=
     (unfold tapp, tbind; simple_intros ())
@@ -393,7 +514,7 @@ Ltac2 imp_for_tac (invariant : constr) (i : constr) (j : constr) (selpat : const
   | None => iApply $specialized_for
   | Some s => iApply ($specialized_for with $s)
   end >
-    [ representable () | representable () | try (imp_step) | try (imp_step) | | iIntros "!>" ].
+    [ representable () | representable () | try (imp_step0 None) | try (imp_step0 None) | | iIntros "!>" ].
 
 Tactic Notation "imp_for" constr(i) "to" constr(j) "$!" constr(invariant) "with" constr(sel) :=
   let tac := ltac2:(inv i j sel |-
@@ -424,7 +545,7 @@ Ltac2 imp_if_tac (selpat : constr option) :=
   | None => iApply $specialized_if
   | Some s => iApply ($specialized_if with $s)
   end >
-    [ try (imp_step) | iSplit; try (iIntros "%") ].
+    [ try (imp_step0 None) | iSplit; try (iIntros "%") ].
 
 Tactic Notation "imp_if" "with" constr(sel) :=
   let tac := ltac2:(sel |- imp_if_tac (Ltac1.to_constr sel)) in

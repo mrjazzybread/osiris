@@ -164,6 +164,33 @@ Proof.
     iApply "Hlx".
 Qed.
 
+
+(* [(!x, !y)] *)
+Lemma example_tuple_resources η x lx y ly (n : Z) :
+  lookup_name η x = Some #lx ->
+  lookup_name η y = Some #ly ->
+  lx ↦ #n -∗
+  ly ↦ #n -∗
+  imp (eval η (ETuple [ELoad (EVar x); ELoad (EVar y)]))
+    {{ λ '(x, y), ⌜x = n⌝ ∗ ⌜y = n⌝ ∗ lx ↦ #n ∗ ly ↦ #n }}.
+Proof.
+  iIntros (Ex Ey) "Hx Hy".
+  imp_tuple with "[Hx] [Hy]".
+  (* Only the monotonicity goal remains; the elements were stepped. *)
+  iIntros (x0 y0) "((-> & ?) & (-> & ?))". by iFrame.
+Qed.
+
+Lemma example_env_lookup `{Encode A} η (fun_spec : A → iProp Σ) :
+  in_env "fun" (λ a, □ fun_spec a) η -∗
+  imp (eval (("x", #1%Z) :: ("y", #2%Z) :: ("a", #1%Z) :: ("z", #3%Z) :: η) (EVar "z"))
+    {{ λ (i : Z), ⌜i = 3%Z⌝ }}.
+Proof.
+  iIntros "#Hf".
+  iApply imp_wand.
+  imp_path.
+  iIntros (?) "-> //".
+Qed.
+
 (* match 1 with _ -> true *)
 
 Lemma simple_PAny_match η :

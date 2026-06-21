@@ -511,9 +511,14 @@ Ltac2 rec solve_in_env () :=
                     in_env_context spec_name)
                  (fun _ =>
                     Control.plus
-                      (* Try to find a [lookup_name] hypothesis. *)
+                      (* Try to find a [lookup_name] hypothesis.  We use
+                         [match!] rather than [lazy_match!] so that, when
+                         several [lookup_name] hypotheses are in context
+                         (e.g. one per element of a tuple), we backtrack
+                         through them until we find the one matching [name]
+                         and [η]. *)
                       (fun _ =>
-                         lazy_match! goal with
+                         match! goal with
                          | [ h : lookup_name ?δ ?name' = Some #_ |- _ ] =>
                              if (Constr.equal δ η) && Constr.equal name' name then
                                let h := Control.hyp h in

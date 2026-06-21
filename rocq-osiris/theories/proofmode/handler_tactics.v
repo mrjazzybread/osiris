@@ -191,7 +191,7 @@ Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
        | None => iApply $specialized_match
        | Some sel => iApply ($specialized_match with $sel)
        end) >
-        [ try (imp_step) | simple_intros (); try (imp_branches0 ()) ]
+        [ try (imp_step0 None) | simple_intros (); try (imp_branches0 ()) ]
   | _ =>
       Control.zero (Tactic_failure
         (Some (fprintf "[imp_match] Expected EMatch expression, got %t" e)))
