@@ -627,20 +627,15 @@ Proof.
   iApply (imp_wand with "[]").
   { iApply (imp_ERef2 (A:=@content val _)
               (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ ownRepr rr 1 ({|rank:=0;value:=v|}:root(A:=val)))%I).
-    iApply (imp_EData (τ:=τ[record]) _ _ (λ rr, ownRepr rr 1 ({|rank:=0;value:=v|}:root(A:=val)))%I).
-    - iApply (imp_wand with "[]").
-      { iApply imp_evals_singleton.
-        iApply (imp_record (A:=root(A:=val)) (τ:=τ[Z;val])
-                  [EInt 0; EPath ["v"]] (λ k vv, ⌜k=0⌝ ∗ ⌜vv=v⌝)%I).
-        - rewrite /τ_length /=. lia.
-        - iApply imp_evals_cons.
-          + iApply imp_EInt.
-          + iApply imp_evals_singleton. iApply imp_EPath.
-            simpl. f_equal. encode. instantiate (1:=v); reflexivity.
-            iPureIntro; reflexivity. }
-      iIntros (r) "H". rewrite bi_texist_equiv. iDestruct "H" as ([k vv]) "(Hown & -> & ->)".
-      iApply "Hown".
-    - iIntros (rr) "Hown". iNext. iExists rr. eauto. }
+    imp_data.
+    { (* Construct root record. *)
+      iApply (imp_record (τ:=τ[_;_])).
+      - rewrite /τ_length /=. lia.
+      - iApply imp_evals_cons.
+        + imp_int.
+        + iApply imp_evals_singleton. imp_path. }
+    simpl. iIntros (r) "(% & % & Hown & (-> & ->))".
+    by iFrame "Hown". }
   iIntros (x) "(%a & (%rr & -> & Hown) & Hx)".
   iDestruct "HUF" as (F ρ LM) "(%HInv & %HMem & HptM)".
   iDestruct (pointsto_M_fresh with "HptM Hx") as %HxLM.
@@ -652,7 +647,7 @@ Proof.
     iSplit; [iPureIntro; eapply Mem_make; eauto|].
     rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
     iSplitL "Hown Hx".
-    + rewrite decide_True; [|reflexivity]. unfold content_of, rec_repr. iFrame "Hx". iExists 0. iFrame.
+    + rewrite decide_True; [|reflexivity]. unfold content_of, rec_repr. iFrame.
     + iApply (big_sepM_mono with "HptM"). iIntros (z lc Hz) "He".
       rewrite decide_False; [done|]. intros ->. rewrite Hz in HxLM. discriminate.
   - iPureIntro. split; [exact HxD|].
@@ -1486,7 +1481,7 @@ Proof.
         (Φ := ∃ (r : record), ownRepr r 1 {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
         with "Hx"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R y |})%I.
-      imp_step. { iApply imp_record. simpl; lia. ltac2:(unfold_impure_evals Init.None). set_postcondition (λ y', ⌜y' = R y⌝)%I. imp_path. auto. }
+      imp_step. { iApply imp_record. simpl; lia. iApply imp_evals_singleton. imp_path. }
       - iIntros (?). iIntros "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".
@@ -1518,11 +1513,10 @@ Proof.
         (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
         with "Hy"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
-      iApply imp_EData.
-      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
-        iApply imp_evals_singleton.
-        set_postcondition (λ x', ⌜x' = R x⌝)%I. imp_path. equality.
-      - iIntros (?). iIntros "(% & Hown & ->)".
+      imp_data.
+      { iApply imp_record. simpl. lia.
+        iApply imp_evals_singleton. imp_path. }
+      - iIntros (?) "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".
         iApply "Hown". }
@@ -1556,10 +1550,8 @@ Proof.
         (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
         with "Hy"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
-      iApply imp_EData.
-      - iApply imp_evals_singleton. iApply imp_record. simpl. lia.
-        iApply imp_evals_singleton.
-        set_postcondition (λ x', ⌜x' = R x⌝)%I. imp_path. equality.
+      imp_step. { iApply imp_record. simpl; lia.
+        iApply imp_evals_singleton. imp_path. }
       - iIntros (?). iIntros "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".
@@ -1567,7 +1559,7 @@ Proof.
     iIntros "(% & Hown_link & Hlink)".
     iApply (imp_ESeq with "[Hown_x]").
     { iApply (imp_record_update with "Hown_x"). split;simpl;lia.
-      imp_path. set_postcondition (λ i, ⌜(i = x_rank + 1)%Z⌝)%I. imp_arith. }
+      imp_path. imp_arith. }
     iIntros "(% & -> & Hown_x) /=".
     imp_path. iSplit; last (iPureIntro; tauto).
     unfold UF.

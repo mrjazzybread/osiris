@@ -329,6 +329,8 @@ Section types_helpers.
     - exact (tau_lookup_go τ (Z.to_nat f) xs).
   Defined.
 
+  Arguments τ_lookup_total {τ} / (f xs).
+
   Global Instance encode_types_lookup {τ : types} {f : Z} : Encode (τ !!! f).
   Proof.
     unfold lookup_total, types_lookup_total.

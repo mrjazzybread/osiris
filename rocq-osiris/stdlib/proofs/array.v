@@ -417,7 +417,6 @@ Section map_spec.
                 res ↦∗[0] (ys ++ replicate (length xs - i) y) ∗
                 [∗ listZ] x;y ∈ seg 0 i xs;ys, Φ x y)%I
         with "[] [] [HsliceSrc HsliceRes HΦy]".
-      { by rewrite Hlenls. }
 
       { (* Initial invariant at i = 1 *)
         iFrame "HsliceSrc".

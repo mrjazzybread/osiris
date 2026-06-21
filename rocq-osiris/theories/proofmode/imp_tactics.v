@@ -213,7 +213,7 @@ Ltac2 rec imp_step0 (reading : constr option) :=
                        let specialized_store := open_constr:(imp_EStore' (A:=$store_a)) in
                        iApply ($specialized_store with "[$]");
                        try (imp_step0 reading))
-  | EData _ _ => imp_data0 reading
+  | EData _ _ => imp_data0 None reading
   | ETuple _ =>
       (* Without a selection pattern we cannot, in general, split the
          resources between the elements.  Rather than leave the proof
@@ -271,15 +271,28 @@ with imp_tuple0 (selpat : constr option) (reading : constr option) :=
       [ step_elements () | simpl type_nel.tforall ]
   end
 
-with imp_data0 (reading : constr option) :=
+with imp_data0 (selpat : constr option) (reading : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
   lazy_match! e with
   | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
   | EData _ _ =>
-    iApply imp_EData >
-    [ unfold_impure_evals None | simpl constructors.ctor_apply; simpl type_nel.tforall ];
-    Control.extend [] (fun _ => try (imp_step0 reading)) [fun _ => ()]
+    (* Like [imp_tuple0]: [imp_EData] has two premises, the [evals] of
+       the constructor arguments and a monotonicity goal relating the
+       (per-argument) intermediate postcondition to the data
+       postcondition.  We send all the spatial resources to the [evals]
+       premise (["[-] []"]) so they can be split amongst the arguments
+       (according to [selpat]), step them, and leave only the
+       monotonicity goal to the user.
+
+       Unlike tuples, there is no monotonicity-free variant: the data
+       value is [ctor_apply xs] rather than [xs], so the [evals]
+       postcondition cannot be the data postcondition itself. *)
+    let select_evals := '"[-] []" in
+    iApply (imp_EData with $select_evals) >
+    [ unfold_impure_evals selpat;
+      Control.enter (fun () => try (imp_step0 reading))
+    | simpl constructors.ctor_apply; simpl type_nel.tforall ]
   end
 
 with imp_load0 (l : constr option) (reading : constr option) :=
@@ -335,7 +348,16 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
                     simple_intros ();
                     lazy_match! get_iris_goal () with
                     | bi_wand _ _ => ()
-                    | _ => auto
+                    (* When the postcondition is still an evar, the goal
+                       is [?Φ result]; [auto] chokes on it (it tries to
+                       frame the persistent context against the evar), so
+                       we first try [solve_eq_goal], which instantiates
+                       [?Φ] to [λ x, ⌜x = result⌝].  Fall back to [auto]
+                       for a concrete postcondition. *)
+                    | _ =>
+                        Control.plus
+                          (fun _ => complete (fun _ => solve_eq_goal ()))
+                          (fun _ => auto)
                     end ]
           | Op_frac _ => ()
           | Comparison =>
@@ -367,6 +389,11 @@ Tactic Notation "imp_load" := ltac2:(imp_load0 None None).
 Tactic Notation "imp_tuple" := ltac2:(imp_tuple0 None None).
 Tactic Notation "imp_tuple" "with" constr(sel) :=
   let tac := ltac2:(sel |- imp_tuple0 (Ltac1.to_constr sel) None) in
+  tac sel.
+
+Tactic Notation "imp_data" := ltac2:(imp_data0 None None).
+Tactic Notation "imp_data" "with" constr(sel) :=
+  let tac := ltac2:(sel |- imp_data0 (Ltac1.to_constr sel) None) in
   tac sel.
 
 Tactic Notation "imp_record" constr(r) :=

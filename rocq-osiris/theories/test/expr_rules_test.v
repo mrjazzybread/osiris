@@ -180,6 +180,19 @@ Proof.
   iIntros (x0 y0) "((-> & ?) & (-> & ?))". by iFrame.
 Qed.
 
+(* [!x :: []] — a data constructor; resources are split via [imp_data with]. *)
+Lemma example_data_resources η x lx (n : Z) :
+  lookup_name η x = Some #lx ->
+  lx ↦ #n -∗
+  imp (eval η (EData "::" [ELoad (EVar x); EData "[]" []]))
+    {{ λ (l : list Z), ⌜l = [n]⌝ ∗ lx ↦ #n }}.
+Proof.
+  iIntros (Ex) "Hx".
+  imp_data with "[Hx]".
+  (* Only the monotonicity goal remains; the arguments were stepped. *)
+  iIntros (h t) "((-> & ?) & ->)". by iFrame.
+Qed.
+
 Lemma example_env_lookup `{Encode A} η (fun_spec : A → iProp Σ) :
   in_env "fun" (λ a, □ fun_spec a) η -∗
   imp (eval (("x", #1%Z) :: ("y", #2%Z) :: ("a", #1%Z) :: ("z", #3%Z) :: η) (EVar "z"))
