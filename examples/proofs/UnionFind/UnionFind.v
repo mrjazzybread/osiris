@@ -1062,7 +1062,59 @@ Proof. intros <-. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
 
-Lemma pat_Root_fixed η0 (c : @content val _) :
+Lemma pat_Root p η δ c φ ζ :
+  (∀ (r : record),
+    c = @Root val _ r →
+    pattern η δ p #r φ (ζ r)) →
+  pattern η δ (PData "Root" [p]) #c φ
+    ((∃ r, c = Link r) ∨ (∃ r, c = Root r ∧ ζ r)).
+Proof.
+  intros Hp.
+  destruct c.
+  - eapply pattern_exn_mono.
+    eapply pat_PData_eq. rewrite encode_encode'; reflexivity.
+
+    eapply pats_PCons. apply Hp. reflexivity.
+    intros ??. apply pats_PNil. assumption.
+    intros [Hζ|[]].
+    right; eauto.
+  - eapply pattern_exn_mono.
+    eapply pat_PData_neq. rewrite encode_encode'; reflexivity. auto.
+    intros _; left; eauto.
+Qed.
+
+Ltac pat_root :=
+  eapply pat_Root.
+
+Lemma pat_Link p η δ c φ ζ :
+  (∀ (r : record),
+    c = @Link val _ r →
+    pattern η δ p #r φ (ζ r)) →
+  pattern η δ (PData "Link" [p]) #c φ
+    ((∃ r, c = Root r) ∨ (∃ r, c = Link r ∧ ζ r)).
+Proof.
+  intros Hp.
+  destruct c.
+  - eapply pattern_exn_mono.
+    eapply pat_PData_neq. rewrite encode_encode'; reflexivity. auto.
+    intros _; left; eauto.
+  - eapply pattern_exn_mono.
+    eapply pat_PData_eq. rewrite encode_encode'; reflexivity.
+
+    eapply pats_PCons. apply Hp. reflexivity.
+    intros ??. apply pats_PNil. assumption.
+    intros [Hζ|[]].
+    right; eauto.
+Qed.
+
+Ltac pat_link :=
+  eapply pat_Link.
+
+Ltac pattern_hook ::=
+  first
+    [ pat_root | pat_link ].
+
+(* Lemma pat_Root_fixed η0 (c : @content val _) :
   pattern η0 η0 (PData "Root" [PAny]) #c
     (λ η', ∃ rr, c = Root rr ∧ η' = η0)
     (∃ lr, c = Link lr).
@@ -1080,47 +1132,47 @@ Proof.
       * erewrite solve_encode_Link; eauto.
       * eauto.
     + intros _. exists lr. reflexivity.
-Qed.
+Qed. *)
 
-Lemma pat_Root_var δ0 η0 (c : @content val _) s :
-  pattern δ0 η0 (PData "Root" [PVar s]) #c
-    (λ η', ∃ rr, c = Root rr ∧ η' = (s, #rr)::η0 )
-    (∃ lr, c = Link lr).
-Proof.
-  destruct c as [rr | lr].
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_eq.
-      * erewrite solve_encode_Root; eauto.
-      * eapply pats_PCons.
-        2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. }
-        eapply pat_PVar. exists rr; split; [reflexivity | reflexivity].
-    + intros [[]|[]].
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_neq.
-      * erewrite solve_encode_Link; eauto.
-      * eauto.
-    + intros _. exists lr. reflexivity.
-Qed.
+(* Lemma pat_Root_var δ0 η0 (c : @content val _) s : *)
+(*   pattern δ0 η0 (PData "Root" [PVar s]) #c *)
+(*     (λ η', ∃ rr, c = Root rr ∧ η' = (s, #rr)::η0 ) *)
+(*     (∃ lr, c = Link lr). *)
+(* Proof. *)
+(*   destruct c as [rr | lr]. *)
+(*   - eapply pattern_exn_mono. *)
+(*     + eapply pat_PData_eq. *)
+(*       * erewrite solve_encode_Root; eauto. *)
+(*       * eapply pats_PCons. *)
+(*         2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. } *)
+(*         eapply pat_PVar. exists rr; split; [reflexivity | reflexivity]. *)
+(*     + intros [[]|[]]. *)
+(*   - eapply pattern_exn_mono. *)
+(*     + eapply pat_PData_neq. *)
+(*       * erewrite solve_encode_Link; eauto. *)
+(*       * eauto. *)
+(*     + intros _. exists lr. reflexivity. *)
+(* Qed. *)
 
-Lemma pat_Link_fixed η0 (c : @content val _) :
-  pattern η0 η0 (PData "Link" [PVar "link"]) #c
-    (λ η', ∃ lr, c = Link lr ∧ η' = ("link" ~> #lr; η0))
-    (∃ rr, c = Root rr).
-Proof.
-  destruct c as [rr | lr].
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_neq.
-      * erewrite solve_encode_Root; eauto.
-      * eauto.
-    + intros _. exists rr. reflexivity.
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_eq.
-      * erewrite solve_encode_Link; eauto.
-      * eapply pats_PCons.
-        2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. }
-        eapply pat_PVar. exists lr. split; reflexivity.
-    + intros [[]|[]].
-Qed.
+(* Lemma pat_Link_fixed η0 (c : @content val _) : *)
+(*   pattern η0 η0 (PData "Link" [PVar "link"]) #c *)
+(*     (λ η', ∃ lr, c = Link lr ∧ η' = ("link" ~> #lr; η0)) *)
+(*     (∃ rr, c = Root rr). *)
+(* Proof. *)
+(*   destruct c as [rr | lr]. *)
+(*   - eapply pattern_exn_mono. *)
+(*     + eapply pat_PData_neq. *)
+(*       * erewrite solve_encode_Root; eauto. *)
+(*       * eauto. *)
+(*     + intros _. exists rr. reflexivity. *)
+(*   - eapply pattern_exn_mono. *)
+(*     + eapply pat_PData_eq. *)
+(*       * erewrite solve_encode_Link; eauto. *)
+(*       * eapply pats_PCons. *)
+(*         2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. } *)
+(*         eapply pat_PVar. exists lr. split; reflexivity. *)
+(*     + intros [[]|[]]. *)
+(* Qed. *)
 
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
@@ -1141,40 +1193,28 @@ Proof.
   destruct (M !! e) as [lc|] eqn:Heq;
     pose proof (proj2 HMem e Hin) as Hlc; rewrite Heq in Hlc; [|contradiction].
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
-  iApply (imp_EMatch (A:=elem) (A':=@content val _) with "[Hx]").
-  { iApply (imp_ELoad with "Hx"). imp_step. }
-  iIntros (a) "[-> Hx]". iNext.
-  (* Dispatch the [Root]/[Link] match. The scrutinee is [content_of (ρ e) lc],
-     so each branch destructs [lc] to learn its shape (and that the record is
-     [ρ e]). See the comment above [pat_Root_fixed]. *)
-  iApply deep_handle_cons.
-  { iPureIntro. apply cpat_CVal. apply pat_Root_fixed. }
-  iSplit.
+  imp_match (@content val _) with "[Hx]".
+  iIntros "[-> Hx]".
+  next_branch.
 
-  - (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
-    iIntros (η1) "(%rr & %Hc & ->)".
-    destruct lc as [v|y]; simpl in Hc; [injection Hc as <-|discriminate].
-    destruct Hlc as [Hroot HVeq].
-    imp_path.
-    iExists M. iSplitR.
-    { iPureIntro. symmetry. eapply is_root_R_self; eauto. }
-    iSplitL "Hx Hrec Hback". { iApply ("Hback" with "Hx Hrec"). }
-    iPureIntro.
-    assert (F' = F) as ->
-      by (inversion Hbw_ipc; subst; [reflexivity | exfalso; eapply Hroot; eauto]).
-    assumption.
+  { (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
+    iIntros (η1) "(%rr & %Hc & ->)". imp_path.
+    destruct lc; last discriminate. destruct Hlc as [ His_root HV ].
+    iExists M.
+    iDestruct ("Hback" with "Hx Hrec") as "$". iPureIntro.
+    split.
+    - symmetry. eapply is_root_R_self; eauto.
+    - assert (F' = F) as ->
+        by (inversion Hbw_ipc; subst; [reflexivity | exfalso; eapply His_root; eauto]).
+      assumption. }
 
-  - (* [Link link -> ...]: here [link = ρ e]. Recurse on [e]'s parent [y],
+  next_branch.
+  { (* [Link link -> ...]: here [link = ρ e]. Recurse on [e]'s parent [y],
        then compress [e]'s record in place. *)
-    iIntros "(%rr & %Hc)".
-    destruct lc as [v|y]; simpl in Hc; [discriminate|injection Hc as <-].
-    rename Hlc into HFey.
+    iIntros (?) "(%r & %Hlinkeq & ->)".
+    destruct lc as [v|y]; first discriminate.
+    inversion_clear Hlinkeq.
     simpl.
-    iApply deep_handle_cons.
-    { iPureIntro. apply cpat_CVal. apply pat_Link_fixed. }
-    (* Discharge match exhaustiveness. *)
-    iSplit; last first. { iIntros "(% & %HF)". discriminate HF. }
-    iIntros (?) "(%lr & %Hinv & ->)". inversion_clear Hinv.
     (* Read [link.parent], i.e. [e]'s parent [y]. *)
     iApply (imp_ELet_var (B:=elem) with "[Hrec]").
     { imp_record. }
@@ -1187,8 +1227,8 @@ Proof.
     assert (HyD : y ∈ D) by (eapply (proj1 Hdsf); eauto).
     assert (exists l0 F0, bw_ipc elem F y l0 F0 /\ F' = compress elem F0 e (R y))
       as (l0 & F0 & Hipc0 & HFeq0).
-    { inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl'].
-      - exfalso. rewrite -H1 in Hr0. eapply Hr0. eauto.
+    { inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl']; subst.
+      - exfalso. apply (Hr0 y), Hlc.
       - assert (y0 = y) as -> by (eapply (proj1 (proj2 Hdsf)); eauto).
         assert (z0 = R y) as -> by
           (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
@@ -1209,8 +1249,8 @@ Proof.
     assert (Hdsf0 : is_dsf elem _ _ D F0) by (eapply is_dsf_bw_ipc; eauto).
     assert (HF0ey : F0 e y).
     { assert (Hnr : ¬ rtc F y e)
-        by (intro Hc; eapply edge_no_return_path; [exact Hdsf|exact HFey|exact Hc]).
-      apply (proj2 (bw_ipc_outside_unchanged elem _ _ F y l0 F0 Hipc0 e Hnr y)). exact HFey. }
+        by (intro Hc; eapply edge_no_return_path; [exact Hdsf|exact Hlc|exact Hc]).
+      apply (proj2 (bw_ipc_outside_unchanged elem _ _ F y l0 F0 Hipc0 e Hnr y)). assumption. }
     assert (Heq2 : M2' !! e = Some (LLink y)).
     { pose proof (proj2 HMem' e Hin) as Hf2. destruct (M2' !! e) as [[v2|y2]|] eqn:E.
       - exfalso. eapply (proj1 Hf2); exact HF0ey.
@@ -1247,7 +1287,9 @@ Proof.
       { iPureIntro. symmetry.
         eapply (is_equiv_incl_same_R elem _ _ D F Hdsf R (Inv_incl _ _ _ _ HInv) e y).
         eapply path_is_equiv; eauto using rtc_l, rtc_refl. }
-      iPureIntro. rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin].
+      iPureIntro. rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin]. }
+
+  exfalso. resolve_no_match.
 Qed.
 
 Definition find_spec (e : elem) (m : microvx) : iProp Σ :=
