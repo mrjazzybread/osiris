@@ -1106,6 +1106,23 @@ Section imp_rules_expr.
 
   (** * ERef : expr → expr *)
 
+  Lemma imp_ERef2' `{Encode A} {ζ} {Φ'} (Φ : A → iProp Σ) η e :
+    imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    ▷ (∀ a l, Φ a -∗ l ↦ #a -∗ Φ' l) -∗
+    imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }}.
+  Proof.
+    iIntros "He Hmon". simpl_eval.
+    iApply (imp_bind with "He").
+    iIntros (x) "HΦ".
+    iApply (imp_bind with "[Hmon]").
+    { set_postcondition (λ l, l ↦ #x ∗ _)%I.
+      iApply imp_alloc2.
+      iNext. iIntros (l) "$". iApply "Hmon". }
+    iIntros (l) "(Hl & Hmon) /=".
+    iApply imp_ret; first encode.
+    iApply ("Hmon" with "HΦ Hl").
+  Qed.
+
   Lemma imp_ERef2 `{Encode A} {ζ} (Φ : A → iProp Σ) η e :
     imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, ▷ Φ a }} -∗
     imp eval η (ERef e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (l : loc), ∃ a, Φ a ∗ l ↦ #a }}.

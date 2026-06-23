@@ -624,23 +624,22 @@ Proof.
   iIntros (D R V) "HUF".
   iApply imp_please; iNext.
   imp_match val.
-  iApply (imp_wand with "[]").
-  { iApply (imp_ERef2 (A:=content)
-              (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ rr ⤇ ({|rank:=0;value:=v|}:root(A:=val)))%I).
-    imp_data.
-    simpl. iIntros (r) "(% & % & Hown & (-> & ->))".
-    by iFrame "Hown". }
-  iIntros (x) "(%a & (%rr & -> & Hown) & Hx)".
+  (* Goal: [ ref (Root { rank = 0; value = v }) ] *)
+  iApply (imp_ERef2' (A:=content)). { imp_data. }
+
+  simpl.
+  iIntros "!>" (x r) "(%root_rec & -> & % & % & Hown & -> & ->) Hr".
+
   iDestruct "HUF" as (F ρ LM) "(%HInv & %HMem & HptM)".
-  iDestruct (pointsto_M_fresh with "HptM Hx") as %HxLM.
-  assert (HxD : x ∉ D) by (eapply Mem_not_elem_of_dom; eauto).
-  iSplitR "".
+  iDestruct (pointsto_M_fresh with "HptM Hr") as %HxLM.
+  assert (HxD : r ∉ D) by (eapply Mem_not_elem_of_dom; eauto).
+  iSplitL.
   - (* extend [ρ] at the fresh vertex [x] with its just-allocated record [rr]. *)
-    iExists F, (fun z => if decide (z = x) then rr else ρ z), (<[x:=LRoot v]>LM).
+    iExists F, (fun z => if decide (z = r) then root_rec else ρ z), (<[r:=LRoot v]>LM).
     iSplit; [iPureIntro; eapply Inv_make; eauto|].
     iSplit; [iPureIntro; eapply Mem_make; eauto|].
     rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
-    iSplitL "Hown Hx".
+    iSplitL "Hown Hr".
     + rewrite decide_True; [|reflexivity]. unfold content_of, rec_repr. iFrame.
     + iApply (big_sepM_mono with "HptM"). iIntros (z lc Hz) "He".
       rewrite decide_False; [done|]. intros ->. rewrite Hz in HxLM. discriminate.
@@ -1127,11 +1126,13 @@ Proof.
   destruct (M !! e) as [lc|] eqn:Heq;
     pose proof (proj2 HMem e Hin) as Hlc; rewrite Heq in Hlc; [|contradiction].
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
+
+  (* Goal: [ match !x with ... ] *)
   imp_match content with "[Hx]".
   iIntros "[-> Hx]".
   next_branch.
 
-  { (* [Root _ -> x]: [e] is its own representative; the heap is unchanged. *)
+  { (* [Root _ -> x]: [e] is its own representative *)
     iIntros (η1) "(%rr & %Hc & ->)". imp_path.
     destruct lc; last discriminate. destruct Hlc as [ His_root HV ].
     iExists M.
@@ -1143,7 +1144,7 @@ Proof.
       assumption. }
 
   next_branch.
-  { (* [Link link -> ...]: here [link = ρ e]. Recurse on [e]'s parent [y],
+  { (* [Link link -> ...]: Recurse on [e]'s parent [y],
        then compress [e]'s record in place. *)
     iIntros (?) "(%r & %Hlinkeq & ->)".
     destruct lc as [v|y]; first discriminate.
@@ -1153,7 +1154,7 @@ Proof.
     iApply (imp_ELet_var (B:=elem) with "[Hrec]").
     { imp_record_read. }
 
-    simpl. iIntros (?) "(-> & Hrec)". unfold "!!τ". simpl.
+    simpl. iIntros (?) "(-> & Hrec)".
 
     (* Decompose the iterated-compression derivation at [e]: it steps to [y]
        and recurses, with [F' = compress F0 e (R y)]. *)
@@ -1167,13 +1168,12 @@ Proof.
         assert (z0 = R y) as -> by
           (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
         eauto 10. }
-
-    (* Put [e] back and recurse [find y] on the *whole* heap — no restriction:
-       [ρ] is preserved by the call, so [e]'s record is recoverable below. *)
     iDestruct ("Hback" with "Hx Hrec") as "HM".
+
+    (* Goal: [ let z = find y in ... ] *)
     iApply (imp_ELet_var (B:=elem) with "[HM]").
-    { iApply (imp_EApp τ[elem]). { imp_path. } imp_path.
-      simpl. iIntros (x) "->". iIntros (m) "Hm".
+    { iApply (imp_EApp τ[elem]). { imp_path. } { imp_path. }
+      simpl. iIntros (x) "-> %m Hm".
       iApply ("Hm" with "[%//] [%//] [%//] [%//] HM"). }
     simpl.
     iIntros (z) "(%M2' & -> & HM' & %HMem')".
@@ -1192,36 +1192,39 @@ Proof.
       - exfalso; exact Hf2. }
     iDestruct (pointsto_M_acc _ _ _ _ Heq2 with "HM'") as "(Hx & Hrec & Hback)".
 
-    (* [if z != y then link.parent <- z]; either way [e]'s record ends up
-       [LLink (R y)]. Put it back, then conclude with [Mem_compress]. *)
+    (* Goal: [ if z != y then ... else ...; z ] *)
     iApply (imp_ESeq with "[-]").
     set_postcondition (λ _, pointsto_M ρ (<[e:=LLink (R y)]> M2')).
-    iApply imp_EIfThen.
+    imp_if.
     { set_postcondition (λ b, ⌜b = negb (locations.eqb (R y) y)⌝)%I.
       iApply imp_EBoolNeg.
       iApply (imp_EOpPhysEq_loc with "[] []"); [imp_path|imp_path|].
       iIntros "!>" (l1 l2) "-> -> //". }
-    iIntros (b) "->".
-    destruct (locations.eqb_spec (R y) y) as [HRy|HRy]; simpl.
-
-    + (* [R y = y]: no write; [e]'s record already points to [y = R y]. *)
-      rewrite HRy. iApply ("Hback" $! (LLink y) with "Hx Hrec").
 
     + (* [R y ≠ y]: perform [link.parent <- R y]. *)
+      iIntros "%Heqb".
+      destruct (locations.eqb_spec (R y) y) as [HRy|HRy]; first discriminate.
       iApply (imp_wand with "[Hrec]").
       { iApply (imp_record_update with "Hrec [] []"); [split; simpl; lia|imp_path|imp_path]. }
       iIntros (?) "(%w & -> & Hrec)".
       iApply ("Hback" $! (LLink (R y)) with "Hx Hrec").
 
+    + (* [R y = y]: no write; [e]'s record already points to [y = R y]. *)
+      iIntros "%Heqb".
+      destruct (locations.eqb_spec (R y) y) as [HRy|HRy]; last discriminate.
+      rewrite HRy. iApply ("Hback" $! (LLink y) with "Hx Hrec").
+
     + (* Continuation: [e] and [y] share a representative, and the updated heap
          is a [Mem] for [F' = compress F0 e (R y)] directly by [Mem_compress]. *)
       iIntros "HMfinal". imp_path.
-      iExists (<[e:=LLink (R y)]> M2'). iFrame "HMfinal".
-      iSplitR.
-      { iPureIntro. symmetry.
-        eapply (is_equiv_incl_same_R elem _ _ D F Hdsf R (Inv_incl _ _ _ _ HInv) e y).
-        eapply path_is_equiv; eauto using rtc_l, rtc_refl. }
-      iPureIntro. rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin]. }
+      iExists (<[e:=LLink (R y)]> M2'). iFrame "HMfinal". iPureIntro.
+      split.
+      { symmetry.
+        eapply is_equiv_incl_same_R.
+        - apply Hdsf.
+        - eauto.
+        - eapply path_is_equiv; eauto using rtc_l, rtc_refl. }
+      rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin]. }
 
   exfalso. resolve_no_match.
 Qed.
@@ -1441,10 +1444,8 @@ Proof.
         (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(Link r))
         with "Hx").
       - imp_path.
-      - set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R y |})%I.
-        imp_data. simpl.
-        iIntros (r) "(% & Hown & ->)". by iFrame "Hown".
-      - iIntros "!>" (?) "(% & -> & Hown) $". iApply "Hown". }
+      - imp_data.
+      - iIntros "!>" (?) "(% & -> & % & Hown & ->) $". iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     imp_path. iSplit; last (iPureIntro; tauto).
 
@@ -1506,12 +1507,10 @@ Proof.
     { iApply (imp_EStore'
         (A:=content)
         (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
-        with "Hy"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
-      imp_data.
-      - iIntros (?). iIntros "(% & Hown & ->)".
-        by iFrame.
-      - iIntros "!>" (?) "(% & -> & Hown) $".
+        with "Hy").
+      - imp_path.
+      - imp_data.
+      - iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
         iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     iApply (imp_ESeq with "[Hown_x]").

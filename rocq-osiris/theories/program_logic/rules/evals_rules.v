@@ -70,7 +70,7 @@ Section evals_rules.
     simpl. apply DC.(ctor_encode).
   Qed.
 
-  Lemma imp_EData_evar `{DC : Data c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
+  Lemma imp_EData_evar `{DC : Data c τ A} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
     imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ∃# xs, ⌜x = DC.(ctor_apply) xs⌝ ∗ Φs xs }}.
   Proof.
