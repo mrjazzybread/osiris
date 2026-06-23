@@ -227,6 +227,8 @@ Ltac2 rec imp_step0 (reading : constr option) :=
           Control.plus
             (fun () => imp_step0 reading)
             (fun _ => discharge_tuple_mono ())))
+  | ERecord _ _ =>
+      complete (fun () => imp_record0 None reading)
   | ERecordAccess _ _ => imp_record_access0 None
   | _ =>
       Control.zero
@@ -254,9 +256,8 @@ with imp_tuple0 (selpat : constr option) (reading : constr option) :=
       end
     in
     if Constr.is_evar post then
-      (* The postcondition is still an evar: the split amongst the
-         elements determines it, so we use the monotonicity-free rule
-         and no monotonicity goal is left behind. *)
+      (* The postcondition is still an evar:
+         we use the monotonicity-free rule. *)
       let specialized_tuple := '(imp_ETuple_evar (τ:=$τ)) in
       iApply $specialized_tuple; step_elements ()
     else
@@ -371,6 +372,25 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
            (Some (fprintf "Expected %t to be an arithmetic expression" e)))
   end
 
+with imp_record0 (selpat : constr option) (reading : constr option) :=
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  lazy_match! e with
+  | ERecord _ ?es =>
+    let τ := utypes_from_exprs es in
+    (* Once the [evals] of the elements is in focus, split the
+       resources amongst the elements (according to [selpat]) and step
+       each one. *)
+    let step_elements () :=
+      unfold_impure_evals selpat;
+      Control.enter (fun () => try (imp_step0 reading))
+    in
+    let specialized_tuple := '(imp_record (τ:=$τ)) in
+    iApply $specialized_tuple >
+      [ simpl; try ltac1:(lia) | step_elements () ]
+  end
+
+
 with imp_record_access0 (r : constr option) :=
   let specialized_load :=
     match r with
@@ -396,10 +416,15 @@ Tactic Notation "imp_data" "with" constr(sel) :=
   let tac := ltac2:(sel |- imp_data0 (Ltac1.to_constr sel) None) in
   tac sel.
 
-Tactic Notation "imp_record" constr(r) :=
+Tactic Notation "imp_record" := ltac2:(imp_record0 None None).
+Tactic Notation "imp_record" "with" constr(sel) :=
+  let tac := ltac2:(s |- imp_record0 (Ltac1.to_constr s) None) in
+  tac sel.
+
+Tactic Notation "imp_record_read" constr(r) :=
   let tac := ltac2:(r |- imp_record_access0 (Ltac1.to_constr r)) in
   tac r.
-Tactic Notation "imp_record" := ltac2:(imp_record_access0 None).
+Tactic Notation "imp_record_read" := ltac2:(imp_record_access0 None).
 
 Tactic Notation "imp_step" := ltac2:(imp_step0 None).
 Tactic Notation "imp_step" "reading" constr(c) :=

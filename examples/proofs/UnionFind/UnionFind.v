@@ -14,21 +14,21 @@ Record link `{Encode A} : Type := { parent : elem }.
 Record root `{Encode A} : Type := { rank : Z; value : A }.
 
 (* The logical type of the content of a vertex. *)
-Inductive content `{Encode A} :=
+Inductive content :=
 | Root : record -> content
 | Link : record -> content.
 
-Local Instance val_of_content `{Encode A} : Encode (@content A _) :=
+Local Instance val_of_content : Encode content :=
   { encode' := λ c, match c with
                     | Root r => VData "Root" [ #r ]
                     | Link r => VData "Link" [ #r ]
                     end }.
 
-Local Instance root_data `{Encode A} : Data "Root" τ[record] (@content A _) :=
+Local Instance root_data : Data "Root" τ[record] content :=
   { ctor_apply := λ r, Root r;
     ctor_encode := λ r, eq_refl }.
 
-Local Instance link_data `{Encode A} : Data "Link" τ[record] (@content A _) :=
+Local Instance link_data : Data "Link" τ[record] content :=
   { ctor_apply := λ r, Link r;
     ctor_encode := λ r, eq_refl }.
 
@@ -137,7 +137,7 @@ Definition rec_repr (lr : record) (lc : lcontent) : iProp Σ :=
 (* The content *value* stored in [x]'s ref cell: a [Root]/[Link] tag wrapping
    the pointer [lr] to [x]'s record block. *)
 
-Definition content_of (lr : record) (lc : lcontent) : @content val _ :=
+Definition content_of (lr : record) (lc : lcontent) : content :=
   match lc with LRoot _ => Root lr | LLink _ => Link lr end.
 
 (* [pointsto_M ρ LM] asserts ownership of the whole two-level heap: for each
@@ -625,15 +625,9 @@ Proof.
   iApply imp_please; iNext.
   imp_match val.
   iApply (imp_wand with "[]").
-  { iApply (imp_ERef2 (A:=@content val _)
+  { iApply (imp_ERef2 (A:=content)
               (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ rr ⤇ ({|rank:=0;value:=v|}:root(A:=val)))%I).
     imp_data.
-    { (* Construct root record. *)
-      iApply (imp_record (τ:=τ[_;_])).
-      - rewrite /τ_length /=. lia.
-      - iApply imp_evals_cons.
-        + imp_int.
-        + iApply imp_evals_singleton. imp_path. }
     simpl. iIntros (r) "(% & % & Hown & (-> & ->))".
     by iFrame "Hown". }
   iIntros (x) "(%a & (%rr & -> & Hown) & Hx)".
@@ -1052,11 +1046,11 @@ Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
    shape is exactly what's vulnerable to the bug above, since it leaves the
    continuation postcondition as an evar for the framework to mis-resolve). *)
 
-Lemma solve_encode_Root (rr : record) (c : @content val _) :
+Lemma solve_encode_Root (rr : record) (c : content) :
   Root rr = c -> VData "Root" (#rr :: nil) = #c.
 Proof. intros <-. reflexivity. Qed.
 
-Lemma solve_encode_Link (lr : record) (c : @content val _) :
+Lemma solve_encode_Link (lr : record) (c : content) :
   Link lr = c -> VData "Link" (#lr :: nil) = #c.
 Proof. intros <-. reflexivity. Qed.
 
@@ -1064,7 +1058,7 @@ Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
 
 Lemma pat_Root p η δ c φ ζ :
   (∀ (r : record),
-    c = @Root val _ r →
+    c = Root r →
     pattern η δ p #r φ (ζ r)) →
   pattern η δ (PData "Root" [p]) #c φ
     ((∃ r, c = Link r) ∨ (∃ r, c = Root r ∧ ζ r)).
@@ -1088,7 +1082,7 @@ Ltac pat_root :=
 
 Lemma pat_Link p η δ c φ ζ :
   (∀ (r : record),
-    c = @Link val _ r →
+    c = Link r →
     pattern η δ p #r φ (ζ r)) →
   pattern η δ (PData "Link" [p]) #c φ
     ((∃ r, c = Root r) ∨ (∃ r, c = Link r ∧ ζ r)).
@@ -1133,7 +1127,7 @@ Proof.
   destruct (M !! e) as [lc|] eqn:Heq;
     pose proof (proj2 HMem e Hin) as Hlc; rewrite Heq in Hlc; [|contradiction].
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
-  imp_match (@content val _) with "[Hx]".
+  imp_match content with "[Hx]".
   iIntros "[-> Hx]".
   next_branch.
 
@@ -1157,7 +1151,7 @@ Proof.
     simpl.
     (* Read [link.parent], i.e. [e]'s parent [y]. *)
     iApply (imp_ELet_var (B:=elem) with "[Hrec]").
-    { imp_record. }
+    { imp_record_read. }
 
     simpl. iIntros (?) "(-> & Hrec)". unfold "!!τ". simpl.
 
@@ -1292,12 +1286,12 @@ Proof.
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
   iDestruct "Hrec" as "(%rank & Hown)".
 
-  imp_match (@content val _) with "[Hx]".
+  imp_match content with "[Hx]".
   iIntros "(-> & Hx)".
   simpl.
   next_branch.
   { iApply (imp_wand with "[Hown]").
-    { imp_record. }
+    { imp_record_read. }
     iIntros (?) "(-> & Hown)".
     iSplit; first iPureIntro. { by rewrite HRV. }
     iSpecialize ("Hback" with "Hx [Hown]").
@@ -1340,7 +1334,7 @@ Proof.
   { eapply Mem_root; eauto. }
   iDestruct (pointsto_M_acc _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
 
-  imp_match (@content val _) with "[Hx]".
+  imp_match content with "[Hx]".
   iIntros "(-> & Hx)".
   iDestruct "Hrec" as "(%rank & Hown)".
   next_branch.
@@ -1425,7 +1419,7 @@ Proof.
   iDestruct "Hrepr_x" as "(%x_rank & Hown_x)".
   iDestruct "Hrepr_y" as "(%y_rank & Hown_y)".
 
-  imp_match (@content val _ * @content val _)%type with "[Hx Hy]".
+  imp_match (content * content)%type with "[Hx Hy]".
   { imp_tuple with "[Hx] [Hy]". }
 
   destruct a as [??].
@@ -1441,16 +1435,16 @@ Proof.
   iIntros ([|]) "_".
 
   { iApply (imp_ESeq with "[Hx]").
-    { iApply (imp_EStore'
-        (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
-        with "Hx"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R y |})%I.
-      imp_step. { iApply imp_record. simpl; lia. iApply imp_evals_singleton. imp_path. }
-      - iIntros (?). iIntros "(% & Hown & ->)".
-        by iFrame.
-      - iIntros "!>" (?) "(% & -> & Hown) $".
-        iApply "Hown". }
+    { (* Goal:= [ x := Link { parent = y } ] *)
+      iApply (imp_EStore'
+        (A:=content)
+        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(Link r))
+        with "Hx").
+      - imp_path.
+      - set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R y |})%I.
+        imp_data. simpl. unfold tapp.
+        iIntros (r) "(% & Hown & ->)". by iFrame "Hown".
+      - iIntros "!>" (?) "(% & -> & Hown) $". iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     imp_path. iSplit; last (iPureIntro; tauto).
 
@@ -1476,13 +1470,11 @@ Proof.
 
    { iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
-        (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        (A:=content)
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
         with "Hy"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
       imp_data.
-      { iApply imp_record. simpl. lia.
-        iApply imp_evals_singleton. imp_path. }
       - iIntros (?) "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".
@@ -1515,12 +1507,11 @@ Proof.
 
   iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
-        (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        (A:=content)
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
         with "Hy"). imp_path.
       set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
-      imp_step. { iApply imp_record. simpl; lia.
-        iApply imp_evals_singleton. imp_path. }
+      imp_data.
       - iIntros (?). iIntros "(% & Hown & ->)".
         by iFrame.
       - iIntros "!>" (?) "(% & -> & Hown) $".
