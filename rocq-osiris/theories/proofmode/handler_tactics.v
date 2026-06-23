@@ -174,7 +174,7 @@ Ltac2 rec dedup_props (seen : constr list) (delta : (ident * constr) list)
   match delta with
   | [] => []
   | p :: rest =>
-      let (id, ty) := p in
+      let (_, ty) := p in
       if is_prop ty then
         if List.exist (fun t => Constr.equal t ty) seen
         then dedup_props seen rest

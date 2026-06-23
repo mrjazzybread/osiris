@@ -1350,23 +1350,20 @@ Proof.
   assert (M !! (R e) = Some (LRoot (V (R e)))) as Heq.
   { eapply Mem_root; eauto. }
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hx & Hrec & Hback)".
+  iDestruct "Hrec" as "(%rank & Hown)".
 
   imp_match (@content val _) with "[Hx]".
   iIntros "(-> & Hx)".
   simpl.
-
-  iApply deep_handle_cons. { iPureIntro. apply cpat_CVal. apply pat_Root_var. }
-  iSplit; last first.
-  { iIntros "(% & %HF)". discriminate HF. }
-  iIntros (?) "(%rr & %HRoot & ->)". inversion_clear HRoot.
-  iDestruct "Hrec" as "(%rank & Hown)".
-  iApply (imp_wand with "[Hown]").
-  { imp_record. }
-  iIntros (?) "(-> & Hown)".
-  iSplit; first iPureIntro. { by rewrite HRV. }
-  iSpecialize ("Hback" with "Hx [Hown]").
-  { iFrame. }
-  iFrame "∗%".
+  next_branch.
+  { iApply (imp_wand with "[Hown]").
+    { imp_record. }
+    iIntros (?) "(-> & Hown)".
+    iSplit; first iPureIntro. { by rewrite HRV. }
+    iSpecialize ("Hback" with "Hx [Hown]").
+    { iFrame. }
+    iFrame "∗%". }
+  next_branch. exfalso. resolve_no_match.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1405,22 +1402,21 @@ Proof.
 
   imp_match (@content val _) with "[Hx]".
   iIntros "(-> & Hx)".
-  simpl.
-
-  iApply deep_handle_cons. { iPureIntro. apply cpat_CVal. apply pat_Root_var. }
-  iSplit; last first.
-  { iIntros "(% & %HF)". discriminate HF. }
-  iIntros (?) "(%rr & %HRoot & ->)". inversion_clear HRoot.
   iDestruct "Hrec" as "(%rank & Hown)".
-  iApply (imp_wand with "[Hown]").
-  { iApply (imp_record_update with "Hown"). split; simpl; lia.
-    imp_path. imp_path. }
-  iIntros ([]) "(% & -> & Hown) /=".
+  next_branch.
 
-  iSpecialize ("Hback" $! (LRoot _) with "Hx [Hown]").
-  { iFrame. }
-  iFrame "Hback". iPureIntro.
-  eauto using Inv_update1, Mem_update1.
+  { iApply (imp_wand with "[Hown]").
+    { iApply (imp_record_update with "Hown"). split; simpl; lia.
+      imp_path. imp_path. }
+    iIntros ([]) "(% & -> & Hown) /=".
+
+    iSpecialize ("Hback" $! (LRoot _) with "Hx [Hown]").
+    { iFrame. }
+    iFrame "Hback". iPureIntro.
+    eauto using Inv_update1, Mem_update1. }
+  next_branch. exfalso.
+  simpl in *|-.
+  resolve_no_match. Unshelve. refine (λ _, False).
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1486,29 +1482,16 @@ Proof.
   iPoseProof (pointsto_M_acc2_realloc with "HM") as "(Hx & Hrepr_x & Hy & Hrepr_y & Hback)".
   eassumption. eassumption. eassumption.
   simpl.
+  iDestruct "Hrepr_x" as "(%x_rank & Hown_x)".
+  iDestruct "Hrepr_y" as "(%y_rank & Hown_y)".
 
   imp_match (@content val _ * @content val _)%type with "[Hx Hy]".
   { imp_tuple with "[Hx] [Hy]". }
 
   destruct a as [??].
   iIntros "((-> & Hx) & (-> & Hy))".
-  iApply deep_handle_cons.
-  { iPureIntro. apply cpat_CVal.
-    eapply pat_PTuple. rewrite encode_encode'. reflexivity.
-    eapply pats_PCons. apply pat_Root_var.
-    intros ? (? & HeqRoot & ->).
-    inversion_clear HeqRoot. clear x0.
-    eapply pats_PCons. eapply pat_Root_var.
-    intros ? (? & HeqRoot & ->).
-    inversion_clear HeqRoot. clear x0.
-    eapply pats_PNil. apply eq_refl. }
-  iSplit; last first.
-  { iIntros "%HF". exfalso.
-    destruct HF as [(? & HF) | [(? & HF) | []]]; congruence. }
-  iIntros (?) "<-".
+  next_branch; last first. { next_branch. exfalso. resolve_no_match. }
 
-  iDestruct "Hrepr_x" as "(%x_rank & Hown_x)".
-  iDestruct "Hrepr_y" as "(%y_rank & Hown_y)".
   iApply (imp_ELet_pair (A:=Z) (B:=Z) with "[Hown_x Hown_y]").
   { imp_tuple with "[Hown_x] [Hown_y]". }
   iIntros (??) "((-> & Hown_x) & (-> & Hown_y)) /=".
@@ -1530,6 +1513,8 @@ Proof.
         iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     imp_path. iSplit; last (iPureIntro; tauto).
+
+    (* Goal: [UF D (update2 R R x y (R y)) (update2 V R x y (V (R y)))] *)
     unfold UF.
     iExists (UnionFind03Link.link elem F (R x) (R y)).
     iExists (fun z => if decide (z = R x) then r else if decide (z = R y) then ρ (R y) else ρ z).
@@ -1549,7 +1534,7 @@ Proof.
   iApply imp_EIfThenElse. { iApply imp_EOpGt_Z_weak. imp_path. imp_path. }
   iIntros ([|]) "_".
 
-  { iApply (imp_ESeq with "[Hy]").
+   { iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
         (A:=@content val Encode_val)
         (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
@@ -1564,6 +1549,8 @@ Proof.
         iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     imp_path. iSplit; last (iPureIntro; tauto).
+
+    (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
     unfold UF.
     iExists (UnionFind03Link.link elem F (R y) (R x)).
     iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).
@@ -1604,6 +1591,8 @@ Proof.
       imp_path. imp_arith. }
     iIntros "(% & -> & Hown_x) /=".
     imp_path. iSplit; last (iPureIntro; tauto).
+
+    (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
     unfold UF.
     iExists (UnionFind03Link.link elem F (R y) (R x)).
     iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).

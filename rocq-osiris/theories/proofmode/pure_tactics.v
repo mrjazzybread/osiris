@@ -6,6 +6,10 @@ From osiris.program_logic Require Import program_logic.
 Local Ltac pat_PTuple :=
   first [
       eapply pat_PTuple; first solve [ encode ]
+    | (* [encode] cannot synthesise the [VTuple] value-list when the tuple
+         contains user-datatype values (e.g. [(Root .., Root ..)]); solving the
+         encoding side-goal by computation handles that case. *)
+      eapply pat_PTuple; first solve [ rewrite encode_encode'; reflexivity ]
     | rewrite 1 ?encode_encode'; simpl -[eval];
       eapply pat_PTuple_val ].
 
@@ -272,6 +276,40 @@ Local Ltac2 rec get_constructor (c : constr) :=
         end
   end.
 
+(* Collect the distinct evars occurring (as heads) anywhere in [c]. *)
+Local Ltac2 collect_evars (c : constr) : constr list :=
+  let acc := Ref.ref [] in
+  let rec go (c : constr) :=
+    (match Constr.Unsafe.kind c with
+     | Constr.Unsafe.Evar _ _ =>
+         if List.exist (fun e => Constr.equal e c) (Ref.get acc)
+         then () else Ref.set acc (c :: Ref.get acc)
+     | _ => ()
+     end);
+    let _ := Constr.Unsafe.map (fun s => go s; s) c in ()
+  in
+  go c; Ref.get acc.
+
+(* When the current branch has just been shown impossible (a constructor
+   clash), every failure-postcondition evar that the pattern lemmas created for
+   it becomes irrelevant — but, since the goal is about to be discharged by
+   contradiction, those evars would otherwise be left dangling (shelved).
+   [pin_failure_postconds] pins each of them to [False].  Failure postconditions
+   have type [Prop] or [T -> Prop] over the *matched* value type [T]; the
+   success postcondition has type [env -> Prop] and is deliberately excluded
+   (it is discharged elsewhere, e.g. by [iIntros (? [])] in the Iris handler). *)
+Local Ltac2 pin_failure_postconds () :=
+  List.iter
+    (fun e =>
+       lazy_match! Constr.type e with
+       | Prop => Control.plus (fun () => unify $e False) (fun _ => ())
+       | ?t -> Prop =>
+           if Constr.equal t constr:(env) then ()
+           else Control.plus (fun () => unify $e (fun (_ : $t) => False)) (fun _ => ())
+       | _ => ()
+       end)
+    (collect_evars (Control.goal ())).
+
 Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   normalize_hyp h;
   let x := constr_at_ident h in
@@ -321,11 +359,21 @@ Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   | ?a = ?b =>
       (* If the hypothesis is a tautology, remove it. *)
       if Constr.equal a b then clear h else
-        (* If the equality is of the form [c ... = ...] *)
-      (if (Int.gt (get_arity a) 0) then
-         let hyp := Control.hyp h in
-         inversion $hyp
-       else ());
+        ((* A clash of head constructors makes this branch impossible, and the
+            discharge below ([inversion] / [congruence]) closes the goal by
+            contradiction.  If the current goal is a [pattern] whose failure
+            postcondition is still an evar, that discharge would leave it
+            dangling (shelved) — so pin it to [False] first. *)
+         (match get_constructor a, get_constructor b with
+          | Some c1, Some c2 =>
+              if Bool.neg (Constr.equal c1 c2) then pin_failure_postconds ()
+              else ()
+          | _, _ => () end);
+         (* If the equality is of the form [c ... = ...] *)
+         (if (Int.gt (get_arity a) 0) then
+            let hyp := Control.hyp h in
+            inversion $hyp
+          else ()));
       subst;
       try ltac1:(congruence)
   | ?a <> ?b =>
