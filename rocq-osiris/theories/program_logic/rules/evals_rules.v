@@ -70,6 +70,16 @@ Section evals_rules.
     simpl. apply DC.(ctor_encode).
   Qed.
 
+  Lemma imp_EData_evar `{DC : Data c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
+    impure E (evals η es) Ψ ζ Φs -∗
+    imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ∃# xs, ⌜x = DC.(ctor_apply) xs⌝ ∗ Φs xs }}.
+  Proof.
+    iIntros "Hes".
+    iApply (imp_EData with "Hes").
+    rewrite bi_tforall_equiv. setoid_rewrite bi_texist_equiv.
+    iIntros (xs) "$ //".
+  Qed.
+
   Lemma imp_EXData `{DC : XData l τ A} {Φ : A → iProp Σ} η π es (Φs : τ → iProp Σ) :
     lookup_path η π = Some #l →
     impure E (evals η es) Ψ ζ Φs -∗

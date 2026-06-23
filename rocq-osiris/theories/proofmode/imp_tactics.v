@@ -278,22 +278,31 @@ with imp_data0 (selpat : constr option) (reading : constr option) :=
   lazy_match! e with
   | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
   | EData _ _ =>
-    (* Like [imp_tuple0]: [imp_EData] has two premises, the [evals] of
-       the constructor arguments and a monotonicity goal relating the
-       (per-argument) intermediate postcondition to the data
-       postcondition.  We send all the spatial resources to the [evals]
-       premise (["[-] []"]) so they can be split amongst the arguments
-       (according to [selpat]), step them, and leave only the
-       monotonicity goal to the user.
-
-       Unlike tuples, there is no monotonicity-free variant: the data
-       value is [ctor_apply xs] rather than [xs], so the [evals]
-       postcondition cannot be the data postcondition itself. *)
-    let select_evals := '"[-] []" in
-    iApply (imp_EData with $select_evals) >
-    [ unfold_impure_evals selpat;
+    (* Like [imp_tuple0]: split the resources amongst the constructor
+       arguments (according to [selpat]) and step each one. *)
+    let step_args () :=
+      unfold_impure_evals selpat;
       Control.enter (fun () => try (imp_step0 reading))
-    | simpl constructors.ctor_apply; simpl type_nel.tforall ]
+    in
+    let post :=
+      lazy_match! get_iris_goal () with
+      | impure _ _ _ _ ?phi => phi
+      end
+    in
+    if Constr.is_evar post then
+      (* The postcondition is still an evar: use the monotonicity-free
+         rule, which sets it to [λ x, ∃# xs, ⌜x = ctor_apply xs⌝ ∗ Φs xs],
+         determined by the split.  No monotonicity goal is left behind. *)
+      iApply imp_EData_evar; step_args ()
+    else
+      (* The postcondition is fixed: use the rule with the built-in
+         monotonicity premise.  We send all the spatial resources to the
+         [evals] premise (["[-] []"]) so they can be split amongst the
+         arguments, step them, and leave only the monotonicity goal to
+         the user. *)
+      let select_evals := '"[-] []" in
+      iApply (imp_EData with $select_evals) >
+      [ step_args () | simpl constructors.ctor_apply; simpl type_nel.tforall ]
   end
 
 with imp_load0 (l : constr option) (reading : constr option) :=
