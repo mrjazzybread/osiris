@@ -86,7 +86,7 @@ Section imp_stop.
   Lemma imp_stop_alloc_block t ls (k : _ → micro A X) :
     ⌜list_z.length ls ≤ max_array_length⌝ -∗
     ▷ (∀ (l : loc),
-         l ⤇ t -∗
+         isBlock l (DfracOwn 1) t -∗
          isBlockLocs l ls -∗
          imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
     imp (Stop CAllocBlock (t, ls) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -200,9 +200,9 @@ Section imp_stop.
   (* ------------------------------------------------------------------------ *)
   (* [CSetBlockTag]. *)
   Lemma imp_stop_set_tag l t t' (k : _ → micro A X) :
-    ▷ l ⤇ t ⊢
+    ▷ (isBlock l (DfracOwn 1) t) ⊢
     ▷ (
-        l ⤇ t' -∗
+        (isBlock l (DfracOwn 1) t') -∗
         imp (continue k ()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CSetBlockTag (l, t') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -728,7 +728,7 @@ Section imp_combinators.
   (* [CAllocBlock]. *)
   Lemma imp_alloc_block2 {Φ : loc → iProp Σ} t ls :
     ⌜list_z.length ls ≤ max_array_length⌝ -∗
-    ▷ (∀ (l : loc), l ⤇ t -∗ isBlockLocs l ls -∗ Φ l) -∗
+    ▷ (∀ (l : loc), isBlock l (DfracOwn 1) t -∗ isBlockLocs l ls -∗ Φ l) -∗
     impure E (alloc_block t ls) Ψ ζ Φ.
   Proof.
     iIntros "%Hbound H".
@@ -739,7 +739,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_alloc_block t ls :
     ⌜list_z.length ls ≤ max_array_length⌝ -∗
-    impure E (alloc_block t ls) Ψ ζ (λ (l : loc), l ⤇ t ∗ isBlockLocs l ls).
+    impure E (alloc_block t ls) Ψ ζ (λ (l : loc), isBlock l (DfracOwn 1) t ∗ isBlockLocs l ls).
   Proof.
     iIntros "%Hbound".
     iApply (imp_alloc_block2 with "[%//]").
@@ -858,8 +858,8 @@ Section imp_combinators.
   (* ------------------------------------------------------------------------ *)
   (* [CSetBlockTag]. *)
   Lemma imp_set_tag' {Φ : unit → iProp Σ} l t t' :
-    ▷ l ⤇ t ⊢
-    ▷ (l ⤇ t' -∗ Φ ()) -∗
+    ▷ isBlock l (DfracOwn 1) t ⊢
+    ▷ (isBlock l (DfracOwn 1) t' -∗ Φ ()) -∗
     imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -869,8 +869,8 @@ Section imp_combinators.
     iApply ("HΦ" with "Hl").
   Qed.
   Lemma imp_set_tag l t t' :
-    ▷ l ⤇ t ⊢
-    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ⤇ t' }}.
+    ▷ isBlock l (DfracOwn 1) t ⊢
+    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), isBlock l (DfracOwn 1) t' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_set_tag' with "Hl").

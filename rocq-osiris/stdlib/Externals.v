@@ -301,8 +301,8 @@ Section ExternalsDef.
   Definition freeze_spec freeze : iProp Σ :=
     iSpec τ[array] freeze
       (λ l m, ∀ t,
-         l ⤇ t -∗
-         imp m {{ λ l', ⌜l' = l⌝ ∗ l ⤇ Immut }})%I.
+         isBlock l (DfracOwn 1) t -∗
+         imp m {{ λ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut }})%I.
 
   Lemma imp_externals_freeze {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ freeze,

@@ -40,7 +40,7 @@ Section array_resources.
      Includes the exclusive physical block ownership [a ⤇{1} Mut ls], enabling freeze. *)
 
   Definition ownArray `{Encode A} (a : array) dq (xs : list A) : iProp Σ :=
-    ∃ ls, isBlockLocs a ls ∗ a ⤇{dq} Mut ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
+    ∃ ls, isBlockLocs a ls ∗ isBlock a dq Mut ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
 
   Lemma ownArray_isBlockLocs `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ ∃ ls, isBlockLocs a ls ∗ ⌜length ls = length xs⌝.
@@ -62,7 +62,7 @@ Section array_resources.
 
   Lemma isSlice_ownArray `{Encode A} a dq ls (xs : list A) :
     isBlockLocs a ls -∗
-    a ⤇{dq} Mut -∗
+    isBlock a dq Mut -∗
     isSlice a dq 0 xs -∗
     ⌜length ls = length xs⌝ -∗
     ownArray a dq xs.

@@ -130,8 +130,8 @@ Definition Mem D F V (LM : gmap elem lcontent) : Prop :=
 
 Definition rec_repr (lr : record) (lc : lcontent) : iProp Σ :=
   match lc with
-  | LRoot v => ∃ k : Z, ownRepr lr 1 ({| rank := k; value := v |} : root (A:=val))
-  | LLink y => ownRepr lr 1 ({| parent := y |} : link (A:=val))
+  | LRoot v => ∃ k : Z, lr ⤇ ({| rank := k; value := v |} : root (A:=val))
+  | LLink y => lr ⤇ ({| parent := y |} : link (A:=val))
   end.
 
 (* The content *value* stored in [x]'s ref cell: a [Root]/[Link] tag wrapping
@@ -626,7 +626,7 @@ Proof.
   imp_match val.
   iApply (imp_wand with "[]").
   { iApply (imp_ERef2 (A:=@content val _)
-              (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ ownRepr rr 1 ({|rank:=0;value:=v|}:root(A:=val)))%I).
+              (λ c, ∃ rr, ⌜c = Root rr⌝ ∗ rr ⤇ ({|rank:=0;value:=v|}:root(A:=val)))%I).
     imp_data.
     { (* Construct root record. *)
       iApply (imp_record (τ:=τ[_;_])).
@@ -1114,66 +1114,6 @@ Ltac pattern_hook ::=
   first
     [ pat_root | pat_link ].
 
-(* Lemma pat_Root_fixed η0 (c : @content val _) :
-  pattern η0 η0 (PData "Root" [PAny]) #c
-    (λ η', ∃ rr, c = Root rr ∧ η' = η0)
-    (∃ lr, c = Link lr).
-Proof.
-  destruct c as [rr | lr].
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_eq.
-      * erewrite solve_encode_Root; eauto.
-      * eapply pats_PCons.
-        2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. }
-        eapply pat_PAny. exists rr; split; [reflexivity | reflexivity].
-    + intros [[]|[]].
-  - eapply pattern_exn_mono.
-    + eapply pat_PData_neq.
-      * erewrite solve_encode_Link; eauto.
-      * eauto.
-    + intros _. exists lr. reflexivity.
-Qed. *)
-
-(* Lemma pat_Root_var δ0 η0 (c : @content val _) s : *)
-(*   pattern δ0 η0 (PData "Root" [PVar s]) #c *)
-(*     (λ η', ∃ rr, c = Root rr ∧ η' = (s, #rr)::η0 ) *)
-(*     (∃ lr, c = Link lr). *)
-(* Proof. *)
-(*   destruct c as [rr | lr]. *)
-(*   - eapply pattern_exn_mono. *)
-(*     + eapply pat_PData_eq. *)
-(*       * erewrite solve_encode_Root; eauto. *)
-(*       * eapply pats_PCons. *)
-(*         2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. } *)
-(*         eapply pat_PVar. exists rr; split; [reflexivity | reflexivity]. *)
-(*     + intros [[]|[]]. *)
-(*   - eapply pattern_exn_mono. *)
-(*     + eapply pat_PData_neq. *)
-(*       * erewrite solve_encode_Link; eauto. *)
-(*       * eauto. *)
-(*     + intros _. exists lr. reflexivity. *)
-(* Qed. *)
-
-(* Lemma pat_Link_fixed η0 (c : @content val _) : *)
-(*   pattern η0 η0 (PData "Link" [PVar "link"]) #c *)
-(*     (λ η', ∃ lr, c = Link lr ∧ η' = ("link" ~> #lr; η0)) *)
-(*     (∃ rr, c = Root rr). *)
-(* Proof. *)
-(*   destruct c as [rr | lr]. *)
-(*   - eapply pattern_exn_mono. *)
-(*     + eapply pat_PData_neq. *)
-(*       * erewrite solve_encode_Root; eauto. *)
-(*       * eauto. *)
-(*     + intros _. exists rr. reflexivity. *)
-(*   - eapply pattern_exn_mono. *)
-(*     + eapply pat_PData_eq. *)
-(*       * erewrite solve_encode_Link; eauto. *)
-(*       * eapply pats_PCons. *)
-(*         2:{ intros δ' Hδ'. eapply pats_PNil. exact Hδ'. } *)
-(*         eapply pat_PVar. exists lr. split; reflexivity. *)
-(*     + intros [[]|[]]. *)
-(* Qed. *)
-
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
   imp (eval η find) {{ λ c, □ iSpec τ[elem] c find_spec' }}.
@@ -1503,9 +1443,9 @@ Proof.
   { iApply (imp_ESeq with "[Hx]").
     { iApply (imp_EStore'
         (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(@Link val _ r))
         with "Hx"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R y |})%I.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R y |})%I.
       imp_step. { iApply imp_record. simpl; lia. iApply imp_evals_singleton. imp_path. }
       - iIntros (?). iIntros "(% & Hown & ->)".
         by iFrame.
@@ -1537,9 +1477,9 @@ Proof.
    { iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
         (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
         with "Hy"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
       imp_data.
       { iApply imp_record. simpl. lia.
         iApply imp_evals_singleton. imp_path. }
@@ -1576,9 +1516,9 @@ Proof.
   iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
         (A:=@content val Encode_val)
-        (Φ := ∃ (r : record), ownRepr r 1 {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(@Link val _ r))
         with "Hy"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ ownRepr r 1 {| parent := R x |})%I.
+      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
       imp_step. { iApply imp_record. simpl; lia.
         iApply imp_evals_singleton. imp_path. }
       - iIntros (?). iIntros "(% & Hown & ->)".

@@ -22,8 +22,8 @@ Section verification.
 
   Definition length_spec r (m : microvx) : iProp Σ :=
     ∀ qp t (x y : Z),
-      ▷ @ownRecord Σ _ τ[Z; Z] r qp t (x, y) -∗
-      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ @ownRecord _ _ τ[Z; Z] r qp t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z; Z]) r qp t (x, y) -∗
+      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
 
   Definition elength := EAnonFun __fun0.
 
@@ -44,8 +44,8 @@ Section verification.
 
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ t (x0 y : Z),
-      ▷ @ownRecord Σ _ τ[Z;Z] r 1 t (x0, y) -∗
-      imp m {{ λ (_ : unit), @ownRecord Σ _ τ[Z;Z] r 1 t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z;Z]) r 1 t (x0, y) -∗
+      imp m {{ λ (_ : unit), ownBlock (τ:=τ[Z;Z]) r 1 t (x, y) }}.
 
   Definition eupdate_x := EAnonFun __fun2.
 
@@ -118,13 +118,13 @@ Section encoded_fields.
 
   Definition point_length_spec r (m : microvx) : iProp Σ :=
     ∀ qp (p : point),
-      ▷ ownRepr r qp p -∗
-      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ ownRepr r qp p }}.
+      ▷ r ⤇{qp} p -∗
+      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{qp} p }}.
 
   Definition point_update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ (p : point),
-      ▷ ownRepr r 1 p -∗
-      imp m {{ λ (_ : unit), ownRepr r 1 {| x := x; y:=p.(y) |} }}.
+      ▷ r ⤇ p -∗
+      imp m {{ λ (_ : unit), r ⤇ {| x := x; y:=p.(y) |} }}.
 
   Lemma imp_point_length η :
     ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length point_length_spec }}.

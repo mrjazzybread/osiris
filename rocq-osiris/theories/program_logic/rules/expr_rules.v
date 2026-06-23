@@ -244,8 +244,8 @@ Section imp_rules_expr.
 
   Lemma imp_EFreeze2 {ζ} (Φ : array → iProp Σ) (Φ' : array → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
-    (∀ l, Φ' l -∗ ∃ t, ▷ l ⤇ t ∗ Φ l) -∗
-    impure E (eval η (EFreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Immut).
+    (∀ l, Φ' l -∗ ∃ t, ▷ isBlock l (DfracOwn 1) t ∗ Φ l) -∗
+    impure E (eval η (EFreeze e)) Ψ ζ (λ l, Φ l ∗ isBlock l (DfracOwn 1) Immut).
   Proof.
     iIntros "He Hcov".
     simpl_eval.
@@ -261,9 +261,9 @@ Section imp_rules_expr.
   Qed.
 
   Lemma imp_EFreeze {ζ} (l : array) t η e :
-    ▷ l ⤇ t -∗
+    ▷ isBlock l (DfracOwn 1) t -∗
     impure E (eval η e) Ψ ζ (λ l', ⌜l' = l⌝) -∗
-    impure E (eval η (EFreeze e)) Ψ ζ (λ l', ⌜l' = l⌝ ∗ l ⤇ Immut).
+    impure E (eval η (EFreeze e)) Ψ ζ (λ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut).
   Proof.
     iIntros "Hl He".
     iApply (imp_wand with "[-]").
@@ -276,8 +276,8 @@ Section imp_rules_expr.
 
   Lemma imp_EUnfreeze {ζ} (Φ' : array → iProp Σ) (Φ : array → iProp Σ) η e :
     impure E (eval η e) Ψ ζ Φ' -∗
-    (∀ l, Φ' l -∗ ∃ t, l ⤇ t ∗ Φ l) -∗
-    impure E (eval η (EUnfreeze e)) Ψ ζ (λ l, Φ l ∗ l ⤇ Mut).
+    (∀ l, Φ' l -∗ ∃ t, isBlock l (DfracOwn 1) t ∗ Φ l) -∗
+    impure E (eval η (EUnfreeze e)) Ψ ζ (λ l, Φ l ∗ isBlock l (DfracOwn 1) Mut).
   Proof.
     iIntros "He Hcov".
     simpl_eval.

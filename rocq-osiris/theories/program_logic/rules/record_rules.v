@@ -12,8 +12,14 @@ Section record_resources.
 
   Context `{!osirisGS Σ}.
 
-  Definition ownRecord {τ : types} (r : record) qp (t : mut_tag) (xs : τ) : iProp Σ :=
-    ∃ ls, isBlockLocs r ls ∗ r ⤇{#qp} t ∗
+  (* [ownBlock r qp t xs] is the representation predicate for a block of memory:
+     - [r] is the location at which the block is stored
+     - [qp] is the fraction of the ownership carried
+     - [t] is the tag [Mut/Immut] of the block (for allowing physical equality)
+     - [xs] is the logical representation of the block as a tuple *)
+
+  Definition ownBlock {τ : types} (r : record) qp (t : mut_tag) (xs : τ) : iProp Σ :=
+    ∃ ls, isBlockLocs r ls ∗ isBlock r (DfracOwn qp) t ∗
       [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{#qp} v.
 
 End record_resources.
@@ -23,7 +29,7 @@ Section record_resources_frac.
   Context `{!osirisGS Σ}.
 
   Local Lemma isBlock_split (b : locations.loc) p q t :
-    b ⤇{#(p + q)} t ⊣⊢ b ⤇{#p} t ∗ b ⤇{#q} t.
+    isBlock b (DfracOwn (p + q)) t ⊣⊢ isBlock b (DfracOwn p) t ∗ isBlock b (DfracOwn q) t.
   Proof.
     unfold isBlock. iSplit.
     - iIntros "(%ls & Hb)".
@@ -42,10 +48,10 @@ Section record_resources_frac.
     AsFractional (isBlock b (DfracOwn q) t) (λ q, isBlock b (DfracOwn q) t) q.
   Proof. constructor; done || apply _. Qed.
 
-  Global Instance ownRecord_fractional {τ : types} (r : record) t (xs : τ) :
-    Fractional (λ q, ownRecord r q t xs).
+  Global Instance ownBlock_fractional {τ : types} (r : record) t (xs : τ) :
+    Fractional (λ q, ownBlock r q t xs).
   Proof.
-    intros p q. unfold ownRecord. iSplit.
+    intros p q. unfold ownBlock. iSplit.
     - iIntros "(%ls & #Hblock & Htag & Hxs)".
       iDestruct (isBlock_split r p q t with "Htag") as "[Htag1 Htag2]".
       iAssert ([∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{DfracOwn p} v ∗ l ↦{DfracOwn q} v)%I
@@ -66,8 +72,8 @@ Section record_resources_frac.
       intros k l v _ _. iIntros "[Hl1 Hl2]". iCombine "Hl1 Hl2" as "$".
   Qed.
 
-  Global Instance ownRecord_as_fractional {τ : types} (r : record) q t (xs : τ) :
-    AsFractional (ownRecord r q t xs) (λ q, ownRecord r q t xs) q.
+  Global Instance ownBlock_as_fractional {τ : types} (r : record) q t (xs : τ) :
+    AsFractional (ownBlock r q t xs) (λ q, ownBlock r q t xs) q.
   Proof. constructor; done || apply _. Qed.
 
 End record_resources_frac.
@@ -94,7 +100,7 @@ Section records_reasoning.
     τ_length τ ≤ max_array_length →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
-      (λ r, ∃# (xs : τ), ownRecord r 1 t xs ∗ Φs xs).
+      (λ r, ∃# (xs : τ), ownBlock r 1 t xs ∗ Φs xs).
   Proof.
     iIntros "%Hlength Hes". simpl_eval.
     iApply (imp_bind with "Hes").
@@ -121,8 +127,8 @@ Section records_reasoning.
     ▷ isBlockLocs r ls -∗
     impure E (eval η e) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     (∃ dq t (xs : τ),
-      ▷ (⌜valid_field f τ⌝ ∗ ownRecord r dq t xs) ∗
-      ▷ (ownRecord r dq t xs -∗ Φ (xs !!τ f))) -∗
+      ▷ (⌜valid_field f τ⌝ ∗ ownBlock r dq t xs) ∗
+      ▷ (ownBlock r dq t xs -∗ Φ (xs !!τ f))) -∗
     impure E (eval η (ERecordAccess e f)) Ψ ζ Φ.
   Proof.
     iIntros "#Hblock He P". simpl_eval.
@@ -165,10 +171,10 @@ Section records_reasoning.
 
   Lemma imp_ERecordAccess {τ : types} {ζ} (r : record) f dq t (xs : τ) e :
     valid_field f τ →
-    ▷ ownRecord r dq t xs -∗
+    ▷ ownBlock r dq t xs -∗
     impure E (eval η e) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η (ERecordAccess e f)) Ψ ζ
-      (λ (x : τ !!! f), ⌜x = xs !!τ f⌝  ∗ ownRecord r dq t xs).
+      (λ (x : τ !!! f), ⌜x = xs !!τ f⌝  ∗ ownBlock r dq t xs).
   Proof.
     iIntros (Hvalid_field) "Hown He".
     iDestruct "Hown" as "(%ls & #Hblock & Htag & Hxs)".
@@ -184,8 +190,8 @@ Section records_reasoning.
     impure E (eval η e2) Ψ ζ Φ2 -∗
     (∀ r a, Φ1 r -∗ Φ2 a -∗
             ∃ t (xs : τ),
-              ▷ (⌜valid_field f τ⌝ ∗ ownRecord r 1 t xs) ∗
-              ▷ (ownRecord r 1 t <[f τ= a]> xs -∗ Φ ())) -∗
+              ▷ (⌜valid_field f τ⌝ ∗ ownBlock r 1 t xs) ∗
+              ▷ (ownBlock r 1 t <[f τ= a]> xs -∗ Φ ())) -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
   Proof.
     iIntros "He1 He2 P". simpl_eval.
@@ -227,11 +233,11 @@ Section records_reasoning.
 
   Lemma imp_ERecordSet {τ : types} {ζ} f (Φ : τ !!! f → iProp Σ) (r : record) t (xs : τ) e1 e2 :
     valid_field f τ →
-    ▷ ownRecord r 1 t xs -∗
+    ▷ ownBlock r 1 t xs -∗
     impure E (eval η e1) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ (_ : unit), ∃ a, Φ a ∗ ownRecord r 1 t (<[f τ= a]> xs)).
+      (λ (_ : unit), ∃ a, Φ a ∗ ownBlock r 1 t (<[f τ= a]> xs)).
   Proof.
     iIntros (Hvalid_field) "Hown He1 He2".
     iApply (imp_ERecordSet2 with "He1 He2").
@@ -262,15 +268,15 @@ Section encoded_fields.
       types_to_repr : τ -#> A;
       repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
 
-  (* [ownRepr] defines the ownership of a record with logical model [a : A]. *)
+  (* [ownRecord] defines the ownership of a record with logical model [a : A]. *)
 
-  Definition ownRepr `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
-    ownRecord (τ:=τ) r qp t (repr_to_types a).
+  Definition ownRecord `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
+    ownBlock (τ:=τ) r qp t (repr_to_types a).
 
-  Instance ownRepr_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRepr r qp a) := _.
+  Instance ownRecord_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRecord r qp a) := _.
 
-  Global Instance ownRepr_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
-    AsFractional (ownRepr r q a) (λ q, ownRepr r q a) q.
+  Global Instance ownRecord_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
+    AsFractional (ownRecord r q a) (λ q, ownRecord r q a) q.
   Proof. constructor; done || apply _. Qed.
 
   (* -------------------------------------------------------------------------- *)
@@ -281,7 +287,7 @@ Section encoded_fields.
   Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ -#> iProp Σ) :
     (τ_length τ ≤ max_array_length)%Z →
     impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRepr r 1 (types_to_repr xs) ∗ Φs xs).
+    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRecord r 1 (types_to_repr xs) ∗ Φs xs).
   Proof.
     iIntros (Hlength) "Hes".
     iApply (imp_wand with "[-]").
@@ -289,16 +295,16 @@ Section encoded_fields.
     iIntros (r).
     rewrite !bi_texist_equiv.
     iIntros "(%xs & Hr & HΦ)".
-    iFrame. unfold ownRepr.
+    iFrame. unfold ownRecord.
     pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
     iApply "Hr".
   Qed.
 
   Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (qp : Qp) (a : A) (e : expr) :
     valid_field f τ →
-    ▷ ownRepr r qp a -∗
+    ▷ ownRecord r qp a -∗
     impure E (eval η e) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRepr r qp a).
+    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRecord r qp a).
   Proof.
     iIntros (Hvalid) "Hown He".
     iApply (imp_wand with "[-]").
@@ -315,20 +321,27 @@ Section encoded_fields.
 
   Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
     valid_field f τ →
-    ▷ ownRepr r 1 a -∗
+    ▷ ownRecord r 1 a -∗
     impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
+      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRecord r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
   Proof.
     iIntros (Hvf) "Hown He1 He2".
     iApply (imp_wand with "[-]").
     { iApply (imp_ERecordSet with "Hown He1 He2"). exact Hvf. }
     iIntros (_) "(%x & HΦ & Hrecord)".
     iExists x. iFrame "HΦ".
-    unfold ownRepr.
+    unfold ownRecord.
     pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
     iApply "Hrecord".
   Qed.
 
 End encoded_fields.
+
+Notation "r ⤇ a" :=
+  (ownRecord r 1 a)
+    (at level 20, format "r  ⤇  a").
+Notation "r ⤇{ qp } a" :=
+  (ownRecord r qp a)
+    (at level 20, qp at level 1, format "r  ⤇{ qp }  a") : bi_scope.

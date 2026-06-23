@@ -173,10 +173,6 @@ Proof. apply (osiris_genGS Σ). Defined.
 Definition isBlock `{osirisGS Σ} (b : locations.loc) dq t : iProp Σ :=
   ∃ ls, gen_heap.pointsto b dq (Dict t ls).
 
-Notation "b ⤇ dq t" :=
-  (isBlock b dq t)
-    (at level 20, dq custom dfrac at level 1, format "b ⤇ dq  t") : bi_scope.
-
 (* -------------------------------------------------------------------------- *)
 (* Definition of the state interpretation. *)
 

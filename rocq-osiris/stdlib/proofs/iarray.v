@@ -36,7 +36,7 @@ Section freeze_iarray.
       (λ (a : array) m,
          ∀ `(Encode A) (xs : list A),
          a ↦∗ xs -∗
-         imp m {{ λ (a' : iarray), a' ↦□∗ xs ∗ a' ⤇ Immut  }})%I.
+         imp m {{ λ (a' : iarray), a' ↦□∗ xs ∗ isBlock a' (DfracOwn 1) Immut  }})%I.
 
   Lemma imp_freeze_array freeze :
     freeze_spec freeze -∗
@@ -81,7 +81,7 @@ Section init_proof.
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
          I [] -∗
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ a ⤇ Immut ∗ I xs }})%I.
+         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ isBlock a (DfracOwn 1) Immut ∗ I xs }})%I.
 
   Definition init := (EAnonFun __fun8).
 
