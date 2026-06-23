@@ -1442,7 +1442,7 @@ Proof.
         with "Hx").
       - imp_path.
       - set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R y |})%I.
-        imp_data. simpl. unfold tapp.
+        imp_data. simpl.
         iIntros (r) "(% & Hown & ->)". by iFrame "Hown".
       - iIntros "!>" (?) "(% & -> & Hown) $". iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
@@ -1472,13 +1472,10 @@ Proof.
     { iApply (imp_EStore'
         (A:=content)
         (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
-        with "Hy"). imp_path.
-      set_postcondition (λ l, ∃ r, ⌜l = Link r⌝ ∗ r ⤇ {| parent := R x |})%I.
-      imp_data.
-      - iIntros (?) "(% & Hown & ->)".
-        by iFrame.
-      - iIntros "!>" (?) "(% & -> & Hown) $".
-        iApply "Hown". }
+        with "Hy").
+      imp_path. imp_data.
+      iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
+      iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
     imp_path. iSplit; last (iPureIntro; tauto).
 
