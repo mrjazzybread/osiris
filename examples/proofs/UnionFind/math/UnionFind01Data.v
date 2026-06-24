@@ -398,22 +398,31 @@ Proof.
   intros x y Heq Hx. destruct (sticky_is_equiv _ _ Heq) as [Hxy _]. apply Hxy. exact Hx.
 Qed.
 
-(* TODO: this direction is genuinely classical (it needs
-   [~ forall y, ~ F x y -> exists y, F x y], which is not constructively
-   valid without decidability of [F]). Revisit once we have a stdpp/Rocq
-   equivalent of TLC's [classic]/[not_all_not_ex] we're happy importing. *)
+(* TLC proves this classically (via [not_forall_not_eq]), but here it is
+   constructive: every vertex has a representative ([defined is_repr]), so a
+   non-root [x] has a non-empty path to its representative, whose first edge
+   [F x y] lands [x] in [D] by [confined]. *)
 Lemma non_root_in_D:
   forall x,
   ~ is_root x ->
   x ∈ D.
-Admitted.
+Proof.
+  intros x Hnroot.
+  destruct (is_dsf_defined_is_repr x) as [r [Hpath Hrootr]].
+  destruct Hpath as [|x' y r' HF Hyr].
+  - contradiction.
+  - destruct (is_dsf_confined _ _ HF) as [Hx _]. exact Hx.
+Qed.
 
-(* TODO: depends on [non_root_in_D]; same classical caveat. *)
 Lemma only_roots_outside_D:
   forall x,
   x ∉ D ->
   is_root x.
-Admitted.
+Proof.
+  intros x Hout y HF.
+  destruct (is_dsf_confined _ _ HF) as [Hx _].
+  exact (Hout Hx).
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 
