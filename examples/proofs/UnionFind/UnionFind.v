@@ -1353,7 +1353,7 @@ Proof.
     eauto using Inv_update1, Mem_update1. }
   next_branch. exfalso.
   simpl in *|-.
-  resolve_no_match. Unshelve. refine (λ _, False).
+  resolve_no_match.
 Qed.
 
 (* -------------------------------------------------------------------------- *)

@@ -268,7 +268,7 @@ Local Ltac2 rec get_arity (c : constr) :=
   end.
 
 Local Ltac2 rec get_constructor (c : constr) :=
-  match! c with
+  match! (Std.eval_hnf c) with
   | ?a _ => get_constructor a
   | _ => match Constr.Unsafe.kind c with
         | Constr.Unsafe.Constructor _ _ => Some c
