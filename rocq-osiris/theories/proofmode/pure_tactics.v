@@ -279,16 +279,16 @@ Local Ltac2 rec get_constructor (c : constr) :=
 (* Collect the distinct evars occurring (as heads) anywhere in [c]. *)
 Local Ltac2 collect_evars (c : constr) : constr list :=
   let acc := Ref.ref [] in
-  let rec go (c : constr) :=
-    (match Constr.Unsafe.kind c with
-     | Constr.Unsafe.Evar _ _ =>
-         if List.exist (fun e => Constr.equal e c) (Ref.get acc)
-         then () else Ref.set acc (c :: Ref.get acc)
-     | _ => ()
-     end);
-    let _ := Constr.Unsafe.map (fun s => go s; s) c in ()
+  let rec collect (c : constr) :=
+    match Constr.Unsafe.kind c with
+    | Constr.Unsafe.Evar _ _ =>
+      if List.exist (fun e => Constr.equal e c) (Ref.get acc)
+      then () else Ref.set acc (c :: Ref.get acc)
+    | _ => Constr.Unsafe.iter collect c
+    end
   in
-  go c; Ref.get acc.
+  collect c;
+  Ref.get acc.
 
 (* When the current branch has just been shown impossible (a constructor
    clash), every failure-postcondition evar that the pattern lemmas created for
