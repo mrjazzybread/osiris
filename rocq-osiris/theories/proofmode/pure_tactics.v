@@ -310,6 +310,75 @@ Local Ltac2 pin_failure_postconds () :=
        end)
     (collect_evars (Control.goal ())).
 
+(* [subst] eliminates, for an equation [x = y] between two variables, the
+   left-hand variable [x].  During pattern matching this can be exactly the
+   wrong direction: a constructor pattern's guard reads
+   [scrutinee = Ctor <binders>], so after the [inversion] in [destruct_hyp]
+   the component equations relate the scrutinee's *pre-existing* variables
+   (left) to the *just-introduced* pattern binders (right), and plain
+   [subst] then eliminates the pre-existing variable.  The ambient Iris
+   context still mentions that variable, but this pure subgoal can no
+   longer name it: [close_success] (handler_tactics.v) has to close the
+   branch environment over the surviving pattern binder existentially,
+   leaving the branch environment unconstrained — and the branch body
+   unprovable.  [subst_keeping_older] instead eliminates, for every
+   variable-variable equation, the variable bound *later* in the local
+   context — the pattern binder — and only then lets [subst] deal with the
+   remaining (variable-term) equations. *)
+
+Local Ltac2 ctx_index (id : ident) : int :=
+  let rec go i hs :=
+    match hs with
+    | [] => -1
+    | h :: tl =>
+        let (hid, _, _) := h in
+        if Ident.equal hid id then i else go (Int.add i 1) tl
+    end
+  in
+  go 0 (Control.hyps ()).
+
+Local Ltac2 rec subst_var_var_eqs () :=
+  let rec find hs :=
+    match hs with
+    | [] => None
+    | h :: tl =>
+        let (_, body, ty) := h in
+        match body with
+        | Some _ => find tl
+        | None =>
+            lazy_match! ty with
+            | ?l = ?r =>
+                match Constr.Unsafe.kind l, Constr.Unsafe.kind r with
+                | Constr.Unsafe.Var xl, Constr.Unsafe.Var xr =>
+                    if Ident.equal xl xr then find tl else Some (xl, xr)
+                | _, _ => find tl
+                end
+            | _ => find tl
+            end
+        end
+    end
+  in
+  match find (Control.hyps ()) with
+  | None => ()
+  | Some p =>
+      let (xl, xr) := p in
+      let (victim, keeper) :=
+        if Int.gt (ctx_index xl) (ctx_index xr) then (xl, xr) else (xr, xl) in
+      (* If the later-bound variable cannot be substituted (dependencies),
+         fall back to the other side; if neither works, leave the equation
+         to the trailing [subst]/[congruence]. *)
+      Control.plus
+        (fun _ => Std.subst [victim]; subst_var_var_eqs ())
+        (fun _ =>
+           Control.plus
+             (fun _ => Std.subst [keeper]; subst_var_var_eqs ())
+             (fun _ => ()))
+  end.
+
+Local Ltac2 subst_keeping_older () :=
+  subst_var_var_eqs ();
+  subst.
+
 Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   normalize_hyp h;
   let x := constr_at_ident h in
@@ -374,7 +443,7 @@ Local Ltac2 rec destruct_hyp (h : ident) : unit :=
             let hyp := Control.hyp h in
             inversion $hyp
           else ()));
-      subst;
+      subst_keeping_older ();
       try ltac1:(congruence)
   | ?a <> ?b =>
       (* An inequality between two terms with different constructors

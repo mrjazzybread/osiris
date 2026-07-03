@@ -685,7 +685,7 @@ Proof.
     apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
     intros ? ? -> <-.
-    specialize (Hsplay _ _ z' t a Leaf).
+    specialize (Hsplay A _ x1 x x0 Leaf).
     apply Hsplay. }
 Qed.
 

@@ -288,7 +288,7 @@ Proof.
     split; simpl; auto. }
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
-    rename x into x2. rename xs'0 into t.
+    rename xs' into t.
     eapply pure_eval_let_pair.
     { (* Recursive call to [split t]. *)
       eapply (pure_EApp τ[list Z]).
