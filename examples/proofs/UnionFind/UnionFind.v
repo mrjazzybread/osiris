@@ -175,57 +175,74 @@ Definition UF D R V : iProp Σ :=
 (* The function [update1 R f x b] coincides with the function [f] everywhere,
    except on the equivalence class of [x], whose elements are mapped to [b]. *)
 
-Definition update1 {B : Type} (f : elem -> B) R x (b : B) :=
+Definition update_class {B : Type} R x (f : elem -> B) (b : B) :=
   fcupdate f (fun z => R z = R x) b.
+
+Local Notation "f .[ x -/ R /> b ]" :=
+    (update_class R x f b)
+      (at level 2, left associativity, format "f .[ x  -/ R />  b ]").
+
+Lemma lookup_update_class :
+  ∀ (B : Type) f x R (b : B),
+  f.[ x -/R/> b ] x = b.
+Proof.
+  intros.
+  unfold update_class, fcupdate.
+  rewrite decide_True; reflexivity.
+Qed.
+
+Lemma lookup_update_class_ne :
+  ∀ (B : Type) (f : elem → B) R x b a,
+  R a ≠ R x ->
+  f.[x -/R/> b] a = f a.
+Proof.
+  intros.
+  unfold update_class, fcupdate.
+  rewrite decide_False; [ reflexivity | assumption ].
+Qed.
 
 (* The function [update2 R f x y b] coincides with the function [f] everywhere,
    except on the equivalence classes of [x] and [y], whose elements are mapped
    to [b]. *)
 
-Definition update2 {B : Type} (f : elem -> B) R x y (b : B) :=
-  fcupdate f (fun z => R z = R x \/ R z = R y) b.
+(* Definition update_classes R x y {B : Type} (f : elem -> B) (b : B) := *)
+(*   update_class R y (update_class R x f b) b. *)
 
-Lemma update2_V_self :
-  ∀ D F R V x,
-    Inv D F R V →
-    update2 V R x x (V x) = V.
-Proof.
-  intros. unfold update2. unfold fcupdate.
-  extensionality a. case_decide; last reflexivity.
-  pose proof H.(Inv_data D F R V) as HeqR.
-  rewrite (HeqR x) (HeqR a).
-  destruct H0; by rewrite H0.
-Qed.
+(* Local Notation "f [ ( x , y ) / R → b ]" := *)
+(*     (update_classes R x y f b) *)
+(*       (format "f [ ( x ,  y ) / R  →  b ]"). *)
 
-Lemma update2_R_self :
-  ∀ R x,
-    R x = x →
-    update2 R R x x x = R.
-Proof.
-  intros R x HeqR. unfold update2. unfold fcupdate.
-  extensionality a. case_decide; last reflexivity.
-  rewrite -HeqR.
-  destruct H; by rewrite H.
-Qed.
-
-Lemma update2_root :
-  ∀ (B : Type) (f : elem → B) R x y b,
+Lemma update_class_root :
+  ∀ (B : Type) (f : elem → B) R x b,
     idempotent elem R →
-    update2 f R (R x) (R y) b = update2 f R x y b.
+    f.[R x -/R/> b] = f.[x -/R/> b].
 Proof.
-  intros B f R x y b Hidem.
-  unfold update2, fcupdate.
+  intros B f R x b Hidem.
+  unfold update_class, fcupdate.
   extensionality a.
   rewrite !Hidem.
   case_decide; reflexivity.
 Qed.
 
-Lemma update2_sym :
+Lemma lookup_class_root :
+  ∀ (B : Type) r x (f : elem → B) R (v : B),
+      idempotent elem R →
+      f x = f (R x) →
+      f.[r -/R/> v] x = f.[r -/R/> v] (R x).
+Proof.
+  intros B r x f R v Hidem Hequiv.
+  unfold update_class, fcupdate.
+  rewrite Hidem.
+  case_decide; first reflexivity.
+  apply Hequiv.
+Qed.
+
+Lemma update_classes_comm :
   ∀ B (f : elem → B) R x y b,
-    update2 f R x y b = update2 f R y x b.
+    f.[x -/R/> b].[y -/R/> b] = f.[y -/R/> b].[x -/R/> b].
 Proof.
   intros B F R x y b.
-  unfold update2, fcupdate.
+  unfold update_class, fcupdate.
   extensionality a.
   case_decide; case_decide; tauto.
 Qed.
@@ -237,52 +254,27 @@ Qed.
    the test succeeds, no actual merge happened, so the invariant carries
    over unchanged. *)
 
-Lemma update2_R_diag :
-  ∀ R x y, R x = R y → update2 R R x y (R x) = R.
+Lemma update_class_R_diag :
+  ∀ R x,
+  R.[ x -/R/> (R x)] = R.
 Proof.
-  intros R x y Heq.
-  unfold update2, fcupdate.
+  intros R x.
+  unfold update_class, fcupdate.
+  extensionality a. case_decide; eauto.
+Qed.
+
+Lemma update_class_V_diag :
+  ∀ D F R V x,
+    Inv D F R V →
+    V.[x -/R/> V (R x)] = V.
+Proof.
+  intros D F R V x HI.
+  unfold update_class, fcupdate.
   extensionality a.
-  case_decide as Hcase; [|reflexivity].
-  destruct Hcase as [Hax|Hay].
-  - symmetry; exact Hax.
-  - rewrite Heq. symmetry; exact Hay.
+  case_decide as Hcase; last reflexivity.
+  rewrite -Hcase.
+  erewrite <- Inv_data; eauto.
 Qed.
-
-Lemma update2_V_diag :
-  ∀ D F R V x y,
-    Inv D F R V → R x = R y → update2 V R x y (V (R x)) = V.
-Proof.
-  intros D F R V x y HI Heq.
-  pose proof (Inv_data _ _ _ _ HI) as HVeq.
-  unfold update2, fcupdate.
-  extensionality a.
-  case_decide as Hcase; [|reflexivity].
-  rewrite (HVeq a).
-  destruct Hcase as [Hax|Hay].
-  - rewrite Hax. reflexivity.
-  - rewrite Hay Heq. reflexivity.
-Qed.
-
-Lemma Inv_update2_diag :
-  ∀ D F R V x y,
-    Inv D F R V → R x = R y →
-    Inv D F (update2 R R x y (R x)) (update2 V R x y (V (R x))).
-Proof.
-  intros D F R V x y HI Heq.
-  rewrite (update2_R_diag R x y Heq).
-  rewrite (update2_V_diag D F R V x y HI Heq).
-  exact HI.
-Qed.
-
-(* TODO: the algebraic lemmas about [update1]/[update2] (update2_V_self,
-   update2_R_self, update2_root, update2_sym in the original) are only used
-   by the OCaml function specs (link_spec/union_spec), which we're deferring.
-   They also need function extensionality (their statements are equalities
-   of functions, not pointwise equalities) — fine to import
-   [Coq.Logic.FunctionalExtensionality] for that when we get there, since
-   it's a much milder axiom than the classical-logic gap we left open in
-   UnionFind01Data; just flagging it for when this comes back up. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -310,35 +302,27 @@ Lemma Inv_make : forall D R F V D' V' r v,
   Inv D F R V ->
   r ∉ D ->
   D' = D ∪ {[r]} ->
-  V' = update1 V R r v ->
+  V' = update_class R r V v ->
   Inv D' F R V'.
 Proof.
   intros D R F V D' V' r v [Hdsf Hincl Hdata] Hr -> ->.
   constructor.
   - apply is_dsf_create. exact Hdsf.
   - exact Hincl.
-  - intros x0. unfold update1, fcupdate.
-    assert (Hidem : R (R x0) = R x0) by (eapply idempotent_R; eauto).
-    rewrite Hidem.
-    destruct (decide (R x0 = R r)) as [Heq | Hneq].
-    + reflexivity.
-    + apply Hdata.
+  - intros x.
+    apply lookup_class_root; [ eapply idempotent_R; eauto | apply Hdata ].
 Qed.
 
 (* The invariant is preserved by updating [V] at one equivalence class. *)
 
-Lemma Inv_update1 : forall D F R V x v,
+Lemma Inv_update_class : forall D F R V x v,
   Inv D F R V ->
-  Inv D F R (update1 V R x v).
+  Inv D F R V.[ x -/R/> v].
 Proof.
   intros D F R V x v [Hdsf Hincl Hdata].
   constructor; [exact Hdsf | exact Hincl | ].
-  intros x0. unfold update1, fcupdate.
-  assert (Hidem : R (R x0) = R x0) by (eapply idempotent_R; eauto).
-  rewrite Hidem.
-  destruct (decide (R x0 = R x)) as [Heq | Hneq].
-  - reflexivity.
-  - apply Hdata.
+  intros.
+  apply lookup_class_root; [ eapply idempotent_R; eauto | apply Hdata ].
 Qed.
 
 (* The invariant is preserved by a [link] operation. *)
@@ -365,19 +349,16 @@ Qed.
    They agree pointwise given [y] is already its own representative — that's
    what this lemma packages, so [union_proof] can equate the two. *)
 
-Lemma link_R_eq_update2 :
-  forall R x y, R y = y -> forall t, UnionFind03Link.link_R elem _ x y R t = update2 R R x y y t.
+Lemma unfold_link_R :
+  forall R x y, UnionFind03Link.link_R elem _ x y R =
+  update_class R x R y.
 Proof.
-  intros R x y Hy t. unfold UnionFind03Link.link_R, update2, fcupdate.
-  destruct (decide (R t = R x)) as [H1|H1].
-  - destruct (decide (R t = R x \/ R t = R y)) as [_|Hc]; [reflexivity|exfalso; apply Hc; left; exact H1].
-  - destruct (decide (R t = R x \/ R t = R y)) as [[H2|H2]|H3].
-    + congruence.
-    + rewrite H2. exact Hy.
-    + reflexivity.
+  intros R x y.
+  unfold UnionFind03Link.link_R, update_class, fcupdate.
+  reflexivity.
 Qed.
 
-Lemma Inv_link: forall D R F V F' V' x y,
+Lemma Inv_link: forall D R F V F' V' R' x y,
   Inv D F R V ->
   x ≠ y ->
   x ∈ D ->
@@ -385,24 +366,20 @@ Lemma Inv_link: forall D R F V F' V' x y,
   R x = x ->
   R y = y ->
   F' = UnionFind03Link.link elem F x y ->
-  V' = update2 V R x y (V y) ->
-  Inv D F' (UnionFind03Link.link_R elem _ x y R) V'.
+  V' = V.[x -/R/> (V y)] ->
+  R' = (UnionFind03Link.link_R elem _ x y R) ->
+  Inv D F' R' V'.
 Proof.
-  intros D R F V F' V' x y [Hdsf Hincl Hdata] Hneq Hx Hy HRx HRy -> ->.
-  assert (Hrootx : is_root elem F x) by (eapply R_self_is_root; eauto).
-  assert (Hrooty : is_root elem F y) by (eapply R_self_is_root; eauto).
+  intros D R F V F' V' R' x y HInv Hneq Hx Hy HRx HRy -> -> ->.
   constructor.
-  - eapply is_dsf_link; eauto.
-  - eapply link_R_link_agree; eauto.
+  - eapply is_dsf_link; eauto using R_self_is_root.
+  - eapply link_R_link_agree; eauto using R_self_is_root.
   - intros w.
-    unfold update2, fcupdate, link_R.
-    assert (Hidem : forall t, R (R t) = R t) by (intros t; eapply idempotent_R; eauto).
-    destruct (decide (R w = R x)) as [Hwx | Hwx].
-    + destruct (decide (R w = R x \/ R w = R y)) as [_|Hc].
-      * destruct (decide (R y = R x \/ R y = R y)); reflexivity.
-      * exfalso; apply Hc; left; exact Hwx.
-    + rewrite (Hidem w).
-      destruct (decide (R w = R x \/ R w = R y)) as [_|_]; [reflexivity | apply Hdata].
+    unfold update_class, fcupdate, link_R.
+    case_decide; [ case_decide; reflexivity | ].
+    erewrite idempotent_R; eauto.
+    case_decide; [ contradiction | ].
+    eapply Inv_data; eassumption.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -451,7 +428,7 @@ Lemma Mem_make : forall D R F D' r M V v,
   Mem D F V M ->
   r ∉ D ->
   D' = D ∪ {[r]} ->
-  Mem D' F (update1 V R r v) (<[r:=LRoot v]>M).
+  Mem D' F V.[r -/R/> v] (<[r:=LRoot v]>M).
 Proof.
   intros D R F D' r M V v HInv [Hdom HM] Hr ->.
   split.
@@ -463,7 +440,7 @@ Proof.
       specialize (HM x Hx).
       destruct (M !! x) as [[v0|y]|] eqn:Heq; [|exact HM|exact HM].
       split; [tauto|].
-      unfold update1, fcupdate. destruct (decide (R x = R r)) as [Heqr|Hner].
+      unfold update_class, fcupdate. destruct (decide (R x = R r)) as [Heqr|Hner].
       * exfalso. assert (HRr : R r = r) by (eapply R_is_identity_outside_D; eauto).
         destruct HInv as [Hdsf Hincl _].
         assert (Hxd : R x ∈ D) by (eapply sticky_R; eauto).
@@ -471,8 +448,7 @@ Proof.
       * tauto.
     + subst x. rewrite lookup_insert_eq. split.
       * eapply only_roots_outside_D; eauto.
-      * unfold update1, fcupdate.
-        destruct (decide (R r = R r)) as [_|Hc]; [reflexivity|exfalso; apply Hc; reflexivity].
+      * by rewrite lookup_update_class.
 Qed.
 
 (* [Mem] is preserved by installing a link from a root [x] to a root [y].
@@ -487,7 +463,7 @@ Lemma Mem_link : forall D F R M V V' x y,
   x ∈ D ->
   x = R x ->
   y = R y ->
-  V' = update2 V R x y (V y) ->
+  V' = V.[y -/R/> (V y)].[ x -/R/> (V y)] ->
   Mem D (UnionFind03Link.link elem F x y) V' (<[x:=LLink y]>M).
 Proof.
   intros D F R M V V' x y HInv [Hdom HM] Hx Hxr Hyr ->.
@@ -502,13 +478,10 @@ Proof.
       destruct HM as [Hroota Hva].
       split.
       * apply is_root_link; [exact Hroota | congruence].
-      * assert (Hra : R a = a) by (eapply is_root_R_self; eauto).
-        unfold update2, fcupdate.
-        destruct (decide (R a = R x \/ R a = R y)) as [Hin|Hout].
-        -- rewrite Hra in Hin. destruct Hin as [Hin|Hin].
-           ++ exfalso. apply Hne. congruence.
-           ++ congruence.
-        -- congruence.
+      * rewrite {2}Hyr. erewrite update_class_V_diag; last eassumption.
+        unfold update_class, fcupdate.
+        assert (Hra : R a = a) by (eapply is_root_R_self; eauto).
+        case_decide; congruence.
 Qed.
 
 (* [Mem] is preserved by installing a direct link from [x] to [y] during
@@ -536,12 +509,12 @@ Qed.
 (* [Mem] is preserved when [V] is updated at one equivalence class and [M]
    is updated at the representative element. *)
 
-Lemma Mem_update1 : forall D R F M V r x v,
+Lemma Mem_update : forall D R F M V r x v,
   Inv D F R V ->
   Mem D F V M ->
   x ∈ D ->
   r = R x ->
-  Mem D F (update1 V R x v) (<[r := LRoot v]>M).
+  Mem D F V.[x -/R/> v] (<[r := LRoot v]>M).
 Proof.
   intros D R F M V r x v HInv [Hdom HM] Hx ->.
   assert (Hrr : R x ∈ D /\ R (R x) = R x) by (apply (Inv_root _ _ _ _ _ _ HInv Hx eq_refl)).
@@ -553,13 +526,14 @@ Proof.
     destruct (decide (R x = a)) as [<-|Hne].
     + rewrite lookup_insert_eq. split.
       * eapply R_self_is_root; eauto.
-      * unfold update1, fcupdate.
-        rewrite Hrr. destruct (decide (R x = R x)) as [_|Hc]; [reflexivity|exfalso; apply Hc; reflexivity].
+      * rewrite -lookup_class_root; eauto using idempotent_R.
+        by rewrite lookup_update_class.
     + rewrite lookup_insert_ne; [|exact Hne].
       destruct (M !! a) as [[v0|y]|] eqn:Heq; [|exact HM|exact HM].
       destruct HM as [Hroota Hva]. split; [exact Hroota|].
-      unfold update1, fcupdate. destruct (decide (R a = R x)) as [Heqr|_]; [|exact Hva].
-      exfalso. apply Hne. assert (HRa : R a = a) by (eapply is_root_R_self; eauto). congruence.
+      rewrite lookup_update_class_ne; [ assumption | ].
+      intros HeqR. apply Hne. rewrite -HeqR.
+      eapply is_root_R_self; eauto.
 Qed.
 
 (* A vertex with no [LM] entry is, by [Mem]'s domain equation, not in [D]. *)
@@ -611,7 +585,7 @@ Definition make_spec : val → microvx → iProp Σ :=
   λ v m,
     (∀ D R V,
        UF D R V -∗
-       imp m {{ λ (x : elem), UF (D ∪ {[x]}) R (update1 V R x v) ∗ ⌜x ∉ D /\ R x = x⌝ }})%I.
+       imp m {{ λ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜x ∉ D ∧ R x = x⌝ }})%I.
 
 Definition make := EAnonFun __fun1.
 
@@ -632,19 +606,19 @@ Proof.
 
   iDestruct "HUF" as (F ρ LM) "(%HInv & %HMem & HptM)".
   iDestruct (pointsto_M_fresh with "HptM Hr") as %HxLM.
-  assert (HxD : r ∉ D) by (eapply Mem_not_elem_of_dom; eauto).
+  (* assert (HxD : r ∉ D) by (eapply Mem_not_elem_of_dom; eauto). *)
   iSplitL.
   - (* extend [ρ] at the fresh vertex [x] with its just-allocated record [rr]. *)
     iExists F, (fun z => if decide (z = r) then root_rec else ρ z), (<[r:=LRoot v]>LM).
-    iSplit; [iPureIntro; eapply Inv_make; eauto|].
-    iSplit; [iPureIntro; eapply Mem_make; eauto|].
+    iSplit; [iPureIntro; eapply Inv_make; eauto using Mem_not_elem_of_dom |].
+    iSplit; [iPureIntro; eapply Mem_make; eauto using Mem_not_elem_of_dom |].
     rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
     iSplitL "Hown Hr".
-    + rewrite decide_True; [|reflexivity]. unfold content_of, rec_repr. iFrame.
+    + rewrite decide_True; [|reflexivity]. simpl. iFrame.
     + iApply (big_sepM_mono with "HptM"). iIntros (z lc Hz) "He".
       rewrite decide_False; [done|]. intros ->. rewrite Hz in HxLM. discriminate.
-  - iPureIntro. split; [exact HxD|].
-    eapply R_is_identity_outside_D; eauto.
+  - iPureIntro. split; [ eapply Mem_not_elem_of_dom; eassumption | ].
+    eapply R_is_identity_outside_D; eauto using Mem_not_elem_of_dom.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1309,7 +1283,7 @@ Definition set_spec (e : elem) (v : val) (m : microvx) : iProp Σ :=
   ∀ D R V,
     ⌜e ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ (x : unit), UF D R (update1 V R e v) }}.
+    imp m {{ λ (x : unit), UF D R V.[ e -/R/> v] }}.
 
 Definition set := (EAnonFun (AnonFun "x" (EAnonFun __fun23))).
 
@@ -1350,7 +1324,7 @@ Proof.
     iSpecialize ("Hback" $! (LRoot _) with "Hx [Hown]").
     { iFrame. }
     iFrame "Hback". iPureIntro.
-    eauto using Inv_update1, Mem_update1. }
+    eauto using Inv_update_class, Mem_update. }
   next_branch. exfalso.
   simpl in *|-.
   resolve_no_match.
@@ -1363,7 +1337,8 @@ Definition union_spec (x y : elem) (m : microvx) : iProp Σ :=
     ⌜x ∈ D⌝ -∗
     ⌜y ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ z, UF D (update2 R R x y z) (update2 V R x y (V z)) ∗ ⌜z = R x ∨ z = R y⌝ }}.
+    imp m {{ λ z, UF D R.[y -/R/> z].[x -/R/> z] V.[y -/R/> (V z)].[x -/R/> (V z)] ∗
+                  ⌜z = R x ∨ z = R y⌝ }}.
 
 Definition union := EAnonFun (AnonFun "x" (EAnonFun __fun41)).
 
@@ -1396,13 +1371,11 @@ Proof.
     imp_path.
     iSplit; last (iPureIntro; tauto).
     iDestruct "HUF" as "(%F & %ρ & %M & %HI & %HM & Hpts)".
-    iFrame. iPureIntro. simpl.
-    eexists. split.
-    - destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [|congruence].
-      eapply Inv_update2_diag; [exact HI | exact HReq].
-    - destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [|congruence].
-      rewrite (update2_V_diag D F R V x y HI HReq).
-      exact HM. }
+    destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [|congruence].
+    rewrite {1 3} HReq.
+    rewrite !update_class_R_diag.
+    erewrite !update_class_V_diag; try eassumption.
+    iFrame "∗%". }
 
   iIntros "%Hneq".
   iPoseProof (UF_image with "HUF") as "%HRD_x"; first apply Hin_x.
@@ -1450,6 +1423,7 @@ Proof.
     imp_path. iSplit; last (iPureIntro; tauto).
 
     (* Goal: [UF D (update2 R R x y (R y)) (update2 V R x y (V (R y)))] *)
+    rewrite update_class_R_diag. erewrite update_class_V_diag; last eassumption.
     unfold UF.
     iExists (UnionFind03Link.link elem F (R x) (R y)).
     iExists (fun z => if decide (z = R x) then r else if decide (z = R y) then ρ (R y) else ρ z).
@@ -1458,13 +1432,12 @@ Proof.
     { iFrame. }
     rewrite (insert_id M); last assumption. iFrame. iPureIntro.
     split.
-    - rewrite -(update2_root _ R R x y (R y) HRidem).
-      assert (update2 R R (R x) (R y) (R y) = UnionFind03Link.link_R elem _ (R x) (R y) R) as ->.
-      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
-      eapply Inv_link; eauto.
-      rewrite -(update2_root _ V R x y (V (R y)) HRidem). reflexivity.
+    - eapply Inv_link; eauto.
+      rewrite update_class_root; eauto.
+      rewrite unfold_link_R update_class_root; eauto.
     - eapply Mem_link; eauto.
-      rewrite -(update2_root _ V R x y (V (R y)) HRidem). reflexivity. }
+      rewrite !update_class_root; eauto.
+      erewrite update_class_V_diag; eauto. }
 
   iApply imp_EIfThenElse. { iApply imp_EOpGt_Z_weak. imp_path. imp_path. }
   iIntros ([|]) "_".
@@ -1481,6 +1454,8 @@ Proof.
     imp_path. iSplit; last (iPureIntro; tauto).
 
     (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
+    rewrite update_classes_comm update_class_R_diag.
+    rewrite update_classes_comm; erewrite update_class_V_diag; last eassumption.
     unfold UF.
     iExists (UnionFind03Link.link elem F (R y) (R x)).
     iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).
@@ -1490,18 +1465,12 @@ Proof.
     rewrite insert_insert_ne; last (assumption).
     rewrite (insert_id M); last assumption. iFrame. iPureIntro.
     split.
-    - rewrite -(update2_root _ R R x y (R x) HRidem).
-      rewrite (update2_sym _ R R (R x) (R y) (R x)).
-      assert (update2 R R (R y) (R x) (R x) = UnionFind03Link.link_R elem _ (R y) (R x) R) as ->.
-      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
-      eapply Inv_link; eauto.
-      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
-      rewrite (update2_root _ V R x y (V (R x)) HRidem).
-      reflexivity.
+    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
+      rewrite update_class_root; eauto.
+      rewrite unfold_link_R update_class_root; eauto.
     - eapply Mem_link; eauto.
-      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
-      rewrite (update2_root _ V R x y (V (R x)) HRidem).
-      reflexivity. }
+      rewrite !update_class_root; eauto.
+      erewrite update_class_V_diag; eauto. }
 
   iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
@@ -1520,6 +1489,8 @@ Proof.
     imp_path. iSplit; last (iPureIntro; tauto).
 
     (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
+    rewrite update_classes_comm update_class_R_diag.
+    rewrite update_classes_comm; erewrite update_class_V_diag; last eassumption.
     unfold UF.
     iExists (UnionFind03Link.link elem F (R y) (R x)).
     iExists (fun z => if decide (z = R x) then ρ (R x) else if decide (z = R y) then r else ρ z).
@@ -1529,18 +1500,12 @@ Proof.
     rewrite insert_insert_ne; last (assumption).
     rewrite (insert_id M); last assumption. iFrame. iPureIntro.
     split.
-    - rewrite -(update2_root _ R R x y (R x) HRidem).
-      rewrite (update2_sym _ R R (R x) (R y) (R x)).
-      assert (update2 R R (R y) (R x) (R x) = UnionFind03Link.link_R elem _ (R y) (R x) R) as ->.
-      { extensionality t. symmetry. apply link_R_eq_update2. apply HRidem. }
-      eapply Inv_link; eauto.
-      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
-      rewrite (update2_root _ V R x y (V (R x)) HRidem).
-      reflexivity.
+    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
+      rewrite update_class_root; eauto.
+      rewrite unfold_link_R update_class_root; eauto.
     - eapply Mem_link; eauto.
-      rewrite (update2_sym _ V R (R y) (R x) (V (R x))).
-      rewrite (update2_root _ V R x y (V (R x)) HRidem).
-      reflexivity.
+      rewrite !update_class_root; eauto.
+      erewrite update_class_V_diag; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
