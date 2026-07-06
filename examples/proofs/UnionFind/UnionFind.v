@@ -912,6 +912,90 @@ Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* Pure lemmas backing [find_spec_inductive]'s reasoning about the iterated
+   path compression derivation [bw_ipc]. *)
+
+(* At a root, compression does nothing. *)
+
+Lemma bw_ipc_at_root : forall F e d F',
+  is_root elem F e ->
+  bw_ipc elem F e d F' ->
+  F' = F.
+Proof.
+  intros * His_root Hbw_ipc.
+  inversion Hbw_ipc; subst; [reflexivity|].
+  exfalso; eapply His_root; eauto.
+Qed.
+
+(* At a link [F e y], the derivation necessarily steps to [y]: it recurses
+   on [y] (an element of [D]) and finishes by compressing [e] directly to
+   the representative [R y]. *)
+
+Lemma bw_ipc_at_link : forall D F R V e y d F',
+  Inv D F R V ->
+  F e y ->
+  bw_ipc elem F e d F' ->
+  y ∈ D /\
+  exists l0 F0, bw_ipc elem F y l0 F0 /\ F' = compress elem F0 e (R y).
+Proof.
+  intros * HInv Hlc Hbw_ipc.
+  pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
+  split. { eapply (proj1 Hdsf); eauto. }
+  inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl']; subst.
+  - exfalso. apply (Hr0 y), Hlc.
+  - assert (y0 = y) as -> by (eapply (proj1 (proj2 Hdsf)); eauto).
+    assert (z0 = R y) as -> by
+      (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
+    eauto 10.
+Qed.
+
+(* Compression starting at [e]'s parent [y] never reaches back to [e]
+   (forests have no cycles), so [e]'s entry — content and record block
+   both — survives the recursive call unchanged. *)
+
+Lemma link_untouched_by_ipc : forall D F F0 V M M' e re y l0,
+  is_dsf elem _ _ D F ->
+  F e y ->
+  bw_ipc elem F y l0 F0 ->
+  Mem D F0 V M' ->
+  e ∈ D ->
+  skel M' = skel M ->
+  M !! e = Some (re, LLink y) ->
+  M' !! e = Some (re, LLink y).
+Proof.
+  intros * Hdsf Hlc Hipc HMem' Hin Hskel Heq.
+  destruct (skel_lookup _ _ _ _ _ Hskel Heq) as (lc' & Heq').
+  assert (HF0ey : F0 e y).
+  { eapply (bw_ipc_outside_unchanged _ _ _).
+    - apply Hipc.
+    - intro Hc. eapply edge_no_return_path. exact Hdsf. exact Hlc. exact Hc.
+    - apply Hlc. }
+  destruct HMem' as [_ HMem']. specialize (HMem' e Hin). rewrite Heq' in HMem'.
+  destruct lc' as [v2|y2].
+  { exfalso. eapply HMem'. apply HF0ey. }
+  rewrite Heq'. repeat f_equal.
+  assert (HyD : y ∈ D) by (eapply (proj1 Hdsf); eauto).
+  assert (is_dsf elem _ _ D F0) as (_ & Hdsf0 & _)
+    by (eapply is_dsf_bw_ipc; eauto).
+  eapply Hdsf0. apply HMem'. apply HF0ey.
+Qed.
+
+(* One step up the forest does not change the representative. *)
+
+Lemma R_of_parent : forall D F R V e y,
+  Inv D F R V ->
+  F e y ->
+  R e = R y.
+Proof.
+  intros * [Hdsf Hincl _] Hlc.
+  eapply is_equiv_incl_same_R.
+  - apply Hdsf.
+  - exact Hincl.
+  - eapply path_is_equiv; eauto using rtc_l, rtc_refl.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Pattern-matching infrastructure for [match !x with Root _ -> ... | Link
    {parent=y} as link -> ... end].
 
@@ -1029,14 +1113,12 @@ Proof.
 
   { (* [Root _ -> x]: [e] is its own representative *)
     iIntros (η1) "(%rr & %Hc & ->)". imp_path.
-    destruct lc; last discriminate. destruct Hlc as [ His_root HV ].
-    iExists M.
     iDestruct ("Hback" with "Hv") as "$". iPureIntro.
+    destruct lc; last discriminate. destruct Hlc as [His_root HV].
     split_and!.
     - symmetry. eapply is_root_R_self; eauto.
     - reflexivity.
-    - assert (F' = F) as ->
-        by (inversion Hbw_ipc; subst; [reflexivity | exfalso; eapply His_root; eauto]).
+    - assert (F' = F) as -> by (eapply bw_ipc_at_root; eauto).
       assumption. }
 
   next_branch.
@@ -1053,17 +1135,9 @@ Proof.
     simpl. iIntros (?) "(-> & Hv)".
 
     (* Decompose the iterated-compression derivation at [e]: it steps to [y]
-       and recurses, with [F' = compress F0 e (R y)]. *)
-    pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
-    assert (HyD : y ∈ D) by (eapply (proj1 Hdsf); eauto).
-    assert (exists l0 F0, bw_ipc elem F y l0 F0 /\ F' = compress elem F0 e (R y))
-      as (l0 & F0 & Hipc0 & HFeq0).
-    { inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl']; subst.
-      - exfalso. apply (Hr0 y), Hlc.
-      - assert (y0 = y) as -> by (eapply (proj1 (proj2 Hdsf)); eauto).
-        assert (z0 = R y) as -> by
-          (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
-        eauto 10. }
+       (an element of [D]) and recurses, with [F' = compress F0 e (R y)]. *)
+    destruct (bw_ipc_at_link _ _ _ _ _ _ _ _ HInv Hlc Hbw_ipc)
+      as (HyD & l0 & F0 & Hipc0 & HFeq0).
     iDestruct ("Hback" with "Hv") as "HM".
 
     (* Goal: [ let z = find y in ... ] *)
@@ -1077,19 +1151,11 @@ Proof.
     (* The recursion never touches [e] ([e] is not reachable from [y]), so [e]
        is still a [Link] to [y] in the returned [M2'], with the same record
        [re] (by skeleton preservation). *)
-    assert (Hdsf0 : is_dsf elem _ _ D F0) by (eapply is_dsf_bw_ipc; eauto).
-    assert (HF0ey : F0 e y).
-    { assert (Hnr : ¬ rtc F y e)
-        by (intro Hc; eapply edge_no_return_path; [exact Hdsf|exact Hlc|exact Hc]).
-      apply (proj2 (bw_ipc_outside_unchanged elem _ _ F y l0 F0 Hipc0 e Hnr y)). assumption. }
-    assert (Heq2 : M2' !! e = Some (re, LLink y)).
-    { destruct (skel_lookup _ _ _ _ _ Hskel Heq) as (lc' & Heq2').
-      pose proof (proj2 HMem' e Hin) as Hf2. rewrite Heq2' in Hf2.
-      destruct lc' as [v2|y2].
-      - exfalso. eapply (proj1 Hf2); exact HF0ey.
-      - rewrite Heq2'. do 3 f_equal.
-        eapply (proj1 (proj2 Hdsf0)); [exact Hf2 | exact HF0ey]. }
-    iDestruct (pointsto_M_acc _ _ _ _ Heq2 with "HM'") as "(Hv & Hback)".
+    assert (Heq2 : M2' !! e = Some (re, LLink y))
+      by (eapply link_untouched_by_ipc; eauto).
+
+    iDestruct (pointsto_M_acc with "HM'") as "(Hv & Hback)".
+    { eassumption. }
 
     (* Goal: [ if z != y then ... else ...; z ] *)
     iApply (imp_ESeq with "[-]").
@@ -1118,11 +1184,7 @@ Proof.
       iIntros "HMfinal". imp_path.
       iExists (<[e:=(re, LLink (R y))]> M2'). iFrame "HMfinal". iPureIntro.
       split_and!.
-      { symmetry.
-        eapply is_equiv_incl_same_R.
-        - apply Hdsf.
-        - eauto.
-        - eapply path_is_equiv; eauto using rtc_l, rtc_refl. }
+      { symmetry. eapply R_of_parent; eauto. }
       { erewrite skel_insert; [exact Hskel | exact Heq2]. }
       rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin]. }
 
