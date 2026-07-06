@@ -811,7 +811,8 @@ Qed.
 (* In principle, we could also prove the converse property, [UF_split]. A UnionFind
    data structure can be split in two independent parts, provided the split respects
    the equivalence relation. Considering the amount of dreary work that went into
-   establishing [UF_join], I leave this to future work. *)
+   establishing [UF_join] (mostly the forest-join theory in
+   math/UnionFind06Join.v), I leave this to future work. *)
 
 (* [pointsto_M_disjoint]/[pointsto_M_union]: needed to combine two separate
    [UF] instances' worth of heap ownership. *)
@@ -833,77 +834,98 @@ Proof.
   intros LM1 LM2 HLM12. symmetry. apply big_sepM_union, HLM12.
 Qed.
 
+(* [fjoin D f g] is the join of two client-side views [f] and [g]: it agrees
+   with [f] on [D] and with [g] elsewhere. This is how the [R]/[V] views of
+   two joined instances are combined; use [fjoin_in]/[fjoin_out] to read the
+   joined view back at a given point. *)
+
+Definition fjoin {B : Type} D (f g : elem -> B) : elem -> B :=
+  fun x => if decide (x ∈ D) then f x else g x.
+
+Lemma fjoin_in {B : Type} D (f g : elem -> B) x :
+  x ∈ D -> fjoin D f g x = f x.
+Proof. intros. rewrite /fjoin decide_True //. Qed.
+
+Lemma fjoin_out {B : Type} D (f g : elem -> B) x :
+  x ∉ D -> fjoin D f g x = g x.
+Proof. intros. rewrite /fjoin decide_False //. Qed.
+
+(* [Inv] is preserved by joining: the forests union, the views join. The
+   heavy lifting (the union of two disjoint forests is again a forest, and
+   representatives are preserved) is in math/UnionFind06Join.v. *)
+
+Lemma Inv_join : forall D1 F1 R1 V1 D2 F2 R2 V2,
+  D1 ## D2 ->
+  Inv D1 F1 R1 V1 -> Inv D2 F2 R2 V2 ->
+  Inv (D1 ∪ D2) (union elem F1 F2) (fjoin D1 R1 R2) (fjoin D1 V1 V2).
+Proof.
+  intros * HD [Hdsf1 Hincl1 Hdata1] [Hdsf2 Hincl2 Hdata2].
+  constructor.
+  - by apply is_dsf_join.
+  - intros x. destruct (decide (x ∈ D1)) as [Hx|Hx].
+    + rewrite fjoin_in //. by eapply is_repr_join_direct_1; eauto.
+    + rewrite fjoin_out //. by eapply is_repr_join_direct_2; eauto.
+  - (* Once the [fjoin]s are rewritten away — [R1]/[R2] cannot escape
+       their side of [D1] — the goal is [Hdata1]/[Hdata2], and the final
+       [//] closes it. *)
+    intros x. destruct (decide (x ∈ D1)) as [Hx|Hx].
+    + assert (HR1 : R1 x ∈ D1) by (eapply sticky_R; eauto).
+      rewrite (fjoin_in _ _ _ x) // (fjoin_in _ _ _ x) // fjoin_in //.
+    + assert (HR2 : R2 x ∉ D1).
+      { destruct (decide (x ∈ D2)) as [Hx2|Hx2].
+        - assert (R2 x ∈ D2) by (eapply sticky_R; eauto). set_solver.
+        - rewrite (R_is_identity_outside_D _ _ _ _ _ Hdsf2 _ Hincl2) //. }
+      rewrite (fjoin_out _ _ _ x) // (fjoin_out _ _ _ x) // fjoin_out //.
+Qed.
+
+(* [Mem] is preserved by joining: on [D1], the joined map looks up in [M1]
+   and the joined view agrees with [V1]; symmetrically on [D2]. The only
+   cross-instance fact needed is that a root of one forest is also a root
+   of the union, because the other forest has no edges at all outside its
+   own domain ([only_roots_outside_D]). *)
+
+Lemma Mem_join : forall D1 F1 V1 M1 D2 F2 V2 M2,
+  D1 ## D2 ->
+  is_dsf elem _ _ D1 F1 -> is_dsf elem _ _ D2 F2 ->
+  Mem D1 F1 V1 M1 -> Mem D2 F2 V2 M2 ->
+  Mem (D1 ∪ D2) (union elem F1 F2) (fjoin D1 V1 V2) (M1 ∪ M2).
+Proof.
+  intros * HD Hdsf1 Hdsf2 [Hdom1 HM1] [Hdom2 HM2].
+  split. { rewrite dom_union_L Hdom1 Hdom2 //. }
+  intros x Hx. apply elem_of_union in Hx as [Hx | Hx].
+  - rewrite lookup_union_l; [|apply not_elem_of_dom; rewrite Hdom2; set_solver].
+    rewrite fjoin_in //. specialize (HM1 x Hx).
+    destruct (M1 !! x) as [[lr [v|y]]|]; [|by left|done].
+    destruct HM1 as [Hroot ->]. split; [|done].
+    apply is_root_join. split; [done|].
+    eapply only_roots_outside_D; [exact Hdsf2|set_solver].
+  - rewrite lookup_union_r; [|apply not_elem_of_dom; rewrite Hdom1; set_solver].
+    rewrite fjoin_out; [|set_solver]. specialize (HM2 x Hx).
+    destruct (M2 !! x) as [[lr [v|y]]|]; [|by right|done].
+    destruct HM2 as [Hroot ->]. split; [|done].
+    apply is_root_join. split; [|done].
+    eapply only_roots_outside_D; [exact Hdsf1|set_solver].
+Qed.
+
+(* The client's new view of representatives and values is the [fjoin] of
+   the two old views; disjointness of the domains comes for free, since
+   the two instances own disjoint parts of the heap. *)
+
 Theorem UF_join : forall D1 R1 V1 D2 R2 V2,
   UF D1 R1 V1 -∗ UF D2 R2 V2 -∗
-  UF
-    (D1 ∪ D2)
-    (fun x => if decide (x ∈ D1) then R1 x else R2 x)
-    (fun x => if decide (x ∈ D1) then V1 x else V2 x)
-  ∗ ⌜ D1 ## D2 ⌝.
+  UF (D1 ∪ D2) (fjoin D1 R1 R2) (fjoin D1 V1 V2) ∗ ⌜ D1 ## D2 ⌝.
 Proof.
   iIntros (D1 R1 V1 D2 R2 V2) "HUF1 HUF2".
-  iDestruct "HUF1" as (F1 LM1 HInv1 HMem1) "HM1".
-  iDestruct "HUF2" as (F2 LM2 HInv2 HMem2) "HM2".
-  destruct HInv1 as [Hdsf1 Hincl1 Hdata1].
-  destruct HInv2 as [Hdsf2 Hincl2 Hdata2].
-  destruct HMem1 as [Hdom1 HMfun1].
-  destruct HMem2 as [Hdom2 HMfun2].
-  iDestruct (pointsto_M_disjoint with "HM1 HM2") as %HLM12.
-  assert (HD12 : D1 ## D2).
-  { intros x Hx1 Hx2.
-    assert (Hin1 : is_Some (LM1 !! x)) by (apply elem_of_dom; rewrite Hdom1; exact Hx1).
-    assert (Hin2 : is_Some (LM2 !! x)) by (apply elem_of_dom; rewrite Hdom2; exact Hx2).
-    destruct Hin1 as [lc1 Heq1]. destruct Hin2 as [lc2 Heq2].
-    eapply map_disjoint_spec; eauto. }
-  assert (HnotD2 : forall x, x ∈ D1 -> x ∉ D2) by (intros x Hx1 Hx2; eapply HD12; eauto).
-  assert (HnotD1 : forall x, x ∈ D2 -> x ∉ D1) by (intros x Hx2 Hx1; eapply HD12; eauto).
+  iDestruct "HUF1" as (F1 M1 HInv1 HMem1) "HM1".
+  iDestruct "HUF2" as (F2 M2 HInv2 HMem2) "HM2".
+  iDestruct (pointsto_M_disjoint with "HM1 HM2") as %HM12.
+  assert (HD : D1 ## D2).
+  { rewrite -(proj1 HMem1) -(proj1 HMem2). by apply map_disjoint_dom. }
   iSplit; [|done].
-  iExists (union elem F1 F2), (LM1 ∪ LM2).
-  iSplit.
-  - (* Preservation of [Inv]. *)
-    iPureIntro. constructor.
-    + eapply is_dsf_join; eauto.
-    + intros x. destruct (decide (x ∈ D1)) as [HxD1 | HxD1].
-      * eapply (is_repr_join_direct_1 elem _ _ D1 D2 F1 F2 HD12 Hdsf1 Hdsf2); eauto.
-      * eapply (is_repr_join_direct_2 elem _ _ D1 D2 F1 F2 HD12 Hdsf1 Hdsf2); eauto.
-    + intros x. destruct (decide (x ∈ D1)) as [HxD1 | HxD1].
-      * assert (HRD1 : R1 x ∈ D1) by (eapply sticky_R; eauto).
-        destruct (decide (R1 x ∈ D1)) as [_ | Hc]; [|tauto].
-        apply Hdata1.
-      * destruct (decide (x ∈ D2)) as [HxD2 | HxD2].
-        -- assert (HRD2 : R2 x ∈ D2) by (eapply sticky_R; eauto).
-           destruct (decide (R2 x ∈ D1)) as [Hc | _]; [exfalso; eapply HnotD1; eauto|].
-           apply Hdata2.
-        -- assert (HReq : R2 x = x) by (eapply R_is_identity_outside_D; eauto).
-           rewrite HReq. destruct (decide (x ∈ D1)) as [Hc | _]; [tauto|]. reflexivity.
-  - iSplit.
-    + (* Preservation of [Mem]. *)
-      iPureIntro. split.
-      { rewrite dom_union_L Hdom1 Hdom2. reflexivity. }
-      intros x Hx. apply elem_of_union in Hx. destruct Hx as [Hx1 | Hx2].
-      * assert (HxnD2 : x ∉ D2) by (eapply HnotD2; eauto).
-        assert (Heq : (LM1 ∪ LM2) !! x = LM1 !! x).
-        { destruct (LM1 !! x) as [lc|] eqn:HeqLM1.
-          - eapply lookup_union_Some_l; eauto.
-          - exfalso. eapply (proj2 (not_elem_of_dom LM1 x) HeqLM1). rewrite Hdom1; exact Hx1. }
-        rewrite Heq. specialize (HMfun1 x Hx1).
-        destruct (LM1 !! x) as [[r [v|y]]|] eqn:HeqLM1x; [|left; exact HMfun1|exact HMfun1].
-        destruct HMfun1 as [Hroot1 Hv1].
-        split; [|destruct (decide (x ∈ D1)) as [_ | Hc]; [exact Hv1 | tauto]].
-        apply is_root_join. split; [exact Hroot1|].
-        intros y' HF2. destruct (proj1 Hdsf2 x y' HF2) as [Hx2' _]. eapply HxnD2; exact Hx2'.
-      * assert (HxnD1 : x ∉ D1) by (eapply HnotD1; eauto).
-        assert (Heq : (LM1 ∪ LM2) !! x = LM2 !! x).
-        { destruct (LM2 !! x) as [lc|] eqn:HeqLM2.
-          - eapply lookup_union_Some_r; eauto.
-          - exfalso. eapply (proj2 (not_elem_of_dom LM2 x) HeqLM2). rewrite Hdom2; exact Hx2. }
-        rewrite Heq. specialize (HMfun2 x Hx2).
-        destruct (LM2 !! x) as [[r [v|y]]|] eqn:HeqLM2x; [|right; exact HMfun2|exact HMfun2].
-        destruct HMfun2 as [Hroot2 Hv2].
-        split; [|destruct (decide (x ∈ D1)) as [Hc | _]; [tauto | exact Hv2]].
-        apply is_root_join. split; [|exact Hroot2].
-        intros y' HF1. destruct (proj1 Hdsf1 x y' HF1) as [Hx1' _]. eapply HxnD1; exact Hx1'.
-    + iApply pointsto_M_union; [exact HLM12|]. by iFrame.
+  iExists (union elem F1 F2), (M1 ∪ M2).
+  iSplit; [iPureIntro; by apply Inv_join|].
+  iSplit; [iPureIntro; by apply Mem_join; eauto|].
+  iApply pointsto_M_union; [exact HM12|by iFrame].
 Qed.
 
 (* -------------------------------------------------------------------------- *)
