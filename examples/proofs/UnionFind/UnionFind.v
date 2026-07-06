@@ -1409,15 +1409,16 @@ Proof.
       - imp_data.
       - iIntros "!>" (?) "(% & -> & % & Hown & ->) $". iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
+    iSpecialize ("Hback" $! _ _ (LLink (R y)) with "[$Hlink $Hown_link] Hvy").
     imp_path. iSplit; last (iPureIntro; tauto).
 
-    (* Goal: [UF D (update2 R R x y (R y)) (update2 V R x y (V (R y)))] *)
     rewrite update_class_R_diag. erewrite update_class_V_diag; last eassumption.
-    unfold UF.
+    (* Goal: prove ownership of a [UF] data structure with the class of [x]
+       updated to [R y]: [UF D R.[x -/R/> R y] V.[x -/R/> V (R y)]. *)
+    unfold UF. iFrame "Hback".
     iExists (UnionFind03Link.link elem F (R x) (R y)).
-    iExists (<[R x:=(r, LLink (R y))]> M).
-    iSpecialize ("Hback" $! r ry (LLink (R y)) (LRoot (V (R y))) with "[$Hlink $Hown_link] Hvy").
-    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    iPureIntro.
+    rewrite (insert_id M); last assumption.
     split.
     - eapply Inv_link; eauto.
       rewrite update_class_root; eauto.
@@ -1440,17 +1441,19 @@ Proof.
       iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
       iApply "Hown". }
     iIntros "(% & Hown_link & Hlink)".
+    iSpecialize ("Hback" $! _ r _ (LLink (R x))
+      with "Hvx [$Hlink $Hown_link]").
     imp_path. iSplit; last (iPureIntro; tauto).
 
-    (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
     rewrite update_classes_comm update_class_R_diag.
     rewrite update_classes_comm; erewrite update_class_V_diag; last eassumption.
-    unfold UF.
+    (* Goal: prove ownership of a [UF] data structure with the class of [y]
+       updated to [R x]: [UF D R.[y -/R/> R x] V.[y -/R/> V (R x)]. *)
+    unfold UF. iFrame "Hback".
     iExists (UnionFind03Link.link elem F (R y) (R x)).
-    iExists (<[R y:=(r, LLink (R x))]> M).
-    iSpecialize ("Hback" $! rx r (LRoot (V (R x))) (LLink (R x)) with "Hvx [$Hlink $Hown_link]").
+    iPureIntro.
     rewrite insert_insert_ne; last (assumption).
-    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    rewrite (insert_id M); last assumption.
     split.
     - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
       rewrite update_class_root; eauto.
@@ -1473,17 +1476,18 @@ Proof.
     iApply (imp_ESeq with "[Hvx]").
     { iApply (imp_vertex_write_rank with "Hvx [] []"); [imp_path|imp_arith]. }
     iIntros "(% & % & Hvx) /=".
+    iSpecialize ("Hback" $! _ r _ (LLink (R x)) with "Hvx [$Hlink $Hown_link]").
     imp_path. iSplit; last (iPureIntro; tauto).
 
-    (* Goal: [UF D (update2 R R x y (R x)) (update2 V R x y (V (R x)))] *)
     rewrite update_classes_comm update_class_R_diag.
     rewrite update_classes_comm; erewrite update_class_V_diag; last eassumption.
-    unfold UF.
+    (* Goal: prove ownership of a [UF] data structure with the class of [y]
+       updated to [R x]: [UF D R.[y -/R/> R x] V.[y -/R/> V (R x)]. *)
+    unfold UF. iFrame "Hback".
     iExists (UnionFind03Link.link elem F (R y) (R x)).
-    iExists (<[R y:=(r, LLink (R x))]> M).
-    iSpecialize ("Hback" $! rx r (LRoot (V (R x))) (LLink (R x)) with "Hvx [$Hlink $Hown_link]").
+    iPureIntro.
     rewrite insert_insert_ne; last (assumption).
-    rewrite (insert_id M); last assumption. iFrame. iPureIntro.
+    rewrite (insert_id M); last assumption.
     split.
     - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
       rewrite update_class_root; eauto.
