@@ -7,16 +7,26 @@ module Make () = struct
 
 (* Generating fresh names. *)
 
-let c =
-  ref 0
+(* Each base name has its own counter.
+   The first definition for a base is named [__base]; subsequent
+   definitions for the same base (created by shadowing) are named
+   [__base1], [__base2], etc. The table [used] guards against accidental
+   collisions between distinct bases. *)
 
-let next () =
-  let this = !c in
-  c := this + 1;
-  this
+let counters : (string, int) Hashtbl.t =
+  Hashtbl.create 33
 
-let fresh base =
-  sprintf "__%s%d" base (next())
+let used : (string, unit) Hashtbl.t =
+  Hashtbl.create 33
+
+let reserve x =
+  Hashtbl.add used x ()
+
+let rec fresh base =
+  let n = try Hashtbl.find counters base with Not_found -> 0 in
+  Hashtbl.replace counters base (n + 1);
+  let x = if n = 0 then sprintf "__%s" base else sprintf "__%s%d" base n in
+  if Hashtbl.mem used x then fresh base else (reserve x; x)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -63,6 +73,7 @@ and cut_exprs es =
 (* Transforming a definition. *)
 
 let cut_def def : defs =
+  reserve def.lhs;
   let def = { def with rhs = cut_expr def.rhs } in
   emit def;
   emitted()

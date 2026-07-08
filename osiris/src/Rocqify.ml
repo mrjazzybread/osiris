@@ -13,6 +13,43 @@ open Rocq
 
 (* -------------------------------------------------------------------------- *)
 
+(* Naming cuts after the source code. *)
+
+(* [prefix] is the qualified name of the innermost enclosing binding (or
+   module). It is used as a base name for the Rocq toplevel definitions
+   created by cuts, so that these definitions carry stable, meaningful
+   names. *)
+
+let prefix =
+  ref ""
+
+let scoped x =
+  if !prefix = "" then x else !prefix ^ "_" ^ x
+
+(* A binding name can be used as a prefix only if it is an ordinary
+   identifier; e.g., an operator name such as [+] cannot appear inside
+   a Rocq identifier. *)
+
+let is_identifier x =
+  x <> "" &&
+  String.for_all (fun c ->
+    ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') ||
+    ('0' <= c && c <= '9') || c = '_' || c = '\''
+  ) x
+
+(* [named x f] evaluates [f()] with the prefix extended with [x]. *)
+
+let named x f =
+  if not (is_identifier x) then f() else begin
+    let saved = !prefix in
+    prefix := scoped x;
+    let result = f() in
+    prefix := saved;
+    result
+  end
+
+(* -------------------------------------------------------------------------- *)
+
 (* Variables, module names, data constructors, and field names are
    represented in Rocq as strings. *)
 
@@ -176,7 +213,7 @@ let rec expr (e : expr) =
       c "EPath" [path pi]
 
   | EAnonFun a ->
-      c "EAnonFun" [ cut "fun" (anonfun a) ]
+      c "EAnonFun" [ cut (scoped "fun") (anonfun a) ]
 
   | EApp (e1, e2) ->
       c "EApp" [ expr e1; expr e2 ]
@@ -317,7 +354,7 @@ let rec expr (e : expr) =
       c "ELetRec" [ rec_bindings rbs; cut_expr e ]
 
   | ELetModule (m, me, e) ->
-      c "ELetModule" [ var m; mexpr me; cut_expr e ]
+      c "ELetModule" [ var m; named m (fun () -> mexpr me); cut_expr e ]
 
   | ELetOpen (me, e) ->
       c "ELetOpen" [ mexpr me; cut_expr e ]
@@ -399,7 +436,7 @@ and cut_expr e =
   | EDecorate (snippet, e) ->
       c "deco" [ string snippet; cut_expr e ]
   | e ->
-      cut "exp" (expr e)
+      cut (scoped "exp") (expr e)
 
 and exprs es =
   map expr es
@@ -415,7 +452,7 @@ and branch = function
       c "Branch" [ cpat cp; expr e ]
 
 and branches (bs : branches) =
-  cut "branches" (list (map branch bs))
+  cut (scoped "branches") (list (map branch bs))
 
 and fexpr = function
   | Fexpr (f, e) ->
@@ -430,18 +467,39 @@ and fexprs (fes : fexprs) =
 (* Bindings. *)
 
 and binding = function
+  | Binding ((PVar x | PAlias (_, x)) as p, e) when is_identifier x ->
+      named x (fun () -> c "Binding" [ pat p; named_rhs e ])
   | Binding (p, e) ->
       c "Binding" [ pat p; expr e ]
 
+(* The right-hand side of a named binding. If it is an anonymous function
+   (possibly under a decoration), then the cut is named after the binding
+   itself, so that a source function [let set ...] yields a Rocq toplevel
+   definition [__set]. *)
+
+and named_rhs e =
+  match e with
+  | EDecorate (snippet, e) ->
+      c "deco" [ string snippet; named_rhs e ]
+  | EAnonFun a ->
+      c "EAnonFun" [ cut !prefix (anonfun a) ]
+  | e ->
+      expr e
+
 and rec_binding = function
   | RecBinding (x, a) ->
-      c "RecBinding" [ var x; anonfun a ]
+      named x (fun () -> c "RecBinding" [ var x; anonfun a ])
 
 and bindings (bs : bindings) =
   list (map binding bs)
 
 and rec_bindings (rbs : rec_bindings) =
-  cut "bindings" (list (map rec_binding rbs))
+  let base =
+    match rbs with
+    | RecBinding (x, _) :: _ when is_identifier x -> scoped x ^ "_bindings"
+    | _ -> scoped "bindings"
+  in
+  cut base (list (map rec_binding rbs))
 
 (* -------------------------------------------------------------------------- *)
 
@@ -457,7 +515,7 @@ and structure_item (item : sitem) =
      c "ILetRec" [ rec_bindings rbs ]
 
   | IModule (m, me) ->
-      c "IModule" [ var m; mexpr me]
+      c "IModule" [ var m; named m (fun () -> mexpr me) ]
 
   | IOpen me ->
       c "IOpen" [ mexpr me ]
@@ -500,5 +558,6 @@ and mexpr (me : mexpr) =
 
 (* The main function. *)
 
-let module_expression =
-  mexpr
+let module_expression me =
+  prefix := "";
+  mexpr me
