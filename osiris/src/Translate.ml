@@ -300,7 +300,13 @@ let rec translate_pat (pat: pattern) : pat =
       PVar (txt x)
 
   | Tpat_alias (pat, _, x, _, _) ->
-      PAlias (translate_pat pat, txt x)
+      (* A type-constrained binding [let (x : t) = ...] is elaborated by the
+         OCaml typechecker as [Tpat_alias (Tpat_any, x)]. An alias of a
+         wildcard is just a variable, so we simplify it to [PVar]. *)
+      begin match translate_pat pat with
+      | PAny -> PVar (txt x)
+      | pat  -> PAlias (pat, txt x)
+      end
 
   | Tpat_constant c ->
       translate_pat_constant loc c
@@ -756,13 +762,13 @@ and translate_function_param (param : function_param) e : expr =
      match param.fp_kind with
      | Tparam_optional_default (_, _) -> raise Unsupported
      | Tparam_pat p ->
-        match p.pat_desc with
+        match translate_pat p with
         (* We recognize the special case of [fun x -> e]. In this case
            we can use [AnonFun], a primitive form in the Osiris AST. *)
-        | Tpat_var (_, x, _) ->
-           EAnonFun (AnonFun (txt x, e))
-        | _ ->
-           EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])
+        | PVar x ->
+           EAnonFun (AnonFun (x, e))
+        | p ->
+           EAnonFun (AnonFunction [Branch (CVal p, e)])
 
 and translate_function_params params e : expr =
   match params with
@@ -872,6 +878,9 @@ and project_EAnonFun (e : expr) : anonfun =
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
   | Tpat_var (_, v, _) -> txt v
+  (* A type-constrained binding [let rec f : t = ...] is elaborated as
+     [Tpat_alias (Tpat_any, f)]; it binds exactly one variable. *)
+  | Tpat_alias ({ pat_desc = Tpat_any; _ }, _, v, _, _) -> txt v
   | _ -> assert false
 
 and translate_rec_binding (vb : value_binding) : rec_binding =
