@@ -132,7 +132,7 @@ Section verification.
       ⌜ lookup_name η "Get" = Some #rl ⌝ -∗
       ⌜ lookup_name η "Set" = Some #wl ⌝ -∗
       ⌜ address rl ≠ address wl ⌝ -∗
-      imp eval η (EAnonFun __fun7)
+      imp eval η (EAnonFun __run)
         {{ λ run,  □ iSpec τ[ state;val] run run_spec }}.
   Proof.
     cbn zeta.

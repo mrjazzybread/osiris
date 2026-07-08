@@ -91,7 +91,7 @@ Section init_proof.
     by iApply init_spec_spec'.
   Qed.
 
-  Definition init := (EAnonFun __fun21).
+  Definition init := (EAnonFun __init).
 
   Lemma imp_init η :
     □ in_env "make" array_make_spec η -∗
@@ -203,7 +203,7 @@ Section iter_proof.
          imp m {{ λ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
 
 
-  Definition iter := (EAnonFun __fun74).
+  Definition iter := (EAnonFun __iter).
 
   Lemma singleton_prefix `{Inhabited A} x (xs : list A) :
     0 < length xs →
@@ -338,7 +338,7 @@ Section map_spec.
                     a ↦∗{dq} xs ∗
                     [∗ listZ] x;y ∈ xs;ys, Φ x y }})%I.
 
-  Definition map := (EAnonFun __fun88).
+  Definition map := (EAnonFun __map).
 
   Lemma imp_map η :
     □ in_env "length" array_length_spec η -∗
@@ -498,7 +498,7 @@ Section map_inplace_spec.
                     a ↦∗ ys ∗
                     [∗ listZ] x;y ∈ xs;ys, Φ x y }})%I.
 
-  Definition map_inplace := (EAnonFun __fun91).
+  Definition map_inplace := (EAnonFun __map_inplace).
 
   Lemma imp_map_inplace η :
     □ in_env "length" array_length_spec η -∗
@@ -599,7 +599,7 @@ Section mapi_inplace_spec.
                     a ↦∗ ys ∗
                     [∗ listZ] i↦x;y ∈ xs;ys, Φ i x y }})%I.
 
-  Definition mapi_inplace := (EAnonFun __fun94).
+  Definition mapi_inplace := (EAnonFun __mapi_inplace).
 
   Lemma imp_mapi_inplace η :
     □ in_env "length" array_length_spec η -∗
@@ -728,7 +728,7 @@ Section iteri_spec.
          I [] -∗
          imp m {{ λ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
 
-  Definition iteri := (EAnonFun __fun109).
+  Definition iteri := (EAnonFun __iteri).
 
   Lemma imp_iteri η :
     □ in_env "length" array_length_spec η -∗
@@ -932,7 +932,7 @@ Section fold_left_spec.
     - iPureIntro. done.
   Qed.
 
-  Definition fold_left := (EAnonFun __fun162).
+  Definition fold_left := (EAnonFun __fold_left).
 
   Lemma imp_fold_left η :
     □ in_env "length" array_length_spec η -∗

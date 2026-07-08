@@ -55,8 +55,8 @@ Section reasoning_rules.
   Definition env (shift_eff : loc) := ("Shift", #shift_eff) :: [].
 
   (* Mapping of translated function declaration names *)
-  Definition shift_f := (EAnonFun __fun0).
-  Definition reset_f := (EAnonFun __fun2).
+  Definition shift_f := (EAnonFun __shift).
+  Definition reset_f := (EAnonFun __reset).
 
   Definition reset_spec ℓ : val → microvx → iProp Σ :=
     λ f m,
@@ -94,7 +94,7 @@ Section verification.
 
   Lemma establish_shift_spec η :
     lookup_name η "Shift" = Some #shift_eff →
-    ⊢ imp eval η (EAnonFun __fun0)
+    ⊢ imp eval η (EAnonFun __shift)
       {{ λ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
     iIntros (Hlookup).
@@ -114,7 +114,7 @@ Section verification.
 
   Lemma establish_reset_spec η :
     lookup_name η "Shift" = Some #shift_eff →
-    ⊢ imp eval η (EAnonFun __fun2)
+    ⊢ imp eval η (EAnonFun __reset)
       {{ λ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.
     iIntros (Hlookup).

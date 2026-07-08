@@ -234,7 +234,7 @@ Section verification.
       handlerView γ Ys -∗
       (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
          (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-         η __branches3
+         η __invert_branches1
         ⊥ ⊥ (λ h, isHead ⊥ h Ys)).
     Proof.
       intros Hlookup.
@@ -294,7 +294,7 @@ Section verification.
 
     End inversion_protocol.
 
-    Definition invert := (EAnonFun __fun9).
+    Definition invert := (EAnonFun __invert).
 
     Local Instance xdata_yield yl `{Encode A} : @XData yl τ[A] effect (encode_effect A yl) :=
       { xctor_apply := λ a, Yield a;
@@ -305,7 +305,6 @@ Section verification.
     Proof.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
-      imp_match val.
 
       (* Initialise handler view and iterator view. *)
       iApply fupd_imp.

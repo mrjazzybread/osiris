@@ -126,7 +126,7 @@ Proof.
             ⌜∃ iter, ηδ = (("iter", iter) :: η, [("iter",iter)]) ∧
                      Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
-    iApply (impure_pure (B:=void) (eval_sitem (η, []) (ILetRec __bindings3))).
+    iApply (impure_pure (B:=void) (eval_sitem (η, []) (ILetRec __iter_bindings))).
     (* Enter the body of the recursive function. *)
     eapply (struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
     { (* Side-condition: the expression is a function. *) repeat eexists. }

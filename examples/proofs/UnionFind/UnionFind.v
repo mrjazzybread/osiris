@@ -578,17 +578,14 @@ Definition make_spec : val → microvx → iProp Σ :=
        UF D R V -∗
        imp m {{ λ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜x ∉ D ∧ R x = x⌝ }})%I.
 
-Definition make := EAnonFun __fun1.
-
 Lemma imp_make η :
-  ⊢ imp (eval η make) {{ λ c, □ iSpec τ[val] c make_spec }}.
+  ⊢ imp (eval η (EAnonFun __make)) {{ λ c, □ iSpec τ[val] c make_spec }}.
 Proof.
   iApply imp_EAnon_pers.
   iIntros "!>" (v).
   unfold make_spec.
   iIntros (D R V) "HUF".
   iApply imp_please; iNext.
-  imp_match val.
   (* Goal: [ ref (Root { rank = 0; value = v }) ] *)
   iApply (imp_ERef2' (A:=content)). { imp_data. }
 
@@ -835,7 +832,6 @@ Qed.
    that agrees with [F']. Furthermore, the value [r] returned by [find] is the
    representative of [x]. *)
 
-Definition find := (EAnonFun (AnonFunction __branches7)).
 
 Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
   ∀ d D R F F' M V,
@@ -998,7 +994,8 @@ Ltac pattern_hook ::=
 
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
-  imp (eval η find) {{ λ c, □ iSpec τ[elem] c find_spec' }}.
+  imp (eval η (EAnonFun (AnonFun "x" (EMatch (ELoad (EPath ["x"])) __find_branches))))
+    {{ λ c, □ iSpec τ[elem] c find_spec' }}.
 Proof.
   iIntros "#IH".
   iApply imp_EAnon_pers.
@@ -1006,9 +1003,6 @@ Proof.
   unfold find_spec' at 2.
   iIntros (d D R F F' M V HInv HMem Hin Hbw_ipc) "HM".
   iApply imp_please; iNext.
-  (* The outer, always-matching [PAlias PAny "x"] binder for the function's
-     own argument; unrelated to the source-level [match !x with ...]. *)
-  imp_match elem. rewrite -encode_encode'.
   (* Read [e]'s content cell with the *read-only* accessor: since [find]
      recurses on the whole structure, [e] stays in the heap and is put back
      unchanged by [Hback]. [Hlc] is the [Mem] fact about [e]'s content. *)
@@ -1136,11 +1130,9 @@ Definition get_spec (e : elem) (m : microvx) : iProp Σ :=
     UF D R V -∗
     imp m {{ λ (x : val), ⌜x = V e⌝ ∗ UF D R V }}.
 
-Definition get := (EAnonFun __fun19).
-
 Lemma get_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
-  imp (eval η get) {{ λ c, □ iSpec τ[elem] c get_spec }}.
+  imp (eval η (EAnonFun __get)) {{ λ c, □ iSpec τ[elem] c get_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1149,7 +1141,6 @@ Proof.
   iIntros (D R V) "%Hin HUF".
   iApply imp_please; iNext.
 
-  imp_match elem. rewrite -encode_encode'.
   iApply (imp_ELet_var (B:=elem) with "[HUF]").
   { imp_app τ[elem].
     iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
@@ -1184,11 +1175,9 @@ Definition set_spec (e : elem) (v : val) (m : microvx) : iProp Σ :=
     UF D R V -∗
     imp m {{ λ (x : unit), UF D R V.[ e -/R/> v] }}.
 
-Definition set := (EAnonFun (AnonFun "x" (EAnonFun __fun23))).
-
 Lemma set_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
-  imp (eval η set) {{ λ c, □ iSpec τ[elem;val] c set_spec }}.
+  imp (eval η (EAnonFun __set)) {{ λ c, □ iSpec τ[elem;val] c set_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1197,7 +1186,6 @@ Proof.
   iIntros (D R V) "%Hin HUF".
   iApply imp_please; iNext.
 
-  imp_match val.
   iApply (imp_ELet_var (B:=elem) with "[HUF]").
   { imp_app τ[elem].
     iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }
@@ -1237,11 +1225,9 @@ Definition union_spec (x y : elem) (m : microvx) : iProp Σ :=
     imp m {{ λ z, UF D R.[y -/R/> z].[x -/R/> z] V.[y -/R/> (V z)].[x -/R/> (V z)] ∗
                   ⌜z = R x ∨ z = R y⌝ }}.
 
-Definition union := EAnonFun (AnonFun "x" (EAnonFun __fun41)).
-
 Lemma union_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec) η -∗
-  imp (eval η union) {{ λ c, □ iSpec τ[elem;elem] c union_spec }}.
+  imp (eval η (EAnonFun __union)) {{ λ c, □ iSpec τ[elem;elem] c union_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1249,7 +1235,6 @@ Proof.
   unfold union_spec.
   iIntros (D R V) "%Hin_x %Hin_y HUF".
   iApply imp_please; iNext.
-  imp_match elem. rewrite -encode_encode'.
   iApply (imp_ELet_var (B:=elem) with "[HUF]").
   { imp_app τ[elem].
     iIntros "Hm". iApply ("Hm" with "[%//] HUF"). }

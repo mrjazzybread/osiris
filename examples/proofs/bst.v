@@ -203,7 +203,7 @@ Lemma insert_mkspec insert (x : Z) (t : tree Z) :
   representable x ->
   Spec τ[Z * tree Z] insert
     (λ '(x : Z * tree Z) (m : microvx), tlt x.2 t → insert_spec x m) ->
-  η ⊢ₚ { EMatch (EPath ["v"]) __branches4
+  η ⊢ₚ { EMatch (EPath ["v"]) __insert_branches
            ensures λ t' : tree Z, ∀ x0 : Z, lookup x0 t' = (x0 =? x) || lookup x0 t }.
 Proof.
   intros Hv Hx Hinsert Ht Hrepr IH.
@@ -311,7 +311,7 @@ Lemma member_mkspec member (x : Z) (t : tree Z) :
   Spec τ[Z * tree Z] member
     (λ (x0 : Z * tree Z) (m : microvx),
       tlt x0.2 (x, t).2 → member_spec x0 m) ->
-  η ⊢ₚ { EMatch (EPath ["v"]) __branches11
+  η ⊢ₚ { EMatch (EPath ["v"]) __member_branches
            ensures λ b : bool, b = lookup x t }.
 Proof.
   intros Hv Hx Hmember Ht Hrepr IH.

@@ -55,7 +55,7 @@ Section verification.
       (⌜0 ≤ n ≤ max_array_length⌝ -∗
        imp m {{ λ i, ⌜i = gauss_summation n⌝ }})%I.
 
-  Definition esum := EAnonFun __fun2.
+  Definition esum := EAnonFun __sum.
 
   Lemma imp_sum η :
     in_env "Array" array_module_spec η -∗

@@ -83,7 +83,7 @@ Section init_proof.
          I [] -∗
          imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ isBlock a (DfracOwn 1) Immut ∗ I xs }})%I.
 
-  Definition init := (EAnonFun __fun8).
+  Definition init := (EAnonFun __init).
 
   Lemma imp_init η :
     □ in_env "Array" array_module_spec η -∗

@@ -547,7 +547,7 @@ Proof. rewrite /singleton. by intros ->. Qed.
 
 Lemma Splay_spec :
   splay_spec
-    (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
+    (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __splay_branches1)] "splay").
 Proof.
   intros A H ctx l x r.
 
@@ -654,7 +654,7 @@ Qed.
 Lemma Splay_leaf_spec splay :
   splay_spec splay ->
   splay_leaf_spec
-    (VClo ("splay" ~> splay; stdlib_env) __fun4).
+    (VClo ("splay" ~> splay; stdlib_env) __splay_leaf).
 Proof.
   unfold splay_leaf_spec.
   intros Hsplay A H ctx.
@@ -696,7 +696,7 @@ Lemma Zlookup_spec splay splay_leaf :
     (VCloRec ("splay_leaf" ~> splay_leaf;
               "splay" ~> splay;
               stdlib_env)
-       [RecBinding "zlookup" (AnonFunction __branches11)]
+       [RecBinding "zlookup" (AnonFunction __zlookup_branches1)]
        "zlookup").
 Proof.
   unfold zlookup_spec.
