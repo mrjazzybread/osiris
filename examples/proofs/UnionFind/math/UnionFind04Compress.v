@@ -19,10 +19,10 @@ Require Import UnionFind01Data.
 
 Section PathCompression.
 
-Variable V : Type.
-Variable EqV : EqDecision V.
-Variable CountableV : Countable V.
-Variable F : relation V.
+Context {V : Type}.
+Context {EqV : EqDecision V}.
+Context {CountableV : Countable V}.
+Context {F : relation V}.
 Variable x z : V.
 
 (* Path compression is performed as follows: every edge out of [x] is
@@ -61,24 +61,24 @@ Qed.
 
 (* Every root other than [x] remains a root. *)
 
-Lemma compress_preserves_roots_other_than_x:
-  forall r,
+Lemma compress_preserves_roots_other_than_x (r : V) :
   r <> x ->
-  is_root V F r ->
-  is_root V compress r.
+  Root F r ->
+  Root compress r.
 Proof.
-  intros r Hneq Hroot w Hcomp.
+  intros Hneq Hroot.
+  constructor; intros w Hcomp.
   destruct Hcomp as [[HF _] | [Heq _]].
   - eapply Hroot; eauto.
   - apply Hneq. exact Heq.
 Qed.
 
-Lemma compress_preserves_roots_converse:
-  forall r,
-  is_root V compress r ->
-  is_root V F r.
+Lemma compress_preserves_roots_converse (r : V) :
+  Root compress r ->
+  Root F r.
 Proof.
-  intros r Hroot w HF.
+  intros Hroot.
+  constructor; intros y HF.
   destruct (decide (r = x)) as [-> | Hneq].
   - eapply Hroot. right. split; reflexivity.
   - eapply Hroot. left. split; [exact HF | exact Hneq].
@@ -92,7 +92,7 @@ Qed.
 Variable y : V.
 Hypothesis x_edge_y : F x y.
 Variable D : gset V.
-Hypothesis is_dsf_F : is_dsf V EqV CountableV D F.
+Hypothesis is_dsf_F : DSF F D.
 Hypothesis y_path_z : rtc F y z.
 
 (* Every path out of [y] is preserved. *)
@@ -107,7 +107,7 @@ Proof.
   - apply rtc_refl.
   - assert (Hxv : x <> v).
     { intro Heq. subst v.
-      exact (edge_no_return_path V EqV CountableV D F is_dsf_F x y x_edge_y Hyv). }
+      eapply (edge_no_return_path D F _ x y); eauto. }
     eapply rtc_l.
     + eapply compress_preserves_other_edges; eauto.
     + apply IH. eapply rtc_r; eauto.
@@ -130,32 +130,30 @@ Qed.
 Lemma compress_preserves_paths_to_roots:
   forall v r,
   rtc F v r ->
-  is_root V F r ->
+  Root F r ->
   rtc compress v r.
 Proof.
   intros v r Hpath. induction Hpath as [ v | v v' r HFvv' Hv'r IH ]; intros Hrootr.
   - apply rtc_refl.
   - destruct (decide (v = x)) as [-> | Hneq].
     + assert (Hv'y : v' = y).
-      { destruct is_dsf_F as [_ [Hfunc _]]. eapply Hfunc; eauto. }
+      { destruct is_dsf_F as [_ Hfunc _]. eapply functional; eauto. }
       subst v'.
-      assert (Hyr : is_repr V F y r) by (split; assumption).
-      assert (Hequiv_yz : is_equiv V F y z) by (eapply path_is_equiv; eauto).
-      assert (Hzr : is_repr V F z r) by (eapply is_repr_is_equiv_is_repr; eauto).
       eapply rtc_l.
       * apply compress_x_z.
-      * apply compress_preserves_paths_out_of_z; [apply Hzr | apply rtc_refl].
+      * apply compress_preserves_paths_out_of_z; [ | apply rtc_refl].
+        apply repr_path. eapply is_repr_is_equiv_is_repr; eauto.
+        split; eauto. eapply path_is_equiv; eauto.
     + eapply rtc_l; eauto using compress_preserves_other_edges.
 Qed.
 
 (* [is_repr] is preserved (forward direction). *)
 
-Lemma compress_preserves_is_repr_direct:
-  forall v r,
-  is_repr V F v r ->
-  is_repr V compress v r.
+Lemma compress_preserves_is_repr_direct (v r : V) :
+  Repr F v r ->
+  Repr compress v r.
 Proof.
-  intros v r [Hp Hr]. split.
+  intros [Hp Hr]. split.
   - apply compress_preserves_paths_to_roots; assumption.
   - destruct (decide (r = x)) as [-> | Hneq].
     + exfalso. eapply a_root_has_no_parent; eauto.
@@ -164,63 +162,60 @@ Qed.
 
 (* The structure of a disjoint set forest is preserved. *)
 
-Lemma is_dsf_compress:
-  is_dsf V EqV CountableV D compress.
+Instance is_dsf_compress:
+  DSF compress D.
 Proof.
-  destruct is_dsf_F as [Hconf [Hfunc Hdef]].
-  split; [|split].
+  destruct is_dsf_F as [Hconf Hfunc Hdef].
+  constructor; constructor.
   - intros a b Hc. destruct Hc as [[HF Hneq]|[-> ->]].
-    + exact (Hconf a b HF).
+    + exact (confined a b HF).
     + split.
-      * exact (proj1 (Hconf x y x_edge_y)).
-      * assert (Hy_in_D : y ∈ D) by exact (proj2 (Hconf x y x_edge_y)).
-        destruct (sticky_path V EqV CountableV D F is_dsf_F y z y_path_z) as [Hfwd _].
-        apply Hfwd. exact Hy_in_D.
+      * apply (confined x y x_edge_y).
+      * eapply (sticky_path D F _ y z).
+        apply y_path_z. apply (confined _ _ x_edge_y).
   - intros a b1 b2 Hc1 Hc2.
     destruct Hc1 as [[HF1 Hneq1]|[Ha1 Hb1]]; destruct Hc2 as [[HF2 Hneq2]|[Ha2 Hb2]].
-    + eapply Hfunc; eauto.
+    + eapply functional; eauto.
     + exfalso. apply Hneq1. exact Ha2.
     + exfalso. apply Hneq2. exact Ha1.
     + congruence.
-  - intro v. destruct (Hdef v) as [r Hr]. exists r. apply compress_preserves_is_repr_direct. exact Hr.
+  - intro v. destruct (defined v) as [r Hr]. exists r. apply compress_preserves_is_repr_direct. exact Hr.
 Qed.
 
 (* [is_repr] is preserved, pointwise, in both directions. (Stated as an
    [<->] rather than as a propositional equality of relations, to avoid
    needing functional/propositional extensionality.) *)
 
-Lemma compress_preserves_is_repr:
-  forall v r,
-  is_repr V F v r <-> is_repr V compress v r.
+Lemma compress_preserves_is_repr (v r : V) :
+  Repr F v r <-> Repr compress v r.
 Proof.
-  intros v r. split.
+  split.
   - apply compress_preserves_is_repr_direct.
-  - intros Hcr. destruct is_dsf_F as [_ [_ Hdef]]. destruct (Hdef v) as [r' Hr'].
-    assert (Hcr' : is_repr V compress v r') by (apply compress_preserves_is_repr_direct; exact Hr').
+  - intros Hcr. destruct is_dsf_F as [_ _ Hdef]. destruct (defined v) as [r' Hr'].
     assert (Heq : r = r').
-    { eapply (functional_is_repr V EqV CountableV D compress is_dsf_compress); eauto. }
+    { eapply (functional_is_repr D compress); eauto.
+      + apply is_dsf_compress.
+      + apply compress_preserves_is_repr_direct. assumption. }
     subst r'. exact Hr'.
 Qed.
 
 (* The agreement between [R] and [is_repr F] is preserved when one applies
    [compress] to [F]. Note that [R] is unchanged, as it should be. *)
 
-Lemma compress_R_compress_agree:
-  forall R,
-  fun_in_rel V R (is_repr V F) ->
-  fun_in_rel V R (is_repr V compress).
+Lemma compress_R_compress_agree (R : V → V) :
+  fun_in_rel R (Repr F) ->
+  fun_in_rel R (Repr compress).
 Proof.
-  intros R Hincl w. apply compress_preserves_is_repr. apply Hincl.
+  intros Hincl w. apply compress_preserves_is_repr. apply Hincl.
 Qed.
 
 (* No new paths are created. *)
 
-Lemma compress_preserves_paths_converse:
-  forall u w,
+Lemma compress_preserves_paths_converse (u w : V) :
   rtc compress u w ->
   rtc F u w.
 Proof.
-  intros u w Hpath. induction Hpath as [ u | u u' w Hc Hpath IH ].
+  intros Hpath. induction Hpath as [ u | u u' w Hc Hpath IH ].
   - apply rtc_refl.
   - destruct Hc as [[HF Hneq] | [-> ->]].
     + eapply rtc_l; eauto.
@@ -229,19 +224,20 @@ Qed.
 
 End PathCompression.
 
+Arguments compress {_} F.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Two independent steps of path compression commute. (Stated pointwise as
    an [<->], rather than as a propositional equality of relations, to avoid
    needing functional/propositional extensionality.) *)
 
-Lemma compress_compress:
-  forall V (F : relation V) (x1 z1 x2 z2 : V),
+Lemma compress_compress `{F : relation V} (x1 z1 x2 z2 : V) :
   x1 <> x2 ->
-  forall a b,
-  compress V (compress V F x1 z1) x2 z2 a b <-> compress V (compress V F x2 z2) x1 z1 a b.
+  ∀ a b,
+  compress (compress F x1 z1) x2 z2 a b <-> compress (compress F x2 z2) x1 z1 a b.
 Proof.
-  unfold compress. intros V F x1 z1 x2 z2 Hneq a b. split; intros H; intuition congruence.
+  unfold compress. intros Hneq a b. split; intros H; intuition congruence.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -252,13 +248,12 @@ Qed.
 (* Path compression preserves every path whose origin [y] is not a descendant
    of [x]. *)
 
-Lemma compress_preserves_paths_weak:
-  forall V (F : relation V) x y z r,
+Lemma compress_preserves_paths_weak `{F : relation V} (x y z r : V) :
   rtc F y r ->
   ~ rtc F y x ->
-  rtc (compress V F x z) y r.
+  rtc (compress F x z) y r.
 Proof.
-  intros V F x y z r Hpath. induction Hpath as [ y | y y' r HF Hpath IH ]; intros Hnopath.
+  intros Hpath. induction Hpath as [ y | y y' r HF Hpath IH ]; intros Hnopath.
   - apply rtc_refl.
   - eapply rtc_l.
     + apply compress_preserves_other_edges; [exact HF|].
@@ -269,13 +264,12 @@ Qed.
 (* Path compression preserves the representative of every vertex [y] that is
    not a descendant of [x]. *)
 
-Lemma compress_preserves_is_repr_weak:
-  forall V (F : relation V) x y z r,
-  is_repr V F y r ->
+Lemma compress_preserves_is_repr_weak `{F : relation V} (x y z r : V) :
+  Repr F y r ->
   ~ rtc F y x ->
-  is_repr V (compress V F x z) y r.
+  Repr (compress F x z) y r.
 Proof.
-  intros V F x y z r [Hp Hr] Hnopath.
+  intros [Hp Hr] Hnopath.
   assert (r <> x). { intro. subst. tauto. }
   split.
   - apply compress_preserves_paths_weak; assumption.
@@ -284,15 +278,14 @@ Qed.
 
 (* Analogous lemmas, in the reverse direction. *)
 
-Lemma compress_preserves_paths_weak_converse:
-  forall V (Fxz : relation V) y r,
+Lemma compress_preserves_paths_weak_converse `{Fxz : relation V} (y r : V) :
   rtc Fxz y r ->
-  forall (F : relation V) x z,
-  Fxz = compress V F x z ->
+  ∀ (F : relation V) x z,
+  Fxz = compress F x z ->
   ~ rtc F y x ->
   rtc F y r.
 Proof.
-  intros V Fxz y r Hpath. induction Hpath as [ y | y y' r HF Hpath IH ]; intros F x z -> Hnopath.
+  intros Hpath. induction Hpath as [ y | y y' r HF Hpath IH ]; intros F x z -> Hnopath.
   - apply rtc_refl.
   - assert (HF' : F y y').
     { eapply compress_preserves_other_edges_converse; eauto.
@@ -301,13 +294,12 @@ Proof.
     eapply IH; [reflexivity|]. intro Hc. apply Hnopath. eapply rtc_l; eauto.
 Qed.
 
-Lemma compress_preserves_is_repr_weak_converse:
-  forall V (EqV : EqDecision V) (F : relation V) x y z r,
-  is_repr V (compress V F x z) y r ->
+Lemma compress_preserves_is_repr_weak_converse `{EqDecision V} {F : relation V} (x y z r : V) :
+  Repr (compress F x z) y r ->
   ~ rtc F y x ->
-  is_repr V F y r.
+  Repr F y r.
 Proof.
-  intros V EqV F x y z r [Hp Hr] Hnopath. split.
+  intros [Hp Hr] Hnopath. constructor.
   - eapply compress_preserves_paths_weak_converse; [exact Hp | reflexivity | exact Hnopath].
-  - eapply (compress_preserves_roots_converse V EqV F x z r); exact Hr.
+  - eapply (compress_preserves_roots_converse x z r); exact Hr.
 Qed.

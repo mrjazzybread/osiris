@@ -9,9 +9,9 @@ Section DisjointSetForest.
 
 (* A type of vertices. *)
 
-Variable V : Type.
-Variable EqV : EqDecision V.
-Variable CountableV : Countable V.
+Context {V : Type}.
+Context {EqV : EqDecision V}.
+Context {CountableV : Countable V}.
 
 (* We restrict our attention to a certain set of vertices, the domain
    of the forest. Keeping track of [D] allows us to distinguish an
@@ -31,14 +31,14 @@ Variable F : relation V.
    LibRelation/LibContainer/LibPer provided. Kept local to this file for now;
    we can hoist them to a shared buffer file once a second file needs them. *)
 
-Definition functional (R : relation V) :=
-  forall x y1 y2, R x y1 -> R x y2 -> y1 = y2.
+Class Functional (R : relation V) :=
+  { functional : ∀ x y1 y2, R x y1 → R x y2 → y1 = y2 }.
 
-Definition defined (R : relation V) :=
-  forall x, exists y, R x y.
+Class Defined (R : relation V) :=
+  { defined : ∀ x, ∃ y, R x y }.
 
-Definition confined (Dom : gset V) (R : relation V) :=
-  forall x y, R x y -> x ∈ Dom /\ y ∈ Dom.
+Class Confined (Dom : gset V) (R : relation V) :=
+  { confined : ∀ x y, R x y → x ∈ Dom ∧ y ∈ Dom }.
 
 (* [sticky Dom R] says that membership of [Dom] is preserved (in both
    directions) across an [R]-edge. *)
@@ -61,8 +61,8 @@ Definition set_finite (X : propset V) :=
 
 (* A vertex [x] is a root if it has no successor. *)
 
-Definition is_root x :=
-  forall y, ~ F x y.
+Class Root {V} (F : relation V) x :=
+  { is_root : ∀ y, ~ F x y }.
 
 (* [path] is the reflexive-transitive closure of [F]. stdpp's [rtc] is
    defined left-recursively (peeling the first edge), which is exactly the
@@ -85,22 +85,25 @@ Definition descendants r : propset V :=
    there is a path from [x] to [r] and [r] is a root. In other words, there
    exists a maximal path from [x] to [r]. *)
 
-Definition is_repr x r :=
-  path F x r /\ is_root r.
+Class Repr x r :=
+  { repr_path : path F x r;
+    repr_root : Root F r }.
+Arguments repr_path : clear implicits.
+Arguments repr_root : clear implicits.
 
 (* A graph is a disjoint set forest with domain [D] iff every edge begins and
    ends within [D] and the graph is functional (i.e., every vertex has at most
    one successor) and acyclic (i.e., every vertex has a representative). *)
 
-Definition is_dsf :=
-  confined D F /\
-  functional F /\
-  defined is_repr.
+Class DSF D :=
+  { dsf_confined : Confined D F;
+    dsf_functional : Functional F;
+    dsf_defined : Defined Repr }.
 
 (* Two vertices are equivalent if they have a common representative. *)
 
 Definition is_equiv x y :=
-  exists r, is_repr x r /\ is_repr y r.
+  exists r, Repr x r /\ Repr y r.
 
 (* The partial equivalence relation (PER) encoded by this disjoint set forest
    is the restriction of [is_equiv] to the domain [D]. *)
@@ -113,12 +116,15 @@ Definition dsf_per : relation V :=
 (* In the following, we assume that [F] is a disjoint set forest with
    domain [D]. *)
 
-Hypothesis is_dsf_F:
-  is_dsf.
+Instance is_dsf_confined `{is_dsf_F : DSF D} : Confined D F.
+Proof. destruct is_dsf_F. apply _. Qed.
+Instance is_dsf_functional `{is_dsf_F : DSF D} : Functional F.
+Proof. destruct is_dsf_F. apply _. Qed.
+Instance is_dsf_defined_is_repr `{is_dsf_F : DSF D} : Defined Repr.
+Proof. destruct is_dsf_F. apply _. Qed.
 
-Definition is_dsf_confined : confined D F := proj1 is_dsf_F.
-Definition is_dsf_functional : functional F := proj1 (proj2 is_dsf_F).
-Definition is_dsf_defined_is_repr : defined is_repr := proj2 (proj2 is_dsf_F).
+Hypothesis is_dsf_F :
+  DSF D.
 
 Local Hint Resolve is_dsf_confined : confined.
 
@@ -130,24 +136,22 @@ Local Hint Resolve is_dsf_functional : functional.
 
 (* A root has no parent. *)
 
-Lemma a_root_has_no_parent:
-  forall x y,
-  is_root x ->
+Lemma a_root_has_no_parent (x y : V) :
+  Root F x ->
   F x y ->
   False.
 Proof.
-  unfold is_root. intros x y Hroot HF. exact (Hroot y HF).
+  intros [Hroot] HF. exact (Hroot y HF).
 Qed.
 
 (* Hence, a path out of a root must be a trivial path. *)
 
-Lemma a_path_out_of_a_root_is_trivial:
-  forall x y,
-  is_root x ->
+Lemma a_path_out_of_a_root_is_trivial (x y : V) :
+  Root F x ->
   path F x y ->
   x = y.
 Proof.
-  intros x y Hroot Hpath. induction Hpath as [ x | x x' y HF Hpath IH ].
+  intros Hroot Hpath. induction Hpath as [ x | x x' y HF Hpath IH ].
   - reflexivity.
   - exfalso. eapply a_root_has_no_parent; eauto.
 Qed.
@@ -155,10 +159,10 @@ Qed.
 (* The relation [is_repr] is functional, i.e., a vertex has at most
    one representative. *)
 
-Lemma functional_is_repr:
-  functional is_repr.
+Instance functional_is_repr:
+  Functional Repr.
 Proof.
-  unfold functional, is_repr.
+  constructor.
   intros x r1 r2 [Hp1 Hr1] [Hp2 Hr2].
   revert r2 Hp2 Hr2.
   revert Hr1.
@@ -172,8 +176,6 @@ Proof.
       eapply IHHp1; eauto.
 Qed.
 
-Local Hint Resolve functional_is_repr : functional.
-
 (* [exploit_functional R] finds two hypotheses [R x y1] and [R x y2] in the
    context and uses functionality of [R] (looked up in the [functional] hint
    database) to unify [y1] and [y2]. *)
@@ -182,86 +184,70 @@ Ltac exploit_functional R :=
   match goal with
   | h1 : R ?x ?y1, h2 : R ?x ?y2 |- _ =>
       let Hfun := fresh "Hfun" in
-      assert (functional R) as Hfun by (eauto with functional);
+      assert (Functional R) as Hfun by (apply _);
       assert (y1 = y2) as <- by (eapply Hfun; eauto);
       clear h2
   end.
 
 (* Two equivalent vertices must have the same representative. *)
 
-Lemma is_repr_is_equiv_is_repr:
-  forall x y r,
-  is_repr x r ->
+Instance is_repr_is_equiv_is_repr (x y r : V) :
+  Repr x r ->
   is_equiv x y ->
-  is_repr y r.
+  Repr y r.
 Proof.
-  intros x y r Hxr [r' [Hxr' Hyr']].
-  exploit_functional is_repr.
+  intros Hxr [r' [Hxr' Hyr']].
+  exploit_functional Repr.
   exact Hyr'.
 Qed.
 
-Lemma is_repr_is_equiv_is_repr_bis:
-  forall x y rx ry,
-  is_repr x rx ->
+Lemma is_repr_is_equiv_is_repr_bis (x y rx ry : V) :
+  Repr x rx ->
   is_equiv x y ->
-  is_repr y ry ->
+  Repr y ry ->
   rx = ry.
 Proof.
-  intros x y rx ry Hxrx [r [Hxr Hyr]] Hyry.
-  exploit_functional is_repr.
-  exploit_functional is_repr.
+  intros Hxrx [r [Hxr Hyr]] Hyry.
+  exploit_functional Repr.
+  exploit_functional Repr.
   reflexivity.
 Qed.
 
 (* [is_equiv] is an equivalence relation. *)
 
-Lemma is_equiv_refl:
-  forall x,
+Lemma is_equiv_refl (x : V) :
   is_equiv x x.
 Proof.
-  intros x. destruct (is_dsf_defined_is_repr x) as [r Hr].
+  destruct (defined x) as [r Hr].
   exists r. auto.
 Qed.
 
-Lemma is_equiv_sym:
-  forall x y,
+Lemma is_equiv_sym (x y : V):
   is_equiv x y ->
   is_equiv y x.
 Proof.
-  intros x y [r [Hx Hy]]. exists r. auto.
+  intros [r [Hx Hy]]. exists r. auto.
 Qed.
 
-Lemma is_equiv_trans:
-  forall y x z,
+Lemma is_equiv_trans (x y z : V) :
   is_equiv x y ->
   is_equiv y z ->
   is_equiv x z.
 Proof.
-  intros y x z [r1 [Hxr1 Hyr1]] [r2 [Hyr2 Hzr2]].
+  intros [r1 [Hxr1 Hyr1]] [r2 [Hyr2 Hzr2]].
   exists r1. split; [assumption|].
-  exploit_functional is_repr.
+  exploit_functional Repr.
   assumption.
-Qed.
-
-(* [is_repr x r] implies the existence of a path from [x] to [r]. *)
-
-Lemma is_repr_path:
-  forall x r,
-  is_repr x r ->
-  path F x r.
-Proof.
-  intros x r [Hp _]. exact Hp.
 Qed.
 
 (* Two vertices that are connected by a path must be equivalent. *)
 
-Lemma path_is_equiv:
-  forall x y,
+Lemma path_is_equiv (x y : V) :
   path F x y ->
   is_equiv x y.
 Proof.
-  intros x y Hpath.
-  destruct (is_dsf_defined_is_repr y) as [r [Hyr Hrootr]].
+  intros Hpath.
+  destruct (defined y) as [r [Hyr Hrootr]].
   exists r. split.
   - split; [eapply rtc_trans; eauto | exact Hrootr].
   - split; [exact Hyr | exact Hrootr].
@@ -272,11 +258,10 @@ Qed.
    and restated pointwise as an [<->] rather than a relation [=], so that we
    don't need functional/propositional extensionality.) *)
 
-Lemma is_equiv_iff_rstclosure:
-  forall x y,
+Lemma is_equiv_iff_rstclosure (x y : V) :
   is_equiv x y <-> rtsc F x y.
 Proof.
-  intros x y. split.
+  split.
   - intros [r [[Hxr _] [Hyr _]]].
     transitivity r.
     + apply rtc_rtsc_rl. exact Hxr.
@@ -292,32 +277,29 @@ Qed.
 
 (* A representative is a root. *)
 
-Lemma is_repr_is_root:
-  forall x r,
-  is_repr x r ->
-  is_root r.
+Instance is_repr_is_root (x r : V):
+  Repr x r ->
+  Root F r.
 Proof.
-  intros x r [_ Hroot]. exact Hroot.
+  intros [_ Hroot]. exact Hroot.
 Qed.
 
 (* A root is its own representative. *)
 
-Lemma is_root_is_repr:
-  forall r,
-  is_root r ->
-  is_repr r r.
+Instance is_root_is_repr (r : V) :
+  Root F r ->
+  Repr r r.
 Proof.
-  intros r Hroot. split; [apply rtc_refl | exact Hroot].
+  intros Hroot. split; [apply rtc_refl | exact Hroot].
 Qed.
 
 (* A vertex is equivalent to its representative. *)
 
-Lemma is_repr_equiv_root:
-  forall x r,
-  is_repr x r ->
+Lemma is_repr_equiv_root (x r : V) :
+  Repr x r ->
   is_equiv x r.
 Proof.
-  intros x r Hxr. exists r. split; [exact Hxr | eapply is_root_is_repr, is_repr_is_root, Hxr].
+  intros Hxr. exists r. split; [exact Hxr | eapply is_root_is_repr, is_repr_is_root, Hxr].
 Qed.
 
 (* [dsf_per] is indeed a partial equivalence relation. *)
@@ -347,14 +329,13 @@ Qed.
 (* There is a path from the parent [y] of a non-root vertex [x]
    to the representative [z] of [x]. *)
 
-Lemma path_from_parent_to_repr_F:
-  forall x y z,
-  is_repr x z ->
+Lemma path_from_parent_to_repr_F (x y z : V) :
+  Repr x z ->
   F x y ->
   path F y z.
 Proof.
-  intros x y z Hxz HF.
-  eapply is_repr_path.
+  intros Hxz HF.
+  eapply repr_path.
   eapply is_repr_is_equiv_is_repr; eauto.
   eapply path_is_equiv. eapply rtc_once. exact HF.
 Qed.
@@ -369,13 +350,13 @@ Proof.
   unfold sticky. intros x y Hpath.
   induction Hpath as [ x | x x' y HF Hpath IH ].
   - tauto.
-  - destruct (is_dsf_confined _ _ HF) as [Hx Hx'].
+  - destruct (confined _ _ HF) as [Hx Hx'].
     assert (Hy : y ∈ D) by (apply IH; exact Hx').
     split; intros _; assumption.
 Qed.
 
 Lemma sticky_is_repr:
-  sticky D is_repr.
+  sticky D Repr.
 Proof.
   unfold sticky. intros x y [Hp _]. eapply sticky_path; eauto.
 Qed.
@@ -389,47 +370,40 @@ Proof.
   tauto.
 Qed.
 
-Lemma is_equiv_in_D_direct:
-  forall x y,
+Lemma is_equiv_in_D_direct (x y : V) :
   is_equiv x y ->
   x ∈ D ->
   y ∈ D.
 Proof.
-  intros x y Heq Hx. destruct (sticky_is_equiv _ _ Heq) as [Hxy _]. apply Hxy. exact Hx.
+  intros Heq Hx. destruct (sticky_is_equiv _ _ Heq) as [Hxy _]. apply Hxy. exact Hx.
 Qed.
 
 (* TLC proves this classically (via [not_forall_not_eq]), but here it is
    constructive: every vertex has a representative ([defined is_repr]), so a
    non-root [x] has a non-empty path to its representative, whose first edge
    [F x y] lands [x] in [D] by [confined]. *)
-Lemma non_root_in_D:
-  forall x,
-  ~ is_root x ->
+Lemma non_root_in_D (x: V) :
+  ~ Root F x ->
   x ∈ D.
 Proof.
-  intros x Hnroot.
-  destruct (is_dsf_defined_is_repr x) as [r [Hpath Hrootr]].
+  intros Hnroot.
+  destruct (defined x) as [r [Hpath Hrootr]].
   destruct Hpath as [|x' y r' HF Hyr].
   - contradiction.
-  - destruct (is_dsf_confined _ _ HF) as [Hx _]. exact Hx.
+  - destruct (confined _ _ HF) as [Hx _]. exact Hx.
 Qed.
 
-Lemma only_roots_outside_D:
-  forall x,
+Instance only_roots_outside_D (x : V) :
   x ∉ D ->
-  is_root x.
+  Root F x.
 Proof.
-  intros x Hout y HF.
-  destruct (is_dsf_confined _ _ HF) as [Hx _].
-  exact (Hout Hx).
+  intros Hout.
+  constructor. intros y HF.
+  destruct (confined _ _ HF) as [Hx _].
+  contradiction.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-
-(* [tc] is stdpp's transitive closure, taking the role of TLC's [tclosure].
-   Like [rtc], it is left-recursive, so plain [induction]/[inversion] already
-   gives us the shape TLC's [tclosure_ind_l]/[tclosure_inv_l] needed a
-   dedicated lemma for. *)
 
 (* If we are in a cycle and make one step, then we are still in a cycle. *)
 
@@ -476,9 +450,9 @@ Lemma acyclicity:
   False.
 Proof.
   intros x Hcycle.
-  destruct (is_dsf_defined_is_repr x) as [z [Hpath Hrootz]].
+  destruct (defined x) as [z [Hpath Hrootz]].
   pose proof (cannot_escape_a_cycle _ Hcycle _ Hpath) as Hcyclez.
-  inversion Hcyclez as [z0 y0 HFself Heq1 Heq2 | z0 y0 z1 HF1 Hrest Heq1 Heq2]; subst.
+  inversion Hcyclez; subst.
   - eapply a_root_has_no_parent; eauto.
   - eapply a_root_has_no_parent; eauto.
 Qed.
@@ -523,25 +497,25 @@ Qed.
 
 Lemma descendant_of_a_root:
   forall x r,
-  is_root r ->
-  (x ∈ descendants r <-> is_repr x r).
+  Root F r ->
+  (x ∈ descendants r <-> Repr x r).
 Proof.
-  intros x r Hroot. unfold descendants, is_repr. rewrite elem_of_PropSet. tauto.
+  intros x r Hroot. unfold descendants. rewrite elem_of_PropSet.
+  split; [ by constructor | apply repr_path ].
 Qed.
 
 (* Two distinct roots have disjoint sets of descendants. *)
 
-Lemma disjoint_descendants:
-  forall x y,
-  is_root x ->
-  is_root y ->
+Lemma disjoint_descendants (x y : V) :
+  Root F x ->
+  Root F y ->
   x <> y ->
   descendants x ## descendants y.
 Proof.
-  intros x y Hx Hy Hneq v Hvx Hvy.
+  intros Hx Hy Hneq v Hvx Hvy.
   rewrite (descendant_of_a_root v x Hx) in Hvx.
   rewrite (descendant_of_a_root v y Hy) in Hvy.
-  exploit_functional is_repr.
+  exploit_functional Repr.
   contradiction.
 Qed.
 
@@ -572,7 +546,7 @@ Proof.
   induction Hsteps as [ x | k x y r HF Hsteps IH ]; intros Hout.
   - split; reflexivity.
   - exfalso.
-    destruct (is_dsf_confined _ _ HF) as [HxD HyD].
+    destruct (confined _ _ HF) as [HxD HyD].
     pose proof (rtc_nsteps_2 _ _ _ Hsteps) as Hpathyr.
     destruct (sticky_path _ _ Hpathyr) as [Hfwd _].
     pose proof (Hfwd HyD) as HrD.
@@ -722,12 +696,11 @@ Qed.
 
 (* A root has no ancestors but itself. *)
 
-Lemma ancestors_of_root:
-  forall x,
-  is_root x ->
+Lemma ancestors_of_root (x : V) :
+  Root F x ->
   ancestors x ≡ {[x]}.
 Proof.
-  intros x Hroot v. unfold ancestors. rewrite elem_of_PropSet. rewrite elem_of_singleton.
+  intros Hroot v. unfold ancestors. rewrite elem_of_PropSet. rewrite elem_of_singleton.
   split.
   - intros Hpath. symmetry. eapply a_path_out_of_a_root_is_trivial; eauto.
   - intros ->. apply rtc_refl.
@@ -735,19 +708,18 @@ Qed.
 
 (* There is at most one root ancestor. *)
 
-Lemma at_most_one_root_ancestor:
-  forall x y z,
-  is_repr x z ->
+Lemma at_most_one_root_ancestor (x y z : V) :
+  Repr x z ->
   y ∈ ancestors x ->
   y <> z ->
-  ~ is_root y.
+  ~ Root F y.
 Proof.
-  intros x y z Hxz Hy Hneq Hrooty.
+  intros Hxz Hy Hneq Hrooty.
   unfold ancestors in Hy. rewrite elem_of_PropSet in Hy.
-  assert (is_repr x y) as Hxy.
+  assert (Repr x y) as Hxy.
   { split; [exact Hy | exact Hrooty]. }
-  exploit_functional is_repr.
-  exact (Hneq eq_refl).
+  exploit_functional Repr.
+  contradiction.
 Qed.
 
 (* A hereditary property holds of every ancestor. *)
@@ -783,19 +755,19 @@ Definition fun_in_rel (f : V -> V) (Rel : relation V) :=
 Definition rel_in_fun (Rel : relation V) (f : V -> V) :=
   forall x y, Rel x y -> f x = y.
 
-Definition idempotent (f : V -> V) :=
-  forall x, f (f x) = f x.
+Class Idempotent (f : V → V) :=
+  { idempotent : ∀ x, f (f x) = f x }.
 
 (* The function [R] and the relation [is_repr] coincide. *)
 
-Hypothesis R_incl_is_repr : fun_in_rel R is_repr.
+Hypothesis R_incl_is_repr : fun_in_rel R Repr.
 
 Lemma is_repr_incl_R:
-  rel_in_fun is_repr R.
+  rel_in_fun Repr R.
 Proof.
   intros x y Hxy.
   pose proof (R_incl_is_repr x) as HRx.
-  exploit_functional is_repr.
+  exploit_functional Repr.
   reflexivity.
 Qed.
 
@@ -803,24 +775,22 @@ Qed.
    equivalent. In other words, the relation [is_equiv] coincides with
    the relation [fun x y => R x = R y]. *)
 
-Lemma same_R_incl_is_equiv:
-  forall x y,
+Lemma same_R_incl_is_equiv (x y : V) :
   R x = R y ->
   is_equiv x y.
 Proof.
-  intros x y Heq.
+  intros Heq.
   pose proof (R_incl_is_repr x) as Hx.
   pose proof (R_incl_is_repr y) as Hy.
   rewrite Heq in Hx.
   exists (R y). split; assumption.
 Qed.
 
-Lemma is_equiv_incl_same_R:
-  forall x y,
+Lemma is_equiv_incl_same_R (x y : V) :
   is_equiv x y ->
   R x = R y.
 Proof.
-  intros x y [r [Hxr Hyr]].
+  intros [r [Hxr Hyr]].
   pose proof (is_repr_incl_R _ _ Hxr) as Hx.
   pose proof (is_repr_incl_R _ _ Hyr) as Hy.
   congruence.
@@ -828,42 +798,38 @@ Qed.
 
 (* [x] is a root if and only if [R x = x]. *)
 
-Lemma is_root_R_self:
-  forall x,
-  is_root x ->
+Lemma is_root_R_self (x : V) :
+  Root F x ->
   R x = x.
 Proof.
-  intros x Hroot.
-  pose proof (is_root_is_repr _ Hroot) as Hxx.
-  eapply is_repr_incl_R; eauto.
+  intros Hroot.
+  eapply is_repr_incl_R; eauto. apply _.
 Qed.
 
-Lemma R_self_is_root:
-  forall x,
+Lemma R_self_is_root (x : V) :
   R x = x ->
-  is_root x.
+  Root F x.
 Proof.
-  intros x Heq.
-  pose proof (R_incl_is_repr x) as H.
-  rewrite Heq in H.
-  eapply is_repr_is_root; eauto.
+  intros Heq.
+  specialize (R_incl_is_repr x).
+  rewrite -Heq. apply _.
 Qed.
 
 (* [R] is the identity outside [D]. *)
 
-Lemma R_is_identity_outside_D:
-  forall x,
+Lemma R_is_identity_outside_D (x : V) :
   x ∉ D ->
   R x = x.
 Proof.
-  intros x Hout. eapply is_root_R_self. eapply only_roots_outside_D. exact Hout.
+  intros Hout. eapply is_root_R_self. eapply only_roots_outside_D. exact Hout.
 Qed.
 
 (* [R] is idempotent. *)
 
-Lemma idempotent_R:
-  idempotent R.
+Instance idempotent_R:
+  Idempotent R.
 Proof.
+  constructor.
   intros x.
   destruct (decide (x ∈ D)) as [Hin | Hout].
   - eapply is_root_R_self. eapply is_repr_is_root. eapply R_incl_is_repr.
@@ -887,6 +853,15 @@ Qed.
 
 End DisjointSetForest.
 
+Arguments Repr {V} F x r.
+Arguments Confined {V EqV CountableV} Dom R.
+Arguments confined {V EqV CountableV Dom R Confined}.
+Arguments Functional {V} R.
+Arguments functional {V} R {Functional}.
+Arguments Defined {V} R.
+Arguments defined {V R Defined}.
+Arguments DSF {V EqV CountableV} F D.
+
 Global Hint Resolve sticky_path sticky_is_repr sticky_is_equiv : sticky.
 
 Global Hint Resolve is_dsf_functional functional_is_repr : functional.
@@ -896,8 +871,6 @@ Global Hint Resolve finite_descendants finite_ancestors : finite.
 Global Hint Resolve is_repr_is_root : is_root.
 
 Global Hint Resolve is_dsf_confined non_root_in_D : confined.
-
-Global Hint Unfold is_repr : is_repr.
 
 Global Hint Resolve is_repr_is_equiv_is_repr path_is_equiv : is_repr.
 

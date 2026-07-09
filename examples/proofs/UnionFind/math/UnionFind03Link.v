@@ -27,11 +27,11 @@ Variable D : gset V.
 Variable F : relation V.
 Variable x y : V.
 
-Hypothesis is_dsf_F:  is_dsf V EqV CountableV D F.
+Hypothesis is_dsf_F:  DSF F D.
 Hypothesis x_in_D:    x ∈ D.
 Hypothesis y_in_D:    y ∈ D.
-Hypothesis is_root_x: is_root V F x.
-Hypothesis is_root_y: is_root V F y.
+Hypothesis is_root_x: Root F x.
+Hypothesis is_root_y: Root F y.
 Hypothesis distinct:  x <> y.
 
 (* The link is installed as follows: we add the single edge [x -> y] to [F]. *)
@@ -48,21 +48,21 @@ Proof. right. split; reflexivity. Qed.
 
 (* This preserves every pre-existing edge. *)
 
-Lemma link_previous:
-  forall w z,
+Lemma link_previous (w z : V) :
   F w z ->
   link w z.
-Proof. intros w z HF. left. exact HF. Qed.
+Proof. intros HF. left. exact HF. Qed.
 
 (* Installing the new link preserves [functional]. *)
 
-Lemma functional_link:
-  functional V link.
+Instance functional_link:
+  Functional link.
 Proof.
-  destruct is_dsf_F as [_ [Hfunc _]].
+  destruct is_dsf_F as [_ Hfunc _].
+  constructor.
   intros a b1 b2 H1 H2.
   destruct H1 as [HF1 | [Ha1 Hb1]]; destruct H2 as [HF2 | [Ha2 Hb2]].
-  - eapply Hfunc; eauto.
+  - eapply (functional F); eauto.
   - subst a. exfalso. eapply is_root_x; eauto.
   - subst a. exfalso. eapply is_root_x; eauto.
   - subst. reflexivity.
@@ -70,8 +70,7 @@ Qed.
 
 (* Every vertex that could reach [x] can now reach [y]. *)
 
-Lemma path_link_1:
-  forall w,
+Lemma path_link_1 (w : V) :
   rtc F w x ->
   rtc link w y.
 Proof.
@@ -82,12 +81,11 @@ Qed.
 
 (* Every pre-existing path is preserved. *)
 
-Lemma path_link_2:
-  forall w z,
+Lemma path_link_2 (w z : V) :
   rtc F w z ->
   rtc link w z.
 Proof.
-  intros w z Hpath.
+  intros Hpath.
   apply (rtc_ind_l (R:=F) (fun w => rtc link w z) z).
   - apply rtc_refl.
   - intros a b HF Hpath' IH. eapply rtc_l; [apply link_previous; exact HF | exact IH].
@@ -96,13 +94,13 @@ Qed.
 
 (* Every root other than [x] remains a root. *)
 
-Lemma is_root_link:
-  forall z,
-  is_root V F z ->
+Lemma is_root_link (z : V) :
+  Root F z ->
   x <> z ->
-  is_root V link z.
+  Root link z.
 Proof.
-  intros z Hrootz Hneq w Hlink.
+  intros Hrootz Hneq.
+  constructor. intros w Hlink.
   destruct Hlink as [HF | [Heq Heq2]].
   - eapply Hrootz; eauto.
   - exact (Hneq (eq_sym Heq)).
@@ -110,12 +108,11 @@ Qed.
 
 (* Every vertex whose representative was [x] now has representative [y]. *)
 
-Lemma is_repr_link_1:
-  forall w,
-  is_repr V F w x ->
-  is_repr V link w y.
+Lemma is_repr_link_1 (w : V) :
+  Repr F w x ->
+  Repr link w y.
 Proof.
-  intros w [Hpath Hrootx].
+  intros [Hpath Hrootx].
   split.
   - apply path_link_1. exact Hpath.
   - apply is_root_link; [exact is_root_y | exact distinct].
@@ -124,13 +121,12 @@ Qed.
 (* Every vertex whose representative was some vertex [r] other than [x] still
    has representative [r]. *)
 
-Lemma is_repr_link_2:
-  forall w r,
-  is_repr V F w r ->
+Lemma is_repr_link_2 (w r : V) :
+  Repr F w r ->
   r <> x ->
-  is_repr V link w r.
+  Repr link w r.
 Proof.
-  intros w r [Hpath Hrootr] Hneq.
+  intros [Hpath Hrootr] Hneq.
   split.
   - apply path_link_2. exact Hpath.
   - apply is_root_link; [exact Hrootr | intro Heq; apply Hneq; exact (eq_sym Heq)].
@@ -138,11 +134,12 @@ Qed.
 
 (* Installing the new link preserves [defined]. *)
 
-Lemma defined_link:
-  defined V (is_repr V link).
+Instance defined_link:
+  Defined (Repr link).
 Proof.
-  destruct is_dsf_F as [_ [_ Hdef]].
-  intros w. destruct (Hdef w) as [r Hr].
+  destruct is_dsf_F as [_ _ Hdef].
+  constructor. intros w.
+  destruct (defined w) as [r Hr].
   destruct (decide (r = x)) as [-> | Hneq].
   - exists y. apply is_repr_link_1. exact Hr.
   - exists r. apply is_repr_link_2; [exact Hr | exact Hneq].
@@ -150,13 +147,13 @@ Qed.
 
 (* Installing the new link preserves [is_dsf]. *)
 
-Lemma is_dsf_link:
-  is_dsf V EqV CountableV D link.
+Instance is_dsf_link:
+  DSF link D.
 Proof.
-  destruct is_dsf_F as [Hconf _].
-  split; [|split].
-  - intros a b [HF | [-> ->]].
-    + exact (Hconf a b HF).
+  destruct is_dsf_F as [Hconf _ _].
+  constructor.
+  - constructor. intros a b [HF | [-> ->]].
+    + exact (confined a b HF).
     + split; assumption.
   - exact functional_link.
   - exact defined_link.
@@ -177,16 +174,16 @@ Definition link_R (R : V -> V) : V -> V :=
 
 Lemma link_R_link_agree:
   forall R,
-  fun_in_rel V R (is_repr V F) ->
-  fun_in_rel V (link_R R) (is_repr V link).
+  fun_in_rel R (Repr F) ->
+  fun_in_rel (link_R R) (Repr link).
 Proof.
   intros R Hincl w.
   assert (HRx : R x = x) by (eapply is_root_R_self; eauto).
   assert (HRy : R y = y) by (eapply is_root_R_self; eauto).
   unfold link_R. destruct (decide (R w = R x)) as [Heq | Hneq].
   - apply is_repr_link_1.
-    assert (Hxx : is_repr V F x x) by (apply is_root_is_repr; exact is_root_x).
-    assert (Heqv : is_equiv V F x w).
+    assert (Hxx : Repr F x x) by (apply is_root_is_repr; exact is_root_x).
+    assert (Heqv : is_equiv F x w).
     { eapply same_R_incl_is_equiv; eauto. }
     eapply is_repr_is_equiv_is_repr; eauto.
   - apply is_repr_link_2; [apply Hincl |].
