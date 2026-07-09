@@ -19,21 +19,21 @@ Record root `{Encode A} : Type := { rank : Z; value : A }.
 
 (* The logical type of the content of a vertex. *)
 Inductive content :=
-| Root : record -> content
-| Link : record -> content.
+| cRoot : record -> content
+| cLink : record -> content.
 
 Local Instance val_of_content : Encode content :=
   { encode' := λ c, match c with
-                    | Root r => VData "Root" [ #r ]
-                    | Link r => VData "Link" [ #r ]
+                    | cRoot r => VData "Root" [ #r ]
+                    | cLink r => VData "Link" [ #r ]
                     end }.
 
 Local Instance root_data : Data "Root" τ[record] content :=
-  { ctor_apply := λ r, Root r;
+  { ctor_apply := λ r, cRoot r;
     ctor_encode := λ r, eq_refl }.
 
 Local Instance link_data : Data "Link" τ[record] content :=
-  { ctor_apply := λ r, Link r;
+  { ctor_apply := λ r, cLink r;
     ctor_encode := λ r, eq_refl }.
 
 Instance root_record : RecordRepr (root (A:=val)) τ[Z; val] Mut :=
@@ -76,12 +76,15 @@ Definition fcupdate {A B : Type} (f : A -> B) (P : A -> Prop)
    3. [V] agrees with [R]. *)
 
 Record Inv D F R V : Prop := {
-  Inv_dsf  : is_dsf elem _ _ D F;
-  Inv_incl : fun_in_rel elem R (is_repr elem F);
+  Inv_dsf  : DSF F D;
+  Inv_incl : rel_incl R (Repr F);
   Inv_data : forall x, V x = V (R x)
 }.
 
 Local Hint Resolve Inv_dsf Inv_incl Inv_data : core.
+
+Global Instance Inv_idem_R `{Inv D F R V} : Idempotent R.
+Proof. destruct Inv0. apply _. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -119,7 +122,7 @@ Definition Mem D F V (M : gmap elem vcell) : Prop :=
   dom M = D ∧
   ∀ x, match M !! x with
        | Some (_, LLink y) => F x y
-       | Some (_, LRoot v) => is_root elem F x /\ v = V x
+       | Some (_, LRoot v) => Root F x /\ v = V x
        | None => True
        end.
 
@@ -137,7 +140,7 @@ Definition rec_repr (lr : record) (lc : lcontent) : iProp Σ :=
    the pointer [lr] to [x]'s record block. *)
 
 Definition content_of (lr : record) (lc : lcontent) : content :=
-  match lc with LRoot _ => Root lr | LLink _ => Link lr end.
+  match lc with LRoot _ => cRoot lr | LLink _ => cLink lr end.
 
 (* [vertex x lr lc] is the full heap footprint of one vertex [x]: its
    content cell, pointing at the record block [lr], and that block itself. *)
@@ -231,38 +234,31 @@ Proof.
   rewrite decide_False; [ reflexivity | assumption ].
 Qed.
 
-Lemma update_class_root :
-  ∀ (B : Type) (f : elem → B) R x b,
-    idempotent elem R →
-    f.[R x -/R/> b] = f.[x -/R/> b].
+Lemma update_class_root `{@Idempotent elem R} {B : Type} (f : elem → B) x b :
+  f.[R x -/R/> b] = f.[x -/R/> b].
 Proof.
-  intros B f R x b Hidem.
   unfold update_class, fcupdate.
   extensionality a.
-  rewrite !Hidem.
+  rewrite idempotent.
   case_decide; reflexivity.
 Qed.
 
-Lemma lookup_class_root :
-  ∀ (B : Type) r x (f : elem → B) R (v : B),
-      idempotent elem R →
-      f x = f (R x) →
-      f.[r -/R/> v] x = f.[r -/R/> v] (R x).
+Lemma lookup_class_root `{@Idempotent elem R} {B : Type} (f : elem → B) r x b :
+  f x = f (R x) →
+  f.[r -/R/> b] x = f.[r -/R/> b] (R x).
 Proof.
-  intros B r x f R v Hidem Hequiv.
+  intros Hequiv.
   unfold update_class, fcupdate.
-  rewrite Hidem.
+  rewrite idempotent.
   case_decide; first reflexivity.
   apply Hequiv.
 Qed.
 
 (* We can reorder updates if they are to the same value [b]. *)
 
-Lemma update_classes_comm :
-  ∀ B (f : elem → B) R x y b,
-    f.[x -/R/> b].[y -/R/> b] = f.[y -/R/> b].[x -/R/> b].
+Lemma update_classes_comm {B : Type} (f : elem → B) R x y b :
+  f.[x -/R/> b].[y -/R/> b] = f.[y -/R/> b].[x -/R/> b].
 Proof.
-  intros B F R x y b.
   unfold update_class, fcupdate.
   extensionality a.
   case_decide; case_decide; tauto.
@@ -270,21 +266,18 @@ Qed.
 
 (* Updating [x]'s class to [R x]/[V (R x)] is a no-op on [R]/[V]. *)
 
-Lemma update_class_R_diag :
-  ∀ R x,
+Lemma update_class_R_diag R x :
   R.[ x -/R/> (R x)] = R.
 Proof.
-  intros R x.
   unfold update_class, fcupdate.
   extensionality a. case_decide; eauto.
 Qed.
 
-Lemma update_class_V_diag :
-  ∀ D F R V x,
-    Inv D F R V →
-    V.[x -/R/> V (R x)] = V.
+Lemma update_class_V_diag D F R V x :
+  Inv D F R V →
+  V.[x -/R/> V (R x)] = V.
 Proof.
-  intros D F R V x HI.
+  intros HI.
   unfold update_class, fcupdate.
   extensionality a.
   case_decide as Hcase; last reflexivity.
@@ -299,13 +292,13 @@ Qed.
 (* If [x] is in the domain and [r] is its representative, then [r] is in the
    domain and [r] is its own representative. *)
 
-Lemma Inv_root : forall D F R V x r,
+Lemma Inv_root D F R V x r :
   Inv D F R V ->
   x ∈ D ->
   r = R x ->
   r ∈ D /\ R r = r.
 Proof.
-  intros D F R V x r [Hdsf Hincl Hdata] Hx ->.
+  intros [Hdsf Hincl Hdata] Hx ->.
   split.
   - eapply sticky_R; eauto.
   - eapply idempotent_R; eauto.
@@ -314,38 +307,37 @@ Qed.
 (* The invariant is preserved when a new element [r] is created and the
    function [V] is updated at [r] in an arbitrary manner. *)
 
-Lemma Inv_make : forall D R F V D' V' r v,
+Lemma Inv_make D F R V D' V' r v :
   Inv D F R V ->
   r ∉ D ->
   D' = D ∪ {[r]} ->
   V' = V.[r -/R/> v] ->
   Inv D' F R V'.
 Proof.
-  intros D R F V D' V' r v [Hdsf Hincl Hdata] Hr -> ->.
+  intros [Hdsf Hincl Hdata] Hr -> ->.
   constructor.
   - apply is_dsf_create. exact Hdsf.
   - exact Hincl.
   - intros x.
-    apply lookup_class_root; [ eapply idempotent_R; eauto | apply Hdata ].
+    apply lookup_class_root, Hdata.
 Qed.
 
 (* The invariant is preserved by updating [V] at one equivalence class. *)
 
-Lemma Inv_update_class : forall D F R V x v,
+Lemma Inv_update_class D F R V x b :
   Inv D F R V ->
-  Inv D F R V.[ x -/R/> v].
+  Inv D F R V.[ x -/R/> b].
 Proof.
-  intros D F R V x v [Hdsf Hincl Hdata].
+  intros [Hdsf Hincl Hdata].
   constructor; [exact Hdsf | exact Hincl | ].
   intros.
-  apply lookup_class_root; [ eapply idempotent_R; eauto | apply Hdata ].
+  apply lookup_class_root, Hdata .
 Qed.
 
-Lemma unfold_link_R :
-  ∀ R x y, UnionFind03Link.link_R elem _ x y R =
+Lemma unfold_link_R R x y :
+  UnionFind03Link.link_R x y R =
   R.[x -/R/> y].
 Proof.
-  intros R x y.
   unfold UnionFind03Link.link_R, update_class, fcupdate.
   reflexivity.
 Qed.
@@ -361,26 +353,26 @@ Qed.
    based on rank, to keep the trees balanced for its complexity bound.
    We drop that as we do not need the logical model to be balanced. *)
 
-Lemma Inv_link: forall D R F V F' V' R' x y,
+Lemma Inv_link D F R V F' R' V' x y :
   Inv D F R V ->
   x ≠ y ->
   x ∈ D ->
   y ∈ D ->
   R x = x ->
   R y = y ->
-  F' = UnionFind03Link.link elem F x y ->
+  F' = UnionFind03Link.link F x y ->
   V' = V.[x -/R/> (V y)] ->
-  R' = (UnionFind03Link.link_R elem _ x y R) ->
+  R' = (UnionFind03Link.link_R x y R) ->
   Inv D F' R' V'.
 Proof.
-  intros D R F V F' V' R' x y HInv Hneq Hx Hy HRx HRy -> -> ->.
+  intros HInv Hneq Hx Hy HRx HRy -> -> ->.
   constructor.
   - eapply is_dsf_link; eauto using R_self_is_root.
   - eapply link_R_link_agree; eauto using R_self_is_root.
   - intros w.
     unfold update_class, fcupdate, link_R.
     case_decide; [ case_decide; reflexivity | ].
-    erewrite idempotent_R; eauto.
+    rewrite (idempotent (Idempotent:=@Inv_idem_R _ _ _ _ HInv)).
     case_decide; [ contradiction | ].
     eapply Inv_data; eassumption.
 Qed.
@@ -392,31 +384,32 @@ Qed.
 (* If [x] is in the domain and is a root, then [M] maps [x] to [LRoot]
    with data [V x] (backed by some record block [r]). *)
 
-Lemma Mem_root : forall D R F M V x,
+Lemma Mem_root D F R V M x :
   Inv D F R V ->
   Mem D F V M ->
   x ∈ D ->
   R x = x ->
   exists lr, M !! x = Some (lr, LRoot (V x)).
 Proof.
-  intros D R F M V x HInv [Hdom HM] Dx Rxx.
+  intros HInv [Hdom HM] Dx Rxx.
   specialize (HM x).
   destruct (M !! x) as [[lr [w | y]] | ] eqn:Heq.
   - exists lr. destruct HM as [_ Hv]. congruence.
-  - exfalso. assert (Hrootx : is_root elem F x) by (eapply R_self_is_root; eauto).
-    eapply Hrootx; eauto.
+  - exfalso.
+    assert (Root F x) by (eapply R_self_is_root; eauto).
+    eapply is_root, HM.
   - exfalso. eapply (not_elem_of_dom M). apply Heq. by rewrite Hdom.
 Qed.
 
 (* Conversely, if [M] maps [x] to [LRoot], then [x] is a root whose data is
    as predicted by [M]. (We don't track a rank value at all anymore.) *)
 
-Lemma Mem_root_inv : forall D F M V x lr vx,
+Lemma Mem_root_inv D F R V M x lr vx :
   Mem D F V M ->
   M !! x = Some (lr, LRoot vx) ->
-  is_root elem F x /\ vx = V x.
+  Root F x /\ vx = V x.
 Proof.
-  intros D F M V x lr vx [Hdom HM] HE.
+  intros [Hdom HM] HE.
   specialize (HM x). rewrite HE in HM. exact HM.
 Qed.
 
@@ -425,14 +418,14 @@ Qed.
    inserted rank 0 at [r]; since we don't track rank, there's nothing to
    record there beyond [LRoot v].) *)
 
-Lemma Mem_make : forall D R F D' r M V v lr,
+Lemma Mem_make D F R V D' M r v lr :
   Inv D F R V ->
   Mem D F V M ->
   r ∉ D ->
   D' = D ∪ {[r]} ->
   Mem D' F V.[r -/R/> v] (<[r:=(lr, LRoot v)]>M).
 Proof.
-  intros D R F D' r M V v lr HInv [Hdom HM] Hr ->.
+  intros HInv [Hdom HM] Hr ->.
   split.
   - rewrite dom_insert_L Hdom. set_solver.
   - intros x. destruct (decide (x = r)) as [->|Hne].
@@ -454,16 +447,16 @@ Qed.
 
 (* [Mem] is preserved by installing a link from a root [x] to a root [y]. *)
 
-Lemma Mem_link : forall D F R M V V' x y lr,
+Lemma Mem_link D F R V V' M x y lr :
   Inv D F R V ->
   Mem D F V M ->
   x ∈ D ->
   x = R x ->
   y = R y ->
   V' = V.[y -/R/> (V y)].[ x -/R/> (V y)] ->
-  Mem D (UnionFind03Link.link elem F x y) V' (<[x:=(lr, LLink y)]>M).
+  Mem D (UnionFind03Link.link F x y) V' (<[x:=(lr, LLink y)]>M).
 Proof.
-  intros D F R M V V' x y lr HInv [Hdom HM] Hx Hxr Hyr ->.
+  intros HInv [Hdom HM] Hx Hxr Hyr ->.
   split.
   - rewrite dom_insert_L. rewrite Hdom. set_solver.
   - intros a.
@@ -484,12 +477,12 @@ Qed.
 (* [Mem] is preserved by installing a direct link from [x] to [y] during
    path compression. *)
 
-Lemma Mem_compress : forall D F M V x y lr,
+Lemma Mem_compress D F V M x y lr :
   Mem D F V M ->
   x ∈ D ->
-  Mem D (compress elem F x y) V (<[x:=(lr, LLink y)]>M).
+  Mem D (compress F x y) V (<[x:=(lr, LLink y)]>M).
 Proof.
-  intros D F M V x y lr [Hdom HM] Dx.
+  intros [Hdom HM] Dx.
   split.
   - rewrite dom_insert_L. rewrite Hdom. set_solver.
   - intros a.
@@ -506,14 +499,14 @@ Qed.
 (* [Mem] is preserved when [V] is updated at one equivalence class and [M]
    is updated at the representative element. *)
 
-Lemma Mem_update : forall D R F M V r x v lr,
+Lemma Mem_update D F R V M r x v lr :
   Inv D F R V ->
   Mem D F V M ->
   x ∈ D ->
   r = R x ->
   Mem D F V.[x -/R/> v] (<[r := (lr, LRoot v)]>M).
 Proof.
-  intros D R F M V r x v lr HInv [Hdom HM] Hx ->.
+  intros HInv [Hdom HM] Hx ->.
   assert (Hrr : R x ∈ D /\ R (R x) = R x) by (apply (Inv_root _ _ _ _ _ _ HInv Hx eq_refl)).
   destruct Hrr as [Hrd Hrr].
   split.
@@ -523,7 +516,8 @@ Proof.
     destruct (decide (R x = a)) as [<-|Hne].
     + rewrite lookup_insert_eq. split.
       * eapply R_self_is_root; eauto.
-      * rewrite -lookup_class_root; eauto using idempotent_R.
+      * assert (Idempotent R). apply (@Inv_idem_R _ _ _ _ HInv).
+        rewrite <- lookup_class_root; eauto.
         by rewrite lookup_update_class.
     + rewrite lookup_insert_ne; [|exact Hne].
       destruct (M !! a) as [[lr0 [v0|y]]|] eqn:Heq; [|exact HM|exact HM].
@@ -535,12 +529,12 @@ Qed.
 
 (* A vertex with no [LM] entry is, by [Mem]'s domain equation, not in [D]. *)
 
-Lemma Mem_not_elem_of_dom : forall D F V M x,
+Lemma Mem_not_elem_of_dom D F V M x :
   Mem D F V M ->
   M !! x = None ->
   x ∉ D.
 Proof.
-  intros D F V M x [Hdom _] Heq.
+  intros [Hdom _] Heq.
   rewrite -Hdom. eapply not_elem_of_dom_2. exact Heq.
 Qed.
 
@@ -548,10 +542,10 @@ Qed.
    [M] entry (otherwise we'd own [x] twice). Combined with [Mem]'s domain
    equation, this is how we show a freshly-allocated vertex is not in [D]. *)
 
-Lemma pointsto_M_fresh : forall (M : gmap elem vcell) x v,
+Lemma pointsto_M_fresh (M : gmap elem vcell) x v :
   pointsto_M M -∗ x ↦ v -∗ ⌜M !! x = None⌝.
 Proof.
-  iIntros (M x v) "HM Hx".
+  iIntros "HM Hx".
   destruct (M !! x) as [c|] eqn:Heq; [|done].
   iExFalso.
   iDestruct (big_sepM_lookup with "HM") as "[Hx' _]"; [exact Heq|].
@@ -787,10 +781,10 @@ Qed.
 (* If [UF D R V] holds, then [R] is idempotent. *)
 
 Theorem UF_idempotent : forall D R V,
-  UF D R V -∗ ⌜ idempotent elem R ⌝.
+  UF D R V -∗ ⌜Idempotent R ⌝.
 Proof using.
   iIntros (D R V) "HUF". iDestruct "HUF" as (F LM HInv HMem) "HM". destruct HInv as [Hdsf Hincl Hdata].
-  iPureIntro. eapply idempotent_R; eauto.
+  iPureIntro. apply _.
 Qed.
 
 (* If [UF D R V] holds, then [R] preserves [D]. *)
@@ -838,7 +832,7 @@ Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
     ⌜Inv D F R V⌝ -∗
     ⌜Mem D F V M⌝ -∗
     ⌜e ∈ D⌝ -∗
-    ⌜bw_ipc _ F e d F'⌝ -∗
+    ⌜bw_ipc F e d F'⌝ -∗
     pointsto_M M -∗
     imp m {{ λ (x : elem), ∃ M',
       ⌜x = R e⌝ ∗ ⌜skel M' = skel M⌝ ∗ pointsto_M M' ∗ ⌜Mem D F' V M'⌝ }}.
@@ -850,9 +844,9 @@ Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
 
 (* At a root, compression does nothing. *)
 
-Lemma bw_ipc_at_root : forall F e d F',
-  is_root elem F e ->
-  bw_ipc elem F e d F' ->
+Lemma bw_ipc_at_root F e d F' :
+  Root F e ->
+  bw_ipc F e d F' ->
   F' = F.
 Proof.
   intros * His_root Hbw_ipc.
@@ -864,39 +858,39 @@ Qed.
    on [y] (an element of [D]) and finishes by compressing [e] directly to
    the representative [R y]. *)
 
-Lemma bw_ipc_at_link : forall D F R V e y d F',
+Lemma bw_ipc_at_link D F R V e y d F' :
   Inv D F R V ->
   F e y ->
-  bw_ipc elem F e d F' ->
+  bw_ipc F e d F' ->
   y ∈ D /\
-  exists l0 F0, bw_ipc elem F y l0 F0 /\ F' = compress elem F0 e (R y).
+  ∃ l Fres, bw_ipc F y l Fres /\ F' = compress Fres e (R y).
 Proof.
   intros * HInv Hlc Hbw_ipc.
   pose proof (Inv_dsf _ _ _ _ HInv) as Hdsf.
-  split. { eapply (proj1 Hdsf); eauto. }
-  inversion Hbw_ipc as [x0 Hr0 | x0 y0 z0 ll Fl Fl' HFl Hrl Hbwl HFl']; subst.
-  - exfalso. apply (Hr0 y), Hlc.
-  - assert (y0 = y) as -> by (eapply (proj1 (proj2 Hdsf)); eauto).
-    assert (z0 = R y) as -> by
-      (eapply functional_is_repr; [exact Hdsf | exact Hrl | eapply (Inv_incl _ _ _ _ HInv)]).
+  split. { destruct Hdsf. eapply confined, Hlc. }
+  inversion Hbw_ipc as [? Hroot | ]; subst.
+  - exfalso. apply (is_root y), Hlc.
+  - assert (y0 = y) as -> by (destruct Hdsf; eapply functional; eauto).
+    assert (z = R y) as -> by
+      (eapply functional_is_repr; [exact Hdsf | eassumption | eapply (Inv_incl _ _ _ _ HInv)]).
     eauto 10.
 Qed.
 
 (* Compression starting at [e]'s parent [y] never reaches back to [e],
    so [e]'s entry is unchanged. *)
 
-Lemma link_untouched_by_ipc : forall D F F0 V M M' e re y l0,
-  is_dsf elem _ _ D F ->
+Lemma link_untouched_by_ipc D F V M M' Fres e re y l :
+  DSF F D ->
   F e y ->
-  bw_ipc elem F y l0 F0 ->
-  Mem D F0 V M' ->
+  bw_ipc F y l Fres ->
+  Mem D Fres V M' ->
   skel M' = skel M ->
   M !! e = Some (re, LLink y) ->
   M' !! e = Some (re, LLink y).
 Proof.
-  intros * Hdsf Hlc Hipc HMem' Hskel Heq.
+  intros Hdsf Hlc Hipc HMem' Hskel Heq.
   destruct (skel_lookup _ _ _ _ _ Hskel Heq) as (lc' & Heq').
-  assert (HF0ey : F0 e y).
+  assert (HF0ey : Fres e y).
   { eapply (bw_ipc_outside_unchanged _ _ _).
     - apply Hipc.
     - intro Hc. eapply edge_no_return_path. exact Hdsf. exact Hlc. exact Hc.
@@ -905,10 +899,10 @@ Proof.
   destruct lc' as [v2|y2].
   { exfalso. eapply HMem'. apply HF0ey. }
   rewrite Heq'. repeat f_equal.
-  assert (HyD : y ∈ D) by (eapply (proj1 Hdsf); eauto).
-  assert (is_dsf elem _ _ D F0) as (_ & Hdsf0 & _)
+  assert (HyD : y ∈ D) by (destruct Hdsf; eapply confined; eauto).
+  assert (DSF Fres D) as [_ Hdsf0 _]
     by (eapply is_dsf_bw_ipc; eauto).
-  eapply Hdsf0. apply HMem'. apply HF0ey.
+  eapply functional; eauto.
 Qed.
 
 (* One step up the forest does not change the representative. *)
@@ -931,21 +925,21 @@ Qed.
    {parent=y} as link -> ... end]. *)
 
 Lemma solve_encode_Root (rr : record) (c : content) :
-  Root rr = c -> VData "Root" (#rr :: nil) = #c.
+  cRoot rr = c -> VData "Root" (#rr :: nil) = #c.
 Proof. intros <-. reflexivity. Qed.
 
 Lemma solve_encode_Link (lr : record) (c : content) :
-  Link lr = c -> VData "Link" (#lr :: nil) = #c.
+  cLink lr = c -> VData "Link" (#lr :: nil) = #c.
 Proof. intros <-. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
 
 Lemma pat_Root p η δ c φ ζ :
   (∀ (r : record),
-    c = Root r →
+    c = cRoot r →
     pattern η δ p #r φ (ζ r)) →
   pattern η δ (PData "Root" [p]) #c φ
-    ((∃ r, c = Link r) ∨ (∃ r, c = Root r ∧ ζ r)).
+    ((∃ r, c = cLink r) ∨ (∃ r, c = cRoot r ∧ ζ r)).
 Proof.
   intros Hp.
   destruct c.
@@ -966,10 +960,10 @@ Ltac pat_root :=
 
 Lemma pat_Link p η δ c φ ζ :
   (∀ (r : record),
-    c = Link r →
+    c = cLink r →
     pattern η δ p #r φ (ζ r)) →
   pattern η δ (PData "Link" [p]) #c φ
-    ((∃ r, c = Root r) ∨ (∃ r, c = Link r ∧ ζ r)).
+    ((∃ r, c = cRoot r) ∨ (∃ r, c = cLink r ∧ ζ r)).
 Proof.
   intros Hp.
   destruct c.
@@ -1113,13 +1107,15 @@ Proof.
   iIntros (D R V) "%Hin HUF".
   iDestruct "HUF" as "(%F & %LM & %HInv & %HMem & Hpointsto)".
   pose proof (Inv_dsf D F R V HInv) as Hdsf.
-  edestruct (ipc_defined elem _ _ D F Hdsf x) as (d & F' & Hipc).
+  edestruct (ipc_defined D F x Hdsf) as (d & F' & Hipc).
   iSpecialize ("Hspec" with "[//] [//] [//] [//] Hpointsto").
   iApply (imp_wand with "Hspec").
   iIntros (y) "(%M' & -> & %Hskel & Hpointsto & %HMem')".
   iSplit; first done.
   iFrame "∗%". iPureIntro.
-  split; eauto 10 using is_dsf_bw_ipc, bw_ipc_preserves_RF_agreement.
+  split; eauto.
+  eapply is_dsf_bw_ipc; eauto.
+  eapply bw_ipc_preserves_RF_agreement; eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1150,7 +1146,7 @@ Proof.
   iPoseProof (UF_compatible with "HUF") as "%HRV"; first apply Hin.
   iDestruct "HUF" as (F M HI HM) "HM".
   assert (exists lr, M !! (R e) = Some (lr, LRoot (V (R e)))) as (lr & Heq).
-  { eapply Mem_root; eauto. }
+  { eapply Mem_root; eauto using idempotent. }
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hv & Hback)".
 
   imp_match content with "[Hv]".
@@ -1195,7 +1191,7 @@ Proof.
   iPoseProof (UF_compatible with "HUF") as "%HRV"; first apply Hin.
   iDestruct "HUF" as (F M HI HM) "HM".
   assert (exists lr, M !! (R e) = Some (lr, LRoot (V (R e)))) as (lr & Heq).
-  { eapply Mem_root; eauto. }
+  { eapply Mem_root; eauto using idempotent. }
   iDestruct (pointsto_M_acc _ _ _ _ Heq with "HM") as "(Hv & Hback)".
 
   imp_match content with "[Hv]".
@@ -1265,9 +1261,9 @@ Proof.
   iPoseProof (UF_idempotent with "HUF") as "%HRidem".
   iDestruct "HUF" as (F M HI HM) "HM".
   assert (exists rx, M !! (R x) = Some (rx, LRoot (V (R x)))) as (rx & Heq_x).
-  { eapply Mem_root; eauto. }
+  { eapply Mem_root; eauto using idempotent. }
   assert (exists ry, M !! (R y) = Some (ry, LRoot (V (R y)))) as (ry & Heq_y).
-  { eapply Mem_root; eauto. }
+  { eapply Mem_root; eauto using idempotent. }
 
   destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [ congruence | ].
 
@@ -1300,7 +1296,7 @@ Proof.
     { (* Goal:= [ x := Link { parent = y } ] *)
       iApply (imp_EStore'
         (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(Link r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))
         with "Hx").
       - imp_path.
       - imp_data.
@@ -1313,14 +1309,14 @@ Proof.
     (* Goal: prove ownership of a [UF] data structure with the class of [x]
        updated to [R y]: [UF D R.[x -/R/> R y] V.[x -/R/> V (R y)]. *)
     unfold UF. iFrame "Hback".
-    iExists (UnionFind03Link.link elem F (R x) (R y)).
+    iExists (UnionFind03Link.link F (R x) (R y)).
     iPureIntro.
     rewrite (insert_id M); last assumption.
     split.
-    - eapply Inv_link; eauto.
+    - eapply Inv_link; eauto using idempotent.
       rewrite update_class_root; eauto.
       rewrite unfold_link_R update_class_root; eauto.
-    - eapply Mem_link; eauto.
+    - eapply Mem_link; eauto. by rewrite idempotent. by rewrite idempotent.
       rewrite !update_class_root; eauto.
       erewrite update_class_V_diag; eauto. }
 
@@ -1332,7 +1328,7 @@ Proof.
     iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
         (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))
         with "Hy").
       imp_path. imp_data.
       iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
@@ -1347,15 +1343,15 @@ Proof.
     (* Goal: prove ownership of a [UF] data structure with the class of [y]
        updated to [R x]: [UF D R.[y -/R/> R x] V.[y -/R/> V (R x)]. *)
     unfold UF. iFrame "Hback".
-    iExists (UnionFind03Link.link elem F (R y) (R x)).
+    iExists (UnionFind03Link.link F (R y) (R x)).
     iPureIntro.
     rewrite insert_insert_ne; last (assumption).
     rewrite (insert_id M); last assumption.
     split.
-    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
+    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto using idempotent.
       rewrite update_class_root; eauto.
       rewrite unfold_link_R update_class_root; eauto.
-    - eapply Mem_link; eauto.
+    - eapply Mem_link; eauto. by rewrite idempotent. by rewrite idempotent.
       rewrite !update_class_root; eauto.
       erewrite update_class_V_diag; eauto. }
 
@@ -1363,7 +1359,7 @@ Proof.
   iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
         (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(Link r))
+        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))
         with "Hy").
       - imp_path.
       - imp_data.
@@ -1381,15 +1377,16 @@ Proof.
     (* Goal: prove ownership of a [UF] data structure with the class of [y]
        updated to [R x]: [UF D R.[y -/R/> R x] V.[y -/R/> V (R x)]. *)
     unfold UF. iFrame "Hback".
-    iExists (UnionFind03Link.link elem F (R y) (R x)).
+    iExists (UnionFind03Link.link F (R y) (R x)).
     iPureIntro.
     rewrite insert_insert_ne; last (assumption).
     rewrite (insert_id M); last assumption.
     split.
-    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto.
+    - eapply (Inv_link _ _ _ _ _ _ _ (R y)); eauto using idempotent.
       rewrite update_class_root; eauto.
       rewrite unfold_link_R update_class_root; eauto.
     - eapply Mem_link; eauto.
+      by rewrite idempotent. by rewrite idempotent.
       rewrite !update_class_root; eauto.
       erewrite update_class_V_diag; eauto.
 Qed.

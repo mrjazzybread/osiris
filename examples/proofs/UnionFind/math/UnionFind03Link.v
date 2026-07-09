@@ -20,9 +20,9 @@ Require Import UnionFind01Data.
 
 Section Link.
 
-Variable V : Type.
-Variable EqV : EqDecision V.
-Variable CountableV : Countable V.
+Context {V : Type}.
+Context {EqV : EqDecision V}.
+Context {CountableV : Countable V}.
 Variable D : gset V.
 Variable F : relation V.
 Variable x y : V.
@@ -172,12 +172,11 @@ Definition link_R (R : V -> V) : V -> V :=
 (* The agreement between [R] and [is_repr F] is preserved when one
    applies [link_R] and [link] to [R] and [F], respectively. *)
 
-Lemma link_R_link_agree:
-  forall R,
-  fun_in_rel R (Repr F) ->
-  fun_in_rel (link_R R) (Repr link).
+Lemma link_R_link_agree (R : V → V) :
+  rel_incl R (Repr F) ->
+  rel_incl (link_R R) (Repr link).
 Proof.
-  intros R Hincl w.
+  intros Hincl. constructor. intros w.
   assert (HRx : R x = x) by (eapply is_root_R_self; eauto).
   assert (HRy : R y = y) by (eapply is_root_R_self; eauto).
   unfold link_R. destruct (decide (R w = R x)) as [Heq | Hneq].

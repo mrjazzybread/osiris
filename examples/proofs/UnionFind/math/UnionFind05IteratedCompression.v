@@ -221,8 +221,8 @@ Qed.
 Lemma fw_ipc_preserves_RF_agreement `{EqDecision V, Countable V} (F : relation V) D x l F' R :
   fw_ipc F x l F' ->
   DSF F D ->
-  fun_in_rel R (Repr F) ->
-  fun_in_rel R (Repr F').
+  rel_incl R (Repr F) ->
+  rel_incl R (Repr F').
 Proof.
   intros Hfw.
   induction Hfw as [ ? x Hrootx | ];
@@ -236,8 +236,8 @@ Qed.
 Lemma bw_ipc_preserves_RF_agreement `{EqDecision V, Countable V} (F : relation V) D x l F' R :
   bw_ipc F x l F' ->
   DSF F D ->
-  fun_in_rel R (Repr F) ->
-  fun_in_rel R (Repr F').
+  rel_incl R (Repr F) ->
+  rel_incl R (Repr F').
 Proof.
   intros Hbw Hdsf HR.
   eapply fw_ipc_preserves_RF_agreement; eauto using bw_ipc_fw_ipc.

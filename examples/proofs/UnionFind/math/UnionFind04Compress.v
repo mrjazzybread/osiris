@@ -203,10 +203,10 @@ Qed.
    [compress] to [F]. Note that [R] is unchanged, as it should be. *)
 
 Lemma compress_R_compress_agree (R : V → V) :
-  fun_in_rel R (Repr F) ->
-  fun_in_rel R (Repr compress).
+  rel_incl R (Repr F) ->
+  rel_incl R (Repr compress).
 Proof.
-  intros Hincl w. apply compress_preserves_is_repr. apply Hincl.
+  intros Hincl. constructor; intros w. apply compress_preserves_is_repr. apply Hincl.
 Qed.
 
 (* No new paths are created. *)

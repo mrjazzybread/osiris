@@ -749,8 +749,8 @@ Qed.
 
 Variable R : V -> V.
 
-Definition fun_in_rel (f : V -> V) (Rel : relation V) :=
-  forall x, Rel x (f x).
+Class rel_incl  (f : V -> V) (Rel : relation V) :=
+  { fun_in_rel : forall x, Rel x (f x) }.
 
 Definition rel_in_fun (Rel : relation V) (f : V -> V) :=
   forall x y, Rel x y -> f x = y.
@@ -760,13 +760,13 @@ Class Idempotent (f : V → V) :=
 
 (* The function [R] and the relation [is_repr] coincide. *)
 
-Hypothesis R_incl_is_repr : fun_in_rel R Repr.
+Hypothesis R_incl_is_repr : rel_incl R Repr.
 
 Lemma is_repr_incl_R:
   rel_in_fun Repr R.
 Proof.
   intros x y Hxy.
-  pose proof (R_incl_is_repr x) as HRx.
+  pose proof (fun_in_rel x) as HRx.
   exploit_functional Repr.
   reflexivity.
 Qed.
@@ -780,8 +780,8 @@ Lemma same_R_incl_is_equiv (x y : V) :
   is_equiv x y.
 Proof.
   intros Heq.
-  pose proof (R_incl_is_repr x) as Hx.
-  pose proof (R_incl_is_repr y) as Hy.
+  pose proof (fun_in_rel x) as Hx.
+  pose proof (fun_in_rel y) as Hy.
   rewrite Heq in Hx.
   exists (R y). split; assumption.
 Qed.
@@ -811,8 +811,8 @@ Lemma R_self_is_root (x : V) :
   Root F x.
 Proof.
   intros Heq.
-  specialize (R_incl_is_repr x).
-  rewrite -Heq. apply _.
+  specialize (fun_in_rel x).
+  rewrite Heq. apply _.
 Qed.
 
 (* [R] is the identity outside [D]. *)
@@ -824,18 +824,6 @@ Proof.
   intros Hout. eapply is_root_R_self. eapply only_roots_outside_D. exact Hout.
 Qed.
 
-(* [R] is idempotent. *)
-
-Instance idempotent_R:
-  Idempotent R.
-Proof.
-  constructor.
-  intros x.
-  destruct (decide (x ∈ D)) as [Hin | Hout].
-  - eapply is_root_R_self. eapply is_repr_is_root. eapply R_incl_is_repr.
-  - pose proof (R_is_identity_outside_D _ Hout) as Heq. congruence.
-Qed.
-
 (* [R] is sticky. *)
 
 Lemma sticky_R:
@@ -844,7 +832,7 @@ Lemma sticky_R:
   R x ∈ D.
 Proof.
   intros x Hx.
-  pose proof (R_incl_is_repr x) as H.
+  pose proof (fun_in_rel x) as H.
   destruct (sticky_is_repr _ _ H) as [Hfwd _].
   apply Hfwd. exact Hx.
 Qed.
@@ -861,6 +849,22 @@ Arguments functional {V} R {Functional}.
 Arguments Defined {V} R.
 Arguments defined {V R Defined}.
 Arguments DSF {V EqV CountableV} F D.
+
+(* [R] is idempotent. *)
+
+Global Instance idempotent_R `{@DSF V HeqV CountableV F D} R :
+  rel_incl R (Repr F) →
+  Idempotent R.
+Proof.
+  intros R_incl_is_repr.
+  constructor.
+  intros x.
+  destruct (decide (x ∈ D)) as [Hin | Hout].
+  - eapply is_root_R_self; eauto.
+    eapply is_repr_is_root. eapply R_incl_is_repr.
+  - f_equal.
+    eapply R_is_identity_outside_D; eauto.
+Qed.
 
 Global Hint Resolve sticky_path sticky_is_repr sticky_is_equiv : sticky.
 
