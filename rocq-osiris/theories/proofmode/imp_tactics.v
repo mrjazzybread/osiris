@@ -303,6 +303,10 @@ with imp_data0 (selpat : constr option) (reading : constr option) :=
       let select_evals := '"[-] []" in
       iApply (imp_EData with $select_evals) >
       [ step_args () | simpl constructors.ctor_apply; simpl type_nel.tforall ]
+  | _ =>
+    Control.zero
+        (Tactic_failure
+           (Some (fprintf "[imp_data] doesn't know how to handle expression %t" e)))
   end
 
 with imp_load0 (l : constr option) (reading : constr option) :=
@@ -384,21 +388,29 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
 with imp_record0 (selpat : constr option) (reading : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
-  lazy_match! e with
-  | ERecord _ ?es =>
-    let τ := utypes_from_exprs es in
+  let specialized_lemma :=
+    match! e with
+    | ERecord _ ?es =>
+      let τ := utypes_from_exprs es in
+      '(imp_record (τ:=$τ))
+    | EInline _ _ ?es =>
+      let τ := utypes_from_exprs es in
+      '(imp_inline_record (τ:=$τ))
+    | _ =>
+      Control.zero
+        (Tactic_failure
+           (Some (fprintf "[imp_record] doesn't know how to handle expression %t" e)))
+    end
+  in
+  let step_elements () :=
     (* Once the [evals] of the elements is in focus, split the
        resources amongst the elements (according to [selpat]) and step
        each one. *)
-    let step_elements () :=
-      unfold_impure_evals selpat;
-      Control.enter (fun () => try (imp_step0 reading))
-    in
-    let specialized_tuple := '(imp_record (τ:=$τ)) in
-    iApply $specialized_tuple >
-      [ simpl; try ltac1:(lia) | step_elements () ]
-  end
-
+    unfold_impure_evals selpat;
+    Control.enter (fun () => try (imp_step0 reading))
+  in
+  iApply $specialized_lemma >
+    [ simpl; try ltac1:(lia) | step_elements () ]
 
 with imp_record_access0 (r : constr option) :=
   let specialized_load :=

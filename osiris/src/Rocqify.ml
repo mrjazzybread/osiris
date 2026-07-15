@@ -147,6 +147,9 @@ let rec pat (p : pat) =
   | PRecord fps ->
       c "PRecord" [ fpats fps ]
 
+  | PInline (d, p) ->
+      c "PInline" [ data d ; pat p ]
+
   | PInt i ->
       c "PInt" [ int i ]
 
@@ -238,6 +241,9 @@ let rec expr (e : expr) =
 
   | ERecordSet (e1, f, e2) ->
       c "ERecordSet" [ expr e1; field f; expr e2 ]
+
+  | EInline (d, t, es) ->
+      c "EInline" [ data d; mut_tag t; list (exprs es) ]
 
   | EArrayLength e ->
       c "EArrayLength" [ expr e ]

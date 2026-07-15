@@ -280,6 +280,53 @@ Section pattern_rules.
     destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
   Qed.
 
+  (* Rules for inline-record patterns. An inline-record pattern
+     [PInline c p] matches an inline-record value with the same
+     constructor; the sub-pattern [p] is matched against the
+     underlying record. *)
+
+  Lemma pat_PInline_or η δ c c' p l φ ψ :
+    (c = c' -> pattern η δ p (VRecord l) φ ψ) ->
+    pattern η δ (PInline c p) (VInline c' l) φ (ψ ∨ c ≠ c').
+      (* This form is useful when the truth of the equality [c = c']
+        is not statically known. *)
+  Proof.
+    unfold pattern; intros. simpl_eval_pat.
+    destruct_string_eqb; eauto using pure_throw.
+    eapply pure_mono; first apply H; eauto.
+  Qed.
+
+  Lemma pat_PInline_eq η δ c p v l φ ψ :
+    v = VInline c l ->
+    pattern η δ p (VRecord l) φ ψ →
+    pattern η δ (PInline c p) v φ ψ.
+      (* This form is useful when [c = c'] is statically known. See
+         [pat_PData_eq] for why the [v = VInline c l] equation is
+         explicit. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
+  Qed.
+
+  Lemma pat_PInline_neq η δ c p c' v l φ :
+    v = VInline c' l ->
+    c ≠ c' →
+    pattern η δ (PInline c p) v φ True.
+      (* This form is useful when [c ≠ c'] is statically known. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
+  Qed.
+
+  Lemma pat_PInline η δ c p c' v l φ :
+    v = VInline c' l ->
+    (c = c' -> pattern η δ p (VRecord l) φ True) ->
+    pattern η δ (PInline c p) v φ True.
+  Proof.
+    unfold pattern; intros. simpl_eval_pat. subst.
+    destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
+  Qed.
+
   (* This more general version is not used in tactics at the moment *)
   Lemma pat_PXData η δ π ps l l' vs φ ψ :
     lookup_path η π = Some (VLoc l') →

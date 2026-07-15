@@ -12,6 +12,7 @@ Require Export
   impure_rules
   array_rules
   record_rules
+  inline_rules
   atomic_rules
 .
 

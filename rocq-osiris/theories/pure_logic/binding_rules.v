@@ -109,6 +109,7 @@ Section eval_pat_app.
       rew. f_equal. ext o. simpl; unfold continue; simpl.
       destruct o. rew. f_equal. ext o. rewrite IHfps.
       rewrite bind_as_try2. auto.
+    - destruct v; auto. destruct (_ =? _)%string; auto.
     - destruct v; auto.
       rew. f_equal. ext o. rew.
       destruct o. rew. f_equal. ext o. rewrite IHps.

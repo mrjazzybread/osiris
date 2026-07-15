@@ -22,6 +22,7 @@ Section pat.
     (IH_PData : ∀ d ps (IHps : Ppats ps), Ppat (PData d ps))
     (IH_PXData : ∀ π ps (IHps : Ppats ps), Ppat (PXData π ps))
     (IH_PRecord : ∀ fps (IHfps : Pfps fps), Ppat (PRecord fps))
+    (IH_PInline : ∀ d p (IHp : Ppat p), Ppat (PInline d p))
     (IH_PArray : ∀ ps (IHps : Ppats ps), Ppat (PArray ps))
     (IH_PInt : ∀ z, Ppat (PInt z))
     (IH_PChar : ∀ c, Ppat (PChar c))
@@ -67,6 +68,7 @@ Section pat.
            | (f, p) :: ps => IH_fps_cons f p ps (pat_ind p) (fps_ind ps)
            end in
         IH_PRecord fps (fps_ind fps)
+    | PInline d p => IH_PInline d p (pat_ind p)
     | PArray ps =>
        let pats_ind := fix pats_ind ps : Ppats ps :=
            match ps with

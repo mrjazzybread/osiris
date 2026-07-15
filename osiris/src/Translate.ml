@@ -317,12 +317,19 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = translate_pats pats in
-     if is_extensible constructor_desc then
-       PXData (translate_longident (txt id), tuple)
-     else
-       let data = translate_data_constructor id constructor_desc in
-       PData (data, tuple)
+    let data = translate_data_constructor id constructor_desc in
+    if is_inline constructor_desc then
+      (* An inline-record constructor pattern has exactly one argument:
+         a pattern for the record itself. *)
+      match pats with
+      | [ p ] -> PInline (data, translate_pat p)
+      | _ -> assert false
+    else
+      let tuple = translate_pats pats in
+      if is_extensible constructor_desc then
+        PXData (translate_longident (txt id), tuple)
+      else
+        PData (data, tuple)
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -431,14 +438,24 @@ let rec translate_expr (e: expression) : expr =
   | Texp_construct (id, constructor_desc, es) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = translate_exprs es in
-     if is_extensible constructor_desc then
-       EXData (translate_longident (txt id), tuple)
-     else if is_inline constructor_desc then
-       EUnsupported
-     else
-       let data = translate_data_constructor id constructor_desc in
-       EData (data, tuple)
+    let data = translate_data_constructor id constructor_desc in
+    if is_inline constructor_desc then
+      (* An inline record must only have one argument under the constructor:
+         the record. *)
+      match es with
+      | [ { exp_desc = Texp_record { fields; _ }; _ } ] ->
+        let tuple =
+          translate_record_field_defs fields |>
+          List.map (fun (Fexpr (_, e)) -> e)
+        in
+        EInline (data, is_mutable_record fields, tuple)
+      | _ -> assert false
+    else
+      let tuple = translate_exprs es in
+      if is_extensible constructor_desc then
+        EXData (translate_longident (txt id), tuple)
+      else
+        EData (data, tuple)
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"

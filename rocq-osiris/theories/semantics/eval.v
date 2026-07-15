@@ -179,16 +179,10 @@ Definition val_as_record {E} (v : val) : micro record E :=
   match v with
   | VRecord l =>
       ret l
+  | VInline _ l =>
+      ret l
   | _ =>
       type_mismatch "location value expected"
-  end.
-
-Definition val_as_record_opt (v : val) : option record :=
-  match v with
-  | VRecord l =>
-      Some l
-  | _ =>
-      None
   end.
 
 Definition as_record {E} (m : micro val E) : micro record E :=
@@ -509,6 +503,11 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       '(_, ls) ← load_block l ;
       vs ← loadn ls ;
       eval_fpats η δ fps vs
+  | PInline c p, VInline c' l =>
+      (* An inline-record pattern matches an inline-record value with the
+         same constructor; the sub-pattern is matched against the record
+         itself. A constructor mismatch is a match failure. *)
+      if c =? c' then eval_pat η δ p (VRecord l) else throw ()
   | PArray ps, VArray l =>
       (* An array pattern matches an array value of the same length;
          a length mismatch is a match failure, not a crash. *)
@@ -532,6 +531,8 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       type_mismatch "extensible algebraic data expected"
   | PRecord _, _ =>
       type_mismatch "record expected"
+  | PInline _ _, _ =>
+      type_mismatch "inline record expected"
   | PArray _, _ =>
       type_mismatch "array expected"
   | PInt _, _ =>
@@ -1230,6 +1231,11 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       | Some l => store l v
       | None => Crash
       end
+  | EInline c t es =>
+    vs ← evals η es ;
+    ls ← allocn vs ;
+    l ← alloc_block t ls ;
+    ret (VInline c l)
   | EArrayLit es =>
       vs ← evals η es ;
       ls ← allocn vs ;

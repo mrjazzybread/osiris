@@ -78,6 +78,9 @@ type pat =
   | PXData of path * pats
   (* A record pattern. *)
   | PRecord of fpats
+  (* An inline-record pattern: [C p] where [C] is an inline-record
+     constructor and [p] matches the underlying record. *)
+  | PInline of data * pat
   (* A literal integer pattern. *)
   | PInt of int
   (* A literal character pattern. *)
@@ -186,6 +189,9 @@ type expr =
   | ERecordAccess of expr * field
   (* Mutable record field assignment: [e1.f <- e2]. *)
   | ERecordSet of expr * field * expr
+
+  (* Inline-record construction: [A {fs = es}] *)
+  | EInline of data * mut_tag * exprs
 
   (* Length of an array: [Array.length a] *)
   | EArrayLength of expr
