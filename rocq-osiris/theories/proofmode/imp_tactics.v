@@ -229,6 +229,8 @@ Ltac2 rec imp_step0 (reading : constr option) :=
             (fun _ => discharge_tuple_mono ())))
   | ERecord _ _ =>
       complete (fun () => imp_record0 None reading)
+  | EInline _ _ _ =>
+      complete (fun () => imp_record0 None reading)
   | ERecordAccess _ _ => imp_record_access0 None
   | _ =>
       Control.zero
@@ -495,6 +497,90 @@ Ltac2 Notation "imp_store2" l(constr) := imp_store2_tac l.
 Tactic Notation "imp_store2" constr(l) :=
   let tac := ltac2:(l |- imp_store2_tac (Option.get (Ltac1.to_constr l))) in
   tac l.
+
+(* [imp_store' l $! Φ] steps a store [e1 <- e2] whose location [e1]
+   evaluates to [l]. It locates the hypothesis [l ↦ _], applies
+   [imp_EStore'] with final postcondition [Φ], and steps [e1] and [e2],
+   leaving the continuation goal [∀ a, Φ' a -∗ l ↦ #a -∗ Φ].
+
+   The [Encode] instance of the stored value cannot be inferred at
+   application time (its type is still undetermined), so it is computed
+   from the syntax of [e2]: an inline record [EInline c t es] is encoded
+   by [encode_record c]; otherwise we default to the type of the value
+   currently stored at [l]. *)
+
+Ltac2 imp_store'_tac (l : constr) (phi : constr option) :=
+  let (hl, a) := get_pointsto l in
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  let e2 :=
+    lazy_match! e with
+    | EStore _ ?e2 => e2
+    | _ =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "[imp_store'] expected %t to be a store expression" e)))
+    end
+  in
+  let lemma :=
+    lazy_match! eval hnf in $e2 with
+    | EInline ?c _ _ =>
+        match phi with
+        | Some phi => open_constr:(imp_EStore' (H:=encode_record $c) (Φ:=$phi) _ $l)
+        | None => open_constr:(imp_EStore' (H:=encode_record $c) _ $l)
+        end
+    | _ =>
+        match phi with
+        | Some phi => open_constr:(imp_EStore' (A:=$a) (Φ:=$phi) _ $l)
+        | None => open_constr:(imp_EStore' (A:=$a) _ $l)
+        end
+    end
+  in
+  iApply ($lemma with $hl) >
+    [ try (imp_step0 None) | try (imp_step0 None) | () ].
+
+Ltac2 Notation "imp_store'" l(constr) := imp_store'_tac l None.
+Ltac2 Notation "imp_store'" l(constr) "$!" phi(constr) := imp_store'_tac l (Some phi).
+Tactic Notation "imp_store'" constr(l) :=
+  let tac := ltac2:(l |- imp_store'_tac (Option.get (Ltac1.to_constr l)) None) in
+  tac l.
+Tactic Notation "imp_store'" constr(l) "$!" constr(phi) :=
+  let tac := ltac2:(l phi |- imp_store'_tac (Option.get (Ltac1.to_constr l)) (Ltac1.to_constr phi)) in
+  tac l phi.
+
+(* [imp_ref'] steps an allocation [ref e]: it applies [imp_ERef2'],
+   steps [e], and leaves the continuation goal
+   [∀ a l, Φ a -∗ l ↦ #a -∗ Φ' l]. As in [imp_store'], the [Encode]
+   instance of the allocated value is computed from the syntax of
+   [e]. *)
+
+Ltac2 imp_ref'_tac () :=
+  let e := get_expr () in
+  let e := (eval hnf in $e) in
+  let e1 :=
+    lazy_match! e with
+    | ERef ?e1 => e1
+    | _ =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "[imp_ref'] expected %t to be a ref expression" e)))
+    end
+  in
+  let lemma :=
+    lazy_match! eval hnf in $e1 with
+    | EInline ?c _ _ => open_constr:(imp_ERef2' (H:=encode_record $c))
+    | ERecord _ _ => open_constr:(imp_ERef2' (A:=record))
+    | _ =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "[imp_ref'] cannot determine the encoding of %t; use [imp_ref] or apply [imp_ERef2'] with explicit [A]/[H]" e1)))
+    end
+  in
+  iApply $lemma >
+    [ try (imp_step0 None) | () ].
+
+Ltac2 Notation "imp_ref'" := imp_ref'_tac ().
+Tactic Notation "imp_ref'" := ltac2:(imp_ref'_tac ()).
 
 (* Ltac2 imp_arith_tac (selpat : constr option) (reading : constr option) := *)
 (*   let e := get_expr () in *)

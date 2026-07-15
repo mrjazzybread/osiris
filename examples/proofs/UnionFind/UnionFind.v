@@ -573,7 +573,7 @@ Proof.
   iIntros (D R V) "HUF".
   iApply imp_please; iNext.
   (* Goal: [ ref (Root { rank = 0; value = v }) ] *)
-  iApply (imp_ERef2' (A:=record) (H:=encode_record "Root")). { imp_record. }
+  imp_ref'.
 
   simpl.
   iIntros "!>" (x r) "(% & % & Hown & -> & ->) Hr".
@@ -1280,15 +1280,10 @@ Proof.
     iDestruct "Hvx" as "[Hx _]".
     iApply (imp_ESeq with "[Hx]").
     { (* Goal:= [ x := Link { parent = y } ] *)
-      iApply (imp_EStore'
-        (A:=record) (H:=encode_record "Link")
-        (Φ := (∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))%I)
-        with "Hx").
-      - imp_path.
-      - imp_record.
-      - iIntros "!>" (r) "HΦ Hl".
-        iDestruct "HΦ" as (z) "(Hown & ->) /=".
-        iExists r. iFrame. }
+      imp_store' (R x) $! (∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))%I.
+      iIntros "!>" (r) "HΦ Hl".
+      iDestruct "HΦ" as (z) "(Hown & ->) /=".
+      iExists r. iFrame. }
     iIntros "(% & Hown_link & Hlink)".
     iSpecialize ("Hback" $! _ _ (LLink (R y)) with "[$Hlink $Hown_link] Hvy").
     imp_path. iSplit; last (iPureIntro; tauto).
@@ -1314,15 +1309,10 @@ Proof.
    { (* Same record-block replacement, this time on [R y]'s side. *)
     iDestruct "Hvy" as "[Hy _]".
     iApply (imp_ESeq with "[Hy]").
-    { iApply (imp_EStore'
-        (A:=record) (H:=encode_record "Link")
-        (Φ := (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I)
-        with "Hy").
-      - imp_path.
-      - imp_record.
-      - iIntros "!>" (r) "HΦ Hl".
-        iDestruct "HΦ" as (z) "(Hown & ->)".
-        simpl. iExists r. iFrame. }
+    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I.
+      iIntros "!>" (r) "HΦ Hl".
+      iDestruct "HΦ" as (z) "(Hown & ->)".
+      simpl. iExists r. iFrame. }
     iIntros "(%r & Hown_link & Hlink)".
     iSpecialize ("Hback" $! _ r _ (LLink (R x))
       with "Hvx [$Hlink $Hown_link]").
@@ -1347,15 +1337,10 @@ Proof.
 
   iDestruct "Hvy" as "[Hy _]".
   iApply (imp_ESeq with "[Hy]").
-    { iApply (imp_EStore'
-        (A:=record) (H:=encode_record "Link")
-        (Φ := (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I)
-        with "Hy").
-      - imp_path.
-      - imp_record.
-      - iIntros "!>" (r) "HΦ Hl".
-        iDestruct "HΦ" as (z) "(Hown & ->)".
-        simpl. iExists r. iFrame. }
+    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I.
+      iIntros "!>" (r) "HΦ Hl".
+      iDestruct "HΦ" as (z) "(Hown & ->)".
+      simpl. iExists r. iFrame. }
     iIntros "(%r & Hown_link & Hlink)".
     iApply (imp_ESeq with "[Hvx]").
     { iApply (imp_vertex_write_rank with "Hvx [] []"); [imp_path|imp_arith]. }
