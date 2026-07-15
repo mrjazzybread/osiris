@@ -24,17 +24,9 @@ Inductive content :=
 
 Local Instance val_of_content : Encode content :=
   { encode' := λ c, match c with
-                    | cRoot r => VData "Root" [ #r ]
-                    | cLink r => VData "Link" [ #r ]
+                    | cRoot r => VInline "Root" r
+                    | cLink r => VInline "Link" r
                     end }.
-
-Local Instance root_data : Data "Root" τ[record] content :=
-  { ctor_apply := λ r, cRoot r;
-    ctor_encode := λ r, eq_refl }.
-
-Local Instance link_data : Data "Link" τ[record] content :=
-  { ctor_apply := λ r, cLink r;
-    ctor_encode := λ r, eq_refl }.
 
 Instance root_record : RecordRepr (root (A:=val)) τ[Z; val] Mut :=
   { repr_to_types rt := (rt.(rank), rt.(value));
@@ -581,16 +573,16 @@ Proof.
   iIntros (D R V) "HUF".
   iApply imp_please; iNext.
   (* Goal: [ ref (Root { rank = 0; value = v }) ] *)
-  iApply (imp_ERef2' (A:=content)). { imp_data. }
+  iApply (imp_ERef2' (A:=record) (H:=encode_record "Root")). { imp_record. }
 
   simpl.
-  iIntros "!>" (x r) "(%root_rec & -> & % & % & Hown & -> & ->) Hr".
+  iIntros "!>" (x r) "(% & % & Hown & -> & ->) Hr".
 
   iDestruct "HUF" as (F LM) "(%HInv & %HMem & HptM)".
   iDestruct (pointsto_M_fresh with "HptM Hr") as %HxLM.
   iSplitL.
   - (* extend [LM] at the fresh vertex [x] with its just-allocated record. *)
-    iExists F, (<[r:=(root_rec, LRoot v)]>LM).
+    iExists F, (<[r:=(x, LRoot v)]>LM).
     iSplit; [iPureIntro; eapply Inv_make; eauto using Mem_not_elem_of_dom |].
     iSplit; [iPureIntro; eapply Mem_make; eauto using Mem_not_elem_of_dom |].
     rewrite /pointsto_M big_sepM_insert; [|exact HxLM].
@@ -925,11 +917,11 @@ Qed.
    {parent=y} as link -> ... end]. *)
 
 Lemma solve_encode_Root (rr : record) (c : content) :
-  cRoot rr = c -> VData "Root" (#rr :: nil) = #c.
+  cRoot rr = c -> VInline "Root" rr = #c.
 Proof. intros <-. reflexivity. Qed.
 
 Lemma solve_encode_Link (lr : record) (c : content) :
-  cLink lr = c -> VData "Link" (#lr :: nil) = #c.
+  cLink lr = c -> VInline "Link" lr = #c.
 Proof. intros <-. reflexivity. Qed.
 
 Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
@@ -938,20 +930,17 @@ Lemma pat_Root p η δ c φ ζ :
   (∀ (r : record),
     c = cRoot r →
     pattern η δ p #r φ (ζ r)) →
-  pattern η δ (PData "Root" [p]) #c φ
+  pattern η δ (PInline "Root" p) #c φ
     ((∃ r, c = cLink r) ∨ (∃ r, c = cRoot r ∧ ζ r)).
 Proof.
   intros Hp.
   destruct c.
   - eapply pattern_exn_mono.
-    eapply pat_PData_eq. rewrite encode_encode'; reflexivity.
-
-    eapply pats_PCons. apply Hp. reflexivity.
-    intros ??. apply pats_PNil. assumption.
-    intros [Hζ|[]].
-    right; eauto.
+    eapply pat_PInline_eq. rewrite encode_encode'; reflexivity.
+    rewrite solve_encode_record. apply Hp. reflexivity.
+    intros Hζ. right; eauto.
   - eapply pattern_exn_mono.
-    eapply pat_PData_neq. rewrite encode_encode'; reflexivity. auto.
+    eapply pat_PInline_neq. rewrite encode_encode'; reflexivity. auto.
     intros _; left; eauto.
 Qed.
 
@@ -962,21 +951,18 @@ Lemma pat_Link p η δ c φ ζ :
   (∀ (r : record),
     c = cLink r →
     pattern η δ p #r φ (ζ r)) →
-  pattern η δ (PData "Link" [p]) #c φ
+  pattern η δ (PInline "Link" p) #c φ
     ((∃ r, c = cRoot r) ∨ (∃ r, c = cLink r ∧ ζ r)).
 Proof.
   intros Hp.
   destruct c.
   - eapply pattern_exn_mono.
-    eapply pat_PData_neq. rewrite encode_encode'; reflexivity. auto.
+    eapply pat_PInline_neq. rewrite encode_encode'; reflexivity. auto.
     intros _; left; eauto.
   - eapply pattern_exn_mono.
-    eapply pat_PData_eq. rewrite encode_encode'; reflexivity.
-
-    eapply pats_PCons. apply Hp. reflexivity.
-    intros ??. apply pats_PNil. assumption.
-    intros [Hζ|[]].
-    right; eauto.
+    eapply pat_PInline_eq. rewrite encode_encode'; reflexivity.
+    rewrite solve_encode_record. apply Hp. reflexivity.
+    intros Hζ. right; eauto.
 Qed.
 
 Ltac pat_link :=
@@ -1295,12 +1281,14 @@ Proof.
     iApply (imp_ESeq with "[Hx]").
     { (* Goal:= [ x := Link { parent = y } ] *)
       iApply (imp_EStore'
-        (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))
+        (A:=record) (H:=encode_record "Link")
+        (Φ := (∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))%I)
         with "Hx").
       - imp_path.
-      - imp_data.
-      - iIntros "!>" (?) "(% & -> & % & Hown & ->) $". iApply "Hown". }
+      - imp_record.
+      - iIntros "!>" (r) "HΦ Hl".
+        iDestruct "HΦ" as (z) "(Hown & ->) /=".
+        iExists r. iFrame. }
     iIntros "(% & Hown_link & Hlink)".
     iSpecialize ("Hback" $! _ _ (LLink (R y)) with "[$Hlink $Hown_link] Hvy").
     imp_path. iSplit; last (iPureIntro; tauto).
@@ -1327,13 +1315,15 @@ Proof.
     iDestruct "Hvy" as "[Hy _]".
     iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
-        (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))
+        (A:=record) (H:=encode_record "Link")
+        (Φ := (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I)
         with "Hy").
-      imp_path. imp_data.
-      iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
-      iApply "Hown". }
-    iIntros "(% & Hown_link & Hlink)".
+      - imp_path.
+      - imp_record.
+      - iIntros "!>" (r) "HΦ Hl".
+        iDestruct "HΦ" as (z) "(Hown & ->)".
+        simpl. iExists r. iFrame. }
+    iIntros "(%r & Hown_link & Hlink)".
     iSpecialize ("Hback" $! _ r _ (LLink (R x))
       with "Hvx [$Hlink $Hown_link]").
     imp_path. iSplit; last (iPureIntro; tauto).
@@ -1358,14 +1348,15 @@ Proof.
   iDestruct "Hvy" as "[Hy _]".
   iApply (imp_ESeq with "[Hy]").
     { iApply (imp_EStore'
-        (A:=content)
-        (Φ := ∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))
+        (A:=record) (H:=encode_record "Link")
+        (Φ := (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I)
         with "Hy").
       - imp_path.
-      - imp_data.
-      - iIntros "!>" (?) "(% & -> & % & Hown & ->) $".
-        iApply "Hown". }
-    iIntros "(% & Hown_link & Hlink)".
+      - imp_record.
+      - iIntros "!>" (r) "HΦ Hl".
+        iDestruct "HΦ" as (z) "(Hown & ->)".
+        simpl. iExists r. iFrame. }
+    iIntros "(%r & Hown_link & Hlink)".
     iApply (imp_ESeq with "[Hvx]").
     { iApply (imp_vertex_write_rank with "Hvx [] []"); [imp_path|imp_arith]. }
     iIntros "(% & % & Hvx) /=".

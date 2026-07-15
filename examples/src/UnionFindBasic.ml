@@ -38,15 +38,9 @@ type rank =
    - only [union] and [merge] allocate a new edge (a [Link] content).
    [find], [get], [set], [eq] allocate no memory. *)
 
-type 'a link =
-  { mutable parent : 'a elem }
-
-and 'a root =
-  { mutable rank : rank; mutable value : 'a }
-
 and 'a content =
-| Link of 'a link
-| Root of 'a root
+| Link of { mutable parent : 'a elem }
+| Root of { mutable rank : rank; mutable value : 'a }
 
 (* The type ['a elem] represents a vertex in the union-find data structure. *)
 
