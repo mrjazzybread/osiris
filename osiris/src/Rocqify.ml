@@ -242,6 +242,9 @@ let rec expr (e : expr) =
   | ERecordSet (e1, f, e2) ->
       c "ERecordSet" [ expr e1; field f; expr e2 ]
 
+  | EAtomicLoc (e, f) ->
+      c "EAtomicLoc" [ expr e; field f ]
+
   | EInline (d, t, es) ->
       c "EInline" [ data d; mut_tag t; list (exprs es) ]
 

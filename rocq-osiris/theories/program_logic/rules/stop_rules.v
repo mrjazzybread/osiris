@@ -97,7 +97,7 @@ Section imp_stop.
 
     destruct_thread_step. subst.
 
-    iMod (osiris_state_alloc σ l (Dict t ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
+    iMod (osiris_state_alloc σ l (Block t ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
     iIntros "!> !>".
     iSpecialize ("H" with "[Hl] [Hfrag]").
     { iFrame "Hl". }
@@ -132,9 +132,9 @@ Section imp_stop.
 
   (* [CLoadBlock]. *)
   Lemma imp_stop_load_block (l : loc) t ls (dq : dfrac) (k: _ → micro A X) :
-    ▷ pointsto l dq (Dict t ls) ⊢
+    ▷ pointsto l dq (Block t ls) ⊢
     ▷ (
-        pointsto l dq (Dict t ls) -∗
+        pointsto l dq (Block t ls) -∗
         imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
     imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
@@ -767,10 +767,10 @@ Section imp_combinators.
     by iIntros "!> $".
   Qed.
   (* [CLoadBlock]. *)
-  Instance notval_dict : NotVal (mut_tag * list loc) := {}.
+  Instance notval_block : NotVal (mut_tag * list loc) := {}.
   Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} (l : loc) dq t ls :
-    ▷ pointsto l dq (Dict t ls) ⊢
-    ▷ (pointsto l dq (Dict t ls) -∗ Φ (t, ls)) -∗
+    ▷ pointsto l dq (Block t ls) ⊢
+    ▷ (pointsto l dq (Block t ls) -∗ Φ (t, ls)) -∗
     imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
@@ -780,8 +780,8 @@ Section imp_combinators.
     iApply ("HΦ" with "Hl").
   Qed.
   Lemma imp_load_block (l : loc) dq t ls :
-    ▷ pointsto l dq (Dict t ls) ⊢
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Dict t ls) }}.
+    ▷ pointsto l dq (Block t ls) ⊢
+    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Block t ls) }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load_block' with "Hl").

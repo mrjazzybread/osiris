@@ -207,6 +207,8 @@ Inductive expr :=
   | ERecordAccess (e : expr) (f : field)
   (* Mutable record field assignment: [e1.f <- e2]. *)
   | ERecordSet (e1 : expr) (f : field) (e2 : expr)
+  (* Atomic record field location: [[%atomic.loc e.f]]. *)
+  | EAtomicLoc (e : expr) (f : field)
 
   (* Inline-record construction: [A {es}] *)
   | EInline (c : data) (t : mut_tag) (es : list expr)

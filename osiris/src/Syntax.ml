@@ -189,6 +189,8 @@ type expr =
   | ERecordAccess of expr * field
   (* Mutable record field assignment: [e1.f <- e2]. *)
   | ERecordSet of expr * field * expr
+  (* Atomic record field location: [[%atomic.loc e.f]]. *)
+  | EAtomicLoc of expr * field
 
   (* Inline-record construction: [A {fs = es}] *)
   | EInline of data * mut_tag * exprs

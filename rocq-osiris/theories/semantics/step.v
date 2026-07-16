@@ -19,13 +19,13 @@ Require Import code eval.
 
    A continuation is either not-yet-shot or already shot.
 
-   This gives rise to four cases: [Val] for values, [Dict] for blocks of
+   This gives rise to four cases: [Val] for values, [Block] for blocks of
    memory, [Kont] for continuations, and [Shot] for already-shot
    continuations.  *)
 
 Inductive mem_block : Type :=
 | Val (v : val)
-| Dict (t : mut_tag) (ls : list loc)
+| Block (t : mut_tag) (ls : list loc)
 | Kont (k : outcome2 val exn → microvx)
 | Shot.
 
@@ -93,7 +93,7 @@ Local Ltac exploit_location_lookup :=
 
 (* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
    in the goal and performs a case analysis on [σ !! l], giving rise to 5
-   cases (value block; dict/block-of-memory block; ordinary continuation block;
+   cases (value block; block-of-memory block; ordinary continuation block;
    shot continuation block; nonexistent address). *)
 
 Ltac case_location_lookup :=
@@ -146,7 +146,7 @@ Qed.
 
 Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (mut_tag * list loc) exn → _) : micro A E :=
   match σ !! l with
-  | Some (Dict t ls) => continue k (t, ls)
+  | Some (Block t ls) => continue k (t, ls)
   | _          => crash "load error: unbound location"
   end.
 
@@ -203,19 +203,19 @@ Qed.
 
 (* [step_set_tag σ l t k] is the right-hand side of the reduction rule [StepSetTag].
 
-   This rule looks up the dict block at location [l] in the store [σ], changes
+   This rule looks up the memory block at location [l] in the store [σ], changes
    its mutability tag to [t], and returns unit to the continuation [k].
-   It fails if [l] is not in the domain of [σ] or does not contain a [Dict]. *)
+   It fails if [l] is not in the domain of [σ] or does not contain a [Block]. *)
 
 Definition step_set_tag_1 σ l t : store :=
   match σ !! l with
-  | Some (Dict _ ls) => <[ l := Dict t ls ]> σ
+  | Some (Block _ ls) => <[ l := Block t ls ]> σ
   | _          => σ
   end.
 
 Definition step_set_tag_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :=
   match σ !! l with
-  | Some (Dict _ _) => continue k ()
+  | Some (Block _ _) => continue k ()
   | _          => crash "set_tag error: unbound location"
   end.
 
@@ -250,8 +250,8 @@ Definition phys_eq_val_store v1 v2 σ : option bool :=
   | VArray l1, VArray l2
   | VRecord l1, VRecord l2 =>
       match σ !! l1, σ !! l2 with
-      | Some (Dict Mut _), Some (Dict _ _)
-      | Some (Dict _ _), Some (Dict Mut _) => Some (locations.eqb l1 l2)
+      | Some (Block Mut _), Some (Block _ _)
+      | Some (Block _ _), Some (Block Mut _) => Some (locations.eqb l1 l2)
       | _, _ => None
       end
   | VCont k1, VCont k2 =>
@@ -483,7 +483,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
       σ !! l = None →
       step
         (σ, Stop CAllocBlock (t, ls) k)
-        (<[ l := Dict t ls ]> σ, continue k l)
+        (<[ l := Block t ls ]> σ, continue k l)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -1086,7 +1086,7 @@ Lemma invert_step_alloc_block {A E} σ σ' t ls k m' :
   @step A E (σ, Stop CAllocBlock (t, ls) k) (σ', m') →
   ∃ l,
     σ !! l = None ∧
-    σ' = <[ l := Dict t ls ]> σ ∧
+    σ' = <[ l := Block t ls ]> σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.

@@ -466,8 +466,13 @@ let rec translate_expr (e: expression) : expr =
   | Texp_record { fields; representation = _; extended_expression = Some e } ->
       translate_record_update e fields
 
-  | Texp_atomic_loc (_e, _id, _label_desc) ->
-      eunsupported loc "record with atomic field(s)"
+  | Texp_atomic_loc (e, id, label_desc) ->
+      (* An atomic field location [[%atomic.loc e.f]] denotes the location
+         of the field [f] of the record [e]. Because every record field is
+         modeled as a separate location, this location can be returned as a
+         first-class value, on which the atomic primitives operate. *)
+      let field = translate_record_field id label_desc in
+      EAtomicLoc (translate_expr e, field)
 
   | Texp_field (e, id, label_desc) ->
       let field = translate_record_field id label_desc in
@@ -734,6 +739,19 @@ and translate_primitive_application loc path p args =
       EExchange (e1, e2)
   | ["Stdlib"; "Atomic"; "compare_and_set"], "%atomic_cas_loc", [e1; e2; e3] ->
       ECAS (e1, e2, e3)
+
+  (* Atomic field locations. These primitives are recognized regardless of
+     the path through which they are named, e.g. [Atomic.Loc.get] in the
+     standard library or a local alias. Their first argument is an atomic
+     location, that is, a value of the form [VLoc l]. *)
+  | _, "%atomic_load_loc", [e] ->
+      ELoad e
+  | _, "%atomic_exchange_loc", [e1; e2] ->
+      EExchange (e1, e2)
+  | _, "%atomic_cas_loc", [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
+  | _, "%atomic_fetch_add_loc", [e1; e2] ->
+      EFAA (e1, e2)
 
   (* Arrays. *)
 
@@ -1034,6 +1052,17 @@ and translate_primitive_expr prim_name args =
       ERef e
   | "%setfield0", [e1; e2] ->
       EStore (e1, e2)
+
+  (* Atomic field locations. *)
+
+  | "%atomic_load_loc", [e] ->
+      ELoad e
+  | "%atomic_exchange_loc", [e1; e2] ->
+      EExchange (e1, e2)
+  | "%atomic_cas_loc", [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
+  | "%atomic_fetch_add_loc", [e1; e2] ->
+      EFAA (e1, e2)
 
   (* Arrays. *)
 

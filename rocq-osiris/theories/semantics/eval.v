@@ -1234,6 +1234,15 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       | Some l => store l v
       | None => Crash
       end
+  | EAtomicLoc e f =>
+      (* The location of the field [f] is returned as a first-class value,
+         on which the atomic operations (load, store, CAS, ...) operate. *)
+      r ← as_record (eval η e) ;
+      '(_, ls) ← load_block r ;
+      match ls !! f with
+      | Some l => ret (VLoc l)
+      | None => Crash
+      end
   | EInline c t es =>
     vs ← evals η es ;
     ls ← allocn vs ;

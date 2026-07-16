@@ -133,7 +133,7 @@ Section array_reasoning.
 
   Context {η : env} {E : coPset} {Ψ : iEff Σ}.
 
-  Global Instance notval_dict : NotVal (mut_tag * list loc) := {}.
+  Global Instance notval_block : NotVal (mut_tag * list loc) := {}.
   Global Instance notval_listloc : NotVal (list loc) := {}.
 
   (** General [as_array] rule.  Given that the postcondition of [m] implies
