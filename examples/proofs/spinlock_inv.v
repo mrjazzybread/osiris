@@ -71,7 +71,7 @@ Proof.
   { iApply (imp_EAnon_pers τ[unit]).
     iIntros "!>" ([]).
     iApply imp_please; iNext.
-    imp_match unit.
+    imp_match.
     (* After [ref false] we have [l ↦ #false]; use it to build the invariant. *)
     iApply (imp_wand).
     { imp_ref false. }

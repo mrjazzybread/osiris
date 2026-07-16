@@ -278,7 +278,7 @@ Section verification.
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
-          imp_match unit.
+          imp_match.
 
           (* [continue k ()] *)
           iApply (imp_EContinue (B:=unit)); try imp_step.
@@ -350,7 +350,7 @@ Section verification.
       iApply imp_please; iNext.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
-      imp_match unit.
+      imp_match.
       change (encode' ()) with (#()).
       change (encode' iter) with (#iter).
       simpl.

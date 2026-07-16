@@ -213,7 +213,7 @@ Lemma simple_PAny_match η :
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   imp_constant.
 Qed.
 
@@ -227,7 +227,7 @@ Lemma simple_PInt_eq_match η :
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   - imp_constant.
   - auto.
 Qed.
@@ -257,7 +257,7 @@ Lemma imp_branches_PAny η :
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   imp_constant.
 Qed.
 
@@ -269,7 +269,7 @@ Lemma imp_branches_two_branches η :
     {{ λ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   - imp_constant.
   - auto.
 Qed.

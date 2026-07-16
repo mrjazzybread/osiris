@@ -562,6 +562,9 @@ Local Definition eval_fpats_aux : seal (pre_eval_fpats eval_pat).
 Proof. by eexists. Qed.
 (* Top-level definition for [extendfs] *)
 Definition eval_fpats := eval_fpats_aux.(unseal).
+Lemma fold_pre_eval_fpats :
+  pre_eval_fpats eval_pat = eval_fpats.
+Proof. unfold eval_fpats; by rewrite seal_eq. Qed.
 
 (* [eval_cpat η δ cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
@@ -1661,8 +1664,15 @@ Ltac simpl_eval_pat :=
    unfold eval_pat;
    rewrite seal_eq;
    (progress simpl pre_eval_pat);
-   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats)
+   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats)
   || fail "Unable to simplify application of eval_pat".
+
+Ltac simpl_eval_fpats :=
+  (unfold eval_fpats;
+   rewrite seal_eq;
+   (progress simpl pre_eval_fpats);
+   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats)
+  || fail "Unable to simplify application of eval_fpats".
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,

@@ -13,6 +13,7 @@ Require Export
   array_rules
   record_rules
   inline_rules
+  ipattern_rules
   atomic_rules
 .
 

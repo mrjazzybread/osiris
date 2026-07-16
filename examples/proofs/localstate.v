@@ -282,7 +282,7 @@ Section verification.
     { iApply (imp_EAnon_pers τ[unit]).
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
-      imp_match unit.
+      imp_match.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { set_postcondition (λ e, ⌜e = Read⌝)%I.
         admit. (* iApply (imp_EXData (l:=rl)). *) }

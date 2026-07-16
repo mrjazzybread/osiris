@@ -1045,7 +1045,6 @@ Proof.
 
     (* Goal: [ if z != y then ... else ...; z ] *)
     iApply (imp_ESeq with "[-]").
-    (* set_postcondition (λ _, pointsto_M (<[e:=(re, LLink (R y))]> M2')). *)
     imp_if.
     { set_postcondition (λ b, ⌜b = negb (locations.eqb (R y) y)⌝)%I.
       iApply imp_EBoolNeg.
@@ -1258,18 +1257,24 @@ Proof.
 
   imp_match (content * content)%type with "[Hvx Hvy]".
   { imp_tuple with "[Hvx] [Hvy]".
-    { iApply (imp_vertex_load with "Hvx"). imp_path. }
-    { iApply (imp_vertex_load with "Hvy"). imp_path. } }
+    - iApply (imp_vertex_load with "Hvx"). imp_path.
+    - iApply (imp_vertex_load with "Hvy"). imp_path. }
 
   destruct a as [??].
   iIntros "((-> & Hvx) & (-> & Hvy))".
-  next_branch; last first. { next_branch. exfalso. resolve_no_match. }
 
-  iApply (imp_ELet_pair (A:=Z) (B:=Z) with "[Hvx Hvy]").
-  { imp_tuple with "[Hvx] [Hvy]".
-    { iApply (imp_vertex_read_rank with "Hvx"). imp_path. }
-    { iApply (imp_vertex_read_rank with "Hvy"). imp_path. } }
-  iIntros (??) "(Hvx & Hvy) /=".
+  (* The first branch destructures the two [Root] records inside the
+     pattern itself: matching must read the rank fields from the record
+     blocks, so the branch is processed with the Iris-level pattern rules
+     ([next_branch]); the field sub-patterns go back down to the pure
+     judgement ([fpatterns]). *)
+  iDestruct "Hvx" as "[Hx Hrx]". iDestruct "Hrx" as (kx) "Hrx".
+  iDestruct "Hvy" as "[Hy Hry]". iDestruct "Hry" as (ky) "Hry".
+  next_branch.
+  iAssert (vertex (R x) rx (LRoot (V (R x)))) with "[Hx Hrx]" as "Hvx".
+  { iFrame "Hx". iExists kx. iFrame. }
+  iAssert (vertex (R y) ry (LRoot (V (R y)))) with "[Hy Hry]" as "Hvy".
+  { iFrame "Hy". iExists ky. iFrame. }
 
   iApply (imp_EIfThenElse).
   { iApply imp_EOpLt_Z_weak. imp_path. imp_path. }

@@ -127,8 +127,7 @@ let union (x : 'a elem) (y : 'a elem) : 'a elem =
   let y = find y in
   if x == y then x else
     match !x, !y with
-    | Root rootx, Root rooty ->
-        let rx, ry = rootx.rank, rooty.rank in
+    | Root ({ rank = rx; _ } as rootx), Root { rank = ry; _ } ->
         if rx < ry then begin
           x := Link { parent = y };
           y

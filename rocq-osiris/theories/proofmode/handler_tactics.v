@@ -102,7 +102,7 @@ Ltac2 do_iintros () :=
 
 (** *Closing a match-success postcondition while preserving the guard *)
 
-(* When [apply_deep_handle_cons] drives the [cpattern]/[pattern] machinery on
+(* When [solve_pure_cpattern] drives the [cpattern]/[pattern] machinery on
    an Iris match, the per-branch success postcondition [Hη : env → Prop] is an
    evar threaded unchanged from [deep_handle_cons] down to the matching leaf,
    where it surfaces as a goal [?Hη δ] ([δ] the matched environment).
@@ -232,67 +232,267 @@ Ltac2 close_success (before : ident list) : unit :=
   | [ |- _ ] => ()
   end.
 
-(* [apply_deep_handle_cons] expects an iris goal of the form
-   [EWP deep_eval_match η (b :: bs) ...]. It applies the
-   [deep_handle_cons_unary] lemma before progressing through the
-   pattern matching.
+(* The pure matching engine, shared by the pure and mixed routes of
+   [next_branch].  [solve_pure_cpattern] expects a pure goal
+   [cpattern η δ cp o ?φ ?ψ]: it resolves the [cpattern] level
+   ([specify_cpattern]), drives the resulting [pattern] goals with
+   [pattern_match0], and closes the leaves ([close_pure_leaves]).
 
    It is the iris proofmode analog of [pure_match] in the pure mode. *)
 
-Ltac2 apply_deep_handle_cons () :=
-  iApply deep_handle_cons;
-  Control.focus 1 1
-    (fun _ =>
-       iPureIntro;
-       (* Snapshot the context *before* matching, so [close_success] can later
-          tell which hypotheses (bound variables, guard equations) the matching
-          introduced. *)
-       let before := hyp_ids () in
-       let n := specify_cpattern () in
-       if (Int.gt n 0)
-       then
-         (* [specify_cpattern] resolves
-            a [cpattern] and leaves behind a [pattern] which needs
-            to be solved with a [pattern_match0] here;
-            and since [pattern_match0] does not return an integer
-            of how many goals are left, we must use [try] which is not
-            ideal. *)
-         Control.focus 1 n pattern_match0;
-         try (Control.focus 1 n
-                (fun _ =>
-                   match! goal with
-                   | [ |- ?g ] =>
-                       if Constr.is_evar g then
-                         apply I
-                       else
-                         (* [?Hη δ] — the match postcondition evar applied to the
-                            matched environment.  [close_success] instantiates
-                            [?Hη] to the existential closure of the hypotheses
-                            introduced since [before], so the continuation's match
-                            case becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ imp …]
-                            (degenerating to [λ η', η' = δ] when matching
-                            introduced nothing).  If this fails it is skipped. *)
-                         Control.plus
-                           (fun _ => close_success before)
-                           (fun _ => ())
-                   end))
-       else ());
+Local Ltac2 close_pure_leaves (before : ident list) : unit :=
+  try (Control.enter
+         (fun _ =>
+            match! goal with
+            | [ |- ?g ] =>
+                if Constr.is_evar g then
+                  apply I
+                else
+                  (* [?Hη δ] — the match postcondition evar applied to the
+                     matched environment.  [close_success] instantiates
+                     [?Hη] to the existential closure of the hypotheses
+                     introduced since [before], so the continuation's match
+                     case becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ imp …]
+                     (degenerating to [λ η', η' = δ] when matching
+                     introduced nothing).  If this fails it is skipped. *)
+                  Control.plus
+                    (fun _ => close_success before)
+                    (fun _ => ())
+            end)).
+
+Local Ltac2 solve_pure_cpattern () : unit :=
+  (* Snapshot the context *before* matching, so [close_success] can later
+     tell which hypotheses (bound variables, guard equations) the matching
+     introduced. *)
+  let before := hyp_ids () in
+  let n := specify_cpattern () in
+  if (Int.gt n 0)
+  then
+    (* [specify_cpattern] resolves
+       a [cpattern] and leaves behind a [pattern] which needs
+       to be solved with a [pattern_match0] here. *)
+    (Control.focus 1 n pattern_match0;
+     close_pure_leaves before)
+  else ().
+
+(* [icpattern_pure_route]/[ipattern_pure_route] lower an Iris pattern
+   judgement whose pattern does not read the heap to the pure engine,
+   through the [icpattern_pure_cps]/[ipattern_pure_cps] lemmas.  After
+   [do_iintros] enters the success/failure wands, [k] continues on the
+   surviving goals: the branch body or a remaining pattern judgement on
+   the success side, the remaining branches on the failure side. *)
+
+Local Ltac2 icpattern_pure_route (k : unit -> unit) :=
+  iApply icpattern_pure_cps;
+  Control.focus 1 1 solve_pure_cpattern;
   (* Beta-reduce any redexes introduced by evar instantiation
      (e.g. [⌜(λ η', η' = δ) η'⌝] → [⌜η' = δ⌝]) so that [do_iintros]
      can recognise the equality and apply [iIntros (? ->)]. *)
   try (last (fun _ => ltac1:(cbn beta)));
-  last (fun _ => iSplit; Control.enter do_iintros).
+  (* [do_iintros] may close a side entirely (e.g. an unreachable
+     failure wand), so [k] is re-entered only on the surviving goals. *)
+  last (fun _ => iSplit;
+                 Control.enter (fun _ => do_iintros ();
+                                         Control.enter (fun _ => k ()))).
 
+Local Ltac2 ipattern_pure_route (k : unit -> unit) :=
+  iApply ipattern_pure_cps;
+  Control.focus 1 1
+    (fun _ =>
+       let before := hyp_ids () in
+       pattern_match0 ();
+       close_pure_leaves before);
+  try (last (fun _ => ltac1:(cbn beta)));
+  last (fun _ => iSplit;
+                 Control.enter (fun _ => do_iintros ();
+                                         Control.enter (fun _ => k ()))).
 
-Ltac2 Notation "next_branch" := apply_deep_handle_cons ().
-Tactic Notation "next_branch" := ltac2:(next_branch).
+(* -------------------------------------------------------------------------- *)
+
+(** *Iris-level pattern matching *)
+
+(* [next_branch] processes one branch of an [imp (eval_branches η o
+   (Branch cp e :: bs))] goal. It applies [deep_handle_cons_iris'] —
+   which threads the branch body and the remaining branches through
+   the [icpattern] judgement — and then dispatches on the pattern:
+
+   - when the pattern (or a sub-pattern, at any node of the walk) does
+     not read the heap, it is lowered to the pure engine
+     ([icpattern_pure_route]/[ipattern_pure_route]), which supports
+     everything the pure judgements do (or-patterns, constants,
+     constructor patterns, pattern hooks);
+   - heap-reading patterns (record patterns, possibly under
+     tuple/inline/alias patterns) are walked with the corresponding
+     [ipat_*] rule at each node:
+   - record patterns consume (and give back) the ownership hypothesis
+     [r ⤇ _] / [ownBlock r _ _ _] found in the spatial context, and
+     their field sub-patterns are discharged by the pure [fpatterns]
+     automation;
+   - on success, the goal that remains is the branch body
+     [imp (eval η' e) ...] in the extended environment, with the
+     ownership hypotheses back in the context under their own names;
+   - if the pattern is refuted (constructor mismatch), the goal that
+     remains is [imp (eval_branches η o bs) ...] for the remaining
+     branches, on which [next_branch] can be used again. *)
+
+(* [reads_heap p] detects (sub-)patterns whose matching must read the
+   heap: record and array patterns. *)
+
+Ltac2 reads_heap (p : constr) : bool :=
+  match! p with
+  | context [ PRecord _ ] => true
+  | context [ PArray _ ] => true
+  | _ => false
+  end.
+
+(* [get_record_ownership r] finds a spatial hypothesis [ownRecord r _ _]
+   or [ownBlock r _ _ _] for the record location [r] and returns its
+   proofmode identifier. *)
+
+Ltac2 get_record_ownership (r : constr) : constr :=
+  let (_, spat_hyps) := get_iris_hyps () in
+  let rec go env :=
+    lazy_match! env with
+    | environments.Enil =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "Could not find ownership of the record block %t" r)))
+    | environments.Esnoc ?env ?name ?prop =>
+        match! prop with
+        | ownRecord ?r' _ _ => if Constr.equal r r' then name else go env
+        | ownBlock ?r' _ _ _ => if Constr.equal r r' then name else go env
+        | _ => go env
+        end
+    end
+  in
+  go spat_hyps.
+
+(* [ipat_record_cps v k] processes a goal
+   [ipattern η δ (PRecord fps) v Φ ψ]: it locates the ownership of the
+   record block behind [v], applies the continuation-passing record
+   rule, solves the field patterns with the pure automation, and runs
+   [k] on the continuation, with the matched environment substituted
+   and the ownership back in the context under its original name. *)
+
+(* Solve a goal [v = VRecord ?r], [v = VTuple ?vs], [v = VInline s ?v'],
+   ... where [v] may be an encoded value [# x]. *)
+Local Ltac2 solve_val_eq () :=
+  solve [ ltac1:(first [ reflexivity
+                       | rewrite encode_encode'; reflexivity
+                       | encode ]) ].
+
+Local Ltac2 ipat_record_cps (v : constr) (k : unit -> unit) :=
+  let r :=
+    lazy_match! v with
+    | VRecord ?r => r
+    | # ?r => r
+    | _ =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "[next_branch] cannot find a record block in %t" v)))
+    end
+  in
+  let hname := get_record_ownership r in
+  let name := match! hname with
+              | base.ident.INamed ?s => s
+              | _ => '"Hrec"%string
+              end in
+  let pat := '("% -> " ++ $name)%string in
+  let apply_one := fun (lem : constr) =>
+    iApply ($lem with $hname) >
+      [ solve_val_eq ()
+      | pattern_match0 ()
+      | solve [ ltac1:(tauto) ]
+      | iIntros $pat; k () ]
+  in
+  Control.plus
+    (fun _ => apply_one 'ipat_PRecord_repr_cps)
+    (fun _ => apply_one 'ipat_PRecord_cps).
+
+Ltac2 rec ipattern_match_aux () :=
+  ltac1:(cbn beta);
+  match Control.plus (fun _ => Some (get_iris_goal ())) (fun _ => None) with
+  | None =>
+      (* Not an Iris entailment: a pure side condition the pure engine
+         left for the user (e.g. the witness of a refuted branch). *)
+      ()
+  | Some g =>
+  lazy_match! g with
+  | icpattern _ _ ?cp _ _ _ =>
+      if reads_heap cp then
+        lazy_match! cp with
+        | CVal _ => iApply icpat_CVal; ipattern_match_aux ()
+        | _ =>
+            Control.zero
+              (Tactic_failure
+                 (Some (fprintf
+                    "[next_branch] unsupported heap-reading computation pattern %t" cp)))
+        end
+      else icpattern_pure_route ipattern_match_aux
+  | ipatterns _ _ (_ :: _) _ _ _ =>
+      iApply ipats_cons; ipattern_match_aux ()
+  | ipatterns _ _ nil _ _ _ =>
+      iApply ipats_nil; ipattern_match_aux ()
+  | ipattern _ _ ?p ?v _ _ =>
+      if reads_heap p then
+        lazy_match! p with
+        | PAlias _ _ => iApply ipat_PAlias; ipattern_match_aux ()
+        | PTuple _ =>
+            iApply ipat_PTuple' >
+              [ solve_val_eq () | ipattern_match_aux () ]
+        | PInline _ _ =>
+            Control.plus
+              (fun _ => iApply ipat_PInline_eq >
+                          [ solve_val_eq ()
+                          | ipattern_match_aux () ])
+              (fun _ => iApply ipat_PInline_neq > [ ltac1:(congruence) | () ])
+        | PRecord _ =>
+            ipat_record_cps v (fun _ => ipattern_match_aux ())
+        | _ =>
+            Control.zero
+              (Tactic_failure
+                 (Some (fprintf
+                    "[next_branch] unsupported heap-reading pattern %t" p)))
+        end
+      else ipattern_pure_route ipattern_match_aux
+  | _ =>
+      (* Not a pattern judgement: the branch body (or the remaining
+         branches) has been reached. *)
+      ()
+  end
+  end.
+
+(* [iApply deep_handle_cons_iris'] can succeed *vacuously* on a goal
+   whose postcondition is still an evar (e.g. [∀ a, ?Φ' a -∗ ▷ imp
+   (eval_branches …)] before the scrutinee has been resolved), by
+   unifying the whole [icpattern] premise into the evar and leaving no
+   goal at all.  Reject that case so [next_branch] fails cleanly —
+   and backtracks the spurious unification — instead of corrupting the
+   scrutinee's postcondition. *)
+
+Local Ltac2 apply_deep_handle_cons_iris' () :=
+  iApply deep_handle_cons_iris';
+  if Int.equal (Control.numgoals ()) 1 then ()
+  else Control.zero
+         (Tactic_failure
+            (Some (Message.of_string
+               "[next_branch] expected an [eval_branches] goal"))).
+
+Ltac2 next_branch0 () :=
+  Control.plus
+    (fun _ => apply_deep_handle_cons_iris' ())
+    (fun _ => ltac1:(progress simpl); apply_deep_handle_cons_iris' ());
+  ipattern_match_aux ().
+
+Ltac2 Notation "next_branch" := next_branch0 ().
+Tactic Notation "next_branch" := ltac2:(next_branch0 ()).
 
 (* [imp_branches] processes all branches of an [imp (eval_branches η o bs)]
    goal, creating one Iris subgoal per branch — the analogue of [pure_match]
    for the Iris world.
 
    For each branch [Branch cp e] in [bs] it applies [next_branch], which:
-     - resolves the [cpattern] and [iSplit]s into the match/no-match pair;
+     - resolves the pattern and [iSplit]s into the match/no-match pair;
      - auto-closes no-match goals whose postcondition is provably [False];
      - leaves the branch body [imp (eval η' e) ...] as an open subgoal.
 
@@ -302,7 +502,7 @@ Tactic Notation "next_branch" := ltac2:(next_branch).
 Ltac2 rec imp_branches0 () :=
   Control.plus
     (fun _ =>
-       apply_deep_handle_cons ();
+       next_branch0 ();
        try (last (fun _ => imp_branches0 ())))
     (fun _ => ()).
 
@@ -321,8 +521,8 @@ Tactic Notation "imp_branches" := ltac2:(imp_branches0 ()).
         [∀ a, Φ' a -∗ ▷] prefix and then [imp_branches] automatically
         processes all pattern branches.
    Optionally, the intermediate type [A'] of the scrutinee can be given as
-   an argument to fix the [Encode A'] instance.  If omitted, Rocq leaves it
-   as an evar to be resolved from the scrutinee goal. *)
+   an argument.  If omitted, [A'] and its [Encode] instance are left as
+   evars, to be resolved by the scrutinee subgoal. *)
 
 From osiris.proofmode Require Import imp_tactics.
 
@@ -330,17 +530,22 @@ Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
   let e := get_expr () in
   lazy_match! eval hnf in $e with
   | EMatch _ _ =>
-      let specialized_match :=
-        match a' with
-        | Some a => open_constr:(imp_EMatch (A':=$a))
-        | None => 'imp_EMatch
-        end
-      in
-      (match selpat with
-       | None => iApply $specialized_match
-       | Some sel => iApply ($specialized_match with $sel)
-       end) >
-        [ try (imp_step0 None) | simple_intros (); try (imp_branches0 ()) ]
+    let a :=
+      match a' with
+      | None =>
+        mk_evar @imp_match_A' 'Type;
+        let match_a := Control.hyp @imp_match_A' in
+        mk_evar @imp_match_HA' open_constr:(Encode $match_a);
+        match_a
+      | Some a => a
+      end
+    in
+    let specialized_match := open_constr:(imp_EMatch (A':=$a)) in
+    match selpat with
+    | None => iApply $specialized_match
+    | Some sel => iApply ($specialized_match with $sel)
+    end >
+    [ try (imp_step0 None) | simple_intros (); try (imp_branches0 ()) ]
   | _ =>
       Control.zero (Tactic_failure
         (Some (fprintf "[imp_match] Expected EMatch expression, got %t" e)))

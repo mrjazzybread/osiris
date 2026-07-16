@@ -6,6 +6,7 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import code eval.
 Require Import thread_step ewp tactics.
 Require Import basic_rules impure_rules stop_rules.
+Require Import ipattern_rules.
 
 From osiris.pure_logic Require Import pure.
 
@@ -588,6 +589,49 @@ Section handler_proof.
     - iDestruct "Hmono" as "[$ _]".
     - iDestruct "Hmono" as "[_ Hmono]".
       iIntros ([]). iApply "Hmono".
+  Qed.
+
+  (* The Iris-level analogue of [deep_handle_cons]: the pattern premise
+     is the Iris judgement [icpattern] instead of the pure [cpattern],
+     so that matching the branch pattern may own heap resources — this
+     is required for record patterns, which read memory blocks. The
+     success and failure continuations receive iProps instead of pure
+     facts. *)
+
+  Lemma deep_handle_cons_iris η o cp e bs (Φ : A → iProp Σ)
+      (Hη : env → iProp Σ) (φ : iProp Σ) :
+    icpattern (E:=E) (Ψ:=Ψ) η η cp o Hη φ -∗
+    (∀ η', Hη η' -∗ imp (eval η' e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (φ -∗ imp (eval_branches η o bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (eval_branches η o (Branch cp e :: bs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    simpl_eval_branches.
+    iIntros "Hpat Hmono".
+    iApply (imp_try2 _ _ (eval_cpat η η cp o) with "Hpat [Hmono]").
+    iSplit.
+    - iDestruct "Hmono" as "[$ _]".
+    - iDestruct "Hmono" as "[_ Hmono]".
+      iIntros ([]). iApply "Hmono".
+  Qed.
+
+  (* The continuation-passing form of [deep_handle_cons_iris]: the
+     success postcondition is the branch body itself and the failure
+     postcondition is the remaining branches, so that the pattern rules
+     lead straight from one to the other with no intermediate [Hη]/[φ]
+     to spell out. This is the entry point of the [next_branch]
+     automation. *)
+
+  Lemma deep_handle_cons_iris' η o cp e bs (Φ : A → iProp Σ) :
+    icpattern (E:=E) (Ψ:=Ψ) η η cp o
+      (λ η', imp (eval η' e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }})
+      (imp (eval_branches η o bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp (eval_branches η o (Branch cp e :: bs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hpat".
+    iApply (deep_handle_cons_iris with "Hpat").
+    iSplit.
+    - iIntros (η') "H". iApply "H".
+    - iIntros "H". iApply "H".
   Qed.
 
   Lemma deep_handle_cons_skip η o cp e bs (Φ : A → iProp Σ) :

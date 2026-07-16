@@ -243,6 +243,7 @@ Local Ltac2 rec is_pattern (c : constr) :=
   lazy_match! c with
   | pattern _ _ _ _ _ _  => true
   | patterns _ _ _ _ _ _ => true
+  | fpatterns _ _ _ _ _ _ => true
   | _ => false
   end.
 
@@ -567,6 +568,33 @@ Local Ltac2 patterns () :=
   end.
 
 
+(* [fpats] expects a goal of the form [fpatterns ...] (record field
+   patterns) and either
+   - reduces to a [pattern ...] with [fpats_cons_unary] (the field
+     lookup is discharged by computation),
+   - solves the goal with [fpats_nil2] (instantiating an evar
+     postcondition [?φ] with an environment equality), or reduces it
+     to [φ δ] with [fpats_nil]. *)
+
+Local Ltac2 fpats () :=
+  lazy_match! goal with
+  | [ |- fpatterns _ _ (_ :: _) _ _ _ ] =>
+      (* [simpl] normalizes the looked-up field value (e.g. reducing a
+         projection [rank {| rank := k; … |}] to [k]) before it gets
+         pinned into the success postcondition. *)
+      eapply fpats_cons_unary > [ simpl; reflexivity | ]
+  | [ |- fpatterns _ _ nil _ ?φ _ ] =>
+      if (Constr.is_evar φ) then
+        eapply fpats_nil2
+      else
+        (eapply fpats_nil; try reflexivity)
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [fpatterns η δ fps vs φ ψ]")))
+  end.
+
 (* [pattern_match_aux] expects a goal of the form [patterns ...] or
    [pattern ...] and progresses by matching the pattern(s) to the
    variable(s). This is done by applying the appropriate lemma for
@@ -588,6 +616,7 @@ Local Ltac2 rec pattern_match_aux () :=
   in
   lazy_match! goal with
   | [ |- patterns _ _ _ _ _ _ ] => patterns (); continue_matching ()
+  | [ |- fpatterns _ _ _ _ _ _ ] => fpats (); Control.enter continue_matching
   | [ |- pattern _ _ ?p _ _ ?ψ ] =>
       (* [massage_term] is black magic to help Rocq's unification engine. *)
       massage_term ψ;
@@ -671,6 +700,7 @@ Ltac2 pattern_match0 () :=
         (fun _ => rewrite 1 ?encode_encode');
       pattern_match_aux ()
   | [ |- pattern _ _ _ _ _ _ ] => pattern_match_aux ()
+  | [ |- fpatterns _ _ _ _ _ _ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure

@@ -1,4 +1,4 @@
-From osiris Require Import osiris.
+From osiris Require Import osiris lang.
 From osiris.utils Require Import big_opLZ.
 
 
@@ -61,6 +61,80 @@ Section verification.
     imp_path.
     imp_path. simpl.
     iIntros ([]) "(% & -> & $)".
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
+  (* Matching a record pattern against a record value:
+     [match v with { x = a; y = b } -> a + b].
+     The match reads the record's fields, so the pattern premise is the
+     Iris judgement [icpattern] (see [ipattern_rules]); the sub-patterns
+     are delegated to the pure [fpatterns] judgement. *)
+
+  Lemma match_record_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    imp eval (("v", VRecord r) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=record) (λ r', ⌜r' = r⌝)%I with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (r') "-> !>".
+    next_branch.
+    iApply (imp_wand with "[]").
+    { imp_arith. }
+    iIntros (i) "->". by iFrame.
+  Qed.
+
+  (* The same, on an inline record, through an alias pattern — the shape
+     generated for [match v with Root ({ x = a; y = b } as w) -> ...]. *)
+
+  Lemma match_inline_record_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    imp eval (("v", VInline "Root" r) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PInline "Root"
+                            (PAlias (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]) "w")))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=val) (λ v, ⌜v = VInline "Root" r⌝)%I with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (v) "-> !>".
+    next_branch.
+    iApply (imp_wand with "[]").
+    { imp_arith. }
+    iIntros (i) "->". by iFrame.
+  Qed.
+
+  (* A mixed pattern: a heap-free sub-pattern (a literal) next to a
+     record pattern in the same tuple. [next_branch] lowers the
+     literal to the pure engine mid-walk and processes the record with
+     the Iris rules; the literal's no-match side surfaces as the pure
+     refutation witness [1 = 1]. *)
+
+  Lemma match_mixed_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    imp eval (("v", VTuple ((#1%Z) :: VRecord r :: nil)) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PTuple [PInt 1; PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]]))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=val) (λ v, ⌜v = VTuple ((#1%Z) :: VRecord r :: nil)⌝)%I
+             with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (v) "-> !>".
+    next_branch.
+    { iApply (imp_wand with "[]").
+      { imp_arith. }
+      iIntros (i) "->". by iFrame. }
+    reflexivity.
   Qed.
 
   (* -------------------------------------------------------------------------- *)
