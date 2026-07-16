@@ -65,8 +65,7 @@ let rec find (x : 'a elem) : 'a elem =
   match !x with
   | Root _ ->
       x
-  | Link link ->
-      let y = link.parent in
+  | Link ({ parent = y } as link) ->
       let z = find y in
       if z != y then
         link.parent <- z;
@@ -96,8 +95,8 @@ let eq (x : 'a elem) (y : 'a elem) : bool =
 let get (x : 'a elem) : 'a =
   let x = find x in
   match !x with
-  | Root root ->
-      root.value
+  | Root { value = v; _ } ->
+      v
   | Link _ ->
       assert false
 

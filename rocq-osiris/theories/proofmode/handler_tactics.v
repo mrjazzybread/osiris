@@ -409,14 +409,27 @@ Local Ltac2 ipat_record_cps (v : constr) (k : unit -> unit) :=
     (fun _ => apply_one 'ipat_PRecord_repr_cps)
     (fun _ => apply_one 'ipat_PRecord_cps).
 
+(* [stop_here t] runs [t]; if it fails, the goal is left at the current
+   pattern node.  This is how the walk reacts to a node it cannot decide
+   yet — a matched value that is still abstract, or record ownership
+   that is not directly in the spatial context: the user can massage
+   the context (destruct the value, split the ownership) and *resume*
+   the walk by calling [next_branch] on the pattern judgement again. *)
+Local Ltac2 stop_here (t : unit -> unit) : unit :=
+  Control.plus t (fun _ => ()).
+
 Ltac2 rec ipattern_match_aux () :=
   ltac1:(cbn beta);
-  match Control.plus (fun _ => Some (get_iris_goal ())) (fun _ => None) with
-  | None =>
+  (* [Control.case] (not [Control.plus]) so that this probe is not a
+     backtracking point: a failure later in the walk must propagate,
+     not rewind into the [Err] arm and succeed silently. *)
+  match Control.case (fun _ => get_iris_goal ()) with
+  | Err _ =>
       (* Not an Iris entailment: a pure side condition the pure engine
          left for the user (e.g. the witness of a refuted branch). *)
       ()
-  | Some g =>
+  | Val gk =>
+  let (g, _) := gk in
   lazy_match! g with
   | icpattern _ _ ?cp _ _ _ =>
       if reads_heap cp then
@@ -438,16 +451,19 @@ Ltac2 rec ipattern_match_aux () :=
         lazy_match! p with
         | PAlias _ _ => iApply ipat_PAlias; ipattern_match_aux ()
         | PTuple _ =>
-            iApply ipat_PTuple' >
-              [ solve_val_eq () | ipattern_match_aux () ]
+            stop_here
+              (fun _ => iApply ipat_PTuple' >
+                          [ solve_val_eq () | ipattern_match_aux () ])
         | PInline _ _ =>
             Control.plus
               (fun _ => iApply ipat_PInline_eq >
                           [ solve_val_eq ()
                           | ipattern_match_aux () ])
-              (fun _ => iApply ipat_PInline_neq > [ ltac1:(congruence) | () ])
+              (fun _ => stop_here
+                  (fun _ => iApply ipat_PInline_neq > [ ltac1:(congruence) | () ]))
         | PRecord _ =>
-            ipat_record_cps v (fun _ => ipattern_match_aux ())
+            stop_here
+              (fun _ => ipat_record_cps v (fun _ => ipattern_match_aux ()))
         | _ =>
             Control.zero
               (Tactic_failure
@@ -478,11 +494,32 @@ Local Ltac2 apply_deep_handle_cons_iris' () :=
             (Some (Message.of_string
                "[next_branch] expected an [eval_branches] goal"))).
 
+(* [next_branch] either enters a fresh [eval_branches] goal, or — when
+   the goal is already a pattern judgement, i.e. a walk that previously
+   stopped at an undecidable node (see [stop_here]) — resumes the walk.
+   The resume path requires progress so that an unprocessable node
+   makes the tactic fail rather than loop in [imp_branches]. *)
+
 Ltac2 next_branch0 () :=
-  Control.plus
-    (fun _ => apply_deep_handle_cons_iris' ())
-    (fun _ => ltac1:(progress simpl); apply_deep_handle_cons_iris' ());
-  ipattern_match_aux ().
+  let resumable () :=
+    match Control.case (fun _ => get_iris_goal ()) with
+    | Err _ => false
+    | Val gk =>
+        let (g, _) := gk in
+        lazy_match! g with
+        | icpattern _ _ _ _ _ _ => true
+        | ipattern _ _ _ _ _ _ => true
+        | ipatterns _ _ _ _ _ _ => true
+        | _ => false
+        end
+    end
+  in
+  if resumable () then progress (ipattern_match_aux ())
+  else
+    (Control.plus
+       (fun _ => apply_deep_handle_cons_iris' ())
+       (fun _ => ltac1:(progress simpl); apply_deep_handle_cons_iris' ());
+     ipattern_match_aux ()).
 
 Ltac2 Notation "next_branch" := next_branch0 ().
 Tactic Notation "next_branch" := ltac2:(next_branch0 ()).
@@ -535,7 +572,17 @@ Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
       | None =>
         mk_evar @imp_match_A' 'Type;
         let match_a := Control.hyp @imp_match_A' in
-        mk_evar @imp_match_HA' open_constr:(Encode $match_a);
+        (* The [Encode] evar must be created with [evar], NOT by
+           pretyping an [open_constr] hole: [imp_match_A'] is
+           syntactically rigid, so elaborating [(_ : Encode
+           imp_match_A')] satisfies the [Hint Mode] and eagerly runs
+           the instance search, which picks an arbitrary instance and
+           pins [imp_match_A'] to its carrier.  [evar] creates the
+           hole without resolution; the let-binding still acts as the
+           local instance when [iApply] later searches
+           [Encode imp_match_A']. *)
+        let ty := constr:(Encode $match_a) in
+        ltac1:(t |- evar (imp_match_HA' : t)) (Ltac1.of_constr ty);
         match_a
       | Some a => a
       end

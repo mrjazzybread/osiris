@@ -17,16 +17,10 @@ Record root `{Encode A} : Type := { rank : Z; value : A }.
    content (Root/Link) only stores a [record], i.e. a pointer to a *separate*
    heap block holding the record's own fields (rank/value, or parent). *)
 
-(* The logical type of the content of a vertex. *)
-Inductive content :=
-| cRoot : record -> content
-| cLink : record -> content.
-
-Local Instance val_of_content : Encode content :=
-  { encode' := λ c, match c with
-                    | cRoot r => VInline "Root" r
-                    | cLink r => VInline "Link" r
-                    end }.
+(* Matching on a vertex's content is done directly on the loaded value
+   (a [VInline "Root"/"Link"] tag wrapping the record pointer): the
+   pattern rules read the record fields themselves, so no intermediate
+   typed snapshot of the content is needed. *)
 
 Instance root_record : RecordRepr (root (A:=val)) τ[Z; val] Mut :=
   { repr_to_types rt := (rt.(rank), rt.(value));
@@ -131,14 +125,17 @@ Definition rec_repr (lr : record) (lc : lcontent) : iProp Σ :=
 (* The content *value* stored in [x]'s ref cell: a [Root]/[Link] tag wrapping
    the pointer [lr] to [x]'s record block. *)
 
-Definition content_of (lr : record) (lc : lcontent) : content :=
-  match lc with LRoot _ => cRoot lr | LLink _ => cLink lr end.
+Definition content_of (lr : record) (lc : lcontent) : val :=
+  match lc with
+  | LRoot _ => VInline "Root" lr
+  | LLink _ => VInline "Link" lr
+  end.
 
 (* [vertex x lr lc] is the full heap footprint of one vertex [x]: its
    content cell, pointing at the record block [lr], and that block itself. *)
 
 Definition vertex x (lr : record) (lc : lcontent) : iProp Σ :=
-  (x ↦ #(content_of lr lc) ∗ rec_repr lr lc)%I.
+  (x ↦ content_of lr lc ∗ rec_repr lr lc)%I.
 
 (* [pointsto_M M] asserts ownership of the whole two-level heap: [vertex x
    lr lc] for each entry [x ↦ (lr, lc)] of [M]. Crucially the record
@@ -680,11 +677,11 @@ Lemma imp_vertex_load {η E Ψ ζ} x lr lc (e : expr) :
   vertex x lr lc -∗
   impure E (eval η e) Ψ ζ (λ l', ⌜l' = x⌝) -∗
   impure E (eval η (ELoad e)) Ψ ζ
-    (λ c : content, ⌜c = content_of lr lc⌝ ∗ vertex x lr lc).
+    (λ v : val, ⌜v = content_of lr lc⌝ ∗ vertex x lr lc).
 Proof.
   iIntros "[Hx Hrec] He".
   iApply (imp_wand with "[Hx He]").
-  { iApply (imp_ELoad with "Hx He"). }
+  { iApply (imp_ELoad (A:=val) with "Hx He"). }
   iIntros (c) "[-> Hx]". by iFrame.
 Qed.
 
@@ -913,65 +910,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Pattern-matching infrastructure for [match !x with Root _ -> ... | Link
-   {parent=y} as link -> ... end]. *)
-
-Lemma solve_encode_Root (rr : record) (c : content) :
-  cRoot rr = c -> VInline "Root" rr = #c.
-Proof. intros <-. reflexivity. Qed.
-
-Lemma solve_encode_Link (lr : record) (c : content) :
-  cLink lr = c -> VInline "Link" lr = #c.
-Proof. intros <-. reflexivity. Qed.
-
-Local Hint Resolve solve_encode_Root solve_encode_Link : encode.
-
-Lemma pat_Root p η δ c φ ζ :
-  (∀ (r : record),
-    c = cRoot r →
-    pattern η δ p #r φ (ζ r)) →
-  pattern η δ (PInline "Root" p) #c φ
-    ((∃ r, c = cLink r) ∨ (∃ r, c = cRoot r ∧ ζ r)).
-Proof.
-  intros Hp.
-  destruct c.
-  - eapply pattern_exn_mono.
-    eapply pat_PInline_eq. rewrite encode_encode'; reflexivity.
-    rewrite solve_encode_record. apply Hp. reflexivity.
-    intros Hζ. right; eauto.
-  - eapply pattern_exn_mono.
-    eapply pat_PInline_neq. rewrite encode_encode'; reflexivity. auto.
-    intros _; left; eauto.
-Qed.
-
-Ltac pat_root :=
-  eapply pat_Root.
-
-Lemma pat_Link p η δ c φ ζ :
-  (∀ (r : record),
-    c = cLink r →
-    pattern η δ p #r φ (ζ r)) →
-  pattern η δ (PInline "Link" p) #c φ
-    ((∃ r, c = cRoot r) ∨ (∃ r, c = cLink r ∧ ζ r)).
-Proof.
-  intros Hp.
-  destruct c.
-  - eapply pattern_exn_mono.
-    eapply pat_PInline_neq. rewrite encode_encode'; reflexivity. auto.
-    intros _; left; eauto.
-  - eapply pattern_exn_mono.
-    eapply pat_PInline_eq. rewrite encode_encode'; reflexivity.
-    rewrite solve_encode_record. apply Hp. reflexivity.
-    intros Hζ. right; eauto.
-Qed.
-
-Ltac pat_link :=
-  eapply pat_Link.
-
-Ltac pattern_hook ::=
-  first
-    [ pat_root | pat_link ].
-
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
   imp (eval η (EAnonFun (AnonFun "x" (EMatch (ELoad (EPath ["x"])) __find_branches))))
@@ -992,39 +930,40 @@ Proof.
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hv & Hback)".
 
   (* Goal: [ match !x with ... ] *)
-  imp_match content with "[Hv]".
+  imp_match val with "[Hv]".
   { iApply (imp_vertex_load with "Hv"). imp_path. }
   iIntros "[-> Hv]".
-  next_branch.
+  (* The loaded value is [content_of re lc]: matching is decided by [lc],
+     so destruct it first; in each case the branches process
+     deterministically (the non-matching one is refuted outright). *)
+  destruct lc as [v|y]; simpl.
 
   { (* [Root _ -> x]: [e] is its own representative *)
-    iIntros (η1) "(%rr & %Hc & ->)". imp_path.
+    next_branch.
+    imp_path.
     iDestruct ("Hback" with "Hv") as "$". iPureIntro.
-    destruct lc; last discriminate. destruct Hlc as [His_root HV].
+    destruct Hlc as [His_root HV].
     split_and!.
     - symmetry. eapply is_root_R_self; eauto.
     - reflexivity.
     - assert (F' = F) as -> by (eapply bw_ipc_at_root; eauto).
       assumption. }
 
-  next_branch.
-  { (* [Link link -> ...]: Recurse on [e]'s parent [y],
-       then compress [e]'s record in place. *)
-    iIntros (?) "(%r & %Hlinkeq & ->)".
-    destruct lc as [v|y]; first discriminate.
-    injection Hlinkeq as <-.
-    simpl.
-    (* Read [link.parent], i.e. [e]'s parent [y]. *)
-    iApply (imp_ELet_var (B:=elem) with "[Hv]").
-    { iApply (imp_vertex_read_parent with "Hv"). imp_path. }
-
-    simpl. iIntros (?) "(-> & Hv)".
+  { (* [Link ({ parent = y } as link) -> ...]: Recurse on [e]'s parent
+       [y] — bound by the pattern itself, which reads the [parent]
+       field — then compress [e]'s record in place. *)
+    next_branch.
+    (* The Root branch is refuted; matching the [Link] record pattern
+       reads the [parent] field, so expose the record ownership before
+       walking it. *)
+    iDestruct "Hv" as "[He Hre]". simpl.
+    next_branch.
 
     (* Decompose the iterated-compression derivation at [e]: it steps to [y]
        (an element of [D]) and recurses, with [F' = compress F0 e (R y)]. *)
     destruct (bw_ipc_at_link _ _ _ _ _ _ _ _ HInv Hlc Hbw_ipc)
       as (HyD & l0 & F0 & Hipc0 & HFeq0).
-    iDestruct ("Hback" with "Hv") as "HM".
+    iDestruct ("Hback" with "[$He $Hre]") as "HM".
 
     (* Goal: [ let z = find y in ... ] *)
     iApply (imp_ELet_var (B:=elem) with "[HM]").
@@ -1072,8 +1011,6 @@ Proof.
       { symmetry. eapply R_of_parent; eauto. }
       { erewrite skel_insert; [exact Hskel | exact Heq2]. }
       rewrite HFeq0. apply Mem_compress; [exact HMem' | exact Hin]. }
-
-  exfalso. resolve_no_match.
 Qed.
 
 Definition find_spec (e : elem) (m : microvx) : iProp Σ :=
@@ -1134,18 +1071,19 @@ Proof.
   { eapply Mem_root; eauto using idempotent. }
   iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hv & Hback)".
 
-  imp_match content with "[Hv]".
+  imp_match val with "[Hv]".
   { iApply (imp_vertex_load with "Hv"). imp_path. }
   iIntros "(-> & Hv)".
   simpl.
+  (* [Root { value = v; _ } -> v]: matching reads the [value] field, so
+     the record ownership must be exposed before entering the branch. *)
+  iDestruct "Hv" as "[He Hlr]". iDestruct "Hlr" as (k) "Hlr".
   next_branch.
-  { iApply (imp_wand with "[Hv]").
-    { iApply (imp_vertex_read_value with "Hv"). imp_path. }
-    iIntros (?) "(-> & Hv)".
-    iSplit; first iPureIntro. { by rewrite HRV. }
-    iSpecialize ("Hback" with "Hv").
-    iFrame "∗%". }
-  next_branch. exfalso. resolve_no_match.
+  imp_path.
+  iSplit. { iPureIntro. by rewrite HRV. }
+  iSpecialize ("Hback" with "[$He Hlr]").
+  { iExists k. iFrame. }
+  iFrame "∗%".
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1179,7 +1117,7 @@ Proof.
   { eapply Mem_root; eauto using idempotent. }
   iDestruct (pointsto_M_acc _ _ _ _ Heq with "HM") as "(Hv & Hback)".
 
-  imp_match content with "[Hv]".
+  imp_match val with "[Hv]".
   { iApply (imp_vertex_load with "Hv"). imp_path. }
   iIntros "(-> & Hv)".
   next_branch.
@@ -1191,9 +1129,6 @@ Proof.
     iSpecialize ("Hback" $! lr (LRoot _) with "Hv").
     iFrame "Hback". iPureIntro.
     eauto using Inv_update_class, Mem_update. }
-  next_branch. exfalso.
-  simpl in *|-.
-  resolve_no_match.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1252,10 +1187,9 @@ Proof.
 
   destruct (locations.eqb_spec (R x) (R y)) as [HReq|HRne]; [ congruence | ].
 
-  iPoseProof (pointsto_M_acc2 with "HM") as "(Hvx & Hvy & Hback)".
-  eassumption. eassumption. eassumption.
+  iPoseProof (pointsto_M_acc2 with "HM") as "(Hvx & Hvy & Hback)"; eauto.
 
-  imp_match (content * content)%type with "[Hvx Hvy]".
+  imp_match (val * val)%type with "[Hvx Hvy]".
   { imp_tuple with "[Hvx] [Hvy]".
     - iApply (imp_vertex_load with "Hvx"). imp_path.
     - iApply (imp_vertex_load with "Hvy"). imp_path. }
@@ -1285,7 +1219,7 @@ Proof.
     iDestruct "Hvx" as "[Hx _]".
     iApply (imp_ESeq with "[Hx]").
     { (* Goal:= [ x := Link { parent = y } ] *)
-      imp_store' (R x) $! (∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ #(cLink r))%I.
+      imp_store' (R x) $! (∃ (r : record), r ⤇ {| parent := R y |} ∗ R x ↦ VInline "Link" r)%I.
       iIntros "!>" (r) "HΦ Hl".
       iDestruct "HΦ" as (z) "(Hown & ->) /=".
       iExists r. iFrame. }
@@ -1314,7 +1248,7 @@ Proof.
    { (* Same record-block replacement, this time on [R y]'s side. *)
     iDestruct "Hvy" as "[Hy _]".
     iApply (imp_ESeq with "[Hy]").
-    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I.
+    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ VInline "Link" r)%I.
       iIntros "!>" (r) "HΦ Hl".
       iDestruct "HΦ" as (z) "(Hown & ->)".
       simpl. iExists r. iFrame. }
@@ -1342,7 +1276,7 @@ Proof.
 
   iDestruct "Hvy" as "[Hy _]".
   iApply (imp_ESeq with "[Hy]").
-    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ #(cLink r))%I.
+    { imp_store' (R y) $! (∃ (r : record), r ⤇ {| parent := R x |} ∗ R y ↦ VInline "Link" r)%I.
       iIntros "!>" (r) "HΦ Hl".
       iDestruct "HΦ" as (z) "(Hown & ->)".
       simpl. iExists r. iFrame. }

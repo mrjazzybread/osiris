@@ -93,6 +93,17 @@ Ltac2 get_pointsto (l : constr) : constr * constr :=
               (name, Constr.type a)
             else
               go env
+        (* A bare (unencoded) stored value is just a [val]. *)
+        | (?l' ↦ ?v)%I =>
+            if Constr.equal l l' then
+              (name, Constr.type v)
+            else
+              go env
+        | (▷ ?l' ↦ ?v)%I =>
+            if Constr.equal l l' then
+              (name, Constr.type v)
+            else
+              go env
         | _ => go env
         end
     end
