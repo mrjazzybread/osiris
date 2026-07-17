@@ -1,7 +1,10 @@
 From osiris Require Import osiris.
 From osiris.stdlib Require Import Externals Stdlib.
 
+(* The deep embedding obtained from translating [queue.ml]. *)
 From osiris.stdlib Require Import og_queue.
+
+(* Boilerplate pertaining to the [cell] and [t] types. *)
 
 Section boilerplate.
 
@@ -39,6 +42,11 @@ Section boilerplate.
       repr_id := λ '(l, (fst, lst)), eq_refl }.
 
 End boilerplate.
+
+(* The [Cell], [Cell_Seg], and [Queue] resources.
+
+   I have tried to keep them faithful to the CFML definitions, but I have replaced the [IF] with a match.
+   Feel free to use [if decide (l = []) then ...] instead if you prefer. *)
 
 Section queue_resources.
 
@@ -85,6 +93,10 @@ Section queue_resources.
     discriminate Hcontra.
   Qed.
 
+  (* I have written [Queue_if] and [Queue_if_first] with a [match] and
+     an [if decide] respectively. Feel free to pick whichever style
+     you prefer. *)
+
   Lemma Queue_if `{Encode A} (l : list A) (q : loc) :
     Queue l q -∗
     ∃ cf cl,
@@ -129,15 +141,38 @@ Section queue_resources.
 
 End queue_resources.
 
+(* This section contains the proofs of the functions.
+   We work with weakest preconditions rather than triples. *)
+
+(* Functions which call other functions should have an assumption that
+   those other functions are in-scope.
+
+   These assumptions are written [□ in_env "name" spec η], examples can
+   be found in 'array.v', e.g. in [imp_init]. *)
+
 Section proofs.
 
   Context `{!osirisGS Σ}.
+
+  (* We specify functions in the following way:
+     [iSpec τ[...] f f_spec] says that [f] is a function with arguments
+     of type [...] and with specification [f_spec].
+
+     [f_spec] should have type [... → microvx → iProp Σ], where
+     [m : microvx] is the call-site of the function to the arguments. *)
+
+  (* For create, we have one argument of type [unit], and the
+     specification is for any type, we get [q] an empty queue with
+     elements of that type. *)
 
   Definition create_spec (u : unit) (m : microvx) : iProp Σ :=
     ∀ A (HencA : Encode A), imp m {{ λ q, Queue (@nil A) q }}.
 
   Definition create := (EAnonFun __create).
 
+  (* Because our language has words of arbitrary size, we need to
+     assume that the words are big enough to index all of the fields of
+     [t] records. *)
   Hypothesis max_fields : 3 ≤ max_array_length.
 
   Lemma imp_create η :
@@ -157,6 +192,12 @@ Section proofs.
   Qed.
 
 End proofs.
+
+(* After having proven all the functions individually, we want to prove
+   that the whole module is correct.
+
+   A module specification (currently called [context]) asserts the
+   domain of the module, and specifications for a subset of the domain. *)
 
 Section module_proof.
 
@@ -195,6 +236,8 @@ Section module_proof.
     (impure ⊤ (eval_sitems _ (sitem :: _)) ⊥ ⊥ _) (at level 20).
 
   Hypothesis max_fields : 3 ≤ max_array_length.
+
+  (* The proof of the whole module. *)
 
   Lemma module_proof η :
     ⊢ imp (eval_mexpr η __main) {{ queue_module_spec }}.
