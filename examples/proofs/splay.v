@@ -198,6 +198,12 @@ Global Instance data_nodeR `{Encode A} : Data "NodeR" τ[tree A; A; zipper A] (z
   { ctor_apply := λ '(t1, (x, t2)), NodeR t1 x t2;
     ctor_encode := λ '(t1, (x, t2)), eq_refl }.
 
+Global Instance Constant_Leaf `{Encode A} : Constant "Leaf" (tree A) :=
+  { constant_value := Leaf; constant_encode := eq_refl }.
+
+Global Instance Constant_Root `{Encode A} : Constant "Root" (zipper A) :=
+  { constant_value := Root; constant_encode := eq_refl }.
+
 End encode.
 
 (* -------------------------------------------------------------------------- *)
@@ -669,8 +675,8 @@ Proof.
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl. (* Todo: weird *)
+    eapply pure_eval_const_val.
+    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
 
     intros ? ? -> <-.
@@ -681,7 +687,7 @@ Proof.
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const.
+    eapply pure_eval_const_val.
     apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
     intros ? ? -> <-.

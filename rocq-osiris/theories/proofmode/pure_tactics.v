@@ -1029,18 +1029,32 @@ Ltac2 pure_const0 () :=
   let (m, φ) := decompose_pure () in
   let e := get_expr_from_eval m in
   match! e with
-  | EConstant _ =>
-      (* [pure_eval_const : *)
-(*           VConstant c = #x -> ψ x -> pure (eval η (EConstant c)) ##ψ ⊥] *)
-      eapply pure_eval_const;
-      let solve_encoding : unit -> unit :=
-        fun _ =>
-          match! Constr.type φ with
-          | val -> Prop => rewrite <- solve_encode_val; reflexivity
-          | _ => solve [ ltac1:(encode) ]
-          end
-      in
-      Control.focus 1 1 solve_encoding
+  | EConstant ?c =>
+      match! Constr.type φ with
+      | val -> Prop =>
+          (* The constant is reflected as a raw value. *)
+          eapply pure_eval_const_val;
+          Control.focus 1 1 (fun _ => rewrite <- solve_encode_val; reflexivity)
+      | ?b -> _ =>
+          (* Specialize [pure_eval_const] to the constant [c] and the
+             postcondition's domain type so that the [Constant]
+             instance is resolved at elaboration time (see
+             [specialized_imp_EConstant] in imp_tactics.v).  Fall back
+             to the explicit-value rule and the [encode] hints when no
+             instance is declared. *)
+          let b := (eval cbv beta iota delta [type_nel.coerce_to_type] in $b) in
+          Control.plus
+            (fun _ =>
+               (* Strict [constr:( )]: fail (and fall back) when no
+                  instance is declared, rather than leaving an
+                  unresolved instance evar behind. *)
+               let hc := constr:((_ : Constant $c $b)) in
+               let lem := '(pure_eval_const (HC:=$hc)) in
+               eapply $lem)
+            (fun _ =>
+               eapply pure_eval_const_val;
+               Control.focus 1 1 (fun _ => solve [ ltac1:(encode) ]))
+      end
   end.
 
 Ltac2 Notation "pure_const" := Control.enter pure_const0.

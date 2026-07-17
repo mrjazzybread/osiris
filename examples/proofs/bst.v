@@ -59,9 +59,15 @@ Qed.
 
 Local Hint Resolve encode_tree_is_encode : encode.
 
+Local Instance Constant_Leaf `{Encode A} : Constant "Leaf" (tree A) :=
+  { constant_value := Leaf; constant_encode := eq_refl }.
+
+(* Derived from [Constant_Leaf], for the [encode] hints: the pattern
+   lemmas below need the equation at a concrete [#Leaf], which the bare
+   [constant_encode] projection cannot unify against. *)
 Lemma solve_encode_Leaf `{Encode A} :
   VConstant "Leaf" = #(@Leaf A).
-Proof. eauto. Qed.
+Proof. exact (constant_encode (c:="Leaf") (A:=tree A)). Qed.
 
 Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
   Node t1 x t2 = t →

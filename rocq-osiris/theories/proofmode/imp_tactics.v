@@ -1,5 +1,5 @@
 From osiris.utils Require Import tactics.
-From osiris.lang Require Import encode type_nel.
+From osiris.lang Require Import encode type_nel constructors.
 From osiris.program_logic Require Import program_logic osiris_utils.
 Require Import env_lookups.
 From stdpp Require Import strings.
@@ -231,8 +231,13 @@ Ltac2 specialized_imp_EConstant (primed : bool) : constr :=
          element type's own [Encode] instance).  [coerce_to_type] is
          [simpl never], hence the targeted [cbv]. *)
       let b := (eval cbv beta iota delta [type_nel.coerce_to_type] in $b) in
-      if primed then '(imp_EConstant' (c:=$c) (B:=$b))
-      else '(imp_EConstant (c:=$c) (B:=$b))
+      (* Resolve the instance with a strict [constr:( )]: an
+         open_constr would leave an unresolved instance evar behind
+         instead of failing, and the resulting [constant_value] never
+         reduces. *)
+      let hc := constr:((_ : Constant $c $b)) in
+      if primed then '(imp_EConstant' (HC:=$hc))
+      else '(imp_EConstant (HC:=$hc))
   end.
 
 Ltac2 rec imp_step0 (reading : constr option) :=

@@ -238,9 +238,7 @@ Section encoded_fields.
     iApply imp_module.
 
     iApply (imp_sitems_let (A:=record)).
-    { iApply (imp_record (A:=point)). assumption.
-      iApply imp_evals_cons. imp_arith.
-      iApply imp_evals_singleton. imp_arith. }
+    { imp_record. }
     iIntros (r) "(%x & %y & Hown & (-> & ->))".
     unfold types_to_repr. simpl.
 

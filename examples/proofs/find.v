@@ -265,8 +265,7 @@ Proof.
        [match .. with ..] expression, we move on to the branches. *)
     - (* Case 1: We returned a value, we don't get caught in the branch *)
       intros () Hforall. pure_match.
-      eapply pure_eval_const.
-      instantiate (1 := @None A); apply solve_encode_None; reflexivity.
+      pure_const.
       apply Hforall.
 
     - (* Case 2: We raised an exception, we get caught by the branch. *)

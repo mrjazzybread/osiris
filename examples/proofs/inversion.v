@@ -54,6 +54,9 @@ Section lazy_sequences.
 
   Global Instance : Encode seq := { encode' := encode_seq }.
 
+  Global Instance : Constant "Nil" seq :=
+    { constant_value := Nil; constant_encode := eq_refl }.
+
   (* ------------------------------------------------------------------------ *)
   (** Specification of Heads. *)
 
@@ -247,7 +250,7 @@ Section verification.
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
         imp_branches.
-        imp_constant (@Nil A) with "[]".
+        imp_constant with "[]".
         iPureIntro; apply Hcomplete. }
 
       (* Exceptional case: *)
