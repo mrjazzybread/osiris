@@ -1,31 +1,13 @@
 From iris.base_logic.lib Require Import invariants ghost_map.
 
 From osiris Require Import osiris.
+From osiris.stdlib.proofs Require Import atomic.
 From osiris.examples Require Import og_ConcurrentUnionFind.
 
 (** * Concurrent union-find
 
-    This file starts the verification of the concurrent union-find data
-    structure (linking by random index, path compression with benign data
-    races, CAS on the content field of a vertex).
-
-    The specifications proved here are safety-level: every operation is
-    safe (memory-safe, well-typed reads, all CAS comparisons defined), and
-    [find] returns a vertex of the structure whose identifier is bounded
-    by the identifier of its argument. A full linearizability proof (à la
-    Jayanti–Tarjan) is future work.
-
-    Concurrency model:
-    - the [content] field of a vertex is an atomic field; every access to
-      it opens the global invariant [uf_inv] around a single atomic
-      instruction ([imp_ERecordAccess_atomic], [imp_cas_inline_atomic]);
-    - the [parent] field of a [Link] record is racy (path compression),
-      so its ownership also lives in the invariant, and the pattern-level
-      read of that field is likewise performed atomically;
-    - the CAS compares [content] values, that is, [VInline] blocks; the
-      comparison is resolved by the persistent knowledge that both blocks
-      are mutable ([isBlockP], below). This is why the [value] field of
-      [Root] is declared [mutable] in the OCaml source. *)
+    This file contains the verification of the concurrent union-find data
+    structure. *)
 
 (* A vertex is a two-field record { id; content }. *)
 Notation elem := record.
@@ -169,14 +151,35 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
+(* The [cas] top-level alias. *)
+
+(* The example's first top-level binding is
+   [let cas = Atomic.Loc.compare_and_set]. Given the [Atomic] module's
+   specification (stdlib/proofs/atomic.v), the alias satisfies
+   [compare_and_set_spec] — the logically-atomic CAS triple over
+   inline-record contents. The proofs of [set], [update] and [union]
+   hypothesize [in_env "cas" (λ c, □ iSpec τ[loc; val; val] c
+   compare_and_set_spec) η], which this lemma discharges when walking
+   the module's top-level items. *)
+
+Lemma cas_proof η :
+  in_env "Atomic" atomic_module_spec η -∗
+  imp (eval η (EPath ["Atomic"; "Loc"; "compare_and_set"]))
+    {{ λ cas, □ iSpec τ[loc; val; val] cas compare_and_set_spec }}.
+Proof.
+  iIntros "HAtomic".
+  iDestruct (atomic_cas_path_spec with "HAtomic") as (cas Hcas) "#Hspec".
+  iApply (imp_EPath (A:=val) cas).
+  { exact Hcas. }
+  iExact "Hspec".
+Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Specification of [G.fresh]. *)
 
-(* The module [G] (identifier generation) uses [Random] and [Sys], which
-   are not translated; its translation is [MUnsupported]. The proofs are
-   therefore parameterized by a specification for [fresh]: it returns some
-   integer. (For the verification of [union], this specification will have
+(* This specification will have
    to be strengthened to guarantee uniqueness of the returned
-   identifiers, e.g. with an exclusive ghost token.) *)
+   identifiers, e.g. with an exclusive ghost token. *)
 
 Definition fresh_spec (u : unit) (m : microvx) : iProp Σ :=
   imp m {{ λ i : Z, True }}.
