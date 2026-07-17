@@ -4,7 +4,8 @@ From iris.base_logic.lib Require Import gen_heap invariants.
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import thread_step ewp tactics.
-Require Import basic_rules impure_rules stop_rules.
+Require Import basic_rules impure_rules stop_rules record_rules ipattern_rules.
+From osiris.utils Require Import list_z.
 
 Import ewp_rules_tactics.
 
@@ -156,6 +157,123 @@ Section imp_atomic_rules.
     iApply (imp_atomic' E1 E2).
     iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%v & Hl & Hcas)".
     iApply (imp_cas with "Hl Hcas").
+  Qed.
+
+  (* The [VInline] variant of [imp_cas_atomic]; see [imp_stop_cas_inline].
+     The expected value [seen] must be an inline record, and the physical
+     comparison is resolved by the [isBlock] fractions provided for the
+     current and expected blocks. *)
+  Lemma imp_cas_inline_atomic (E2 E1 : coPset) η e1 e2 e3
+      (Φ1 : loc → _) (Φ2 Φ3 : val → _) (Φ : bool → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    impure E1 (eval η e3) Ψ ζ Φ3 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l seen v',
+         Φ1 l -∗ Φ2 seen -∗ Φ3 v' -∗
+         ∃ c cs (r rs : record) dq1 dq2 t,
+           ⌜seen = VInline cs rs⌝ ∗
+           ▷ l ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
+           ▷ (l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
+              isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
+              |={E2,E1}=> Φ (locations.eqb r rs))) -∗
+    impure E1 (eval η (ECAS e1 e2 e3)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 He3 Hcas".
+    simpl_eval.
+    iApply (imp_bind_par (A1:=loc * val) with "[He1 He2] He3").
+    { iApply (imp_par with "[He1] He2").
+      iApply (imp_as_loc with "He1"). }
+    iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hcas" with "HΦ1 HΦ2 HΦ3")
+      as "(%c & %cs & %r & %rs & %dq1 & %dq2 & %t & -> & Hl & Hr & Hrs & Hcas)".
+    iApply (imp_cas_inline with "Hl Hr Hrs Hcas").
+  Qed.
+
+  (* Atomically reading a record field. The evaluation of [ERecordAccess]
+     performs a ghost block lookup (via the persistent [isBlockLocs]
+     knowledge) followed by a single atomic load of the field's location.
+     Ownership of that location is only required inside the atomic step,
+     which allows it to come from an invariant. *)
+  Lemma imp_ERecordAccess_atomic (E2 E1 : coPset) η e f ls (r : record)
+      (Φ : val → _) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    impure E1 (eval η e) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
+    ▷ (|={E1,E2}=>
+         ∃ v, ▷ (ls !!! f) ↦ v ∗
+              ▷ ((ls !!! f) ↦ v -∗ |={E2,E1}=> Φ v)) -∗
+    impure E1 (eval η (ERecordAccess e f)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvalid) "#Hblock He Hload".
+    simpl_eval.
+    iApply (imp_bind with "[He]").
+    { iApply (imp_as_record with "He"). }
+    iIntros (?) "->".
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hload]").
+    { iApply (imp_load_block_ghost' with "Hblock Hload"). }
+    iIntros ((? & ?)) "(-> & Hload) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    iApply (imp_atomic' E1 E2).
+    iMod "Hload" as "(%v & Hl & Hload)".
+    iApply (imp_load' (A:=val) with "Hl Hload").
+  Qed.
+
+  (* A [CLoad] instruction followed by a pure continuation is atomic. *)
+  Lemma stop_load_atomic_outcome {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    (∀ o, is_outcome3 (k o)) →
+    thread_step.Atomic (Stop CLoad l k).
+  Proof.
+    intros Hk. unfold thread_step.Atomic. intros.
+    destruct_thread_step.
+    unfold step_load_2.
+    case_location_lookup; try apply Hk; by econstructor.
+  Qed.
+
+  Global Instance to_eff_stop_load {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    TCEq (to_eff (Stop CLoad l k)) None.
+  Proof. constructor. Qed.
+  Global Instance to_join_stop_load {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    TCEq (to_join (Stop CLoad l k)) None.
+  Proof. constructor. Qed.
+
+  (* [bind_stop], generalized to a [Stop] whose code error type differs
+     from the monad's error type. Holds by definitional unfolding. *)
+  Lemma bind_stop_gen {A B E X Y E'} (c : C.code X Y E') (x : X)
+      (k : outcome2 Y E' → micro A E) (f : A → micro B E) :
+    ('a ← Stop c x k; f a) = Stop c x (λ o, 'a ← k o; f a).
+  Proof. reflexivity. Qed.
+
+  (* Atomically matching the record pattern [{ f0 = x }] (a single
+     variable field): the pattern's field load is a single atomic
+     instruction, so its points-to may come from an invariant. This is
+     how a racy record field (e.g. one subject to concurrent writes
+     governed by an invariant) can be read by a pattern. *)
+  Lemma ipat_PRecord_var_atomic (E2 E1 : coPset) η δ x (r : record) (lp : loc)
+      (Φ : env → iProp Σ) (ψ : iProp Σ) :
+    ▷ isBlockLocs r [lp] -∗
+    ▷ (|={E1,E2}=> ∃ v, ▷ lp ↦ v ∗ ▷ (lp ↦ v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
+    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(0%Z, PVar x)]) (VRecord r) Φ ψ.
+  Proof.
+    iIntros "#Hlocs Hload".
+    rewrite /ipattern. simpl_eval_pat.
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hload]").
+    { iApply (imp_load_block_ghost' with "Hlocs Hload"). }
+    iIntros ((t & ls)) "(-> & Hload) /=".
+    rewrite bind_bind {1}/load bind_stop_gen.
+    match goal with
+    | |- context [ Stop CLoad lp ?k ] =>
+        pose proof (stop_load_atomic_outcome lp k) as Hat
+    end.
+    specialize (Hat ltac:(intros [?|?];
+      [eapply thread_step.is_ret | eapply thread_step.is_crash]; reflexivity)).
+    iApply (imp_atomic' E1 E2).
+    iMod "Hload" as "(%v & Hl & Hload)".
+    iApply (imp_stop_load with "Hl").
+    iModIntro. iIntros "!> Hl".
+    iApply imp_ret; first done.
+    iApply ("Hload" with "Hl").
   Qed.
 
 End imp_atomic_rules.

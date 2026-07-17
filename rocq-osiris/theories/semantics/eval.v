@@ -648,7 +648,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
   | VArray l1, VArray l2
-  | VRecord l1, VRecord l2 =>
+  | VRecord l1, VRecord l2
+  | VInline _ l1, VInline _ l2 =>
       '((t1, _), (t2, _)) ← par (load_block l1) (load_block l2) ;
       match t1, t2 with
       | Mut, _ | _, Mut => ret (locations.eqb l1 l2)

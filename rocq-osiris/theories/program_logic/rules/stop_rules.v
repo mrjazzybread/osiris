@@ -262,6 +262,8 @@ Section imp_stop.
       cbn in Hproj. injection Hproj as <-. reflexivity. }
     (* VRecord case: par creates Par constructor, which is never ret *)
     { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
+    (* VInline case: par creates Par constructor, which is never ret *)
+    { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
     (* VArray case: par creates Par constructor, which is never ret *)
     { destruct (#b); try (cbn in Hproj; discriminate Hproj). }
   Qed.
@@ -291,6 +293,48 @@ Section imp_stop.
     - rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
+  Qed.
+
+  (* CAS on inline-record values ([VInline]): physical equality compares the
+     underlying block locations, provided at least one of the two blocks is
+     mutable. [PhysEqDec] is not applicable here, because deciding physical
+     equality of blocks requires consulting the store. Instead, we require
+     (fractions of) the [isBlock] predicates of both blocks, with the block
+     of [seen] mutable; these resolve the comparison. *)
+  Lemma imp_stop_cas_inline l (c cs : data) (r rs : record) (v' : val)
+      dq1 dq2 t (k : _ → micro A X) :
+    ▷ l ↦ VInline c r -∗
+    ▷ isBlock r dq1 t -∗
+    ▷ isBlock rs dq2 Mut -∗
+    ▷ (
+        l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
+        isBlock r dq1 t -∗
+        isBlock rs dq2 Mut -∗
+        imp (continue k #(locations.eqb r rs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+      ) -∗
+    imp (Stop CCAS (l, VInline cs rs, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hr Hrs Hwp".
+    ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
+    construct_wp_nonret.
+    iIntros "!> !>".
+    iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
+    iDestruct "Hr" as (ls1) "Hr".
+    iDestruct (osiris_state_valid with "Hsi Hr") as "%Hr".
+    iDestruct "Hrs" as (ls2) "Hrs".
+    iDestruct (osiris_state_valid with "Hsi Hrs") as "%Hrs".
+    destruct_thread_step.
+    assert (Hpeq : phys_eq_val_store (VInline c r) (VInline cs rs) σ
+                     = Some (locations.eqb r rs)).
+    { rewrite /phys_eq_val_store Hr Hrs. by destruct t. }
+    rewrite /step_cas_1 /step_cas_2 Hvalid Hpeq.
+    destruct (locations.eqb r rs) eqn:Heqb.
+    - iMod (osiris_state_update (Val v') with "Hsi Hl") as "[Hsi Hl]".
+      { intros; discriminate. }
+      ewp_mask_elim. iFrame.
+      iApply ("Hwp" with "Hl [Hr] [Hrs]"); iExists _; iFrame.
+    - ewp_mask_elim. iFrame.
+      iApply ("Hwp" with "Hl [Hr] [Hrs]"); iExists _; iFrame.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -865,6 +909,25 @@ Section imp_combinators.
     iIntros "!> Hl".
     iApply imp_ret; first encode.
     iApply ("HΦ" with "Hl").
+  Qed.
+
+  (* The [VInline] variant of [imp_cas]; see [imp_stop_cas_inline]. *)
+  Lemma imp_cas_inline {Φ : bool → iProp Σ} l (c cs : data) (r rs : record)
+      (v' : val) dq1 dq2 t :
+    ▷ l ↦ VInline c r -∗
+    ▷ isBlock r dq1 t -∗
+    ▷ isBlock rs dq2 Mut -∗
+    ▷ (l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
+       isBlock r dq1 t -∗
+       isBlock rs dq2 Mut -∗
+       Φ (locations.eqb r rs)) -∗
+    imp (cas l (VInline cs rs) v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl Hr Hrs HΦ".
+    iApply (imp_stop_cas_inline with "Hl Hr Hrs").
+    iIntros "!> Hl Hr Hrs".
+    iApply imp_ret; first encode.
+    iApply ("HΦ" with "Hl Hr Hrs").
   Qed.
 
   (* ------------------------------------------------------------------------ *)

@@ -41,8 +41,13 @@ let cas = Atomic.Loc.compare_and_set
    [content] is no longer modified. Indeed, every CAS instruction in the code
    applies to a [Root] object. *)
 
+(* The [value] field is declared [mutable] even though it is never written:
+   this guarantees that a [Root] block is heap-allocated and unshared, so
+   that the physical equality test performed by [cas] on [Root] objects has
+   well-defined (pointer comparison) semantics. *)
+
 type 'a content =
-  | Root of { value : 'a }
+  | Root of { mutable value : 'a }
   | Link of { mutable parent : 'a elem }
 
 (* The type ['a elem] represents a vertex in the union-find data structure. *)
