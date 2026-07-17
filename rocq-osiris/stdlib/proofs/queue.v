@@ -178,11 +178,14 @@ Section proofs.
   Lemma imp_create η :
     ⊢ imp (eval η create) {{ λ f, □ iSpec τ[unit] f create_spec }}.
   Proof.
+    (* [imp_EAnon_pers] is the lemma for proving that a function
+       persistently satisfies its specification. *)
     iApply imp_EAnon_pers.
     iIntros "!> /=". unfold create_spec.
     iIntros ([] A HencA).
     iApply imp_please; iNext.
 
+    (* The [()] argument binding acts as a match on the first argument *)
     imp_match unit. rewrite -encode_encode'.
 
     imp_record.
