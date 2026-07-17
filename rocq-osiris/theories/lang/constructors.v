@@ -19,6 +19,33 @@ Global Instance Data_Cons `{Encode A} : Data "::" τ[A; list A] (list A) :=
   { ctor_apply  := λ '(x, xs), x :: xs;
     ctor_encode := λ '(_, _), eq_refl }.
 
+(* [Constant c A] is the nullary analogue of [Data]: it ties a constant
+   constructor [c] to the logical value it encodes.  [imp_EConstant]
+   (expr_rules.v) resolves the constant's logical value through this
+   class, so a user-defined constant constructor only needs an instance
+   for the reasoning rules and tactics to handle it. *)
+
+Class Constant (c : data) (A : Type) `{Encode A} : Type :=
+  { constant_value  : A;
+    constant_encode : VConstant c = #constant_value }.
+
+Global Hint Mode Constant ! ! - : typeclass_instances.
+
+Global Instance Constant_unit : Constant "()" unit :=
+  { constant_value := (); constant_encode := eq_refl }.
+
+Global Instance Constant_true : Constant "true" bool :=
+  { constant_value := true; constant_encode := eq_refl }.
+
+Global Instance Constant_false : Constant "false" bool :=
+  { constant_value := false; constant_encode := eq_refl }.
+
+Global Instance Constant_None `{Encode A} : Constant "None" (option A) :=
+  { constant_value := None; constant_encode := eq_refl }.
+
+Global Instance Constant_nil `{Encode A} : Constant "[]" (list A) :=
+  { constant_value := []; constant_encode := eq_refl }.
+
 Class XData (l : loc) (τ : types) (A : Type) `{Encode A} : Type :=
   { xctor_apply  : τ → A;
     xctor_encode : ∀ (xs : τ), VXData l (to_vals xs) = #(xctor_apply xs) }.
@@ -75,6 +102,15 @@ Proof.
   rewrite <- (types_of_eq A).
   exact (@Encode_tuple (types_of A)).
 Defined.
+
+(* [Encode_from_types] and [TypesOf_base] form a cycle:
+   [Encode A → TypesOf A → Encode A].  A search for [Encode A] with no
+   direct instance therefore diverges instead of failing.  The
+   offending step is [TypesOf_base] directly under [Encode_from_types]
+   (it wraps the same [Encode A] goal it came from); productive
+   derivations always interleave [TypesOf_cons], so cutting the
+   consecutive pair breaks the cycle without losing any solution. *)
+Global Hint Cut [_* Encode_from_types TypesOf_base] : typeclass_instances.
 
 (* Provides [Observe (B * C) val] when [Encode B] and [Encode C] are available.
    The explicit @type_nel.Tcons/@Tbase construction avoids the deferred-evar

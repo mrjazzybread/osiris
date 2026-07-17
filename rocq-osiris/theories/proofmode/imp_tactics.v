@@ -205,6 +205,36 @@ Ltac2 rec unfold_impure_evals (selpat : constr option) :=
 Ltac2 discharge_tuple_mono () :=
   iApply tuple_mono_refl.
 
+(* Specializes [imp_EConstant] (or [imp_EConstant'] when [primed]) to
+   the constant [c] of the focused goal's expression and to the domain
+   type [B] of its postcondition.  Both keys must be concrete at
+   elaboration time so that the [Constant c B] instance is resolved
+   then: an application left with an unresolved instance cannot unify
+   [constant_value] against a fixed postcondition. *)
+Ltac2 specialized_imp_EConstant (primed : bool) : constr :=
+  let e := get_expr () in
+  let c :=
+    lazy_match! eval hnf in $e with
+    | EData ?c [] => c
+    end
+  in
+  let phi :=
+    lazy_match! get_iris_goal () with
+    | impure _ _ _ _ ?phi => phi
+    end
+  in
+  lazy_match! Constr.type phi with
+  | ?b → _ =>
+      (* In an [evals] context the domain appears as [coerce_to_type
+         (Tbase B)]; reduce it so instance search keys on [B] itself
+         (the coerced form selects [Encode_tuple] instead of the
+         element type's own [Encode] instance).  [coerce_to_type] is
+         [simpl never], hence the targeted [cbv]. *)
+      let b := (eval cbv beta iota delta [type_nel.coerce_to_type] in $b) in
+      if primed then '(imp_EConstant' (c:=$c) (B:=$b))
+      else '(imp_EConstant (c:=$c) (B:=$b))
+  end.
+
 Ltac2 rec imp_step0 (reading : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
@@ -289,7 +319,9 @@ with imp_data0 (selpat : constr option) (reading : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
   lazy_match! e with
-  | EData _ [] => iApply imp_EConstant; first (fun _ => ltac1:(encode))
+  | EData _ [] =>
+      let lem := specialized_imp_EConstant false in
+      iApply $lem
   | EData _ _ =>
     (* Like [imp_tuple0]: split the resources amongst the constructor
        arguments (according to [selpat]) and step each one. *)
@@ -422,8 +454,25 @@ with imp_record0 (selpat : constr option) (reading : constr option) :=
     unfold_impure_evals selpat;
     Control.enter (fun () => try (imp_step0 reading))
   in
-  iApply $specialized_lemma >
-    [ simpl; try ltac1:(lia) | step_elements () ]
+  let apply_record () :=
+    iApply $specialized_lemma >
+      [ simpl; try ltac1:(lia) | step_elements () ]
+  in
+  let post :=
+    lazy_match! get_iris_goal () with
+    | impure _ _ _ _ ?phi => phi
+    end
+  in
+  if Constr.is_evar post then apply_record ()
+  else
+    (* The postcondition is fixed: it cannot unify with the rule's
+       [∃# xs, ownRecord …] shape directly, so step the record against
+       a fresh postcondition via [imp_wand] (sending it all the spatial
+       resources) and leave the entailment into the goal's
+       postcondition to the user. *)
+    let select_all := '"[-]" in
+    iApply (imp_wand with $select_all) >
+      [ apply_record () | ]
 
 with imp_record_access0 (r : constr option) :=
   let specialized_load :=
@@ -722,25 +771,34 @@ Tactic Notation "imp_if" "with" constr(sel) :=
   tac sel.
 Tactic Notation "imp_if" := ltac2:(imp_if_tac None).
 
-(* [imp_constant_tac v sel] applies either [imp_EConstant ?v] or
-   [imp_EConstant' ?v], depending on whether resources were passed via
-   [sel] or not. *)
+(* [imp_constant_tac v sel] applies [imp_EConstant]/[imp_EConstant']
+   (choosing based on whether resources were passed via [sel]), whose
+   logical value is found by [Constant] instance resolution.  When the
+   value [v] is given explicitly, the [imp_EConstant_val] variants are
+   used instead and the encoding side-goal is discharged by [encode]. *)
 
 Ltac2 imp_constant_tac (v : constr option) (sel : constr option) :=
-  let specialized_const :=
-    match v, sel with
-    | None, None => 'imp_EConstant
-    | None, Some _ => '(imp_EConstant')
-    | Some a, None => '(imp_EConstant $a)
-    | Some a, Some _ => '(imp_EConstant' $a)
-    end
-  in
-  match sel with
+  match v with
   | None =>
-      iApply $specialized_const; ltac1:(encode)
-  | Some s =>
-      iApply ($specialized_const with $s) >
-        [ ltac1:(encode) | ]
+      let lem := specialized_imp_EConstant (is_Some sel) in
+      match sel with
+      | None => iApply $lem
+      | Some s => iApply ($lem with $s)
+      end
+  | Some a =>
+      let specialized_const :=
+        match sel with
+        | None => '(imp_EConstant_val $a)
+        | Some _ => '(imp_EConstant_val' $a)
+        end
+      in
+      match sel with
+      | None =>
+          iApply $specialized_const; ltac1:(encode)
+      | Some s =>
+          iApply ($specialized_const with $s) >
+            [ ltac1:(encode) | ]
+      end
   end.
 
 Tactic Notation "imp_constant" constr(a) "with" constr(sel) :=

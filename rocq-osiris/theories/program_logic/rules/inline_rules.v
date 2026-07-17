@@ -57,7 +57,9 @@ Section encoded_fields.
 
   Context `{!osirisGS Σ}.
 
-  Lemma imp_inline_record `{RecordRepr A τ t} {η E Ψ ζ} c es (Φs : τ -#> iProp Σ) :
+  (* As in [imp_record], [Φs] is uncurried so that an evar
+     postcondition stays instantiable by [imp_evals_cons]. *)
+  Lemma imp_inline_record `{RecordRepr A τ t} {η E Ψ ζ} c es (Φs : τ → iProp Σ) :
     let encode_rec := encode_record c in
     (τ_length τ ≤ max_array_length)%Z →
     impure E (evals η es) Ψ ζ Φs -∗
@@ -65,10 +67,13 @@ Section encoded_fields.
   Proof.
     iIntros (? Hlength) "Hes".
     iApply (imp_wand with "[-]").
-    { iApply (imp_EInline with "Hes"). assumption. }
+    { iApply (imp_EInline (tbind Φs) with "[Hes]"); first assumption.
+      iApply (imp_wand with "Hes").
+      iIntros (xs) "H". rewrite tapp_bind. iApply "H". }
     iIntros (r).
     rewrite !bi_texist_equiv.
     iIntros "(%xs & Hr & HΦ)".
+    rewrite tapp_bind.
     iFrame. unfold ownRecord.
     pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
     iApply "Hr".

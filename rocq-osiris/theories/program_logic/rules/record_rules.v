@@ -309,17 +309,26 @@ Section encoded_fields.
   (* We can now redefine reasoning rules in terms of user-provided
      logical models, instead of tuples. *)
 
-  Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ -#> iProp Σ) :
+  (* [Φs] is uncurried ([τ → iProp Σ], not [τ -#> iProp Σ]) so that,
+     when it is an evar, the [evals] premise keeps a bare-evar
+     postcondition that [imp_evals_cons] can instantiate.  With a
+     curried evar the premise reads [tapp ?Φs], whose unfolding on
+     records of three or more fields contains nested pair matches that
+     unification cannot solve. *)
+  Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ → iProp Σ) :
     (τ_length τ ≤ max_array_length)%Z →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRecord r 1 (types_to_repr xs) ∗ Φs xs).
   Proof.
     iIntros (Hlength) "Hes".
     iApply (imp_wand with "[-]").
-    { iApply (imp_ERecord with "Hes"). assumption. }
+    { iApply (imp_ERecord (tbind Φs) with "[Hes]"); first assumption.
+      iApply (imp_wand with "Hes").
+      iIntros (xs) "H". rewrite tapp_bind. iApply "H". }
     iIntros (r).
     rewrite !bi_texist_equiv.
     iIntros "(%xs & Hr & HΦ)".
+    rewrite tapp_bind.
     iFrame. unfold ownRecord.
     pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
     iApply "Hr".
