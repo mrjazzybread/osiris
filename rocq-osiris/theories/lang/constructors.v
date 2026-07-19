@@ -1,15 +1,25 @@
 From osiris Require Import base.
 Require Import syntax type_nel encode locations.
 
+(* This file contains typeclasses which tie concrete values of the form
+   [VData c args] and [VXData l args] to their logical representation. *)
+
 (* -------------------------------------------------------------------------- *)
 
-(* TODO: Comment. *)
+(* [Data c τ] bundles a function [ctor_apply : τ → A] with a proof that
+   [∀ xs, #(ctor_apply xs) = VData [c] [xs]]. This means that
+   [ctor_apply xs] can be used as a logical representation for [VData c xs]. *)
 
 Class Data (c : data) (τ : types) (A : Type) `{Encode A} : Type :=
   { ctor_apply  : τ → A;
     ctor_encode : ∀ xs : τ, VData c (to_vals xs) = #(ctor_apply xs) }.
 
+(* Only try and resolve the [Data] typeclass if the constructor [c] and
+   the result type [A] are known. *)
 Global Hint Mode Data ! - ! - : typeclass_instances.
+
+(* -------------------------------------------------------------------------- *)
+(* Some instances of the [Data] typeclass. *)
 
 Global Instance Data_Some `{Encode A} : Data "Some" τ[A] (option A) :=
   { ctor_apply  := Some;
@@ -19,17 +29,20 @@ Global Instance Data_Cons `{Encode A} : Data "::" τ[A; list A] (list A) :=
   { ctor_apply  := λ '(x, xs), x :: xs;
     ctor_encode := λ '(_, _), eq_refl }.
 
+
+(* -------------------------------------------------------------------------- *)
+
 (* [Constant c A] is the nullary analogue of [Data]: it ties a constant
-   constructor [c] to the logical value it encodes.  [imp_EConstant]
-   (expr_rules.v) resolves the constant's logical value through this
-   class, so a user-defined constant constructor only needs an instance
-   for the reasoning rules and tactics to handle it. *)
+   constructor [c] to the logical value it encodes. *)
 
 Class Constant (c : data) (A : Type) `{Encode A} : Type :=
   { constant_value  : A;
     constant_encode : VConstant c = #constant_value }.
 
-Global Hint Mode Constant ! ! - : typeclass_instances.
+Global Hint Mode Constant ! - - : typeclass_instances.
+
+(* -------------------------------------------------------------------------- *)
+(* Some instances of the [Constant] typeclass. *)
 
 Global Instance Constant_unit : Constant "()" unit :=
   { constant_value := (); constant_encode := eq_refl }.
@@ -46,11 +59,29 @@ Global Instance Constant_None `{Encode A} : Constant "None" (option A) :=
 Global Instance Constant_nil `{Encode A} : Constant "[]" (list A) :=
   { constant_value := []; constant_encode := eq_refl }.
 
+(* Any constant may be reflected at the [val] level, as itself.  This
+   is deliberately *not* an instance: it matches every constructor
+   name, so it would make [Constant c ?A] ambiguous for every [c] and
+   defeat the type inference described above. We use it explicitly when
+   the goal's postcondition is at type [val]. *)
+Definition Constant_val (c : data) : Constant c val :=
+  {| constant_value := VConstant c; constant_encode := eq_refl |}.
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* [XData l τ] is the analogue of [Data] for extensible types: it ties
+   a *location* [l] to the logical value it encodes. *)
+
 Class XData (l : loc) (τ : types) (A : Type) `{Encode A} : Type :=
   { xctor_apply  : τ → A;
     xctor_encode : ∀ (xs : τ), VXData l (to_vals xs) = #(xctor_apply xs) }.
 
 Global Hint Mode XData ! - ! - : typeclass_instances.
+
+
+(* -------------------------------------------------------------------------- *)
+(* Encode instance for tuples. *)
 
 Definition encode_tuple {τ : types} : τ → val :=
   λ xs, VTuple (@to_vals τ xs).
@@ -69,6 +100,8 @@ Lemma solve_encode_tuple {τ : types} vs (xs : τ) :
 Proof. intros ->. auto. Qed.
 
 Global Hint Resolve encode_tuple_is_encode solve_encode_tuple : encode.
+
+(* -------------------------------------------------------------------------- *)
 
 (* [TypesOf A] computes the [types] value corresponding to the plain Rocq
    type [A], along with a proof that [coerce_to_type types_of = A].
@@ -106,9 +139,8 @@ Defined.
 (* [Encode_from_types] and [TypesOf_base] form a cycle:
    [Encode A → TypesOf A → Encode A].  A search for [Encode A] with no
    direct instance therefore diverges instead of failing.  The
-   offending step is [TypesOf_base] directly under [Encode_from_types]
-   (it wraps the same [Encode A] goal it came from); productive
-   derivations always interleave [TypesOf_cons], so cutting the
+   offending step is [TypesOf_base] directly under [Encode_from_types];
+   productive derivations always interleave [TypesOf_cons], so cutting the
    consecutive pair breaks the cycle without losing any solution. *)
 Global Hint Cut [_* Encode_from_types TypesOf_base] : typeclass_instances.
 

@@ -161,30 +161,15 @@ Qed.
 
 (* EData (c : data) (e : list expr) *)
 
-(* Variant taking the logical value explicitly, for constants that do
-   not have a [Constant] instance. *)
-Lemma pure_eval_const_val `{Encode A} `{Encode C}
-  η c x (ψ : A -> Prop) (ζ : C → Prop) :
-  VConstant c = #x ->
-  ψ x ->
-  pure (eval η (EConstant c)) ψ ζ.
-Proof.
-  intros.
-  simpl_eval.
-  eauto using pure_ret with pure.
-Qed.
-
-(* The logical value of the constant is determined by [Constant]
-   instance resolution (constructors.v).  As with [imp_EConstant], the
-   instance must be resolved before unification against a fixed [ψ],
-   so [c] and [B] must be concrete at elaboration time; the
-   [pure_const] tactic reads both off the goal. *)
+(* The logical value of the constant is determined by the [Constant]
+   typeclass resolution. *)
 Lemma pure_eval_const {c : data} {B : Type} {HB : Encode B} {HC : Constant c B} `{Encode C}
   η (ψ : B -> Prop) (ζ : C → Prop) :
   ψ (@constant_value c B HB HC) ->
   pure (eval η (EConstant c)) ψ ζ.
 Proof.
-  intros. eapply pure_eval_const_val.
+  intros. simpl_eval.
+  eapply pure_ret.
   - apply constant_encode.
   - assumption.
 Qed.

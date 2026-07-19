@@ -1,7 +1,7 @@
 From osiris.utils Require Import tactics.
 From osiris.lang Require Import encode type_nel constructors.
 From osiris.program_logic Require Import program_logic osiris_utils.
-Require Import env_lookups.
+Require Import env_lookups tactics.
 From stdpp Require Import strings.
 From Ltac2 Require Import Ltac2 Printf.
 
@@ -205,19 +205,7 @@ Ltac2 rec unfold_impure_evals (selpat : constr option) :=
 Ltac2 discharge_tuple_mono () :=
   iApply tuple_mono_refl.
 
-(* Specializes [imp_EConstant] (or [imp_EConstant'] when [primed]) to
-   the constant [c] of the focused goal's expression and to the domain
-   type [B] of its postcondition.  Both keys must be concrete at
-   elaboration time so that the [Constant c B] instance is resolved
-   then: an application left with an unresolved instance cannot unify
-   [constant_value] against a fixed postcondition. *)
-Ltac2 specialized_imp_EConstant (primed : bool) : constr :=
-  let e := get_expr () in
-  let c :=
-    lazy_match! eval hnf in $e with
-    | EData ?c [] => c
-    end
-  in
+Ltac2 get_postcondition_arg_type () :=
   let phi :=
     lazy_match! get_iris_goal () with
     | impure _ _ _ _ ?phi => phi
@@ -225,20 +213,39 @@ Ltac2 specialized_imp_EConstant (primed : bool) : constr :=
   in
   lazy_match! Constr.type phi with
   | ?b → _ =>
-      (* In an [evals] context the domain appears as [coerce_to_type
-         (Tbase B)]; reduce it so instance search keys on [B] itself
-         (the coerced form selects [Encode_tuple] instead of the
-         element type's own [Encode] instance).  [coerce_to_type] is
-         [simpl never], hence the targeted [cbv]. *)
-      let b := (eval cbv beta iota delta [type_nel.coerce_to_type] in $b) in
-      (* Resolve the instance with a strict [constr:( )]: an
-         open_constr would leave an unresolved instance evar behind
-         instead of failing, and the resulting [constant_value] never
-         reduces. *)
-      let hc := constr:((_ : Constant $c $b)) in
-      if primed then '(imp_EConstant' (HC:=$hc))
-      else '(imp_EConstant (HC:=$hc))
+    (* In an [evals] context the domain appears as
+       [coerce_to_type (Tbase B)]; reduce it so instance search
+       keys on [B] itself (the coerced form selects
+       [Encode_tuple] instead of the element type's own
+       [Encode] instance).  [coerce_to_type] is [simpl never],
+       hence the targeted [cbv]. *)
+    (eval cbv beta iota delta [type_nel.coerce_to_type] in $b)
   end.
+
+(* Specializes [imp_EConstant] (or [imp_EConstant'] when [primed]) to
+   the constant [c] of the focused goal's expression and to the domain
+   type [B] of its postcondition.  Both keys must be concrete at
+   elaboration time so that the [Constant c B] instance is resolved
+   then: an application left with an unresolved instance cannot unify
+   [constant_value] against a fixed postcondition. *)
+Ltac2 specialized_imp_EConstant (primed : bool) (bopt : constr option) : constr :=
+  let e := get_expr () in
+  let c :=
+    lazy_match! eval hnf in $e with
+    | EData ?c [] => c
+    end
+  in
+  let b :=
+    match bopt with
+    | Some b => b
+    | None => get_postcondition_arg_type ()
+    end
+  in
+  (* Determining the [Constant] instance; kept in step with the twin
+     logic in [pure_const0] (pure_tactics.v). *)
+  let hc := determine_Constant_instance c b in
+  if primed then '(imp_EConstant' (HC:=$hc))
+  else '(imp_EConstant (HC:=$hc)).
 
 Ltac2 rec imp_step0 (reading : constr option) :=
   let e := get_expr () in
@@ -325,7 +332,7 @@ with imp_data0 (selpat : constr option) (reading : constr option) :=
   let e := (eval hnf in $e) in
   lazy_match! e with
   | EData _ [] =>
-      let lem := specialized_imp_EConstant false in
+      let lem := specialized_imp_EConstant false None in
       iApply $lem
   | EData _ _ =>
     (* Like [imp_tuple0]: split the resources amongst the constructor
@@ -776,45 +783,31 @@ Tactic Notation "imp_if" "with" constr(sel) :=
   tac sel.
 Tactic Notation "imp_if" := ltac2:(imp_if_tac None).
 
-(* [imp_constant_tac v sel] applies [imp_EConstant]/[imp_EConstant']
+(* [imp_constant_tac bopt sel] applies [imp_EConstant]/[imp_EConstant']
    (choosing based on whether resources were passed via [sel]), whose
-   logical value is found by [Constant] instance resolution.  When the
-   value [v] is given explicitly, the [imp_EConstant_val] variants are
-   used instead and the encoding side-goal is discharged by [encode]. *)
+   logical value is found by [Constant] instance resolution.  The
+   constant's type is read off the goal's postcondition, unless it is
+   given explicitly via [bopt] — needed when the goal leaves it
+   undetermined (e.g. a constant tuple/data-constructor component whose
+   type nothing constrains yet; see [pure_const] for the analogous
+   pure-side case). *)
 
-Ltac2 imp_constant_tac (v : constr option) (sel : constr option) :=
-  match v with
-  | None =>
-      let lem := specialized_imp_EConstant (is_Some sel) in
-      match sel with
-      | None => iApply $lem
-      | Some s => iApply ($lem with $s)
-      end
-  | Some a =>
-      let specialized_const :=
-        match sel with
-        | None => '(imp_EConstant_val $a)
-        | Some _ => '(imp_EConstant_val' $a)
-        end
-      in
-      match sel with
-      | None =>
-          iApply $specialized_const; ltac1:(encode)
-      | Some s =>
-          iApply ($specialized_const with $s) >
-            [ ltac1:(encode) | ]
-      end
+Ltac2 imp_constant_tac (bopt : constr option) (sel : constr option) :=
+  let lem := specialized_imp_EConstant (is_Some sel) bopt in
+  match sel with
+  | None => iApply $lem
+  | Some s => iApply ($lem with $s)
   end.
 
-Tactic Notation "imp_constant" constr(a) "with" constr(sel) :=
-  let tac := ltac2:(a sel |- imp_constant_tac (Ltac1.to_constr a) (Ltac1.to_constr sel)) in
-  tac a sel.
+Tactic Notation "imp_constant" constr(b) "with" constr(sel) :=
+  let tac := ltac2:(b sel |- imp_constant_tac (Ltac1.to_constr b) (Ltac1.to_constr sel)) in
+  tac b sel.
 Tactic Notation "imp_constant" "with" constr(sel) :=
   let tac := ltac2:(sel |- imp_constant_tac None (Ltac1.to_constr sel)) in
   tac sel.
-Tactic Notation "imp_constant" constr(a) :=
-  let tac := ltac2:(a |- imp_constant_tac (Ltac1.to_constr a) None) in
-  tac a.
+Tactic Notation "imp_constant" constr(b) :=
+  let tac := ltac2:(b |- imp_constant_tac (Ltac1.to_constr b) None) in
+  tac b.
 Tactic Notation "imp_constant" := ltac2:(imp_constant_tac None None).
 
 From iris.proofmode Require Import ltac_tactics.

@@ -675,8 +675,7 @@ Proof.
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const_val.
-    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
+    pure_const (tree A). apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
 
     intros ? ? -> <-.
@@ -687,8 +686,7 @@ Proof.
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const_val.
-    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
+    pure_const (tree A). apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
     intros ? ? -> <-.
     specialize (Hsplay A _ x1 x x0 Leaf).

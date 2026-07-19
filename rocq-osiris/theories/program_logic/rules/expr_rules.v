@@ -122,45 +122,19 @@ Section imp_rules_expr.
   (** * EData : data → expr → expr *)
   (* See [evals_rules.v] *)
 
-  (* E/VConstant is a macro for E/VData *)
-
-  (* Variants taking the logical value explicitly, for constants that
-     do not have a [Constant] instance. *)
-  Lemma imp_EConstant_val `{Encode A} {ζ} (a : A) η c :
-    VConstant c = #a →
-    ⊢ imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }}.
-  Proof.
-    iIntros (Henc). simpl_eval.
-    by iApply imp_ret.
-  Qed.
-
-  Lemma imp_EConstant_val' `{Encode A} {Φ : A → iProp Σ} {ζ} (a : A) η c :
-    VConstant c = #a →
-    Φ a -∗
-    imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros (Henc) "HΦ". simpl_eval.
-    by iApply (imp_ret with "HΦ").
-  Qed.
-
-  (* The logical value of the constant is determined by [Constant]
-     instance resolution (constructors.v).  Note for applying these
-     rules against a fixed postcondition: the instance must be resolved
-     *before* unification (an unresolved [constant_value] does not
-     reduce), so [c] and [B] must be concrete at elaboration time.  The
-     [imp_constant] tactic reads both off the goal. *)
+  (* The logical value of the constant is determined by the [Constant] typeclass. *)
   Lemma imp_EConstant {c : data} {B : Type} {HB : Encode B} {HC : Constant c B} {ζ} η :
     ⊢ imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ b, ⌜b = @constant_value c B HB HC⌝ }}.
   Proof.
-    iApply imp_EConstant_val. apply constant_encode.
+    simpl_eval. iApply imp_ret; [apply constant_encode | done].
   Qed.
 
   Lemma imp_EConstant' {c : data} {B : Type} {HB : Encode B} {HC : Constant c B} {Φ' : B → iProp Σ} {ζ} η :
     Φ' (@constant_value c B HB HC) -∗
     imp eval η (EConstant c) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }}.
   Proof.
-    iIntros "HΦ".
-    iApply (imp_EConstant_val' with "HΦ"). apply constant_encode.
+    iIntros "HΦ". simpl_eval.
+    iApply (imp_ret with "HΦ"). apply constant_encode.
   Qed.
 
   (** * EXData : data → expr → expr *)

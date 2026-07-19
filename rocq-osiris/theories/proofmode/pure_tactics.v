@@ -3,6 +3,8 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
+Require Import tactics.
+
 Local Ltac pat_PTuple :=
   first [
       eapply pat_PTuple; first solve [ encode ]
@@ -13,8 +15,9 @@ Local Ltac pat_PTuple :=
     | rewrite 1 ?encode_encode'; simpl -[eval];
       eapply pat_PTuple_val ].
 
-From Ltac2 Require Ltac2.
-Import Ltac2.
+From Ltac2 Require Ltac2 Printf.
+Import Ltac2 Printf.
+From osiris.utils Require Import tactics.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1025,40 +1028,40 @@ Tactic Notation "pure_path" := ltac2:(pure_path); try apply eq_refl.
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
-Ltac2 pure_const0 () :=
+Ltac2 pure_const0 (bopt : constr option) :=
   let (m, φ) := decompose_pure () in
   let e := get_expr_from_eval m in
   match! e with
   | EConstant ?c =>
-      match! Constr.type φ with
-      | val -> Prop =>
-          (* The constant is reflected as a raw value. *)
-          eapply pure_eval_const_val;
-          Control.focus 1 1 (fun _ => rewrite <- solve_encode_val; reflexivity)
-      | ?b -> _ =>
-          (* Specialize [pure_eval_const] to the constant [c] and the
-             postcondition's domain type so that the [Constant]
-             instance is resolved at elaboration time (see
-             [specialized_imp_EConstant] in imp_tactics.v).  Fall back
-             to the explicit-value rule and the [encode] hints when no
-             instance is declared. *)
-          let b := (eval cbv beta iota delta [type_nel.coerce_to_type] in $b) in
-          Control.plus
-            (fun _ =>
-               (* Strict [constr:( )]: fail (and fall back) when no
-                  instance is declared, rather than leaving an
-                  unresolved instance evar behind. *)
-               let hc := constr:((_ : Constant $c $b)) in
-               let lem := '(pure_eval_const (HC:=$hc)) in
-               eapply $lem)
-            (fun _ =>
-               eapply pure_eval_const_val;
-               Control.focus 1 1 (fun _ => solve [ ltac1:(encode) ]))
-      end
+      (* Specialize [pure_eval_const] to the constant [c] and the
+         postcondition's domain type, so that the [Constant] instance
+         is resolved at elaboration time (see
+         [specialized_imp_EConstant] in imp_tactics.v).  The type is
+         read off the postcondition, unless it is given explicitly —
+         which is needed when the goal leaves it undetermined (e.g. a
+         constant tuple component whose type nothing constrains
+         yet). *)
+      let b :=
+        match bopt with
+        | Some b => b
+        | None =>
+            lazy_match! Constr.type φ with
+            | ?b -> _ =>
+                (eval cbv beta iota delta [type_nel.coerce_to_type] in $b)
+            end
+        end
+      in
+      let hc := determine_Constant_instance c b in
+      let lem := '(pure_eval_const (HC:=$hc)) in
+      eapply $lem
   end.
 
-Ltac2 Notation "pure_const" := Control.enter pure_const0.
-Tactic Notation "pure_const" := ltac2:(pure_const).
+Ltac2 Notation "pure_const" := Control.enter (fun () => pure_const0 None).
+Tactic Notation "pure_const" :=
+  ltac2:(Control.enter (fun () => pure_const0 None)).
+Tactic Notation "pure_const" constr(b) :=
+  let tac := ltac2:(b |- Control.enter (fun () => pure_const0 (Ltac1.to_constr b))) in
+  tac b.
 
 (* -------------------------------------------------------------------------- *)
 
