@@ -26,33 +26,43 @@ Section atomic_proofs.
      current and expected blocks; the latter resolve the physical
      comparison performed by the CAS ([expected] must be a *mutable*
      block for the comparison to be defined). The caller learns the
-     comparison's outcome when closing. *)
+     comparison's outcome when closing.
 
-  Definition compare_and_set_spec (l : loc) (seen v' : val)
+     Both the "expected" snapshot [seen] and the "new value" [v'] are
+     generic over any [A] with an [Encode A] instance (not hardcoded to
+     [val]): a client that already holds the *record* underlying its
+     snapshot (e.g. from an earlier atomic read) or that just allocated
+     a fresh record for the new value can instantiate [A := record]
+     under the local [encode_record c] instance and pass records
+     directly — no val/elem bridging needed, since [imp_EInline] and
+     the atomic record-read rules already produce elem-domain
+     postconditions. *)
+
+  Definition compare_and_set_spec `{Encode A} (l : loc) (seen v' : A)
       (m : microvx) : iProp Σ :=
     ∀ (E2 : coPset) (Φ : bool → iProp Σ),
       ▷ (|={⊤,E2}=>
            ∃ c cs (r rs : record) dq1 dq2 t,
-             ⌜seen = VInline cs rs⌝ ∗
+             ⌜#seen = VInline cs rs⌝ ∗
              ▷ l ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
-             ▷ (l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
+             ▷ (l ↦ (if locations.eqb r rs then #v' else VInline c r) -∗
                 isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
                 |={E2,⊤}=> Φ (locations.eqb r rs))) -∗
       imp m {{ Φ }}.
 
   Lemma imp_Loc_compare_and_set η :
     ⊢ imp (eval η (EAnonFun __Loc_fun5))
-        {{ λ c, □ iSpec τ[loc; val; val] c compare_and_set_spec }}.
+        {{ λ c, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] c compare_and_set_spec }}.
   Proof.
-    iApply imp_EAnon_pers.
-    iIntros "!> /=".
+    iApply imp_EAnon_poly_pers.
+    iIntros "!>" (A HencA). simpl.
     iIntros (l seen v').
     unfold compare_and_set_spec.
     iIntros (E2 Φ) "Hfupd".
     iApply imp_please; iNext.
     iApply (imp_cas_inline_atomic E2 ⊤ _ _ _ _
-              (λ l0 : loc, ⌜l0 = l⌝)%I (λ s : val, ⌜s = seen⌝)%I
-              (λ w : val, ⌜w = v'⌝)%I
+              (λ l0 : loc, ⌜l0 = l⌝)%I (λ s : val, ⌜s = #seen⌝)%I
+              (λ w : val, ⌜w = #v'⌝)%I
               with "[] [] [] [Hfupd]").
     { imp_path. }
     { imp_path. }
@@ -76,7 +86,7 @@ Section atomic_proofs.
   Definition atomic_loc_module_spec : env → iProp Σ :=
     (context [
          var_spec "compare_and_set"
-           (λ cas, □ iSpec τ[loc; val; val] cas compare_and_set_spec)
+           (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)
       ] atomic_loc_module_dom)%I.
 
   Definition atomic_module_dom : gset var :=
@@ -106,7 +116,7 @@ Section atomic_proofs.
       { admit. }
       iIntros (exchange) "_".
       iApply (imp_sitems_external
-                (λ cas, □ iSpec τ[loc; val; val] cas compare_and_set_spec)%I).
+                (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)%I).
       { iApply imp_Loc_compare_and_set. }
       iIntros (cas) "#Hcas".
       iApply (imp_sitems_external (λ _, True)%I).
@@ -159,7 +169,7 @@ Section atomic_proofs.
   Lemma atomic_cas_path_spec η :
     in_env "Atomic" atomic_module_spec η -∗
     path_spec ["Atomic"; "Loc"; "compare_and_set"]
-      (λ cas, □ iSpec τ[loc; val; val] cas compare_and_set_spec)%I η.
+      (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)%I η.
   Proof.
     iIntros "(%δA & %HA & #HAspec)".
     rewrite /atomic_module_spec /atomic_loc_module_spec /context /=.

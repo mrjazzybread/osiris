@@ -210,6 +210,35 @@ Section records_reasoning.
     iApply (imp_ret with "HΦ"). encode.
   Qed.
 
+  (* [ERecordAccess e f], read through a single field's points-to at an
+     arbitrary (possibly discardable) fraction — unlike [imp_ERecordAccess]
+     / [imp_ERecordAccess2], no [ownBlock] of the *whole* record is
+     required. This is what makes it usable for immutable fields (e.g. a
+     vertex's [id]) whose points-to is persisted ([DfracDiscarded]) at
+     allocation time and shared freely, rather than tracked as an
+     exclusive/fractional resource. *)
+
+  Lemma imp_ERecordAccess_pers {ζ} `{Encode A} f {Φ : A → iProp Σ} r ls dq (v : A) e :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    impure E (eval η e) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
+    ▷ (ls !!! f) ↦{dq} #v -∗
+    ▷ ((ls !!! f) ↦{dq} #v -∗ Φ v) -∗
+    impure E (eval η (ERecordAccess e f)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvalid) "#Hblock He Hl HΦ". simpl_eval.
+    iApply (imp_bind with "[He]").
+    { iApply (imp_as_record with "He"). }
+    iIntros (?) "->".
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[]").
+    { iApply (imp_load_block_ghost with "Hblock"). }
+    iIntros ([? ?]) "-> /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    iApply (imp_load' with "Hl").
+    iIntros "!> Hl".
+    iApply ("HΦ" with "Hl").
+  Qed.
+
   Lemma imp_ERecordSet2 {τ : types} {ζ} f {Φ : unit → iProp Σ} (Φ1 : record → iProp Σ) (Φ2 : τ !!! f → iProp Σ) e1 e2 :
     impure E (eval η e1) Ψ ζ Φ1 -∗
     impure E (eval η e2) Ψ ζ Φ2 -∗

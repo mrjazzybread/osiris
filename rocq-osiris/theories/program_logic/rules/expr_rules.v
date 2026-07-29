@@ -441,6 +441,37 @@ Section imp_rules_expr.
     iIntros (b) "->". iApply (imp_ret with "(Hjoin HΦ1 HΦ2)"). encode.
   Qed.
 
+  (* Physical equality of two (non-inline) records. Unlike [loc], deciding
+     physical equality of a [VRecord] requires consulting the store (to
+     check that at least one operand is a mutable block), hence the extra
+     [isBlock ... DfracDiscarded t] knowledge threaded through [Φ1]/[Φ2]. *)
+  Lemma imp_EOpPhysEq_record {ζ} η e1 e2 (Φ1 Φ2 : record → iProp Σ) (Φ : bool → iProp Σ) t1 t2 :
+    t1 = Mut ∨ t2 = Mut →
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, Φ1 l ∗ isBlock l DfracDiscarded t1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, Φ2 l ∗ isBlock l DfracDiscarded t2 }} -∗
+    ▷ (∀ l1 l2, Φ1 l1 -∗ Φ2 l2 -∗ Φ (locations.eqb l1 l2)) -∗
+    imp eval η (EOpPhysEq e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hmut) "H1 H2 Hjoin /=". simpl_eval.
+    iApply (imp_bind_par with "H1 H2").
+    iIntros (l1 l2) "[HΦ1 Hb1] [HΦ2 Hb2] !>".
+    rewrite /phys_eq_val /=.
+    iApply (imp_bind with "[Hb1 Hb2]").
+    { iDestruct "Hb1" as (ls1) "Hb1".
+      iDestruct "Hb2" as (ls2) "Hb2".
+      iPoseProof (imp_load_block with "Hb1") as "Hb1'".
+      iPoseProof (imp_load_block with "Hb2") as "Hb2'".
+      iApply (imp_bind_par with "Hb1' Hb2'").
+      iIntros ([t1' ls1'] [t2' ls2']) "(-> & -> & _) (-> & -> & _) !>".
+      destruct t1, t2; rewrite /=;
+        [ iApply imp_ret; first reflexivity;
+          instantiate (1 := (λ b, ⌜b = locations.eqb l1 l2⌝)%I); done
+        | iApply imp_ret; first reflexivity; done
+        | iApply imp_ret; first reflexivity; done
+        | exfalso; destruct Hmut as [Hc | Hc]; discriminate Hc ]. }
+    iIntros (b) "->". iApply (imp_ret with "(Hjoin HΦ1 HΦ2)"). encode.
+  Qed.
+
   (** * EOpEq : expr → expr → expr *)
 
   Lemma imp_EOpEq `{Encode A1, Encode A2} {Φ : bool → iProp Σ} {ζ} η e1 e2 Φ1 Φ2 :
