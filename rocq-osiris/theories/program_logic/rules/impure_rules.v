@@ -98,6 +98,32 @@ Section monotonicity.
     - iIntros (?) "?". by iApply "H".
     - iIntros (?) "?". by iApply "H".
   Qed.
+  (* [imp_wand], but crossing [Observe] instances: unlike [imp_wand] (which
+     keeps the postcondition's logical type [A] fixed throughout the whole
+     section), this lets the continuation reinterpret the computation's
+     result at a *different* [Encode]/[Observe]-typed view [A2], as long as
+     the underlying [val]-level ([V]) observation agrees. This is what
+     makes it possible, e.g., to view a freshly-allocated [record] (via one
+     [Encode record] instance, such as a tag-specific wrapper like
+     [link_enc]) as a plain [val] (via the generic [Encode val] identity
+     instance), which no same-type combinator ([imp_wand], [imp_mono], ...)
+     can do since they all fix a single [A] for the whole section. *)
+
+  Lemma imp_wand_observe {A2} `{Observe A2 V} E m Ψ ζ (Q' : A → iProp Σ) (Q2 : A2 → iProp Σ) :
+    impure E m Ψ ζ Q' -∗
+    (∀ v, Q' v -∗ ∃ w : A2, ⌜(♯v : V) = ♯w⌝ ∗ Q2 w) -∗
+    impure E m Ψ ζ Q2.
+  Proof.
+    iIntros "Hwp H". unfold impure.
+    iApply (ewp_strong_mono with "Hwp"); first done.
+    { iApply iEff_le_refl. }
+    iIntros ([v|e]).
+    - iIntros "(%a & -> & HQ')".
+      iDestruct ("H" with "HQ'") as (w) "[-> HQ2]".
+      iModIntro. iExists w. auto.
+    - iIntros "Hζ". auto.
+  Qed.
+
   Lemma imp_wand_exn E m Ψ ζ' ζ Q :
     impure E m Ψ ζ' Q -∗ (∀ e, ζ' e -∗ ζ e) -∗ impure E m Ψ ζ Q.
   Proof.
