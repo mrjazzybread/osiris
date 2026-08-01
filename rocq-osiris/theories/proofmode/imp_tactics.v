@@ -281,9 +281,9 @@ Ltac2 rec imp_step0 (reading : constr option) :=
             (fun () => imp_step0 reading)
             (fun _ => discharge_tuple_mono ())))
   | ERecord _ _ =>
-      complete (fun () => imp_record0 None reading)
+      complete (fun () => imp_record0 None reading None)
   | EInline _ _ _ =>
-      complete (fun () => imp_record0 None reading)
+      complete (fun () => imp_record0 None reading None)
   | ERecordAccess _ _ => imp_record_access0 None
   | _ =>
       Control.zero
@@ -442,17 +442,32 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
            (Some (fprintf "Expected %t to be an arithmetic expression" e)))
   end
 
-with imp_record0 (selpat : constr option) (reading : constr option) :=
+with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
   let specialized_lemma :=
+    (* [a_opt], when given, pins the [RecordRepr]'s logical model type [A]
+       explicitly (via [imp_record $! A]), instead of leaving both [A] and
+       the field types of [τ] to typeclass search. This is needed whenever
+       more than one [RecordRepr] instance shares the same field-count
+       shape (e.g. two distinct single-field [Mut] records): search alone
+       cannot tell them apart and silently picks an arbitrary match, so the
+       caller must disambiguate by hand. *)
     match! e with
     | ERecord _ ?es =>
-      let τ := utypes_from_exprs es in
-      '(imp_record (τ:=$τ))
+      match a_opt with
+      | Some a => '(imp_record (A:=$a))
+      | None =>
+        let τ := utypes_from_exprs es in
+        '(imp_record (τ:=$τ))
+      end
     | EInline _ _ ?es =>
-      let τ := utypes_from_exprs es in
-      '(imp_inline_record (τ:=$τ))
+      match a_opt with
+      | Some a => '(imp_inline_record (A:=$a))
+      | None =>
+        let τ := utypes_from_exprs es in
+        '(imp_inline_record (τ:=$τ))
+      end
     | _ =>
       Control.zero
         (Tactic_failure
@@ -511,10 +526,16 @@ Tactic Notation "imp_data" "with" constr(sel) :=
   let tac := ltac2:(sel |- imp_data0 (Ltac1.to_constr sel) None) in
   tac sel.
 
-Tactic Notation "imp_record" := ltac2:(imp_record0 None None).
+Tactic Notation "imp_record" := ltac2:(imp_record0 None None None).
 Tactic Notation "imp_record" "with" constr(sel) :=
-  let tac := ltac2:(s |- imp_record0 (Ltac1.to_constr s) None) in
+  let tac := ltac2:(s |- imp_record0 (Ltac1.to_constr s) None None) in
   tac sel.
+Tactic Notation "imp_record" "$!" constr(a) :=
+  let tac := ltac2:(a |- imp_record0 None None (Ltac1.to_constr a)) in
+  tac a.
+Tactic Notation "imp_record" "with" constr(sel) "$!" constr(a) :=
+  let tac := ltac2:(sel a |- imp_record0 (Ltac1.to_constr sel) None (Ltac1.to_constr a)) in
+  tac sel a.
 
 Tactic Notation "imp_record_read" constr(r) :=
   let tac := ltac2:(r |- imp_record_access0 (Ltac1.to_constr r)) in

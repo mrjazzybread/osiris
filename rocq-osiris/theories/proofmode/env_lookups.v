@@ -119,6 +119,43 @@ Section LookupName.
       + apply IH.
   Qed.
 
+  Lemma not_elem_of_dom_lookup_name (η : env) name :
+    name ∉ (list_to_set (η.*1) : gset var) → lookup_name η name = None.
+  Proof.
+    induction η as [|[y v] η IH]; simpl; first done.
+    intros Hnin.
+    simpl in Hnin.
+    apply not_elem_of_union in Hnin as [Hne Hnin].
+    apply not_elem_of_singleton in Hne.
+    destruct (name =? y)%string eqn:Heq; last by apply IH.
+    exfalso. apply Hne. by apply String.eqb_eq in Heq.
+  Qed.
+
+  (* [lookup_path] only ever inspects the environment through
+     [lookup_name] on the path's own head — the rest of the path is
+     resolved inside the module value that head resolves to, entirely
+     independently of whatever else the outer environment contains. So
+     [lookup_path] agrees on [η] and any environment differing from it
+     only in bindings absent from the path's head. *)
+
+  Lemma lookup_path_cons π (η : env) y w :
+    (match π with [] => True | x :: _ => (x =? y)%string = false end) →
+    lookup_path ((y, w) :: η) π = lookup_path η π.
+  Proof.
+    destruct π as [|x π]; simpl; first done.
+    intros Hne.
+    destruct π as [|z π]; simpl; rewrite Hne; reflexivity.
+  Qed.
+
+  Lemma lookup_path_app_r π (η δ : env) :
+    (match π with [] => True | x :: _ => lookup_name δ x = None end) →
+    lookup_path (δ ++ η) π = lookup_path η π.
+  Proof.
+    destruct π as [|x π]; simpl; first done.
+    intros Hδ.
+    destruct π as [|y π]; simpl; rewrite (lookup_name_app_r x δ η Hδ); reflexivity.
+  Qed.
+
 End LookupName.
 
 (* --------------------------------------------------------------------------*)
@@ -216,6 +253,59 @@ Section PathSpec.
     simpl. destruct p.
     - simpl in Hlookup'. discriminate Hlookup'.
     - rewrite Hlookup. apply Hlookup'.
+  Qed.
+
+  (* Monotonicity of [path_spec], mirroring [in_env_mono]: lets [imp_path]
+     reuse an already-available [path_spec] hypothesis directly — e.g.
+     when the caller keeps a whole [path_spec p Φ' η] hypothesis folded
+     instead of destructuring it into the per-segment [in_env]/[context]
+     facts [solve_path_spec] otherwise decomposes it into. *)
+
+  Lemma path_spec_mono (Φ' : A → iProp Σ) p η :
+    path_spec p Φ' η -∗
+    (∀ a, Φ' a -∗ Φ a) -∗
+    path_spec p Φ η.
+  Proof.
+    iIntros "(%a & %Hlookup & HΦ') Hmono".
+    iExists a. iSplit; first done.
+    iApply ("Hmono" with "HΦ'").
+  Qed.
+
+  (* [path_spec] is unaffected by prepending a binding that doesn't
+     shadow the path's own head — used to let [imp_path] reuse a folded
+     [path_spec] hypothesis stated over an outer environment [η] even
+     when the actual goal's environment has since been extended (e.g. by
+     a function argument bound via [iIntros "!>" (v)]), without the
+     caller having had to re-derive the hypothesis for the new
+     environment by hand. *)
+
+  Lemma path_spec_cons_env p η y w :
+    (match p with [] => True | x :: _ => (x =? y)%string = false end) →
+    path_spec p Φ η -∗
+    path_spec p Φ ((y, w) :: η).
+  Proof.
+    iIntros (Hne) "(%v & %Hlookup & HΦ)".
+    iExists v. iSplit; last done.
+    iPureIntro. by rewrite (lookup_path_cons p η y w Hne).
+  Qed.
+
+  (* The [context]-based analogue of [path_spec_cons_env], for when the
+     environment was extended by appending a whole (module-)context
+     fragment rather than a single binding — mirrors [in_env_app_r]. *)
+
+  Lemma path_spec_app_r p η δ d mspec :
+    (match p with [] => True | x :: _ => x ∉ d end) →
+    context mspec d δ -∗
+    path_spec p Φ η -∗
+    path_spec p Φ (δ ++ η).
+  Proof.
+    iIntros (Hnin) "(%Hdom & _) (%v & %Hlookup & HΦ)".
+    iExists v. iSplit; last done.
+    iPureIntro.
+    rewrite (lookup_path_app_r p η δ); [done|].
+    destruct p as [|x p]; first done.
+    apply not_elem_of_dom_lookup_name.
+    unfold dom, dom_env in Hdom. rewrite Hdom. exact Hnin.
   Qed.
 
 End PathSpec.
@@ -416,6 +506,37 @@ Ltac2 get_in_env (x : constr) (η : constr) : constr :=
     (fun _ => go pers_hyps)
     (fun _ => go spat_hyps).
 
+(* [get_path_spec p η] tries to find a hypothesis of the form
+   [path_spec p' _ η] in the iris context, for a path [p'] equal to [p]
+   (and the same environment [η]). This lets [solve_path_spec] reuse an
+   already-available [path_spec] hypothesis directly when the caller
+   kept it folded (e.g. [path_spec ["G";"fresh"] Φ η] introduced via a
+   plain [iIntros "#HG"], not destructured into the per-segment
+   [in_env]/[context] facts the rest of [imp_path] otherwise looks
+   for). *)
+
+Ltac2 get_path_spec (p : constr) (η : constr) : constr :=
+  let (pers_hyps, spat_hyps) := get_iris_hyps () in
+  let rec go env :=
+    lazy_match! env with
+    | environments.Enil =>
+        Control.zero (Tactic_failure
+                        (Some (fprintf "Could not find [path_spec] hypothesis for path %t" p)))
+    | environments.Esnoc ?env ?name ?prop =>
+        match! prop with
+        | path_spec ?p' _ ?δ =>
+            if Constr.equal p p' && Constr.equal η δ then
+              name
+            else
+              go env
+        | _ => go env
+        end
+    end
+  in
+  Control.plus
+    (fun _ => go pers_hyps)
+    (fun _ => go spat_hyps).
+
 
 (** Applying lemmas that reason about [in_env]. *)
 
@@ -559,24 +680,77 @@ Ltac2 rec path_spec_to_in_env () : detected_path :=
   | _ => Control.zero (Tactic_failure (Some (fprintf "Expected goal to be [path_spec]")))
   end.
 
+(* [try_reuse_path_spec] tries to solve a goal [path_spec p Φ env] by
+   reusing an already-available [path_spec p _ env'] hypothesis
+   directly, for an [env'] equal to [env] up to bindings prepended
+   after the hypothesis was obtained (e.g. a function argument bound
+   via [iIntros "!>" (v)], or a whole [context] fragment appended via
+   module-opening) — the case where the caller kept the hypothesis
+   folded instead of destructuring it into the per-segment
+   [in_env]/[context] facts the rest of this file otherwise works with.
+
+   It walks down [env]'s cons/app structure exactly like [solve_in_env]
+   does for [in_env] goals (via [path_spec_cons_env]/[path_spec_app_r],
+   the [path_spec] analogues of [in_env_cons]/[in_env_app_r]), stopping
+   as soon as [get_path_spec] finds a hypothesis for the path and the
+   environment reached so far. *)
+
+Ltac2 rec try_reuse_path_spec () :=
+  lazy_match! get_iris_goal () with
+  | path_spec ?p ?_spec ?goal_env =>
+      match! goal_env with
+      | (?_y, ?_w) :: ?_rest =>
+          Control.plus
+            (fun _ =>
+               iApply path_spec_cons_env;
+               Control.focus 1 1 (fun _ => complete (fun _ => reflexivity));
+               try_reuse_path_spec ())
+            (fun _ =>
+               let hyp_name := get_path_spec p goal_env in
+               iApply (path_spec_mono with $hyp_name);
+               iIntros "% #Hspec"; iApply "Hspec")
+      | ?δ ++ ?_rest =>
+          Control.plus
+            (fun _ =>
+               let spec_name := get_context_spec δ in
+               iApply (path_spec_app_r with $spec_name);
+               Control.focus 1 1 (fun _ => complete (fun _ => ltac1:(set_solver)));
+               try_reuse_path_spec ())
+            (fun _ =>
+               let hyp_name := get_path_spec p goal_env in
+               iApply (path_spec_mono with $hyp_name);
+               iIntros "% #Hspec"; iApply "Hspec")
+      | ?base_env =>
+          let hyp_name := get_path_spec p base_env in
+          iApply (path_spec_mono with $hyp_name);
+          iIntros "% #Hspec"; iApply "Hspec"
+      end
+  | _ => Control.zero (Tactic_failure None)
+  end.
+
 (* [solve_path_spec] solves a goal of the form [path_spec p Φ η]. *)
 
-(* It first calls [path_spec_to_in_env] to produce a subgoal of the
-   form [in_env _ _ η], before calling [solve_in_env] to solve that
-   subgoal.
+(* It first tries [try_reuse_path_spec] (see above). Failing that (no
+   [path_spec] hypothesis found anywhere along the way, or its
+   postcondition doesn't line up with the goal's), it falls back to the
+   original strategy: [path_spec_to_in_env] reduces the goal to
+   [in_env _ _ η], which [solve_in_env] then solves.
 
    In the case where the path is not a singleton, [solve_path_spec]
    calls itself recursively on the tail of the path. *)
 
 Ltac2 rec solve_path_spec () :=
-  match path_spec_to_in_env () with
-  | Psingleton => solve_in_env ()
-  | Pcons =>
-      Control.focus 1 1 (fun _ => complete solve_in_env);
-      let hyp_name := iFresh "Hpath" in
-      iIntros ("% #" ++ $hyp_name)%string;
-      solve_path_spec ()
-  end.
+  Control.plus
+    try_reuse_path_spec
+    (fun _ =>
+       match path_spec_to_in_env () with
+       | Psingleton => solve_in_env ()
+       | Pcons =>
+           Control.focus 1 1 (fun _ => complete solve_in_env);
+           let hyp_name := iFresh "Hpath" in
+           iIntros ("% #" ++ $hyp_name)%string;
+           solve_path_spec ()
+       end).
 
 (** User-level tactics. *)
 
