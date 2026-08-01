@@ -810,6 +810,120 @@ Tactic Notation "imp_constant" constr(b) :=
   tac b.
 Tactic Notation "imp_constant" := ltac2:(imp_constant_tac None None).
 
+(* [imp_let] applies [imp_ELet_var] (one [PVar] binding, [let x = e' in
+   e]) or [imp_ELet_var2] (two bindings evaluated in parallel, [let x =
+   e1 and y = e2 in e]) to the current goal, resolving the bindings'
+   [Encode] plumbing automatically instead of it having to be spelled out
+   by hand at every call site (as the TODO note just below, above
+   [example_proof], used to require).
+
+   The bound variables' types are deferred via [evar] (as
+   [imp_match_tac] does for its scrutinee's type [imp_match_A'] — see the
+   comment there) ONLY when no explicit postcondition is given for that
+   binding: a bare typeclass hole [(_ : Encode B)] would eagerly run
+   instance search and pin [B] to an arbitrary existing instance, so the
+   evar is created with plain [evar] instead, leaving [B] (and, for the
+   two-binding case, [C]) to be pinned by whichever proof the caller
+   supplies for [e1]/[e2] — left as the leading open subgoals, exactly as
+   with [imp_app]/[imp_match].
+
+   [phi1]/[phi2], when given (via [$!], mirroring [imp_store' l $! Φ]
+   and [imp_match a' $! phi]), fix [e1]'s/[e2]'s postcondition up front
+   instead of leaving it as an evar: needed whenever that binding's own
+   proof picks its own witnesses for an existential postcondition (e.g.
+   [iExists] after allocating a fresh record) — [iExists] cannot
+   introspect a goal that is still an unresolved evar application. In
+   that case [B]/[C] are already pinned by [phi1]/[phi2]'s own type, so
+   the [evar] deferral is skipped entirely and [Encode B]/[Encode C] are
+   resolved by ordinary instance search instead — routing them through
+   an [imp_let_HB]/[imp_let_HC] evar in that case would leave it
+   unconnected to anything and never get resolved, breaking [Qed] at the
+   very end with an oblique "incomplete proof" error. For the
+   two-binding case both must be given together (or neither): there is
+   no way to fix [Φ2] alone without also fixing [Φ1], since
+   [imp_ELet_var2]'s [Φ1]/[Φ2] are positional explicit arguments.
+
+   [enc2], when given (via [enc2], only meaningful alongside two [$!]
+   clauses), fixes [e2]'s [Encode] instance explicitly — needed when
+   [C]'s type has several OCaml-variant tags sharing the same Rocq type
+   (e.g. a record type with more than one constructor), so that ordinary
+   instance search — which would otherwise run as soon as [Φ2]'s type
+   pins [C] — cannot pick the right one on its own. *)
+
+Ltac2 imp_let_tac (phi1 : constr option) (phi2 : constr option) (enc2 : constr option) :=
+  let e := get_expr () in
+  let mk_b () :=
+    mk_evar @imp_let_B 'Type;
+    let b := Control.hyp @imp_let_B in
+    let tyb := constr:(Encode $b) in
+    ltac1:(t |- evar (imp_let_HB : t)) (Ltac1.of_constr tyb);
+    b
+  in
+  let mk_c () :=
+    mk_evar @imp_let_C 'Type;
+    let c := Control.hyp @imp_let_C in
+    let tyc := constr:(Encode $c) in
+    ltac1:(t |- evar (imp_let_HC : t)) (Ltac1.of_constr tyc);
+    c
+  in
+  lazy_match! eval hnf in $e with
+  | ELet [Binding (PVar _) _] _ =>
+      let lem :=
+        match phi1 with
+        | None => let b := mk_b () in open_constr:(imp_ELet_var (B:=$b))
+        | Some p1 => open_constr:(imp_ELet_var $p1)
+        end
+      in iApply $lem
+  | ELet [Binding (PVar _) _; Binding (PVar _) _] _ =>
+      let lem :=
+        match phi1, phi2 with
+        | None, None =>
+            let b := mk_b () in
+            let c := mk_c () in
+            open_constr:(imp_ELet_var2 (B:=$b) (C:=$c))
+        | Some p1, Some p2 =>
+            match enc2 with
+            | None => open_constr:(imp_ELet_var2 $p1 $p2)
+            | Some h2 => open_constr:(imp_ELet_var2 (HC:=$h2) $p1 $p2)
+            end
+        | Some _, None =>
+            Control.zero (Tactic_failure
+              (Some (Message.of_string
+                "[imp_let] for two bindings, give both postconditions or neither")))
+        | None, Some _ =>
+            Control.zero (Tactic_failure
+              (Some (Message.of_string
+                "[imp_let] for two bindings, give both postconditions or neither")))
+        end
+      in iApply $lem
+  | ELet _ _ =>
+      Control.zero (Tactic_failure
+        (Some (Message.of_string "[imp_let] only supports 1 or 2 [PVar] bindings")))
+  | _ =>
+      Control.zero (Tactic_failure
+        (Some (fprintf "[imp_let] Expected ELet expression, got %t" e)))
+  end.
+
+Ltac2 Notation "imp_let" := imp_let_tac None None None.
+Ltac2 Notation "imp_let" "$!" phi1(constr) := imp_let_tac (Some phi1) None None.
+Ltac2 Notation "imp_let" "$!" phi1(constr) "$!" phi2(constr) :=
+  imp_let_tac (Some phi1) (Some phi2) None.
+Ltac2 Notation "imp_let" "$!" phi1(constr) "$!" phi2(constr) "enc2" henc2(constr) :=
+  imp_let_tac (Some phi1) (Some phi2) (Some henc2).
+Tactic Notation "imp_let" := ltac2:(imp_let_tac None None None).
+Tactic Notation "imp_let" "$!" constr(phi1) :=
+  let tac := ltac2:(phi1 |- imp_let_tac (Ltac1.to_constr phi1) None None) in
+  tac phi1.
+Tactic Notation "imp_let" "$!" constr(phi1) "$!" constr(phi2) :=
+  let tac := ltac2:(phi1 phi2 |-
+                      imp_let_tac (Ltac1.to_constr phi1) (Ltac1.to_constr phi2) None) in
+  tac phi1 phi2.
+Tactic Notation "imp_let" "$!" constr(phi1) "$!" constr(phi2) "enc2" constr(henc2) :=
+  let tac := ltac2:(phi1 phi2 henc2 |-
+                      imp_let_tac (Ltac1.to_constr phi1) (Ltac1.to_constr phi2)
+                        (Ltac1.to_constr henc2)) in
+  tac phi1 phi2 henc2.
+
 From iris.proofmode Require Import ltac_tactics.
 
 Set Default Proof Mode "Classic".

@@ -266,57 +266,42 @@ Lemma make_proof γ γc γn η :
   path_spec ["G"; "fresh"] (λ fresh, □ iSpec τ[unit] fresh (fresh_spec γ γc γn))%I η -∗
   imp (eval η (EAnonFun __make)) {{ λ c, □ iSpec τ[val] c (make_spec γ γc γn) }}.
 Proof.
-  iIntros "(%g & %Hg & #Hfresh)".
+  iIntros "#HG".
   iApply imp_EAnon_pers.
   iIntros "!>" (v).
   unfold make_spec.
   iIntros "#Hinv".
   iApply imp_please; iNext.
-  unfold __make. simpl. rewrite {1}/deco.
 
   (* Goal: [ let id = G.fresh() and content = Root { value = v } in ... ] *)
-  iApply (imp_ELet (A:=elem)).
-  { iApply (imp_bindings_cons (A:=Z) (λ i : Z, i ↪[γn] () ∗ ⌜representable i⌝)%I with "[] [] []").
-    { (* [G.fresh ()], through the [fresh_spec] hypothesis. *)
-      rewrite {1}/deco.
-      iApply (imp_EApp τ[unit]).
-      { rewrite {1}/deco. iApply (imp_EPath (A:=val) g).
-        { simpl. exact Hg. }
-        iApply "Hfresh". }
-      { rewrite {1}/deco. imp_step. }
-      simpl. iIntros (u) "_ %m Hm". iNext. iApply ("Hm" with "Hinv"). }
-    { iIntros (a) "_". iPureIntro. apply pat_PVar.
-      instantiate (1 := λ (w : Z) (l : env), l = [("id", #w)]). reflexivity. }
-    (* [Root { value = v }]: allocation of the content record. *)
-    iApply (imp_bindings_singleton (A:=record)
-        (H:={| encode' := λ rc : record, VInline "Root" rc |})
-        (λ r : record, ∃ lv : locations.loc,
-           isBlockLocs r [lv] ∗ isBlock r (DfracOwn 1) Mut ∗ lv ↦ v)%I
-        with "[] [] []").
-    { rewrite {1}/deco.
-      iApply (imp_wand with "[]").
-      { iApply (imp_EInline (τ:=τ[val]) (λ w : val, ⌜w = v⌝)%I).
-        { simpl. lia. }
-        iApply (imp_evals_singleton (A:=val)).
-        rewrite {1}/deco. imp_path. simpl. done. }
-      simpl. iIntros (r) "H".
-      iDestruct "H" as (xs) "((%ls & #Hlocs & Htag & Hxs) & ->)".
-      (* The freshly allocated block has exactly one field location. *)
-      iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
-      iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-      iExists lv. iFrame "Hlocs". iFrame. }
-    { iIntros (rc) "_". iPureIntro. apply pat_PVar.
-      instantiate (1 := λ (w : val) (l : env), l = [("content", w)]).
-      reflexivity. }
-    { iIntros (rc δ) "HΦ1 ->".
-      instantiate (1 := (λ δ : env, ∃ (rc : record) (lv : locations.loc),
-        ⌜δ = [("content", VInline "Root" rc)]⌝ ∗
-        isBlockLocs rc [lv] ∗ isBlock rc (DfracOwn 1) Mut ∗ lv ↦ v)%I).
-      iDestruct "HΦ1" as (lv) "(#Hlocs & Htag & Hlv)".
-      iExists rc, lv. iFrame "∗#". done. } }
-  iIntros (δ) "(%a & %η' & %δ' & -> & [Htok %Hrepa] & %HP & HQ)".
-  iDestruct "HQ" as (rc lv) "(-> & #Hlocs & Htag & Hlv)".
-  subst η'. simpl.
+  imp_let $! (λ i : Z, i ↪[γn] () ∗ ⌜representable i⌝)%I
+          $! (λ r : record, ∃ lv : locations.loc,
+                isBlockLocs r [lv] ∗ isBlock r (DfracOwn 1) Mut ∗ lv ↦ v)%I
+          enc2 ({| encode' := λ rc : record, VInline "Root" rc |} : Encode record).
+  { (* [G.fresh ()], through the [fresh_spec] hypothesis. *)
+    imp_app τ[unit].
+    rewrite {1}/deco.
+    iApply (imp_EApp τ[unit]).
+    { rewrite {1}/deco. iApply (imp_EPath (A:=val) g).
+      { simpl. exact Hg. }
+      iApply "Hfresh". }
+    { rewrite {1}/deco. imp_step. }
+    simpl. iIntros (u) "_ %m Hm". iNext. iApply ("Hm" with "Hinv"). }
+  { (* [Root { value = v }]: allocation of the content record. *)
+    rewrite {1}/deco.
+    iApply (imp_wand with "[]").
+    { iApply (imp_EInline (τ:=τ[val]) (λ w : val, ⌜w = v⌝)%I).
+      { simpl. lia. }
+      iApply (imp_evals_singleton (A:=val)).
+      rewrite {1}/deco. imp_path. simpl. done. }
+    simpl. iIntros (r) "H".
+    iDestruct "H" as (xs) "((%ls & #Hlocs & Htag & Hxs) & ->)".
+    (* The freshly allocated block has exactly one field location. *)
+    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
+    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+    iExists lv. iFrame "Hlocs". iFrame. }
+  iIntros (a rc) "[Htok %Hrepa] (%lv & #Hlocs & Htag & Hlv)".
+  simpl.
 
   (* Goal: [ { id; content } ]. Allocate the vertex, then register it (and
      its content record) in the invariant; this last step is a pure ghost
@@ -576,9 +561,8 @@ Proof.
   iModIntro.
 
   (* Recurse on the parent: [j < b ≤ i]. *)
-  iApply (imp_EApp τ[elem]). { imp_path. } { imp_path. }
-  simpl. iIntros (z) "-> %m Hm".
-  iNext.
+  imp_app τ[elem].
+  iIntros "Hm".
   iSpecialize ("Hm" $! j with "Hinv Hy").
   iApply (imp_wand with "Hm").
   iIntros (z) "(%j0 & #Hz & %Hj0)".
@@ -654,16 +638,8 @@ Proof.
   iApply (imp_ELet_var (B:=elem)).
   {
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  simpl.
-  iIntros (z) "-> %m Hm".
-  iNext.
+  imp_app τ[elem].
+  iIntros "Hm".
   unfold findc_spec.
   iSpecialize ("Hm" $! i with "Hinv Hx").
   iApply "Hm".
@@ -939,18 +915,8 @@ Proof.
   iApply imp_EUnit.
   done.
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem; val]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  iIntros (xv cx'v) "-> -> %m Hm".
-  iNext.
+  imp_app τ[elem; val].
+  iIntros "Hm".
   unfold set_content_spec.
   iAssert (vertex γ z j) as "Hzv".
   {
@@ -963,18 +929,8 @@ Proof.
   next_branch.
   next_branch.
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem; val]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  iIntros (xv cx'v) "-> -> %m Hm".
-  iNext.
+  imp_app τ[elem; val].
+  iIntros "Hm".
   iAssert (vertex γ z j) as "Hzv".
   {
   iExists lzi, lzc.
@@ -1040,18 +996,8 @@ Proof.
   iFrame.
   }
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem; val]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  iIntros (xv cx'v) "-> -> %m Hm".
-  iNext.
+  imp_app τ[elem; val].
+  iIntros "Hm".
   unfold set_content_spec.
   iApply (imp_wand with "[Hm Hinv Hx Hlocs Hrc'P Hlv0]").
   {
@@ -1111,16 +1057,8 @@ Proof.
   iApply (imp_ELet_var (B:=elem)).
   {
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  simpl.
-  iIntros (z) "-> %m Hm".
-  iNext.
+  imp_app τ[elem].
+  iIntros "Hm".
   unfold findc_spec.
   iSpecialize ("Hm" $! i with "Hinv Hx").
   iApply "Hm".
@@ -1489,18 +1427,8 @@ Proof.
   done.
   -
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem; val]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  iIntros (xv fv) "-> -> %m3 Hm3".
-  iNext.
+  imp_app τ[elem; val].
+  iIntros "Hm3".
   unfold update_spec.
   iAssert (vertex γ z j) as "Hzv".
   {
@@ -1514,18 +1442,8 @@ Proof.
   next_branch.
   next_branch.
   rewrite {1}/deco.
-  iApply (imp_EApp τ[elem; val]).
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  {
-  imp_path.
-  }
-  iIntros (xv fv) "-> -> %m3 Hm3".
-  iNext.
+  imp_app τ[elem; val].
+  iIntros "Hm3".
   iAssert (vertex γ z j) as "Hzv".
   {
   iExists lzi, lzc.
@@ -1821,38 +1739,22 @@ Proof.
   unfold __union_fun.
   simpl.
   rewrite {1}/deco.
-  iApply imp_ELet.
-  { iApply (imp_bindings_cons (A:=elem) (λ z : elem, ∃ i', vertex γ z i' ∗ ⌜(i' ≤ i)%Z⌝ ∗ ∃ Dx Fx, ⌜DSF Fx Dx⌝ ∗ ⌜x ∈ Dx⌝ ∗ ⌜Repr Fx x z⌝)%I with "[] [] []").
-    { rewrite {1}/deco.
-      iApply (imp_EApp τ[elem]).
-      { imp_path. }
-      { imp_path. }
-      simpl. iIntros (z) "-> %m Hm". iNext.
-      unfold findc_spec.
-      iSpecialize ("Hm" $! i with "Hinv Hx").
-      iApply "Hm". }
-    { iIntros (a) "_". iPureIntro. apply pat_PVar.
-      instantiate (1 := λ (w:elem)(l:env), l=[("x",#w)]). reflexivity. }
-    { iApply (imp_bindings_singleton (A:=elem) (λ z:elem, ∃ j', vertex γ z j' ∗ ⌜(j'≤j)%Z⌝ ∗ ∃ Dy Fy, ⌜DSF Fy Dy⌝ ∗ ⌜y ∈ Dy⌝ ∗ ⌜Repr Fy y z⌝)%I with "[] [] []").
-      { rewrite {1}/deco.
-        iApply (imp_EApp τ[elem]).
-        { imp_path. }
-        { imp_path. }
-        simpl. iIntros (z) "-> %m Hm". iNext.
-        unfold findc_spec.
-        iSpecialize ("Hm" $! j with "Hinv Hy").
-        iApply "Hm". }
-      { iIntros (a) "_". iPureIntro. apply pat_PVar.
-        instantiate (1 := λ (w:val)(l:env), l=[("y",w)]). reflexivity. }
-      { iIntros (a δ) "HΦ1 ->".
-        instantiate (1 := (λ δ:env, ∃ (y':elem)(j':Z), ⌜δ=[("y",#y')]⌝ ∗ vertex γ y' j' ∗ ⌜(j'≤j)%Z⌝ ∗
-          ∃ Dy Fy, ⌜DSF Fy Dy⌝ ∗ ⌜y ∈ Dy⌝ ∗ ⌜Repr Fy y y'⌝)%I).
-        iDestruct "HΦ1" as (j') "(Hv & %Hj' & %Dy & %Fy & %HdsfFy & %HyDy & %HReprY)".
-        iExists a, j'. iFrame.
-        iPureIntro. split; [done|]. split; [exact Hj'|]. exists Dy, Fy. auto. } } }
-  iIntros (δ) "(%a & %η' & %δ' & -> & (%i' & Hxv & %Hi' & %Dx & %Fx & %HdsfFx & %HxDx & %HReprXa) & %HP & (%y' & %j' & -> & Hyv & %Hj' & %Dy & %Fy & %HdsfFy & %HyDy & %HReprYy'))".
-  subst η'.
-  simpl.
+  imp_let $! (λ z : elem, ∃ i', vertex γ z i' ∗ ⌜(i' ≤ i)%Z⌝ ∗ ∃ Dx Fx, ⌜DSF Fx Dx⌝ ∗ ⌜x ∈ Dx⌝ ∗ ⌜Repr Fx x z⌝)%I
+          $! (λ z : elem, ∃ j', vertex γ z j' ∗ ⌜(j' ≤ j)%Z⌝ ∗ ∃ Dy Fy, ⌜DSF Fy Dy⌝ ∗ ⌜y ∈ Dy⌝ ∗ ⌜Repr Fy y z⌝)%I.
+  { rewrite {1}/deco.
+    imp_app τ[elem].
+    iIntros "Hm".
+    unfold findc_spec.
+    iSpecialize ("Hm" $! i with "Hinv Hx").
+    iApply "Hm". }
+  { rewrite {1}/deco.
+    imp_app τ[elem].
+    iIntros "Hm".
+    unfold findc_spec.
+    iSpecialize ("Hm" $! j with "Hinv Hy").
+    iApply "Hm". }
+  iIntros (a y') "(%i' & Hxv & %Hi' & %Dx & %Fx & %HdsfFx & %HxDx & %HReprXa)
+                  (%j' & Hyv & %Hj' & %Dy & %Fy & %HdsfFy & %HyDy & %HReprYy')".
   iDestruct "Hxv" as (lai lac) "(#Hafrag & #Hxlocs & #HaP & #Hali)".
   iDestruct "Hyv" as (lyi lyc) "(#Hyfrag & #Hylocs & #HyP & #Hyli)".
   rewrite {1}/deco.
@@ -2291,12 +2193,8 @@ Proof.
             iExists a, rc. iFrame "Hrc". iLeft. iPureIntro. apply rtc_once. exists Dx, Fx. eauto. } }
         iIntros (v) "$". }
       { rewrite {1}/deco.
-        iApply (imp_EApp τ[elem; elem]).
-        { imp_path. }
-        { imp_path. }
-        { imp_path. }
-        iIntros (xv yv) "-> -> %m3 Hm3".
-        iNext.
+        imp_app τ[elem; elem].
+        iIntros "Hm3".
         unfold union_spec.
         iAssert (vertex γ a i') as "Havertex".
         { iExists lai, lac. iFrame "Hafrag Hxlocs HaP Hali". }
@@ -2323,12 +2221,8 @@ Proof.
       next_branch.
       next_branch.
       rewrite {1}/deco.
-      iApply (imp_EApp τ[elem; elem]).
-      { imp_path. }
-      { imp_path. }
-      { imp_path. }
-      iIntros (xv yv) "-> -> %m3 Hm3".
-      iNext.
+      imp_app τ[elem; elem].
+      iIntros "Hm3".
       unfold union_spec.
       iAssert (vertex γ a i') as "Havertex".
       { iExists lai, lac. iFrame "Hafrag Hxlocs HaP Hali". }
@@ -2631,12 +2525,8 @@ Proof.
             iExists y', rc. iFrame "Hrc". iRight. iPureIntro. apply rtc_once. exists Dy, Fy. eauto. } }
         iIntros (v) "$". }
       { rewrite {1}/deco.
-        iApply (imp_EApp τ[elem; elem]).
-        { imp_path. }
-        { imp_path. }
-        { imp_path. }
-        iIntros (xv yv) "-> -> %m3 Hm3".
-        iNext.
+        imp_app τ[elem; elem].
+        iIntros "Hm3".
         unfold union_spec.
         iAssert (vertex γ a i') as "Havertex".
         { iExists lai, lac. iFrame "Hafrag Hxlocs HaP Hali". }
@@ -2659,12 +2549,8 @@ Proof.
     { next_branch.
       next_branch.
       rewrite {1}/deco.
-      iApply (imp_EApp τ[elem; elem]).
-      { imp_path. }
-      { imp_path. }
-      { imp_path. }
-      iIntros (xv yv) "-> -> %m3 Hm3".
-      iNext.
+      imp_app τ[elem; elem].
+      iIntros "Hm3".
       unfold union_spec.
       iAssert (vertex γ a i') as "Havertex".
       { iExists lai, lac. iFrame "Hafrag Hxlocs HaP Hali". }

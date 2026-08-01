@@ -810,6 +810,38 @@ Section imp_rules_expr.
     iApply ("P" with "HΦ").
   Qed.
 
+  (* Special case of [let x = e1 and y = e2 in e]: two bindings evaluated
+     independently (see [eval_bindings] in [semantics/eval.v] — the
+     [and]-clauses of a single [let] are evaluated in parallel, not
+     threaded), each an irrefutable [PVar] pattern. Avoids exposing the
+     [imp_bindings_cons]/[imp_bindings_singleton] plumbing (and the
+     [pat_PVar] boilerplate) at call sites; see [imp_let] in
+     [proofmode/imp_tactics.v] for the tactic built on top of this. The
+     [Encode] instances are named explicitly ([HA]/[HB]/[HC], not the
+     anonymous `{Encode A, ...}` sugar) so that a caller needing a
+     non-default instance for [B] or [C] (e.g. a specific OCaml-variant
+     tag for a record type with several) can supply it by name, e.g.
+     [imp_ELet_var2 (HC:=my_instance) Φ1 Φ2]. *)
+  Lemma imp_ELet_var2 `{HA : Encode A} `{HB : Encode B} `{HC : Encode C}
+      {ζ} {Φ : A → iProp Σ} (Φ1 : B → iProp Σ) (Φ2 : C → iProp Σ) {η x y e e1 e2} :
+    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ b c, Φ1 b -∗ Φ2 c -∗ imp eval ((x, #b) :: (y, #c) :: η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    imp eval η (ELet [Binding (PVar x) e1; Binding (PVar y) e2] e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H1 H2 P".
+    iApply (imp_ELet with "[H1 H2]").
+    { iApply (imp_bindings_cons with "H1").
+      { iIntros (b) "_". iPureIntro. apply pat_PVar.
+        instantiate (1 := λ (v : B) (l : env), l = [(x, #v)]). reflexivity. }
+      iApply (imp_bindings_singleton (Φ:=λ δ, ∃ c, Φ2 c ∗ ⌜δ = [(y, #c)]⌝)%I with "H2").
+      { iIntros (c) "_". iPureIntro. apply pat_PVar.
+        instantiate (1 := λ v l, l = [(y, v)]). reflexivity. }
+      iIntros (c δ) "HΦ2 %Hδ". iExists c. iFrame "HΦ2". iPureIntro. exact Hδ. }
+    iIntros (δ) "(%b & %η' & %δ' & -> & HΦ1 & -> & %c & HΦ2 & ->)".
+    iApply ("P" with "HΦ1 HΦ2").
+  Qed.
+
   (** * ELetRec : list rec_binding → expr → expr *)
 
   Lemma imp_ELetRec `{Encode A} {Φ : A → iProp Σ} {ζ} η bs e :
