@@ -52,36 +52,9 @@ Implicit Types rc : record.
 Implicit Types i j : Z.
 
 (* ------------------------------------------------------------------------ *)
-(* Persistent block knowledge. *)
-
-(* [isBlockP b t] is the persistent knowledge that the block [b] has the
-   mutability tag [t]. It is obtained by persisting the block's points-to
-   at allocation time, which is sound because the tag of a record block
-   never changes. It is what resolves the physical comparisons performed
-   by the CAS instructions. *)
-
-Definition isBlockP (b : locations.loc) (t : mut_tag) : iProp Σ :=
-  isBlock b DfracDiscarded t.
-
-Global Instance isBlockP_persistent b t : Persistent (isBlockP b t).
-Proof. rewrite /isBlockP /isBlock. apply _. Qed.
-
-(* [record] is typeclass-opaque, so the previous instance does not apply
-   to [record]-typed arguments; restate it. *)
-Global Instance isBlockP_persistent_rec (rc : record) t :
-  Persistent (isBlockP rc t) := isBlockP_persistent rc t.
-
-(* Taking a freshly allocated block's exclusive tag to the persistent
-   form above. Every record that enters the invariant goes through this. *)
-
-Lemma isBlock_persist b t :
-  isBlock b (DfracOwn 1) t ==∗ isBlockP b t.
-Proof.
-  iIntros "H".
-  iDestruct "H" as (ls) "H".
-  iMod (gen_heap.pointsto_persist with "H") as "H".
-  iModIntro. iExists ls. iFrame.
-Qed.
+(* [isBlockP], its persistence instances and [isBlock_persist] now live
+   in [program_logic/ewp.v], next to [isBlock] — [ownBlock] holds the
+   mutability tag in exactly this persistent form. *)
 
 (* ------------------------------------------------------------------------ *)
 (* The registry of content records. *)
@@ -155,14 +128,49 @@ Proof. apply _. Qed.
 
 Definition content_own (γ γc : gname) rc (ci : cinfo) : iProp Σ :=
   match ci with
-  | CRoot v =>
-      ∃ (lv : locations.loc),
-        isBlockLocs rc [lv] ∗ isBlockP rc Mut ∗ lv ↦ v
-  | CLink b =>
-      ∃ (lp : locations.loc) (y : elem) j,
-        isBlockLocs rc [lp] ∗ isBlockP rc Mut ∗
-        lp ↦ #y ∗ vertex γ y j ∗ ⌜(j < b)%Z⌝
+  | CRoot v => rc ⤇ {| root_value := v |}
+  | CLink b => ∃ (y : elem) j, rc ⤇ {| link_parent := y |} ∗ vertex γ y j ∗ ⌜(j < b)%Z⌝
   end.
+
+(* The field-level view of a content record. [ownRecord] is the right
+   *statement* of the ownership — it says "this is a [Root {value}]" —
+   but the rules that actually touch these records are the atomic ones
+   ([imp_ERecordAccess_atomic], [ipat_PRecord_var_atomic], the CAS),
+   which consume a single field's points-to because the record lives in
+   a shared invariant. These two equations bridge between the two views,
+   and are the only place the bridging happens. *)
+
+Lemma content_own_root γ γc rc v :
+  content_own γ γc rc (CRoot v) ⊣⊢
+  ∃ lv : locations.loc, isBlockLocs rc [lv] ∗ isBlockP rc Mut ∗ lv ↦ v.
+Proof.
+  rewrite /content_own /ownRecord /ownBlock /=.
+  iSplit.
+  - iIntros "(%ls & #Hlocs & #HP & Hxs)".
+    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
+    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+    iExists lv. iFrame "Hlocs HP Hlv".
+  - iIntros "(%lv & #Hlocs & #HP & Hlv)".
+    iExists [lv]. iFrame "Hlocs HP".
+    iApply big_opLZ.big_sepLZ2_singleton. iFrame "Hlv".
+Qed.
+
+Lemma content_own_link γ γc rc b :
+  content_own γ γc rc (CLink b) ⊣⊢
+  ∃ (lp : locations.loc) (y : elem) j,
+    isBlockLocs rc [lp] ∗ isBlockP rc Mut ∗ lp ↦ #y ∗ vertex γ y j ∗ ⌜(j < b)%Z⌝.
+Proof.
+  rewrite /content_own /ownRecord /ownBlock /=.
+  iSplit.
+  - iIntros "(%y & %j & (%ls & #Hlocs & #HP & Hxs) & #Hy & %Hj)".
+    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lp) "[-> Hlp]".
+    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+    iExists lp, y, j. iFrame "Hlocs HP Hlp Hy". done.
+  - iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
+    iExists y, j. iFrame "Hy". iSplit; last done.
+    iExists [lp]. iFrame "Hlocs HP".
+    iApply big_opLZ.big_sepLZ2_singleton. iFrame "Hlp".
+Qed.
 
 (* [vertex_own γ γc γn x i] is the invariant-owned footprint of the
    vertex [x]: its content cell, holding a registered content record
@@ -266,10 +274,12 @@ Proof. exact (populate (CLink 0%Z)). Qed.
 Lemma content_own_mut γ γc rc ci :
   content_own γ γc rc ci -∗ isBlockP rc Mut ∗ content_own γ γc rc ci.
 Proof.
-  destruct ci as [v0|b]; simpl.
-  - iIntros "(%lv & #Hlocs & #HP & Hlv)".
+  destruct ci as [v0|b].
+  - rewrite content_own_root.
+    iIntros "(%lv & #Hlocs & #HP & Hlv)".
     iSplitR; [iExact "HP"|]. iExists lv. by iFrame "#∗".
-  - iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
+  - rewrite content_own_link.
+    iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
     iSplitR; [iExact "HP"|]. iExists lp, y, j. by iFrame "#∗".
 Qed.
 
@@ -281,10 +291,12 @@ Lemma content_own_locs γ γc rc ci :
   content_own γ γc rc ci -∗
   (∃ lv : locations.loc, isBlockLocs rc [lv]) ∗ content_own γ γc rc ci.
 Proof.
-  destruct ci as [v0|b]; simpl.
-  - iIntros "(%lv & #Hlocs & #HP & Hlv)".
+  destruct ci as [v0|b].
+  - rewrite content_own_root.
+    iIntros "(%lv & #Hlocs & #HP & Hlv)".
     iSplitR; [by iExists lv|]. iExists lv. by iFrame "#∗".
-  - iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
+  - rewrite content_own_link.
+    iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
     iSplitR; [by iExists lp|]. iExists lp, y, j. by iFrame "#∗".
 Qed.
 
@@ -293,19 +305,40 @@ Qed.
    [update] do for their freshly-allocated [Root] record — knows the
    record is not registered yet. *)
 
+(* Whatever its tag, a content record has exactly one field, owned
+   outright. *)
+
+Lemma content_own_field γ γc rc ci :
+  content_own γ γc rc ci -∗ ∃ (lw : locations.loc) (w : val), isBlockLocs rc [lw] ∗ lw ↦ w.
+Proof.
+  destruct ci as [v0|b].
+  - rewrite content_own_root.
+    iIntros "(%lv0 & #H1 & _ & H2)". iExists lv0, v0. iFrame "H1 H2".
+  - rewrite content_own_link.
+    iIntros "(%lp & %y0 & %j0 & #H1 & _ & H2 & _)". iExists lp, #y0. iFrame "H1 H2".
+Qed.
+
 Lemma content_own_fresh_ne γ γc rc lv v ci :
   isBlockLocs rc [lv] -∗ lv ↦ v -∗ content_own γ γc rc ci -∗ False.
 Proof.
   iIntros "#Hlocs Hlv Hco".
-  iAssert (∃ (lw : locations.loc) (w : val), isBlockLocs rc [lw] ∗ lw ↦ w)%I
-    with "[Hco]" as (lw w) "[#Hlocs' Hlw]".
-  { destruct ci as [v0|b]; simpl.
-    - iDestruct "Hco" as (lv0) "(#H1 & _ & H2)". iExists lv0, v0. iFrame "H1 H2".
-    - iDestruct "Hco" as (lp y0 j0) "(#H1 & _ & H2 & _)".
-      iExists lp, #y0. iFrame "H1 H2". }
+  iDestruct (content_own_field with "Hco") as (lw w) "[#Hlocs' Hlw]".
   iDestruct (isBlockLocs_valid with "Hlocs' Hlocs") as %[= ->].
   iCombine "Hlv Hlw" gives %[Hbad _].
   exfalso. by eapply dfrac_full_exclusive.
+Qed.
+
+(* Two content records at the same location cannot both be owned: each
+   holds its single field outright. This is the form the registration
+   sites use, now that a freshly allocated record arrives as a
+   [content_own] rather than as raw locations and a points-to. *)
+
+Lemma content_own_excl γ γc rc ci ci' :
+  content_own γ γc rc ci -∗ content_own γ γc rc ci' -∗ False.
+Proof.
+  iIntros "Hco Hco'".
+  iDestruct (content_own_field with "Hco") as (lw w) "[#Hlocs Hlw]".
+  iApply (content_own_fresh_ne with "Hlocs Hlw Hco'").
 Qed.
 
 (* The same argument one level up, for vertices: a registered vertex owns
@@ -610,30 +643,23 @@ Proof.
 
   (* Goal: [ let id = G.fresh() and content = Root { value = v } in ... ] *)
   imp_let $! (λ i : Z, i ↪[γn] () ∗ ⌜representable i⌝)%I
-          $! (λ r : record, ∃ lv : locations.loc,
-                isBlockLocs r [lv] ∗ isBlock r (DfracOwn 1) Mut ∗ lv ↦ v)%I
+          $! (λ r : record, content_own γ γc r (CRoot v))%I
           enc2 ({| encode' := λ rc : record, VInline "Root" rc |} : Encode record).
   { (* [G.fresh ()], through the [fresh_spec] hypothesis. *)
     imp_app τ[unit].
     iIntros "Hm".
     unfold fresh_spec.
     iApply ("Hm" with "Hinv"). }
-  { (* [Root { value = v }]: allocation of the content record. [A] is
-       given explicitly ([root_fields], not [link_fields]): both are
-       single-field [RecordRepr] instances, so leaving it to bare
-       [imp_record]'s typeclass search is ambiguous (it silently picks
-       whichever instance it finds first, not necessarily the right
-       one). *)
+  { (* [Root { value = v }]: allocating the content record produces
+       exactly the invariant's own [content_own] for it, so there is
+       nothing to unfold. [A] is given explicitly ([root_fields], not
+       [link_fields]): both are single-field [RecordRepr] instances, so
+       leaving it to bare [imp_record]'s typeclass search is ambiguous. *)
     imp_record $! root_fields.
     simpl. iIntros (r) "H".
     iDestruct "H" as (xs) "(Hown & ->)".
-    unfold ownRecord, ownBlock. simpl.
-    iDestruct "Hown" as (ls) "(#Hlocs & Htag & Hxs)".
-    (* The freshly allocated block has exactly one field location. *)
-    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
-    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-    iExists lv. iFrame "Hlocs". iFrame. }
-  iIntros (a rc) "[Htok %Hrepa] (%lv & #Hlocs & Htag & Hlv)".
+    iApply "Hown". }
+  iIntros (a rc) "[Htok %Hrepa] Hco".
   simpl.
 
   (* Goal: [ { id; content } ]. Allocate the vertex, then register it (and
@@ -645,14 +671,14 @@ Proof.
   simpl. iIntros (x) "H".
   iDestruct "H" as (i c) "(Hown & -> & ->)".
   unfold ownRecord, ownBlock. simpl.
-  iDestruct "Hown" as (flocs) "(#Hxlocs & Hxtag & Hxs)".
+  iDestruct "Hown" as (flocs) "(#Hxlocs & #HxP & Hxs)".
   (* The vertex block has exactly two field locations: [li] and [lc]. *)
   iDestruct (big_opLZ.big_sepLZ2_pair_inv_r with "Hxs") as (li lc) "(-> & Hli & Hlc)".
 
-  (* Persist the immutable knowledge: the [id] field and both block tags. *)
+  (* Persist the [id] field, which never changes again. Both blocks'
+     mutability tags are already persistent: [ownRecord] holds them that
+     way, so nothing has to be discarded here. *)
   iMod (gen_heap.pointsto_persist with "Hli") as "#Hli".
-  iMod (isBlock_persist with "Hxtag") as "#HxP".
-  iMod (isBlock_persist with "Htag") as "#HrcP".
 
   (* Register the vertex and its content record in the invariant. Neither
      can be registered already: an existing entry would own the very
@@ -665,17 +691,15 @@ Proof.
     iAssert (▷ False)%I with "[Hlc Hvo]" as ">[]".
     iNext. iApply (vertex_own_fresh_ne with "Hxlocs Hlc Hvo"). }
   destruct (C !! rc) as [ci0|] eqn:HCrc.
-  { iDestruct (big_sepM_lookup _ _ rc ci0 with "HC") as "Hco"; first exact HCrc.
-    iAssert (▷ False)%I with "[Hlv Hco]" as ">[]".
-    iNext. iApply (content_own_fresh_ne with "Hlocs Hlv Hco"). }
+  { iDestruct (big_sepM_lookup _ _ rc ci0 with "HC") as "Hco0"; first exact HCrc.
+    iAssert (▷ False)%I with "[Hco Hco0]" as ">[]".
+    iNext. iApply (content_own_excl γ γc rc (CRoot v) ci0 with "Hco Hco0"). }
   iMod (ghost_map_insert rc (CRoot v) with "Hcauth") as "[Hcauth Hrcfrag]";
     first exact HCrc.
   iMod (ghost_map_elem_persist with "Hrcfrag") as "#Hrcfrag".
   iMod (ghost_map_insert x a with "Hauth") as "[Hauth Hxfrag]";
     first exact HMx.
   iMod (ghost_map_elem_persist with "Hxfrag") as "#Hxfrag".
-  iAssert (content_own γ γc rc (CRoot v)) with "[Hlv]" as "Hco".
-  { iExists lv. iFrame "Hlocs HrcP Hlv". }
   iMod ("Hclose" with "[Hauth Hcauth Hnauth Hlc Htok Hco HM HC]") as "_".
   { iNext.
     iApply (uf_inv_insert_vertex γ γc γn M C N F x a li lc rc v
@@ -776,6 +800,9 @@ Proof.
   iNext.
   iInv "Hinv" as "H" "Hclose".
   iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
+  (* Down to the field view: the load is atomic, so it consumes the
+     [parent] field's points-to rather than the whole record. *)
+  iEval (rewrite content_own_link) in "Hco".
   iDestruct "Hco" as (lp' y j) "(#Hrclocs' & #HrcP & Hlp & #Hy & >%Hj)".
   iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
   { iNext. iApply (isBlockLocs_valid with "Hrclocs' Hrclocs"). }
@@ -784,7 +811,8 @@ Proof.
   iSplitL "Hlp"; first by iFrame.
   iIntros "!> Hlp".
   iMod ("Hclose" with "[Hback Hlp]") as "_".
-  { iApply "Hback". iNext. iExists lp', y, j. iFrame "Hrclocs HrcP Hlp Hy". done. }
+  { iApply "Hback". iNext. rewrite content_own_link.
+    iExists lp', y, j. iFrame "Hrclocs HrcP Hlp Hy". done. }
   iModIntro.
 
   (* Recurse on the parent: [j < b ≤ i]. *)
@@ -972,7 +1000,7 @@ Proof.
         (* [rc'] becomes [z]'s content record; the old one, [rc], goes
            back into the registry as an ordinary (now unreachable) entry. *)
         iAssert (content_own γ γc rc' (CRoot v)) with "[Hlv']" as "Hco'".
-        { iExists lv'. iFrame "Hrc'locs Hrc'P Hlv'". }
+        { rewrite content_own_root. iExists lv'. iFrame "Hrc'locs Hrc'P Hlv'". }
         iAssert ([∗ map] r ↦ c ∈ delete rc' (<[rc' := CRoot v]> C),
                    content_own γ γc r c)%I with "[Hco0 HC]" as "HC".
         { rewrite delete_insert_eq (delete_id _ _ HCrc').
@@ -1037,29 +1065,22 @@ Proof.
   simpl.
   iApply (imp_ELet_var (B:=record)
       (H0:={| encode' := λ rc : record, VInline "Root" rc |})
-      (λ rc : record, ∃ lv0 : locations.loc,
-         isBlockLocs rc [lv0] ∗ isBlock rc (DfracOwn 1) Mut ∗ lv0 ↦ v)%I).
+      (λ rc : record, content_own γ γc rc (CRoot v))%I).
   (* [A] pinned explicitly ([root_fields]): both it and [link_fields] are
      single-field [RecordRepr] instances, so bare [imp_record] cannot
-     disambiguate between them. *)
+     disambiguate between them. Allocation yields the [content_own] for
+     the fresh record directly. *)
   imp_record $! root_fields.
   simpl.
   iIntros (r) "H".
   iDestruct "H" as (xs) "(Hown & ->)".
-  unfold ownRecord, ownBlock. simpl.
-  iDestruct "Hown" as (ls) "(#Hlocs & Htag & Hxs)".
-  iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv0) "[-> Hlv0]".
-  iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-  iExists lv0. iFrame "Hlocs". iFrame.
-  iIntros (rc') "(%lv0 & #Hlocs & Htag & Hlv0)".
+  iApply "Hown".
+  iIntros (rc') "Hco".
   iApply imp_fupd.
-  iDestruct "Htag" as (rls) "Htag".
-  iMod (gen_heap.pointsto_persist with "Htag") as "Htag".
-  iAssert (isBlockP rc' Mut) with "[Htag]" as "#Hrc'P".
-  {
-  iExists rls.
-  iFrame.
-  }
+  (* [set]'s internal spec takes the record apart field-wise, since it
+     CASes it in under the invariant. *)
+  rewrite content_own_root.
+  iDestruct "Hco" as (lv0) "(#Hlocs & #Hrc'P & Hlv0)".
   imp_app τ[elem; val].
   iIntros "Hm".
   unfold set_content_spec.
@@ -1174,6 +1195,9 @@ Proof.
     iNext.
     iInv "Hinv" as "H" "Hclose".
     iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
+    (* Down to the field view: the load is atomic, so it consumes the
+       [value] field's points-to rather than the whole record. *)
+    iEval (rewrite content_own_root) in "Hco".
     iDestruct "Hco" as (lv') "(#Hlocs' & _ & Hlv)".
     iAssert (▷ ⌜[lv] = [lv']⌝)%I with "[]" as ">%Heql".
     { iNext. iApply (isBlockLocs_valid with "Hlocs' Hrclocs"). }
@@ -1183,7 +1207,8 @@ Proof.
     iSplitL "Hlv"; first by iFrame.
     iIntros "!> Hlv".
     iMod ("Hclose" with "[Hback Hlv]") as "_".
-    { iApply "Hback". iNext. iExists lv'. iFrame "Hlocs' HrcP Hlv". }
+    { iApply "Hback". iNext. rewrite content_own_root.
+      iExists lv'. iFrame "Hlocs' HrcP Hlv". }
     iModIntro.
 
     iApply (imp_EIfThenElse _ _ _ _ (λ _ : bool, True)%I).
@@ -1203,9 +1228,7 @@ Proof.
       { imp_path. }
       { (* Allocate [Root { value = f v0 }]. [f] is only known to be
            safe, so nothing is remembered about the stored value. *)
-        set_postcondition
-          (λ r : elem, ∃ (lv0 : locations.loc) (w : val),
-             isBlockLocs r [lv0] ∗ isBlock r (DfracOwn 1) Mut ∗ lv0 ↦ w)%I.
+        set_postcondition (λ r : elem, ∃ w : val, content_own γ γc r (CRoot w))%I.
         imp_record $! root_fields.
         { iApply (imp_EApp' (B:=val)).
           { imp_path. }
@@ -1213,11 +1236,7 @@ Proof.
           iIntros "!>" (f0 w0) "-> ->".
           iApply "Hf". }
         iIntros (r) "(%x0 & Hown & _)".
-        unfold ownRecord, ownBlock. simpl.
-        iDestruct "Hown" as (ls) "(#Hlocs2 & Htag2 & Hxs2)".
-        iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
-        iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
-        iExists lv2, x0. iFrame "Hlocs2 Htag2 Hlv2". }
+        iExists x0. iApply "Hown". }
       simpl.
       iIntros (rc3 rc2 -> lc2 ->) "Hown %m2 Hm2 !>".
       iApply "Hm2".
@@ -1238,28 +1257,24 @@ Proof.
       iFrame "Hlc Hrc0P HrcP".
       iNext.
       iIntros "Hlc' _ _".
-      iDestruct "Hown" as (lv3 w3) "(#Hlv3locs & Htag3 & Hlv3)".
+      iDestruct "Hown" as (w3) "Hco3".
       destruct (locations.eqb_spec rc0 rc) as [->|Hne].
 
       { (* The CAS succeeded: [rc3] becomes [z]'s content record and must
            be registered in [γc]. As in [set], it cannot be registered
-           already — we still own its [value] field. *)
+           already — we still own it. *)
         iDestruct (ghost_map_elem_agree with "Hrc0 Hrc") as %->.
-        iAssert ⌜C2 !! rc3 = None⌝%I with "[Hlv3 Hco0 HC]" as %HCrc3.
+        iAssert ⌜C2 !! rc3 = None⌝%I with "[Hco3 Hco0 HC]" as %HCrc3.
         { destruct (C2 !! rc3) as [ci1|] eqn:HCrc3; last done.
           iExFalso.
           destruct (decide (rc3 = rc)) as [->|Hne].
-          - iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco0").
+          - iApply (content_own_excl γ γc rc (CRoot w3) _ with "Hco3 Hco0").
           - iDestruct (big_sepM_lookup _ _ rc3 ci1 with "HC") as "Hco1".
             { rewrite lookup_delete_ne; done. }
-            iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco1"). }
-        (* [rc3]'s tag becomes persistent as it enters the invariant. *)
-        iMod (isBlock_persist with "Htag3") as "#Hrc3P".
+            iApply (content_own_excl γ γc rc3 (CRoot w3) _ with "Hco3 Hco1"). }
         iMod (ghost_map_insert rc3 (CRoot w3) with "Hcauth") as "[Hcauth Hrc3frag]";
           first exact HCrc3.
         iMod (ghost_map_elem_persist with "Hrc3frag") as "#Hrc3frag".
-        iAssert (content_own γ γc rc3 (CRoot w3)) with "[Hlv3]" as "Hco3".
-        { iExists lv3. iFrame "Hlv3locs Hrc3P Hlv3". }
         iAssert ([∗ map] r ↦ c ∈ delete rc3 (<[rc3 := CRoot w3]> C2),
                    content_own γ γc r c)%I with "[Hco0 HC]" as "HC".
         { rewrite delete_insert_eq (delete_id _ _ HCrc3).
@@ -1724,51 +1739,48 @@ Proof.
   (* [if x == y then None else ...]: physical equality on two non-inline
      records, which needs at least one operand to be a mutable block —
      supplied by [vertex]'s own [isBlockP _ Mut]. *)
-  rewrite {1}/deco.
-  iApply (imp_EIfThenElse _ _ _ _ (λ b : bool, if b then ⌜a = y'⌝ else ⌜a ≠ y'⌝)%I).
-  { iApply (imp_EOpPhysEq_record _ _ _ (λ l : record, ⌜l = a⌝)%I
+  imp_if.
+  { set_postcondition
+    (λ b : bool, if b then ⌜a = y'⌝ else ⌜a ≠ y'⌝)%I.
+    iApply (imp_EOpPhysEq_record _ _ _ (λ l : record, ⌜l = a⌝)%I
                                        (λ l : record, ⌜l = y'⌝)%I _ Mut Mut).
-    { by left. }
-    { iApply (imp_EPath (A:=record) a).
-      { reflexivity. }
-      iSplit; [done|]. iDestruct "HaP" as "$". }
-    { iApply (imp_EPath (A:=record) y').
-      { reflexivity. }
-      iSplit; [done|]. iDestruct "HyP" as "$". }
+    { auto. }
+    { imp_path. equality. }
+    { imp_path. equality. }
     { iIntros "!>" (l1 l2) "-> ->".
       by destruct (locations.eqb_spec a y') as [->|Hneq]. } }
-  iIntros ([|]) "%Heq".
 
-  { (* [a = y']: the two sides already share a representative. *)
-    iApply (imp_wand _ _ _ _ _ (union_post γc x y) with "[]").
-    { iApply imp_EConstant. }
+  { iIntros "->". (* [a = y']: the two sides already share a representative. *)
+    iApply (imp_wand with "[]").
+    { imp_constant. }
     iIntros (v) "->".
     simpl.
-    iPureIntro.
-    exists a.
+    iPureIntro. eexists.
     split.
     { apply rtc_once. exact Hsx. }
-    { subst a. apply rtc_once. exact Hsy. } }
+    { apply rtc_once. exact Hsy. } }
 
+  iIntros "%Heq".
   (* [assert (x.id <> y.id)]: a real obligation, discharged from the
      id-uniqueness registry [γn]. [iInv] cannot mask-change around a
      non-atomic stretch of reasoning, so the invariant access is packaged
      as its own fancy update and then [iMod]'d back in. *)
   iAssert (|={⊤}=> ⌜i' ≠ j' ∧ representable i' ∧ representable j'⌝)%I as "Hfupd".
   { iInv "Hinv" as "H" "Hclose".
-    iMod (uf_inv_ids_distinct with "Hafrag Hyfrag H") as "[%Hids H]"; first exact Heq.
+    iMod (uf_inv_ids_distinct with "Hafrag Hyfrag H")
+      as "[%Hids H]"; first exact Heq.
     iMod ("Hclose" with "H") as "_".
     by iModIntro. }
   iMod "Hfupd" as "(%Hij & %Hrepi & %Hrepj)".
 
-  rewrite {1}/deco.
   imp_match unit with "[]".
   { iApply (imp_EAssert (R:=⌜i' ≠ j'⌝%I)).
     iSplit; first done.
-    rewrite {1}/deco.
-    iApply (imp_EOpNe (A1:=Z) (A2:=Z) _ _ _ (λ n:Z,⌜n=i'⌝)%I (λ n:Z,⌜n=j'⌝)%I).
-    { read_id lai lac i' "Halocs" "Hali". }
-    { read_id lyi lyc j' "Hylocs" "Hyli". }
+    iApply (imp_EOpNe (A1:=Z) (A2:=Z)).
+    { set_postcondition (λ n, ⌜n=i'⌝)%I.
+      read_id lai lac i' "Halocs" "Hali". }
+    { set_postcondition (λ n, ⌜n=j'⌝)%I.
+      read_id lyi lyc j' "Hylocs" "Hyli". }
     { (* Bridge the machine-level [int.eq] back to [i' ≠ j' : Z]. *)
       iIntros "!>" (v1 v2) "-> ->".
       rewrite /ne_val /eq_val /=.
@@ -1781,25 +1793,27 @@ Proof.
   next_branch.
 
   (* [if x.id > y.id then <link x to y> else <link y to x>]. *)
-  iApply (imp_EIfThenElse _ _ _ _ (λ b : bool, ⌜b = (i' >? j')%Z⌝)%I).
-  { iApply (imp_EOpGt_Z _ _ _ i' j').
-    { exact Hrepi. }
-    { exact Hrepj. }
+  imp_if.
+  { iApply (imp_EOpGt_Z _ _ _ i' j'); try assumption.
     { read_id lai lac i' "Halocs" "Hali". }
     { read_id lyi lyc j' "Hylocs" "Hyli". } }
-  iIntros ([|]) "%Hcmp2".
 
-  { (* [x.id > y.id]: CAS [Link { parent = y }] into [x]'s content cell.
+  { iIntros "%Hcmp2".
+    (* [x.id > y.id]: CAS [Link { parent = y }] into [x]'s content cell.
        Structurally this mirrors [update_proof] — atomic content read,
        match, field read, allocate, CAS — with a [Link] record in place
        of the fresh [Root]. *)
+    (* The branch guard, in the form [content_own]'s [CLink] case wants.
+       It is needed already at allocation time, to build the new record's
+       [content_own] on the spot. *)
+    assert (Hlt : (j' < i')%Z).
+    { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
     iApply (imp_ELet_var (λ w : val, ∃ rc ci (lv : locations.loc),
       ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ i')%Z⌝ ∗
       isBlockP rc Mut ∗ isBlockLocs rc [lv])%I).
-    { rewrite {1}/deco.
-      iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lai; lac] a
+    { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lai; lac] a
                 with "Halocs [] []").
-      { by vm_compute. }
+      { list_z.length; lia. }
       { imp_path. }
       content_loc lai lac.
       iNext.
@@ -1837,6 +1851,7 @@ Proof.
       iNext.
       iInv "Hinv" as "H" "Hclose".
       iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
+      iEval (rewrite content_own_root) in "Hco".
       iDestruct "Hco" as (lv') "(#Hlocs' & _ & Hlv)".
       iAssert (▷ ⌜[lv] = [lv']⌝)%I with "[]" as ">%Heql".
       { iNext. iApply (isBlockLocs_valid with "Hlocs' Hrclocs"). }
@@ -1846,13 +1861,13 @@ Proof.
       iSplitL "Hlv"; first by iFrame.
       iIntros "!> Hlv".
       iMod ("Hclose" with "[Hback Hlv]") as "_".
-      { iApply "Hback". iNext. iExists lv'. iFrame "Hlocs' HrcP Hlv". }
+      { iApply "Hback". iNext. rewrite content_own_root.
+      iExists lv'. iFrame "Hlocs' HrcP Hlv". }
       iModIntro.
 
-      rewrite {1}/deco.
-      iApply (imp_EIfThenElse _ _ _ _ (λ _ : bool, True)%I).
-
-      { (* The CAS is instantiated at [A := val] with the identity
+      imp_if.
+      { set_postcondition (λ b, True)%I.
+        (* The CAS is instantiated at [A := val] with the identity
            [Encode_val] instance (not [root_enc]/[link_enc]): unlike
            [update_proof] — which installs another [Root]-tagged record
            and so can keep both CAS arguments at one [Encode record]
@@ -1861,7 +1876,6 @@ Proof.
            *different* tags, which a single [A := record, Henc] cannot
            express ([compare_and_set_spec]'s one [Encode A] is shared by
            both positions). Going through [val] sidesteps this. *)
-        rewrite {1}/deco.
         iApply (imp_EApp (@type_nel.Tcons loc _
                             (@type_nel.Tcons val Encode_val
                                (@type_nel.Tbase val Encode_val)))).
@@ -1869,10 +1883,9 @@ Proof.
           iApply (imp_EPath (A:=val) casv).
           { exact Hcasv. }
           iApply ("Hcasspec" $! val Encode_val). }
-        { rewrite {1}/deco.
-          iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lac⌝)%I 1%Z a [lai; lac]).
-          { by vm_compute. }
-          { iNext. iExact "Halocs". }
+        { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lac⌝)%I 1%Z a [lai; lac]).
+          { list_z.length; lia. }
+          { iApply "Halocs". }
           { imp_path. }
           content_loc lai lac.
           iNext. done. }
@@ -1886,28 +1899,22 @@ Proof.
            explicitly) up to the [val]-typed slot the CAS expects. *)
         iApply (imp_wand_observe (A:=elem) (H:=@observe_encode elem (encode_record "Link"))
           _ _ _ _ _ (fun w : val => ∃ r' : elem, ⌜w = VInline "Link" r'⌝ ∗
-            ∃ lv0 : loc, isBlockLocs r' [lv0] ∗ isBlock r' (DfracOwn 1) Mut ∗ lv0 ↦ #y')%I
+            content_own γ γc r' (CLink i'))%I
           with "[] []").
-        { rewrite {1}/deco.
-          (* [A] pinned explicitly ([link_fields]): both it and
-             [root_fields] are single-field [RecordRepr] instances, so
-             bare [imp_record] cannot disambiguate between them. *)
-          imp_record $! link_fields. }
-        { iIntros (r) "H".
+        { imp_record $! link_fields. }
+        { (* Allocation already yields the record; adding [y']'s vertex and
+             the branch guard's [j' < i'] turns it into the invariant's own
+             [content_own] for the new [Link]. *)
+          iIntros (r) "H".
           iDestruct "H" as (x0) "H".
           iEval (simpl) in "H".
           iDestruct "H" as "[Hown %Heq4]".
           simplify_eq.
-          unfold ownRecord, ownBlock. simpl.
-          iDestruct "Hown" as (ls) "(#Hlocs2 & Htag2 & Hxs2)".
-          iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
-          iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
           iExists (VInline "Link" r).
           iSplit; first done.
           iExists r.
           iSplit; first done.
-          iExists lv2.
-          iFrame "Hlocs2 Htag2 Hlv2". }
+          iExists y', j'. iFrame "Hown Hy'v". iPureIntro. exact Hlt. }
         iIntros (x0 rc2) "-> %lc2 -> Hown %m2 Hm2".
         iNext.
         iApply "Hm2".
@@ -1928,34 +1935,29 @@ Proof.
         iFrame "Hlc Hrc0P HrcP".
         iNext.
         iIntros "Hlc' _ _".
-        iDestruct "Hown" as (r') "[-> (%lv3 & #Hlv3locs & Htag3 & Hlv3)]".
+        iDestruct "Hown" as (r') "[-> Hco']".
         destruct (locations.eqb_spec rc0 rc) as [->|Hnerc].
 
         { (* The CAS succeeded, installing [r' = Link {parent = y'}] as
-             [a]'s content. Registering it as [CLink i'] needs [r']'s
-             freshness and [j' < i'] (the branch guard). Soundness of
-             widening the graph by [link F a y'] — without re-checking
-             [y']'s root-status, which nothing does — is
+             [a]'s content. Registering it as [CLink i'] needs only [r']'s
+             freshness — its [content_own] was built at allocation.
+             Soundness of widening the graph by [link F a y'] — without
+             re-checking [y']'s root-status, which nothing does — is
              [dsf_link_general]'s id-bound argument, inside
              [uf_inv_reassemble_link]. *)
           iDestruct (ghost_map_elem_agree with "Hrc0 Hrc") as %->.
-          iAssert ⌜C2 !! r' = None⌝%I with "[Hlv3 Hco0 HC]" as %HCr'.
+          iAssert ⌜C2 !! r' = None⌝%I with "[Hco' Hco0 HC]" as %HCr'.
           { destruct (C2 !! r') as [ci1|] eqn:HCr'; last done.
             iExFalso.
             destruct (decide (r' = rc)) as [->|Hne].
-            - iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco0").
+            - iApply (content_own_excl γ γc rc (CLink i') _ with "Hco' Hco0").
             - iDestruct (big_sepM_lookup _ _ r' ci1 with "HC") as "Hco1".
               { rewrite lookup_delete_ne; done. }
-              iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco1"). }
-          iMod (isBlock_persist with "Htag3") as "#Hr'P".
+              iApply (content_own_excl γ γc r' (CLink i') _ with "Hco' Hco1"). }
           iMod (ghost_map_insert r' (CLink i') with "Hcauth") as "[Hcauth Hr'frag]";
             first exact HCr'.
           iMod (ghost_map_elem_persist with "Hr'frag") as "#Hr'frag".
-          assert (Hlt : (j' < i')%Z).
-          { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
           iDestruct (ghost_map_lookup with "Hauth Hyfrag") as %HMy2.
-          iAssert (content_own γ γc r' (CLink i')) with "[Hlv3]" as "Hco'".
-          { iExists lv3, y', j'. iFrame "Hlv3locs Hr'P Hlv3 Hy'v". iPureIntro. exact Hlt. }
           iAssert ([∗ map] r ↦ c ∈ C2, content_own γ γc r c)%I with "[Hco0 HC]" as "HC".
           { rewrite (big_sepM_delete _ C2 rc (CRoot v0)); last exact HCrc0.
             iFrame "Hco0 HC". }
@@ -1974,23 +1976,17 @@ Proof.
                     with "Hauth Hcauth Hnauth Halocs Hlc' Hrc0 Htok0 Hco0 HM HC"); done. }
         by iModIntro. }
 
-      iIntros ([|]) "_".
-      { (* CAS succeeded: return [Some v], where [v] is the value read out
+      { iIntros "_".
+        (* CAS succeeded: return [Some v], where [v] is the value read out
            of the absorbed root [rc] — still described by the persistent
            [Hrc : rc ↪[γc]□ CRoot v0]. *)
-        rewrite {1}/deco.
-        iApply (imp_wand _ _ _ _ _ (union_post γc x y) with "[]").
-        { iApply imp_EData.
-          { iApply (imp_evals_singleton (A:=val)). imp_path. }
-          { iIntros (v) "->".
-            instantiate (1 := union_post γc x y).
-            simpl.
-            iExists a, rc. iFrame "Hrc". iLeft. iPureIntro.
-            by apply rtc_once. } }
-        iIntros (v) "$". }
-      { (* CAS failed: retry from [a]/[y'] and chain this call's own
+        imp_data.
+        iIntros (? ->). simpl.
+        iExists a, rc. iFrame "Hrc". iLeft. iPureIntro.
+        by apply rtc_once. }
+      { iIntros "_".
+        (* CAS failed: retry from [a]/[y'] and chain this call's own
            one-hop snapshots onto the recursive result. *)
-        rewrite {1}/deco.
         imp_app τ[elem; elem].
         iIntros "Hm3".
         unfold union_spec.
@@ -2003,7 +1999,6 @@ Proof.
          [Link], not a [Root]) — retry via the recursive call. *)
       next_branch.
       next_branch.
-      rewrite {1}/deco.
       imp_app τ[elem; elem].
       iIntros "Hm3".
       unfold union_spec.
@@ -2012,17 +2007,19 @@ Proof.
       iIntros (ov) "Hov".
       iApply (union_post_extend with "Hov"); [exact Hsx | exact Hsy]. } }
 
-  { (* [x.id <= y.id]: the mirror image — CAS [Link { parent = x }] into
+  { iIntros "%Hcmp2".
+    (* [x.id <= y.id]: the mirror image — CAS [Link { parent = x }] into
        [y]'s content cell, registering it as [CLink j'] (which needs
        [i' < j'], from [Hcmp2] together with [Hij]). Every step below is
        the previous branch's with [a]/[i'] and [y']/[j'] exchanged. *)
+    assert (Hlt : (i' < j')%Z).
+    { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
     iApply (imp_ELet_var (λ w : val, ∃ rc ci (lv : locations.loc),
       ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ j')%Z⌝ ∗
       isBlockP rc Mut ∗ isBlockLocs rc [lv])%I).
-    { rewrite {1}/deco.
-      iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lyi; lyc] y'
+    { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lyi; lyc] y'
                 with "Hylocs [] []").
-      { by vm_compute. }
+      { by list_z.length; lia. }
       { imp_path. }
       content_loc lyi lyc.
       iNext.
@@ -2054,6 +2051,7 @@ Proof.
       iNext.
       iInv "Hinv" as "H" "Hclose".
       iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
+      iEval (rewrite content_own_root) in "Hco".
       iDestruct "Hco" as (lv') "(#Hlocs' & _ & Hlv)".
       iAssert (▷ ⌜[lv] = [lv']⌝)%I with "[]" as ">%Heql".
       { iNext. iApply (isBlockLocs_valid with "Hlocs' Hrclocs"). }
@@ -2063,31 +2061,22 @@ Proof.
       iSplitL "Hlv"; first by iFrame.
       iIntros "!> Hlv".
       iMod ("Hclose" with "[Hback Hlv]") as "_".
-      { iApply "Hback". iNext. iExists lv'. iFrame "Hlocs' HrcP Hlv". }
+      { iApply "Hback". iNext. rewrite content_own_root.
+      iExists lv'. iFrame "Hlocs' HrcP Hlv". }
       iModIntro.
 
-      rewrite {1}/deco.
-      iApply (imp_EIfThenElse _ _ _ _ (λ _ : bool, True)%I).
-
-      { rewrite {1}/deco.
-        iApply (imp_EApp (@type_nel.Tcons loc _
-                            (@type_nel.Tcons val Encode_val
-                               (@type_nel.Tbase val Encode_val)))).
-        { iDestruct "Hcas" as (casv Hcasv) "#Hcasspec".
-          iApply (imp_EPath (A:=val) casv).
-          { exact Hcasv. }
-          iApply ("Hcasspec" $! val Encode_val). }
-        { rewrite {1}/deco.
-          iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lyc⌝)%I 1%Z y' [lyi; lyc]).
-          { by vm_compute. }
+      imp_if.
+      { set_postcondition (λ _, True)%I.
+        imp_app τ[loc;val;val].
+        { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lyc⌝)%I 1%Z y' [lyi; lyc]).
+          { list_z.length; lia. }
           { iNext. iExact "Hylocs". }
           { imp_path. }
           content_loc lyi lyc.
           iNext. done. }
-        { imp_path. }
         iApply (imp_wand_observe (A:=elem) (H:=@observe_encode elem (encode_record "Link"))
           _ _ _ _ _ (fun w : val => ∃ r' : elem, ⌜w = VInline "Link" r'⌝ ∗
-            ∃ lv0 : loc, isBlockLocs r' [lv0] ∗ isBlock r' (DfracOwn 1) Mut ∗ lv0 ↦ #a)%I
+            content_own γ γc r' (CLink j'))%I
           with "[] []").
         { rewrite {1}/deco.
           imp_record $! link_fields. }
@@ -2096,19 +2085,13 @@ Proof.
           iEval (simpl) in "H".
           iDestruct "H" as "[Hown %Heq4]".
           simplify_eq.
-          unfold ownRecord, ownBlock. simpl.
-          iDestruct "Hown" as (ls) "(#Hlocs2 & Htag2 & Hxs2)".
-          iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
-          iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
           iExists (VInline "Link" r).
           iSplit; first done.
           iExists r.
           iSplit; first done.
-          iExists lv2.
-          iFrame "Hlocs2 Htag2 Hlv2". }
-        iIntros (x0 rc2) "-> %lc2 -> Hown %m2 Hm2".
-        iNext.
-        iApply "Hm2".
+          iExists a, i'. iFrame "Hown Hav". iPureIntro. exact Hlt. }
+        iIntros "-> (%lc2 & -> & Hown) Hm".
+        iApply "Hm".
         iNext.
         iInv "Hinv" as "H" "Hclose".
         iMod (uf_inv_split with "Hyfrag Hylocs H") as (M2 C2 N2 F2 rc0 ci0)
@@ -2126,34 +2109,28 @@ Proof.
         iFrame "Hlc Hrc0P HrcP".
         iNext.
         iIntros "Hlc' _ _".
-        iDestruct "Hown" as (r') "[-> (%lv3 & #Hlv3locs & Htag3 & Hlv3)]".
         destruct (locations.eqb_spec rc0 rc) as [->|Hnerc].
 
         { iDestruct (ghost_map_elem_agree with "Hrc0 Hrc") as %->.
-          iAssert ⌜C2 !! r' = None⌝%I with "[Hlv3 Hco0 HC]" as %HCr'.
-          { destruct (C2 !! r') as [ci1|] eqn:HCr'; last done.
+          iAssert ⌜C2 !! lc2 = None⌝%I with "[Hown Hco0 HC]" as %HCr'.
+          { destruct (C2 !! lc2) as [ci1|] eqn:HCr'; last done.
             iExFalso.
-            destruct (decide (r' = rc)) as [->|Hne].
-            - iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco0").
-            - iDestruct (big_sepM_lookup _ _ r' ci1 with "HC") as "Hco1".
+            destruct (decide (lc2 = rc)) as [->|Hne].
+            - iApply (content_own_excl γ γc rc (CLink j') _ with "Hown Hco0").
+            - iDestruct (big_sepM_lookup _ _ lc2 ci1 with "HC") as "Hco1".
               { rewrite lookup_delete_ne; done. }
-              iApply (content_own_fresh_ne with "Hlv3locs Hlv3 Hco1"). }
-          iMod (isBlock_persist with "Htag3") as "#Hr'P".
-          iMod (ghost_map_insert r' (CLink j') with "Hcauth") as "[Hcauth Hr'frag]";
+              iApply (content_own_excl γ γc lc2 (CLink j') _ with "Hown Hco1"). }
+          iMod (ghost_map_insert lc2 (CLink j') with "Hcauth") as "[Hcauth Hr'frag]";
             first exact HCr'.
           iMod (ghost_map_elem_persist with "Hr'frag") as "#Hr'frag".
-          assert (Hlt : (i' < j')%Z).
-          { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
           iDestruct (ghost_map_lookup with "Hauth Hafrag") as %HMa2.
-          iAssert (content_own γ γc r' (CLink j')) with "[Hlv3]" as "Hco'".
-          { iExists lv3, a, i'. iFrame "Hlv3locs Hr'P Hlv3 Hav". iPureIntro. exact Hlt. }
           iAssert ([∗ map] r ↦ c ∈ C2, content_own γ γc r c)%I with "[Hco0 HC]" as "HC".
           { rewrite (big_sepM_delete _ C2 rc (CRoot v0)); last exact HCrc0.
             iFrame "Hco0 HC". }
-          iMod ("Hclose" with "[Hauth Hcauth Hnauth Hlc' Htok0 Hco' HM HC]") as "_".
+          iMod ("Hclose" with "[Hauth Hcauth Hnauth Hlc' Htok0 Hown HM HC]") as "_".
           { iNext.
-            iApply (uf_inv_reassemble_link γ γc γn M2 C2 N2 F2 y' a j' i' lyi lyc r'
-                      with "Hauth Hcauth Hnauth Hylocs Hlc' Hr'frag Htok0 Hco' HM HC");
+            iApply (uf_inv_reassemble_link γ γc γn M2 C2 N2 F2 y' a j' i' lyi lyc lc2
+                      with "Hauth Hcauth Hnauth Hylocs Hlc' Hr'frag Htok0 Hown HM HC");
               first [ done | exact HFy2 | exact (not_eq_sym Heq) ]. }
           by iModIntro. }
 
@@ -2163,18 +2140,12 @@ Proof.
                     with "Hauth Hcauth Hnauth Hylocs Hlc' Hrc0 Htok0 Hco0 HM HC"); done. }
         by iModIntro. }
 
-      iIntros ([|]) "_".
-      { rewrite {1}/deco.
-        iApply (imp_wand _ _ _ _ _ (union_post γc x y) with "[]").
-        { iApply imp_EData.
-          { iApply (imp_evals_singleton (A:=val)). imp_path. }
-          { iIntros (v) "->".
-            instantiate (1 := union_post γc x y).
-            simpl.
-            iExists y', rc. iFrame "Hrc". iRight. iPureIntro.
-            by apply rtc_once. } }
-        iIntros (v) "$". }
-      { rewrite {1}/deco.
+      { iIntros "_".
+        imp_data.
+        iIntros (? ->). simpl.
+        iExists y', rc. iFrame "Hrc". iRight. iPureIntro.
+        by apply rtc_once. }
+      { iIntros "_".
         imp_app τ[elem; elem].
         iIntros "Hm3".
         unfold union_spec.
@@ -2185,7 +2156,6 @@ Proof.
 
     { next_branch.
       next_branch.
-      rewrite {1}/deco.
       imp_app τ[elem; elem].
       iIntros "Hm3".
       unfold union_spec.

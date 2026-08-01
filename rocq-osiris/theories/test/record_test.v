@@ -20,10 +20,15 @@ Section verification.
 
   Context `{!osirisGS Σ}.
 
+  (* [imp_arith reading] splits the resource in two, and the proofmode
+     does that through [AsFractional]; hence the [DfracOwn]. Reading at a
+     discarded share does not need [imp_arith]'s splitting at all — the
+     resource is duplicable there ([ownBlock_discarded_dup]). *)
   Definition length_spec r (m : microvx) : iProp Σ :=
     ∀ qp t (x y : Z),
-      ▷ ownBlock (τ:=τ[Z; Z]) r qp t (x, y) -∗
-      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z; Z]) r (DfracOwn qp) t (x, y) -∗
+      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗
+                 ownBlock (τ:=τ[Z;Z]) r (DfracOwn qp) t (x, y) }}.
 
   Definition elength := EAnonFun __fun0.
 
@@ -44,8 +49,8 @@ Section verification.
 
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ t (x0 y : Z),
-      ▷ ownBlock (τ:=τ[Z;Z]) r 1 t (x0, y) -∗
-      imp m {{ λ (_ : unit), ownBlock (τ:=τ[Z;Z]) r 1 t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x0, y) -∗
+      imp m {{ λ (_ : unit), ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x, y) }}.
 
   Definition eupdate_x := EAnonFun __fun2.
 
@@ -192,8 +197,8 @@ Section encoded_fields.
 
   Definition point_length_spec r (m : microvx) : iProp Σ :=
     ∀ qp (p : point),
-      ▷ r ⤇{qp} p -∗
-      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{qp} p }}.
+      ▷ r ⤇{#qp} p -∗
+      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{#qp} p }}.
 
   Definition point_update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ (p : point),
@@ -255,5 +260,28 @@ Section encoded_fields.
     iFrame "#". simpl. auto.
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
+
+  (* The point of indexing [ownRecord] by a [dfrac] rather than a [Qp]:
+     a record whose contents will never change again can be held at
+     [DfracDiscarded], where it is freely duplicable... *)
+
+  Lemma point_discarded_dup (r : record) (p : point) :
+    r ⤇□ p ⊢ r ⤇□ p ∗ r ⤇□ p.
+  Proof. rewrite {1}ownRecord_discarded_dup //. Qed.
+
+  (* ...and still enough to read a field. Before, a discarded share could
+     not be written at all at the [ownRecord] level, and clients had to
+     drop down to [isBlockLocs] plus a raw per-field points-to. *)
+
+  Lemma imp_point_read_discarded η e (r : record) (p : point) :
+    ▷ r ⤇□ p -∗
+    imp (eval η e) {{ λ r' : record, ⌜r' = r⌝ }} -∗
+    imp (eval η (ERecordAccess e 0%Z)) {{ λ i : Z, ⌜i = p.(x)⌝ ∗ r ⤇□ p }}.
+  Proof.
+    iIntros "Hown He".
+    iApply (imp_record_access with "Hown He").
+    split; simpl; lia.
+  Qed.
 
 End encoded_fields.

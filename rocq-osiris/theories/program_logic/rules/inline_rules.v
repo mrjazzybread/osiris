@@ -24,7 +24,7 @@ Section inline_record_reasoning.
     τ_length τ ≤ max_array_length →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (EInline c t es)) Ψ ζ
-      (λ r, ∃# (xs : τ), ownBlock r 1 t xs ∗ Φs xs).
+      (λ r, ∃# (xs : τ), ownBlock r (DfracOwn 1) t xs ∗ Φs xs).
   Proof.
     iIntros (?) "%Hlength Hes". simpl_eval.
     iApply (imp_bind with "Hes").
@@ -43,8 +43,10 @@ Section inline_record_reasoning.
       iPureIntro. simpl.
       rewrite Hlength_ls. rewrite to_vals_length. assumption. }
     iIntros (r) "(Hmut & Hblocks)".
+    (* As in [imp_ERecord]: [ownBlock] holds the tag persistently. *)
+    iMod (isBlock_persist with "Hmut") as "#Htag".
     iApply imp_ret. encode.
-    rewrite bi_texist_equiv. iFrame.
+    rewrite bi_texist_equiv. iFrame "∗#".
   Qed.
 
 End inline_record_reasoning.
@@ -63,7 +65,8 @@ Section encoded_fields.
     let encode_rec := encode_record c in
     (τ_length τ ≤ max_array_length)%Z →
     impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (EInline c t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRecord r 1 (types_to_repr xs) ∗ Φs xs).
+    impure E (eval η (EInline c t es)) Ψ ζ
+      (λ r, ∃# (xs : τ), ownRecord r (DfracOwn 1) (types_to_repr xs) ∗ Φs xs).
   Proof.
     iIntros (? Hlength) "Hes".
     iApply (imp_wand with "[-]").

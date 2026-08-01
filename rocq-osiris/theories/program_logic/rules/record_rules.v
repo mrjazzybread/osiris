@@ -4,7 +4,7 @@ From osiris Require Import lang type_nel.
 Require Import osiris_utils.
 Require Import ewp.
 Require Import impure_rules stop_rules.
-From osiris.utils Require Import list_z big_opLZ.
+From osiris.utils Require Import list_z big_opLZ dfractional.
 
 (** This file defines record resource predicates and [imp] rules for record expressions. *)
 
@@ -12,15 +12,31 @@ Section record_resources.
 
   Context `{!osirisGS Σ}.
 
-  (* [ownBlock r qp t xs] is the representation predicate for a block of memory:
+  (* [ownBlock r dq t xs] is the representation predicate for a block of memory:
      - [r] is the location at which the block is stored
-     - [qp] is the fraction of the ownership carried
+     - [dq] is the (possibly discarded) fraction of the ownership carried
      - [t] is the tag [Mut/Immut] of the block (for allowing physical equality)
-     - [xs] is the logical representation of the block as a tuple *)
+     - [xs] is the logical representation of the block as a tuple
 
-  Definition ownBlock {τ : types} (r : record) qp (t : mut_tag) (xs : τ) : iProp Σ :=
-    ∃ ls, isBlockLocs r ls ∗ isBlock r (DfracOwn qp) t ∗
-      [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{#qp} v.
+     The fraction is a [dfrac] rather than a [Qp] so that a block whose
+     contents will never change again can be shared persistently, at
+     [DfracDiscarded]. With a [Qp] the only way to express that was to
+     abandon [ownBlock] and reason at the level of the individual field
+     points-tos, which is what concurrent clients used to have to do.
+
+     The mutability tag is held *persistently*, at [isBlockP], rather
+     than at [dq]: [dq] governs the fields only. Tying the two together
+     would make [ownBlock] unusable for any block that is compared
+     physically or CASed on, since [compare_and_set_spec] needs a tag
+     witness that outlives the atomic step it was read at — and
+     [isBlock r DfracDiscarded t ∗ isBlock r (DfracOwn 1) t] is
+     [isBlock r (DfracBoth 1) t], which is invalid. Clients that need to
+     *change* a tag (i.e. to freeze) must hold the exclusive [isBlock]
+     themselves; [imp_ERecord] hands it back for exactly that reason. *)
+
+  Definition ownBlock {τ : types} (r : record) dq (t : mut_tag) (xs : τ) : iProp Σ :=
+    ∃ ls, isBlockLocs r ls ∗ isBlockP r t ∗
+      [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{dq} v.
 
 End record_resources.
 
@@ -28,53 +44,108 @@ Section record_resources_frac.
 
   Context `{!osirisGS Σ}.
 
-  Local Lemma isBlock_split (b : locations.loc) p q t :
-    isBlock b (DfracOwn (p + q)) t ⊣⊢ isBlock b (DfracOwn p) t ∗ isBlock b (DfracOwn q) t.
+  (* [gen_heap] exports the joining direction ([pointsto_combine]) but no
+     splitting law for a general [dfrac] — only the [Qp]-indexed
+     [Fractional] instance. We derive it once here; this is the only
+     place that has to look through [gen_heap]'s sealing. *)
+
+  Local Lemma pointsto_dsplit {L V} `{Countable L} `{!gen_heapGS L V Σ}
+      (l : L) dq1 dq2 (v : V) :
+    pointsto l (dq1 ⋅ dq2) v ⊣⊢ pointsto l dq1 v ∗ pointsto l dq2 v.
   Proof.
-    unfold isBlock. iSplit.
+    rewrite gen_heap.pointsto_unseal /gen_heap.pointsto_def
+            ghost_map.ghost_map_elem_unseal /ghost_map.ghost_map_elem_def
+            -own_op.
+    f_equiv. by rewrite -gmap_view.gmap_view_frag_op agree_idemp.
+  Qed.
+
+  Global Instance isBlock_dfractional (b : locations.loc) t :
+    DFractional (λ dq, isBlock b dq t).
+  Proof.
+    intros dq1 dq2. unfold isBlock. iSplit.
     - iIntros "(%ls & Hb)".
+      rewrite pointsto_dsplit.
       iDestruct "Hb" as "[Hb1 Hb2]".
       iSplitL "Hb1"; iExists ls; iFrame.
     - iIntros "([%ls1 Hb1] & [%ls2 Hb2])".
       iPoseProof (gen_heap.pointsto_agree with "Hb1 Hb2") as "%Heq". simplify_eq.
-      iExists ls2. iCombine "Hb1 Hb2" as "Hb". iFrame.
+      iExists ls2. rewrite pointsto_dsplit. iFrame.
   Qed.
+
+  (* [record] is typeclass-opaque, so the previous instance does not apply
+     to [record]-typed arguments; restate it. *)
+  Global Instance isBlock_dfractional_rec (r : record) t :
+    DFractional (λ dq, isBlock r dq t) := isBlock_dfractional r t.
+
+  Global Instance ownBlock_dfractional {τ : types} (r : record) t (xs : τ) :
+    DFractional (λ dq, ownBlock r dq t xs).
+  Proof.
+    intros dq1 dq2. unfold ownBlock. iSplit.
+    - iIntros "(%ls & #Hblock & #Htag & Hxs)".
+      iAssert ([∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{dq1} v ∗ l ↦{dq2} v)%I
+        with "[Hxs]" as "Hxs'".
+      { iApply (big_sepLZ2_mono with "Hxs").
+        intros k l v _ _. rewrite pointsto_dsplit. iIntros "[Hl1 Hl2]". iFrame. }
+      rewrite big_sepLZ2_sep.
+      iDestruct "Hxs'" as "[Hxs1 Hxs2]".
+      iSplitL "Hxs1"; iExists ls; iFrame "#∗".
+    - iIntros "([%ls1 (#Hblock1 & #Htag1 & Hxs1)] & [%ls2 (#Hblock2 & _ & Hxs2)])".
+      iPoseProof (isBlockLocs_valid with "Hblock1 Hblock2") as "<-".
+      iExists ls2. iFrame "Hblock1 Htag1".
+      iAssert ([∗ listZ] l;v ∈ ls2; to_vals xs, l ↦{dq1} v ∗ l ↦{dq2} v)%I
+        with "[Hxs1 Hxs2]" as "Hxs".
+      { rewrite big_sepLZ2_sep. iFrame. }
+      iApply (big_sepLZ2_mono with "Hxs").
+      intros k l v _ _. rewrite pointsto_dsplit. iIntros "$".
+  Qed.
+
+  (* [AsDFractional] is what lets the proofmode split these at an
+     abstract [dfrac] (see [into_sep_dfractional]). *)
+
+  Global Instance isBlock_as_dfractional (b : locations.loc) dq t :
+    AsDFractional (isBlock b dq t) (λ dq, isBlock b dq t) dq.
+  Proof. constructor; done || apply _. Qed.
+
+  Global Instance isBlock_as_dfractional_rec (r : record) dq t :
+    AsDFractional (isBlock r dq t) (λ dq, isBlock r dq t) dq :=
+    isBlock_as_dfractional r dq t.
+
+  Global Instance ownBlock_as_dfractional {τ : types} (r : record) dq t (xs : τ) :
+    AsDFractional (ownBlock r dq t xs) (λ dq, ownBlock r dq t xs) dq.
+  Proof. constructor; done || apply _. Qed.
+
+  (* The [Qp]-indexed instances Iris's proofmode uses ([iSplitL],
+     [iCombine], [iDestruct "H" as "[H1 H2]"]) are now consequences of the
+     [dfrac] ones. [Φ] has to be supplied explicitly — see the comment on
+     [dfractional_fractional]. *)
 
   Global Instance isBlock_fractional (b : locations.loc) t :
     Fractional (λ q, isBlock b (DfracOwn q) t).
-  Proof. intros p q. rewrite isBlock_split //. Qed.
+  Proof. apply (dfractional_fractional (λ dq, isBlock b dq t)). Qed.
 
   Global Instance isBlock_as_fractional (b : locations.loc) q t :
     AsFractional (isBlock b (DfracOwn q) t) (λ q, isBlock b (DfracOwn q) t) q.
   Proof. constructor; done || apply _. Qed.
 
   Global Instance ownBlock_fractional {τ : types} (r : record) t (xs : τ) :
-    Fractional (λ q, ownBlock r q t xs).
-  Proof.
-    intros p q. unfold ownBlock. iSplit.
-    - iIntros "(%ls & #Hblock & Htag & Hxs)".
-      iDestruct (isBlock_split r p q t with "Htag") as "[Htag1 Htag2]".
-      iAssert ([∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{DfracOwn p} v ∗ l ↦{DfracOwn q} v)%I
-        with "[Hxs]" as "Hxs'".
-      { iApply (big_sepLZ2_mono with "Hxs").
-        intros k l v _ _. iIntros "[Hl1 Hl2]". iFrame. }
-      rewrite big_sepLZ2_sep.
-      iDestruct "Hxs'" as "[Hxs1 Hxs2]".
-      iSplitL "Htag1 Hxs1"; iExists ls; iFrame "#∗".
-    - iIntros "([%ls1 (#Hblock1 & Htag1 & Hxs1)] & [%ls2 (#Hblock2 & Htag2 & Hxs2)])".
-      iPoseProof (isBlockLocs_valid with "Hblock1 Hblock2") as "<-".
-      iExists ls2. iFrame "Hblock1".
-      iSplitL "Htag1 Htag2". { rewrite isBlock_split. iFrame. }
-      iAssert ([∗ listZ] l;v ∈ ls2; to_vals xs, l ↦{DfracOwn p} v ∗ l ↦{DfracOwn q} v)%I
-        with "[Hxs1 Hxs2]" as "Hxs".
-      { rewrite big_sepLZ2_sep. iFrame. }
-      iApply (big_sepLZ2_mono with "Hxs").
-      intros k l v _ _. iIntros "[Hl1 Hl2]". iCombine "Hl1 Hl2" as "$".
-  Qed.
+    Fractional (λ q, ownBlock r (DfracOwn q) t xs).
+  Proof. apply (dfractional_fractional (λ dq, ownBlock r dq t xs)). Qed.
 
   Global Instance ownBlock_as_fractional {τ : types} (r : record) q t (xs : τ) :
-    AsFractional (ownBlock r q t xs) (λ q, ownBlock r q t xs) q.
+    AsFractional (ownBlock r (DfracOwn q) t xs) (λ q, ownBlock r (DfracOwn q) t xs) q.
   Proof. constructor; done || apply _. Qed.
+
+  (* At the discarded fraction the block is freely duplicable. It is not
+     declared [Persistent]: that search bottoms out in [Persistent]
+     instances for [ghost_map_elem]/[pointsto] keyed on [locations.loc],
+     which do not fire for the typeclass-opaque [record]. Duplication is
+     what clients actually need, and it comes straight from the
+     [DFractional] law. *)
+
+  Lemma ownBlock_discarded_dup {τ : types} (r : record) t (xs : τ) :
+    ownBlock r DfracDiscarded t xs ⊣⊢
+    ownBlock r DfracDiscarded t xs ∗ ownBlock r DfracDiscarded t xs.
+  Proof. apply (dfractional_discarded_dup (λ dq, ownBlock r dq t xs)). Qed.
 
 End record_resources_frac.
 
@@ -100,7 +171,7 @@ Section records_reasoning.
     τ_length τ ≤ max_array_length →
     impure E (evals η es) Ψ ζ Φs -∗
     impure E (eval η (ERecord t es)) Ψ ζ
-      (λ r, ∃# (xs : τ), ownBlock r 1 t xs ∗ Φs xs).
+      (λ r, ∃# (xs : τ), ownBlock r (DfracOwn 1) t xs ∗ Φs xs).
   Proof.
     iIntros "%Hlength Hes". simpl_eval.
     iApply (imp_bind with "Hes").
@@ -119,8 +190,15 @@ Section records_reasoning.
       iPureIntro. simpl.
       rewrite Hlength_ls. rewrite to_vals_length. assumption. }
     iIntros (r) "(Hmut & Hblocks)".
+    (* [ownBlock] carries the tag persistently, so discard it here. This
+       is the point of no return for freezing: once a persistent [Mut]
+       witness exists, changing the tag would falsify it, and [dfrac]
+       enforces that by making [DfracOwn 1] unreachable afterwards. There
+       is no freeze rule for records ([EFreeze] is [array]-typed), so
+       nothing is lost. *)
+    iMod (isBlock_persist with "Hmut") as "#Htag".
     iApply imp_ret. encode.
-    rewrite bi_texist_equiv. iFrame.
+    rewrite bi_texist_equiv. iFrame "∗#".
   Qed.
 
   Lemma imp_ERecordAccess2 {τ : types} {ζ} f {Φ : (τ !!! f) → iProp Σ} r ls e :
@@ -244,8 +322,8 @@ Section records_reasoning.
     impure E (eval η e2) Ψ ζ Φ2 -∗
     (∀ r a, Φ1 r -∗ Φ2 a -∗
             ∃ t (xs : τ),
-              ▷ (⌜valid_field f τ⌝ ∗ ownBlock r 1 t xs) ∗
-              ▷ (ownBlock r 1 t <[f τ= a]> xs -∗ Φ ())) -∗
+              ▷ (⌜valid_field f τ⌝ ∗ ownBlock r (DfracOwn 1) t xs) ∗
+              ▷ (ownBlock r (DfracOwn 1) t <[f τ= a]> xs -∗ Φ ())) -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
   Proof.
     iIntros "He1 He2 P". simpl_eval.
@@ -287,11 +365,11 @@ Section records_reasoning.
 
   Lemma imp_ERecordSet {τ : types} {ζ} f (Φ : τ !!! f → iProp Σ) (r : record) t (xs : τ) e1 e2 :
     valid_field f τ →
-    ▷ ownBlock r 1 t xs -∗
+    ▷ ownBlock r (DfracOwn 1) t xs -∗
     impure E (eval η e1) Ψ ζ (λ (r' : record), ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ (_ : unit), ∃ a, Φ a ∗ ownBlock r 1 t (<[f τ= a]> xs)).
+      (λ (_ : unit), ∃ a, Φ a ∗ ownBlock r (DfracOwn 1) t (<[f τ= a]> xs)).
   Proof.
     iIntros (Hvalid_field) "Hown He1 He2".
     iApply (imp_ERecordSet2 with "He1 He2").
@@ -324,14 +402,28 @@ Section encoded_fields.
 
   (* [ownRecord] defines the ownership of a record with logical model [a : A]. *)
 
-  Definition ownRecord `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
-    ownBlock (τ:=τ) r qp t (repr_to_types a).
+  Definition ownRecord `{RecordRepr A τ t} (r : record) dq (a : A) : iProp Σ :=
+    ownBlock (τ:=τ) r dq t (repr_to_types a).
 
-  Instance ownRecord_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRecord r qp a) := _.
+  Global Instance ownRecord_dfractional `{RecordRepr A τ t} r (a : A) :
+    DFractional (λ dq, ownRecord r dq a) := _.
+
+  Global Instance ownRecord_as_dfractional `{RecordRepr A τ t} r dq (a : A) :
+    AsDFractional (ownRecord r dq a) (λ dq, ownRecord r dq a) dq.
+  Proof. constructor; done || apply _. Qed.
+
+  Global Instance ownRecord_fractional `{RecordRepr A τ t} r (a : A) :
+    Fractional (λ q, ownRecord r (DfracOwn q) a).
+  Proof. apply (dfractional_fractional (λ dq, ownRecord r dq a)). Qed.
 
   Global Instance ownRecord_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
-    AsFractional (ownRecord r q a) (λ q, ownRecord r q a) q.
+    AsFractional (ownRecord r (DfracOwn q) a) (λ q, ownRecord r (DfracOwn q) a) q.
   Proof. constructor; done || apply _. Qed.
+
+  Lemma ownRecord_discarded_dup `{RecordRepr A τ t} (r : record) (a : A) :
+    ownRecord r DfracDiscarded a ⊣⊢
+    ownRecord r DfracDiscarded a ∗ ownRecord r DfracDiscarded a.
+  Proof. apply (dfractional_discarded_dup (λ dq, ownRecord r dq a)). Qed.
 
   (* -------------------------------------------------------------------------- *)
 
@@ -347,7 +439,8 @@ Section encoded_fields.
   Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ → iProp Σ) :
     (τ_length τ ≤ max_array_length)%Z →
     impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRecord r 1 (types_to_repr xs) ∗ Φs xs).
+    impure E (eval η (ERecord t es)) Ψ ζ
+      (λ r, ∃# (xs : τ), ownRecord r (DfracOwn 1) (types_to_repr xs) ∗ Φs xs).
   Proof.
     iIntros (Hlength) "Hes".
     iApply (imp_wand with "[-]").
@@ -363,11 +456,13 @@ Section encoded_fields.
     iApply "Hr".
   Qed.
 
-  Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (qp : Qp) (a : A) (e : expr) :
+  (* Note the [dq]: reading a field needs no more than a discarded share,
+     so this rule now covers immutable records shared persistently. *)
+  Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (dq : dfrac) (a : A) (e : expr) :
     valid_field f τ →
-    ▷ ownRecord r qp a -∗
+    ▷ ownRecord r dq a -∗
     impure E (eval η e) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRecord r qp a).
+    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRecord r dq a).
   Proof.
     iIntros (Hvalid) "Hown He".
     iApply (imp_wand with "[-]").
@@ -384,11 +479,12 @@ Section encoded_fields.
 
   Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
     valid_field f τ →
-    ▷ ownRecord r 1 a -∗
+    ▷ ownRecord r (DfracOwn 1) a -∗
     impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
     impure E (eval η e2) Ψ ζ Φ -∗
     impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRecord r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
+      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗
+         ownRecord r (DfracOwn 1) (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
   Proof.
     iIntros (Hvf) "Hown He1 He2".
     iApply (imp_wand with "[-]").
@@ -403,8 +499,14 @@ Section encoded_fields.
 End encoded_fields.
 
 Notation "r ⤇ a" :=
-  (ownRecord r 1 a)
+  (ownRecord r (DfracOwn 1) a)
     (at level 20, format "r  ⤇  a").
-Notation "r ⤇{ qp } a" :=
-  (ownRecord r qp a)
-    (at level 20, qp at level 1, format "r  ⤇{ qp }  a") : bi_scope.
+Notation "r ⤇{ dq } a" :=
+  (ownRecord r dq a)
+    (at level 20, dq at level 1, format "r  ⤇{ dq }  a") : bi_scope.
+Notation "r ⤇{# q } a" :=
+  (ownRecord r (DfracOwn q) a)
+    (at level 20, q at level 1, format "r  ⤇{# q }  a") : bi_scope.
+Notation "r ⤇□ a" :=
+  (ownRecord r DfracDiscarded a)
+    (at level 20, format "r  ⤇□  a") : bi_scope.

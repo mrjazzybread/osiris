@@ -218,10 +218,10 @@ Section ipattern.
 
   (* Reading all the fields of a block. *)
 
-  Lemma imp_loadn {X} (ζ : X → iProp Σ) (q : Qp) ls (vs : list val) :
-    ([∗ listZ] l;v ∈ ls; vs, l ↦{#q} v) -∗
+  Lemma imp_loadn {X} (ζ : X → iProp Σ) (dq : dfrac) ls (vs : list val) :
+    ([∗ listZ] l;v ∈ ls; vs, l ↦{dq} v) -∗
     imp (loadn ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ vs' : list val,
-        ⌜vs' = vs⌝ ∗ [∗ listZ] l;v ∈ ls; vs, l ↦{#q} v }}.
+        ⌜vs' = vs⌝ ∗ [∗ listZ] l;v ∈ ls; vs, l ↦{dq} v }}.
   Proof.
     iInduction ls as [|l ls] "IH" forall (vs); iIntros "Hls"; simpl.
     - iDestruct (big_sepLZ2_nil_inv_l with "Hls") as %->.
