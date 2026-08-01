@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 
-From osiris.lang Require Import encode type_nel.
+From osiris.lang Require Import encode type_nel constructors.
 From osiris.semantics Require Import eval.
 From osiris.program_logic Require Import program_logic.
 
@@ -214,6 +214,31 @@ Section InEnv.
     iIntros (Heq) "$".
     iPureIntro.
     simpl lookup_name; rewrite Heq. reflexivity.
+  Qed.
+
+  (* [in_env_here] requires unification to invert [#?v = <stored value>].
+     That works when the encoding is transparent enough (a [val], a [Z],
+     a record), but not when [A] is a variant type whose [Encode] is a
+     [match] on constructors: from [VInline "Root" r] there is no way to
+     guess [CtRoot r]. This variant reads the constructor off the stored
+     value and looks the answer up in the [Inline] class instead.
+
+     The constructor function [mk] is taken as a parameter constrained by
+     an equation rather than looked up directly, so that a caller can
+     apply this rule while [c] is still an evar: unification against the
+     goal fixes [c] and [r], and only then is the equation discharged by
+     [Inline]'s instance — which is exactly when its [Hint Mode] permits
+     resolution. *)
+
+  Lemma in_env_here_inline {η} (c : data) (r : record) (mk : record → A) x y :
+    (x =? y)%string = true →
+    (∀ r' : record, VInline c r' = #(mk r')) →
+    Φ (mk r) -∗
+    in_env x Φ ((y, VInline c r) :: η).
+  Proof.
+    iIntros (Heq Hmk) "HΦ".
+    rewrite Hmk.
+    by iApply in_env_here.
   Qed.
 
 End InEnv.
@@ -555,6 +580,53 @@ Ltac2 in_env_here () :=
      condition of [in_env_here]. *)
   Control.focus 1 1 (fun _ => apply String.eqb_refl).
 
+(* The constructor-aware variant, for a target type whose [Encode] is a
+   [match] on constructors, so that unification cannot invert [#?v]
+   against the stored value (nothing recovers [CtRoot r] from
+   [VInline "Root" r]).
+
+   It is NOT offered as an alternative to [in_env_here], neither inside
+   that tactic nor at the search level in [solve_in_env]. All three
+   placements were tried — [Control.plus] inside [in_env_here],
+   [Control.once (Control.plus ...)] inside it, and a [Control.plus] in
+   [solve_in_env]'s cons branch — and all three break callers in the same
+   way: a *later* argument goal of the same [imp_app] then fails, with
+   [set_postcondition] reporting a goal that is no longer of the form
+   [imp m @ E <|Ψ|> ⟨⟨ζ⟩⟩ {{Φ}}]. Reverting just the alternation, with
+   everything else in place, restores it.
+
+   So the obstacle is not where the rule choice is made: merely making
+   this rule *reachable by backtracking* perturbs an earlier, unrelated
+   bracket of the same [imp_app].
+
+   What instrumenting [imp_app] established (baseline, alternation off).
+   After [imp_app τ[loc;content;content]] and its first bracket, exactly
+   three goals remain: the two argument goals
+     [imp eval η (EPath ["cx"])  {{ λ c : content, ?x  c }}]
+     [imp eval η (EPath ["cx'"]) {{ λ c : content, ?x0 c }}]
+   and the continuation, whose premises mention the same [?x]/[?x0].
+   Both argument evars are plain, unapplied postcondition evars. On the
+   first of them [set_postcondition] succeeds, [iApply imp_EPath_spec]
+   succeeds (yielding [path_spec ["cx"] (λ c, ?x c) η]), and [imp_path]
+   fails precisely at the leaf, with
+     [Could not solve goal [in_env "cx" _ (…)]]
+   — i.e. the constructor-inversion failure this rule exists to fix, on
+   a perfectly well-formed goal.
+
+   With the alternation on, [imp_path] at that same bracket instead
+   reports that it cannot apply [imp_EPath_spec] at all, which means the
+   goal it sees is no longer the one above: the preceding bracket has
+   left something different behind. The corresponding dump with the
+   alternation on could not be taken (the file no longer compiles, so no
+   proof state is available at that position); obtaining it needs the
+   dump captured from a scratch file that reproduces the [imp_app] shape
+   without depending on the rest of this proof. That is the next step. *)
+
+Ltac2 in_env_here_inline_tac () :=
+  iApply in_env_here_inline;
+  Control.focus 1 1 (fun _ => apply String.eqb_refl);
+  Control.focus 1 1 (fun _ => apply inline_encode).
+
 Ltac2 in_env_app_l () :=
   iApply in_env_app_l.
 
@@ -592,7 +664,12 @@ Ltac2 in_env_context hyp :=
    - if [η] is a cons: apply either [in_env_here] or [in_env_cons].
    - if [η] is an app: apply either [in_env_app_r] or [in_env_app_l].
    - otherwise: try and find a hypothesis on [η] in the context.
- *)
+
+   When the head of the cons *is* the name we are after, a second rule
+   ([in_env_here_inline], for a target type whose [Encode] is a [match]
+   on constructors) can also apply. It is deliberately NOT offered here
+   as an extra alternative — see the note on [in_env_here_inline_tac]
+   above for what goes wrong. *)
 
 Ltac2 rec solve_in_env () :=
   lazy_match! get_iris_goal () with

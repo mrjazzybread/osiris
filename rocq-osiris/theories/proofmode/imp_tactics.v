@@ -445,7 +445,13 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
 with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
-  let specialized_lemma :=
+  (* A thunk, not a value: elaborating the lemma creates evars for its
+     implicit [{η E Ψ ζ}] and [Φs], and those are shelved as soon as they
+     exist. Binding it eagerly therefore leaves five dangling shelved
+     goals behind whenever the [_as] branch below is taken and this
+     lemma is never applied — which is what surfaces as "remaining
+     shelved goals" at [Qed]. *)
+  let specialized_lemma () :=
     (* [a_opt], when given, pins the [RecordRepr]'s logical model type [A]
        explicitly (via [imp_record $! A]), instead of leaving both [A] and
        the field types of [τ] to typeclass search. This is needed whenever
@@ -481,9 +487,66 @@ with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : con
     unfold_impure_evals selpat;
     Control.enter (fun () => try (imp_step0 reading))
   in
+  (* When the goal's postcondition is at a type other than [record], the
+     expression is building a value of a *variant* type whose constructor
+     carries this inline record — the [Root]/[Link] situation. The plain
+     rule cannot apply there (its conclusion is [record]-typed), so fall
+     back to [imp_inline_record_as], recovering the constructor from the
+     [Inline] class keyed on [c]. Callers used to have to apply that rule
+     by hand. *)
+  let apply_record_as () :=
+    lazy_match! e with
+    | EInline ?c _ ?es =>
+        let lemma :=
+          match a_opt with
+          | Some b => '(imp_inline_record_as (B:=$b) $c (inline_apply (c:=$c)))
+          | None =>
+              let τ := utypes_from_exprs es in
+              '(imp_inline_record_as (τ:=$τ) $c (inline_apply (c:=$c)))
+          end
+        in
+        iApply $lemma >
+          [ ltac1:(intro; symmetry; apply inline_encode)
+          | simpl; try ltac1:(lia)
+          | step_elements () ]
+    | _ =>
+        Control.zero
+          (Tactic_failure
+             (Some (fprintf "[imp_record] doesn't know how to handle expression %t" e)))
+    end
+  in
+  (* Which of the two rules applies is decided by the postcondition's
+     domain type, NOT by trying the plain rule and falling back: a failed
+     [iApply] still elaborates its lemma first, and the evars it creates
+     for the implicit [{η E Ψ ζ}] stay on the shelf even after
+     backtracking undoes the application — surfacing as "remaining
+     shelved goals" at [Qed].
+
+     The test is exact rather than heuristic: both plain rules conclude
+     with a [record]-typed postcondition, so a domain that is neither
+     [record] nor still an evar is precisely the case they cannot
+     handle. Leaving an evar domain to the plain rule preserves the
+     pre-existing behaviour for every other caller. *)
+  let use_record_as () :=
+    lazy_match! get_iris_goal () with
+    | impure _ _ _ _ ?phi =>
+        match Constr.Unsafe.kind (Constr.type phi) with
+        | Constr.Unsafe.Prod b _ =>
+            let a := Constr.Binder.type b in
+            if Constr.is_evar a then false
+            else if Constr.equal a 'record then false
+            else true
+        | _ => false
+        end
+    | _ => false
+    end
+  in
   let apply_record () :=
-    iApply $specialized_lemma >
-      [ simpl; try ltac1:(lia) | step_elements () ]
+    if use_record_as () then apply_record_as ()
+    else
+      let lemma := specialized_lemma () in
+      iApply $lemma >
+        [ simpl; try ltac1:(lia) | step_elements () ]
   in
   let post :=
     lazy_match! get_iris_goal () with

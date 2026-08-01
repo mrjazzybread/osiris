@@ -82,4 +82,45 @@ Section encoded_fields.
     iApply "Hr".
   Qed.
 
+  (* [imp_inline_record] hands the allocated block back as a [record]
+     observed at [encode_record c] — one [Encode record] instance per
+     constructor tag. That is fine as long as a client only ever handles
+     one tag at a time, but it breaks down as soon as two differently
+     tagged values must share a single [Encode A]: the canonical case is
+     [Atomic.Loc.compare_and_set], whose "seen" and "new" arguments are
+     typed by one [Encode A], and which is exactly how one swings a
+     [Root]-tagged record for a [Link]-tagged one.
+
+     The fix is to let the caller name the type: given the OCaml variant
+     type [A] that the constructor belongs to, together with its
+     constructor [mk] and the (definitional) fact that [mk] encodes as
+     the inline record, allocation can hand the value back at [A]
+     directly. Clients then never have to see the [val] level.
+
+     This is the only place [imp_wand_observe] should be needed: it is
+     the general "reinterpret the result at another [Observe] view"
+     combinator, and packaging it here keeps it out of client proofs. *)
+
+  Lemma imp_inline_record_as `{RecordRepr B τ t} `{Encode A} {η E Ψ ζ}
+      c (mk : record → A) es (Φs : τ → iProp Σ) :
+    (∀ r : record, (#(mk r) : val) = VInline c r) →
+    (τ_length τ ≤ max_array_length)%Z →
+    impure E (evals η es) Ψ ζ Φs -∗
+    impure E (eval η (EInline c t es)) Ψ ζ
+      (λ a : A, ∃ r : record, ⌜a = mk r⌝ ∗
+         ∃# (xs : τ), ownRecord r (DfracOwn 1) (types_to_repr xs) ∗ Φs xs).
+  Proof.
+    iIntros (Hmk Hlength) "Hes".
+    iApply (imp_wand_observe (A:=record) (H:=@observe_encode record (encode_record c))
+              _ _ _ _ _ (λ a : A, ∃ r : record, ⌜a = mk r⌝ ∗
+                 ∃# (xs : τ), ownRecord r (DfracOwn 1) (types_to_repr xs) ∗ Φs xs)%I
+              with "[Hes] []").
+    { iApply (imp_inline_record with "Hes"). assumption. }
+    iIntros (r) "Hr".
+    iExists (mk r).
+    iSplit.
+    { iPureIntro. rewrite /observe /observe_encode /=. by rewrite Hmk. }
+    iExists r. by iFrame.
+  Qed.
+
 End encoded_fields.

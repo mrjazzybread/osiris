@@ -32,6 +32,34 @@ Global Instance Data_Cons `{Encode A} : Data "::" τ[A; list A] (list A) :=
 
 (* -------------------------------------------------------------------------- *)
 
+(* [Inline c A] is the analogue of [Data] for constructors whose payload
+   is an *inline record*: it ties the constructor [c] to the function
+   building the corresponding logical value from the record.
+
+   Its purpose is to let automation go the other way round. Given a
+   stored value [VInline c r] and a target type [A], recovering the
+   logical value means inverting [#?a = VInline c r] — which unification
+   cannot do, since [A]'s encoding is a [match] on its constructors.
+   Looking up [Inline c A] instead reads the answer off the constructor
+   name, which is available syntactically. *)
+
+Class Inline (c : data) (A : Type) `{Encode A} : Type :=
+  { inline_apply  : record → A;
+    inline_encode : ∀ r : record, VInline c r = #(inline_apply r) }.
+
+(* As for [Constant], resolution is keyed on the constructor name; [A] is
+   left as an output so that automation can also use this when only the
+   stored value is known. *)
+Global Hint Mode Inline ! - - : typeclass_instances.
+
+(* Any inline-record value may be reflected at the [val] level as itself.
+   Deliberately not an instance, for the same reason as [Constant_val]:
+   it matches every constructor name. *)
+Definition Inline_val (c : data) : Inline c val :=
+  {| inline_apply := VInline c; inline_encode := λ _, eq_refl |}.
+
+(* -------------------------------------------------------------------------- *)
+
 (* [Constant c A] is the nullary analogue of [Data]: it ties a constant
    constructor [c] to the logical value it encodes. *)
 

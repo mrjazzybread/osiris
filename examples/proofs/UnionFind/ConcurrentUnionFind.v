@@ -72,13 +72,59 @@ Implicit Types i j : Z.
    this record has moved on, the record itself still satisfies its
    description. *)
 
-(* The content value carried by a vertex whose content record is [rc]. *)
+(* [content] is the OCaml type of a vertex's [content] field: the
+   two-constructor variant whose payloads are the inline records
+   [Root {value}] and [Link {parent}].
+
+   Naming it, rather than working with the underlying [VInline ...]
+   values, is what keeps [val] out of the proofs. It matters because
+   [compare_and_set_spec] types its "seen" and "new" arguments by a
+   *single* [Encode A]: swinging a [Root]-tagged record for a
+   [Link]-tagged one has no common [Encode record] instance (there is one
+   per tag, [encode_record c]), so without this type every such CAS has
+   to be instantiated at [A := val] with the identity encoding. With it,
+   all three CAS sites in this file instantiate at [A := content]. *)
+
+Inductive content := CtRoot (r : record) | CtLink (r : record).
+
+Global Instance Encode_content : Encode content :=
+  {| encode' c := match c with
+                  | CtRoot r => VInline "Root" r
+                  | CtLink r => VInline "Link" r
+                  end |}.
+
+(* Registering the two constructors lets [imp_path] recover a [content]
+   from a stored [VInline c r], which its encoding — a [match] on
+   constructors — gives unification no way to invert. *)
+
+Global Instance Inline_content_Root : Inline "Root" content :=
+  {| inline_apply := CtRoot; inline_encode := λ _, eq_refl |}.
+
+Global Instance Inline_content_Link : Inline "Link" content :=
+  {| inline_apply := CtLink; inline_encode := λ _, eq_refl |}.
+
+(* The content a vertex holds, given the ghost description [ci] of its
+   content record [rc]: [ci] supplies the tag, [rc] the payload. *)
+
+Definition ctag (ci : cinfo) (rc : record) : content :=
+  match ci with
+  | CRoot _ => CtRoot rc
+  | CLink _ => CtLink rc
+  end.
+
+(* [cval] stays syntactically a [VInline]: it is what [vertex_own] stores
+   and what the pattern-matching automation ([imp_match], [next_branch])
+   has to see through. [cval_ctag] is the bridge to the typed view, used
+   only where a CAS needs its arguments at [content]. *)
 
 Definition cval (ci : cinfo) rc : val :=
   match ci with
   | CRoot _ => VInline "Root" rc
   | CLink _ => VInline "Link" rc
   end.
+
+Lemma cval_ctag ci rc : cval ci rc = #(ctag ci rc).
+Proof. by destruct ci. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* [RecordRepr] instances for the three record shapes allocated in this
@@ -942,25 +988,25 @@ Proof.
     iApply (imp_EIfThenElse _ _ _ _ (λ b : bool, if b then True else lv' ↦ v)%I
               with "[Hlv'] []").
 
-    { (* The CAS. Its two operands are inline records, so the rule needs
-         both tags; the "expected" side's tag is only known once the
-         invariant is reopened at CAS time. *)
-      iApply (imp_EApp τ[loc; val; val]).
-      { iDestruct "Hcas" as (casv Hcasv) "#Hcasspec".
-        iApply (imp_EPath (A:=val) casv).
-        { exact Hcasv. }
-        iApply ("Hcasspec" $! val _). }
+    { (* The CAS, at [A := content]. Both operands happen to be
+         [Root]-tagged here, so a per-tag [Encode record] would have
+         sufficed — but using [content] keeps all three CAS sites in this
+         file uniform, and removes the need for any tag-specific [Encode
+         record] instance. The "expected" side's tag is only known once
+         the invariant is reopened at CAS time. *)
+      imp_app τ[loc;content;content].
       { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lzc⌝)%I 1%Z z [lzi; lzc]).
         { list_z.length. lia. }
         { iApply "Hzlocs". }
         { imp_path. }
         equality. }
-      { imp_path. }
-      { imp_path. }
-      simpl.
-      iIntros (cx'v cxv) "-> %l -> ->".
-      iIntros (m) "Hm".
-      iNext.
+      { set_postcondition (λ c : content, ⌜c = CtRoot rc⌝)%I.
+        iApply (imp_EPath (A:=content) (CtRoot rc)); first reflexivity.
+        done. }
+      { set_postcondition (λ c : content, ⌜c = CtRoot rc'⌝)%I.
+        iApply (imp_EPath (A:=content) (CtRoot rc')); first reflexivity.
+        done. }
+      iIntros "-> -> -> Hm".
       iApply ("Hm" $! (⊤ ∖ ↑ufN)).
       iNext.
       iInv "Hinv" as "H" "Hclose".
@@ -1061,8 +1107,7 @@ Proof.
   unfold set_spec.
   iIntros (i) "#Hinv #Hx".
   iApply imp_please; iNext.
-  unfold __set.
-  simpl.
+
   iApply (imp_ELet_var (B:=record)
       (H0:={| encode' := λ rc : record, VInline "Root" rc |})
       (λ rc : record, content_own γ γc rc (CRoot v))%I).
@@ -1111,14 +1156,6 @@ Definition update_spec (γ γc γn : gname) (x : elem) (f : val) (m : microvx) :
     vertex γ x i -∗
     imp m {{ λ _ : unit, True }}.
 
-(* An [Encode record] instance reading a record as a [Root]-tagged
-   inline value, used (explicitly, not as a section-wide [Instance], so
-   as not to shadow [Encode_record] for every other [elem]-typed goal
-   in this file) to instantiate [compare_and_set_spec]'s generic
-   argument type directly at [record], matching what [imp_EInline] and
-   the atomic record-read rules naturally produce. *)
-
-Definition root_enc : Encode record := {| encode' := λ r : record, VInline "Root" r |}.
 
 Lemma update_proof γ γc γn η :
   ▷ in_env "update" (λ update, □ iSpec τ[elem; val] update (update_spec γ γc γn)) η -∗
@@ -1136,8 +1173,6 @@ Proof.
   iIntros "#Hf".
   iIntros (i) "#Hinv #Hx".
   iApply imp_please; iNext.
-  unfold __update_fun.
-  simpl.
 
   (* [let z = findc x in ...]: chase [x] to a root [z]. *)
   iApply (imp_ELet_var (B:=elem)).
@@ -1216,30 +1251,31 @@ Proof.
     { (* The CAS. Unlike [set]'s, the "new value" argument is built here:
          a freshly allocated [Root { value = f v0 }] record, whose
          ownership this attempt consumes (each retry allocates its own). *)
-      iApply (imp_EApp (@type_nel.Tcons loc _
-                          (@type_nel.Tcons record root_enc
-                             (@type_nel.Tbase record root_enc)))).
-      { imp_path. }
+      imp_app τ[loc;content;content].
       { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lzc⌝)%I 1%Z z [lzi; lzc]).
         { list_z.length; lia. }
         { iApply "Hzlocs". }
         { imp_path. }
         equality. }
-      { imp_path. }
-      { (* Allocate [Root { value = f v0 }]. [f] is only known to be
-           safe, so nothing is remembered about the stored value. *)
-        set_postcondition (λ r : elem, ∃ w : val, content_own γ γc r (CRoot w))%I.
+      { set_postcondition (λ c : content, ⌜c = CtRoot rc⌝)%I.
+        iApply (imp_EPath (A:=content) (CtRoot rc)); first reflexivity.
+        done. }
+      { (* Allocate [Root { value = f v0 }], already typed as a
+           [content]. [f] is only known to be safe, so nothing is
+           remembered about the stored value. *)
+        set_postcondition
+          (λ c : content, ∃ (r : record) (w : val), ⌜c = CtRoot r⌝ ∗
+             content_own γ γc r (CRoot w))%I.
         imp_record $! root_fields.
         { iApply (imp_EApp' (B:=val)).
           { imp_path. }
           { imp_path. }
           iIntros "!>" (f0 w0) "-> ->".
           iApply "Hf". }
-        iIntros (r) "(%x0 & Hown & _)".
-        iExists x0. iApply "Hown". }
-      simpl.
-      iIntros (rc3 rc2 -> lc2 ->) "Hown %m2 Hm2 !>".
-      iApply "Hm2".
+        iIntros (c) "(%r & -> & %xs & Hown & _)".
+        iExists r, xs. iSplit; first done. iApply "Hown". }
+      iIntros "-> -> (%rc3 & %w3 & -> & Hco3) Hm".
+      iApply "Hm".
       iNext.
       iInv "Hinv" as "H" "Hclose".
       iMod (uf_inv_split with "Hzfrag Hzlocs H") as (M2 C2 N2 F2 rc0 ci0)
@@ -1257,7 +1293,6 @@ Proof.
       iFrame "Hlc Hrc0P HrcP".
       iNext.
       iIntros "Hlc' _ _".
-      iDestruct "Hown" as (w3) "Hco3".
       destruct (locations.eqb_spec rc0 rc) as [->|Hne].
 
       { (* The CAS succeeded: [rc3] becomes [z]'s content record and must
@@ -1421,13 +1456,6 @@ Proof.
     iPureIntro. exists z.
     split; (eapply rtc_l; [eassumption | assumption]).
 Qed.
-
-(* An [Encode record] instance reading a record as a [Link]-tagged inline
-   value, analogous to [root_enc], used to CAS a freshly allocated
-   [Link { parent = ... }] content record into a vertex's [content]
-   field via the generic [compare_and_set_spec]. *)
-
-Definition link_enc : Encode record := {| encode' := λ r : record, VInline "Link" r |}.
 
 (* Following [F]-edges strictly decreases the identifier, given
    [id_bounded]: an easy induction along the path, confining each
@@ -1643,9 +1671,11 @@ Qed.
    4. [if x.id > y.id then <CAS Link{parent=y'} into x'.content; Some v>
       else union x y] and the symmetric case for [y.id > x.id]: atomically
       read the [Root] content, allocate [Link{parent=...}] via
-      [imp_EInline], CAS it in via the polymorphic [compare_and_set_spec]
-      (through [val] directly — see [imp_wand_observe]'s use below — since
-      the "seen"/"new" arguments carry different tags), and on success
+      [imp_record] — which, seeing a [content]-typed postcondition, types
+      it as a [content] on the spot, so the "seen"/"new" arguments share
+      one [Encode content] despite carrying different tags — CAS it in
+      via the polymorphic [compare_and_set_spec] at [A := content], and
+      on success
       register the new content record as [CLink i'] (resp. [CLink j'])
       in [γc] — needs the parent's id strictly below the bound, i.e.
       [j' < i'] (resp. [i' < j']), from the branch guard.
@@ -1665,33 +1695,18 @@ Qed.
    [assert (x.id <> y.id)] and twice for the [x.id > y.id] test. *)
 
 Local Ltac read_id l1 l2 iu locsH liH :=
-  rewrite {1}/deco;
-  let H := fresh "Hid0" in
-  assert (H : @lookup_total Z loc (list loc)
-                (@list_z.listz_lookup_total loc locations.inhabited_loc)
-                0%Z [l1; l2] = l1) by (vm_compute; reflexivity);
   iApply (imp_ERecordAccess_pers _ _ [l1; l2] _ iu);
   [ by vm_compute
   | iExact locsH
   | imp_path
-  | rewrite H; iExact liH
-  | rewrite H; iIntros "!> _"; done ].
-
-(* Rewriting [[l1; l2] !!! 1] to [l2], i.e. naming a vertex's [content]
-   field location. Needs the [Inhabited] instance pinned, see [!!!]. *)
-
-Local Ltac content_loc l1 l2 :=
-  let H := fresh "Hcl" in
-  assert (H : @lookup_total Z loc (list loc)
-                (@list_z.listz_lookup_total loc locations.inhabited_loc)
-                1%Z [l1; l2] = l2) by (vm_compute; reflexivity);
-  rewrite H.
+  | iExact liH
+  | iIntros "!> _"; done ].
 
 Lemma union_proof γ γc γn η :
   ▷ in_env "union" (λ union, □ iSpec τ[elem; elem] union (union_spec γ γc γn)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (findc_spec γ γc γn)) η -∗
   in_env "cas"
-    (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
+    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
   imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __union_fun))))
     {{ λ c, □ iSpec τ[elem; elem] c (union_spec γ γc γn) }}.
 Proof.
@@ -1702,9 +1717,6 @@ Proof.
   unfold union_spec.
   iIntros (i j) "#Hinv #Hx #Hy".
   iApply imp_please; iNext.
-  unfold __union_fun.
-  simpl.
-  rewrite {1}/deco.
 
   (* [let x = findc x and y = findc y in ...]: chase both arguments to
      their (possibly already stale) roots [a] and [y']. *)
@@ -1815,7 +1827,7 @@ Proof.
                 with "Halocs [] []").
       { list_z.length; lia. }
       { imp_path. }
-      content_loc lai lac.
+
       iNext.
       iInv "Hinv" as "H" "Hclose".
       iMod (uf_inv_split with "Hafrag Halocs H") as (M C N F rc ci)
@@ -1867,57 +1879,40 @@ Proof.
 
       imp_if.
       { set_postcondition (λ b, True)%I.
-        (* The CAS is instantiated at [A := val] with the identity
-           [Encode_val] instance (not [root_enc]/[link_enc]): unlike
-           [update_proof] — which installs another [Root]-tagged record
-           and so can keep both CAS arguments at one [Encode record]
-           instance — here the "seen" value ([cx], Root-tagged) and the
-           "new" value ([Link {parent = y}], Link-tagged) need
-           *different* tags, which a single [A := record, Henc] cannot
-           express ([compare_and_set_spec]'s one [Encode A] is shared by
-           both positions). Going through [val] sidesteps this. *)
-        iApply (imp_EApp (@type_nel.Tcons loc _
-                            (@type_nel.Tcons val Encode_val
-                               (@type_nel.Tbase val Encode_val)))).
-        { iDestruct "Hcas" as (casv Hcasv) "#Hcasspec".
-          iApply (imp_EPath (A:=val) casv).
-          { exact Hcasv. }
-          iApply ("Hcasspec" $! val Encode_val). }
+        (* The CAS is instantiated at [A := content]. The "seen" value is
+           [CtRoot rc] and the "new" one [CtLink r']: two different
+           constructor tags, which is exactly what a per-tag
+           [Encode record] instance cannot express — this is what used to
+           force the whole call through [A := val]. [Encode_content]
+           covers both with one instance. *)
+        imp_app τ[loc;content;content].
         { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lac⌝)%I 1%Z a [lai; lac]).
           { list_z.length; lia. }
           { iApply "Halocs". }
           { imp_path. }
-          content_loc lai lac.
           iNext. done. }
-        { imp_path. }
-
-        (* The "new" argument: allocate [Link {parent = y}] (as an
-           [elem]) and view its record as a [val] via [imp_wand_observe],
-           the [Observe]-crossing analogue of [imp_wand] — bridging
-           [imp_EInline]'s natural [elem]-typed conclusion (pinned to the
-           ["Link"]-tag instance [encode_record "Link"], hence supplied
-           explicitly) up to the [val]-typed slot the CAS expects. *)
-        iApply (imp_wand_observe (A:=elem) (H:=@observe_encode elem (encode_record "Link"))
-          _ _ _ _ _ (fun w : val => ∃ r' : elem, ⌜w = VInline "Link" r'⌝ ∗
-            content_own γ γc r' (CLink i'))%I
-          with "[] []").
-        { imp_record $! link_fields. }
-        { (* Allocation already yields the record; adding [y']'s vertex and
-             the branch guard's [j' < i'] turns it into the invariant's own
-             [content_own] for the new [Link]. *)
-          iIntros (r) "H".
-          iDestruct "H" as (x0) "H".
-          iEval (simpl) in "H".
-          iDestruct "H" as "[Hown %Heq4]".
-          simplify_eq.
-          iExists (VInline "Link" r).
-          iSplit; first done.
-          iExists r.
-          iSplit; first done.
+        { (* The "seen" value, read back from the environment at
+             [content]. [imp_path] cannot guess which constructor the
+             stored value belongs to, so it is written out. *)
+          set_postcondition (λ c : content, ⌜c = CtRoot rc⌝)%I.
+          iApply (imp_EPath (A:=content) (CtRoot rc)); first reflexivity.
+          done. }
+        { (* The "new" value: because the postcondition is at [content]
+             rather than [record], [imp_record] allocates
+             [Link { parent = y }] and hands it back already typed as a
+             [content], so no [Observe]-crossing is needed here. Adding
+             [y']'s vertex and the branch guard's [j' < i'] turns it into
+             the invariant's own [content_own]. *)
+          set_postcondition
+            (λ c : content, ∃ r' : record, ⌜c = CtLink r'⌝ ∗
+               content_own γ γc r' (CLink i'))%I.
+          rewrite {1}/deco.
+          imp_record $! link_fields.
+          iIntros (c) "(%r' & -> & %xs & Hown & ->)".
+          iExists r'. iSplit; first done.
           iExists y', j'. iFrame "Hown Hy'v". iPureIntro. exact Hlt. }
-        iIntros (x0 rc2) "-> %lc2 -> Hown %m2 Hm2".
-        iNext.
-        iApply "Hm2".
+        iIntros "-> -> (%r' & -> & Hco') Hm".
+        iApply "Hm".
         iNext.
         iInv "Hinv" as "H" "Hclose".
         iMod (uf_inv_split with "Hafrag Halocs H") as (M2 C2 N2 F2 rc0 ci0)
@@ -1935,7 +1930,6 @@ Proof.
         iFrame "Hlc Hrc0P HrcP".
         iNext.
         iIntros "Hlc' _ _".
-        iDestruct "Hown" as (r') "[-> Hco']".
         destruct (locations.eqb_spec rc0 rc) as [->|Hnerc].
 
         { (* The CAS succeeded, installing [r' = Link {parent = y'}] as
@@ -2021,7 +2015,6 @@ Proof.
                 with "Hylocs [] []").
       { by list_z.length; lia. }
       { imp_path. }
-      content_loc lyi lyc.
       iNext.
       iInv "Hinv" as "H" "Hclose".
       iMod (uf_inv_split with "Hyfrag Hylocs H") as (M C N F rc ci)
@@ -2067,30 +2060,24 @@ Proof.
 
       imp_if.
       { set_postcondition (λ _, True)%I.
-        imp_app τ[loc;val;val].
+        imp_app τ[loc;content;content].
         { iApply (imp_EAtomicLoc (Φ := λ l : loc, ⌜l = lyc⌝)%I 1%Z y' [lyi; lyc]).
           { list_z.length; lia. }
           { iNext. iExact "Hylocs". }
           { imp_path. }
-          content_loc lyi lyc.
           iNext. done. }
-        iApply (imp_wand_observe (A:=elem) (H:=@observe_encode elem (encode_record "Link"))
-          _ _ _ _ _ (fun w : val => ∃ r' : elem, ⌜w = VInline "Link" r'⌝ ∗
-            content_own γ γc r' (CLink j'))%I
-          with "[] []").
-        { rewrite {1}/deco.
-          imp_record $! link_fields. }
-        { iIntros (r) "H".
-          iDestruct "H" as (x0) "H".
-          iEval (simpl) in "H".
-          iDestruct "H" as "[Hown %Heq4]".
-          simplify_eq.
-          iExists (VInline "Link" r).
-          iSplit; first done.
-          iExists r.
-          iSplit; first done.
+        { set_postcondition (λ c : content, ⌜c = CtRoot rc⌝)%I.
+          iApply (imp_EPath (A:=content) (CtRoot rc)); first reflexivity.
+          done. }
+        { set_postcondition
+            (λ c : content, ∃ r' : record, ⌜c = CtLink r'⌝ ∗
+               content_own γ γc r' (CLink j'))%I.
+          rewrite {1}/deco.
+          imp_record $! link_fields.
+          iIntros (c) "(%r' & -> & %xs & Hown & ->)".
+          iExists r'. iSplit; first done.
           iExists a, i'. iFrame "Hown Hav". iPureIntro. exact Hlt. }
-        iIntros "-> (%lc2 & -> & Hown) Hm".
+        iIntros "-> -> (%r' & -> & Hco') Hm".
         iApply "Hm".
         iNext.
         iInv "Hinv" as "H" "Hclose".
@@ -2112,25 +2099,25 @@ Proof.
         destruct (locations.eqb_spec rc0 rc) as [->|Hnerc].
 
         { iDestruct (ghost_map_elem_agree with "Hrc0 Hrc") as %->.
-          iAssert ⌜C2 !! lc2 = None⌝%I with "[Hown Hco0 HC]" as %HCr'.
-          { destruct (C2 !! lc2) as [ci1|] eqn:HCr'; last done.
+          iAssert ⌜C2 !! r' = None⌝%I with "[Hco' Hco0 HC]" as %HCr'.
+          { destruct (C2 !! r') as [ci1|] eqn:HCr'; last done.
             iExFalso.
-            destruct (decide (lc2 = rc)) as [->|Hne].
-            - iApply (content_own_excl γ γc rc (CLink j') _ with "Hown Hco0").
-            - iDestruct (big_sepM_lookup _ _ lc2 ci1 with "HC") as "Hco1".
+            destruct (decide (r' = rc)) as [->|Hne].
+            - iApply (content_own_excl γ γc rc (CLink j') _ with "Hco' Hco0").
+            - iDestruct (big_sepM_lookup _ _ r' ci1 with "HC") as "Hco1".
               { rewrite lookup_delete_ne; done. }
-              iApply (content_own_excl γ γc lc2 (CLink j') _ with "Hown Hco1"). }
-          iMod (ghost_map_insert lc2 (CLink j') with "Hcauth") as "[Hcauth Hr'frag]";
+              iApply (content_own_excl γ γc r' (CLink j') _ with "Hco' Hco1"). }
+          iMod (ghost_map_insert r' (CLink j') with "Hcauth") as "[Hcauth Hr'frag]";
             first exact HCr'.
           iMod (ghost_map_elem_persist with "Hr'frag") as "#Hr'frag".
           iDestruct (ghost_map_lookup with "Hauth Hafrag") as %HMa2.
           iAssert ([∗ map] r ↦ c ∈ C2, content_own γ γc r c)%I with "[Hco0 HC]" as "HC".
           { rewrite (big_sepM_delete _ C2 rc (CRoot v0)); last exact HCrc0.
             iFrame "Hco0 HC". }
-          iMod ("Hclose" with "[Hauth Hcauth Hnauth Hlc' Htok0 Hown HM HC]") as "_".
+          iMod ("Hclose" with "[Hauth Hcauth Hnauth Hlc' Htok0 Hco' HM HC]") as "_".
           { iNext.
-            iApply (uf_inv_reassemble_link γ γc γn M2 C2 N2 F2 y' a j' i' lyi lyc lc2
-                      with "Hauth Hcauth Hnauth Hylocs Hlc' Hr'frag Htok0 Hown HM HC");
+            iApply (uf_inv_reassemble_link γ γc γn M2 C2 N2 F2 y' a j' i' lyi lyc r'
+                      with "Hauth Hcauth Hnauth Hylocs Hlc' Hr'frag Htok0 Hco' HM HC");
               first [ done | exact HFy2 | exact (not_eq_sym Heq) ]. }
           by iModIntro. }
 
