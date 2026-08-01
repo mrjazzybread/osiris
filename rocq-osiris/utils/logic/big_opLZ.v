@@ -529,6 +529,29 @@ Section sep_list2.
     apply True_sep_2.
   Qed.
 
+  (* [big_sepLZ2_pair_inv_r] is the two-element analogue of
+     [big_sepLZ2_singleton_inv_r]: when the right-hand list is a known
+     pair, the left-hand list — typically the as-yet-unknown field
+     locations of a freshly-allocated record — is exactly a pair too,
+     matched up field-by-field with the known values. This is the shape
+     that arises when unpacking a record allocation of two fields
+     without going through a [RecordRepr] instance. *)
+
+  Lemma big_sepLZ2_pair_inv_r Φ x2 x3 (l : list A) :
+    ([∗ listZ] k↦y1;y2 ∈ l;[x2;x3], Φ k y1 y2) ⊢
+    ∃ x1 x1', ⌜l = [x1;x1']⌝ ∗ Φ 0 x1 x2 ∗ Φ 1 x1' x3.
+  Proof.
+    rewrite big_sepLZ2_alt.
+    apply pure_elim_l.
+    destruct l as [|x1 l]; length; first lia.
+    destruct l as [|x1' l]; length; first lia.
+    destruct l as [|? l]; length; last (length_nonneg l; lia).
+    intros _. rewrite -(exist_intro x1) -(exist_intro x1').
+    rewrite pure_True //.
+    rewrite /= right_id.
+    apply True_sep_2.
+  Qed.
+
   Lemma big_sepLZ2_fst_snd Φ l :
     ([∗ listZ] k↦y1;y2 ∈ l.*1; l.*2, Φ k y1 y2) ⊣⊢
     [∗ listZ] k ↦ xy ∈ l, Φ k (xy.1) (xy.2).

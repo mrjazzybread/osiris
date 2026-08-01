@@ -301,21 +301,10 @@ Proof.
         rewrite {1}/deco. imp_path. simpl. done. }
       simpl. iIntros (r) "H".
       iDestruct "H" as (xs) "((%ls & #Hlocs & Htag & Hxs) & ->)".
-      iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs") as "%Hlen".
-      simpl in Hlen.
       (* The freshly allocated block has exactly one field location. *)
-      destruct ls as [|lv [|]]; try (simpl in Hlen; lia).
-      { iDestruct (big_opLZ.big_sepLZ2_nil_inv_l with "Hxs") as %Hnil;
-          discriminate. }
-      { iExists lv. iFrame "Hlocs Htag".
-        iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-          as (w ws Heq) "[Hlv _]".
-        simpl in Heq. simplify_eq. iFrame. }
-      { iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-          as (w ws Heq) "[_ Hxs]".
-        simpl in Heq. simplify_eq.
-        iDestruct (big_opLZ.big_sepLZ2_nil_inv_r with "Hxs") as %Hnil;
-          discriminate. } }
+      iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
+      iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+      iExists lv. iFrame "Hlocs". iFrame. }
     { iIntros (rc) "_". iPureIntro. apply pat_PVar.
       instantiate (1 := λ (w : val) (l : env), l = [("content", w)]).
       reflexivity. }
@@ -344,29 +333,8 @@ Proof.
     rewrite {1}/deco. imp_path. }
   simpl. iIntros (x) "H".
   iDestruct "H" as (i c) "((%ls & #Hxlocs & Hxtag & Hxs) & -> & ->)".
-  iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs") as "%Hlen".
   (* The vertex block has exactly two field locations: [li] and [lc]. *)
-  destruct ls as [|li [|lc [|]]].
-  { iDestruct (big_opLZ.big_sepLZ2_nil_inv_l with "Hxs") as %Hnil;
-      discriminate. }
-  { iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-      as (w ws Heq) "[_ Hxs]".
-    simpl in Heq; simplify_eq. }
-  2:{ iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-        as (w ws Heq) "[_ Hxs]".
-      simpl in Heq; simplify_eq.
-      iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-        as (w' ws' Heq') "[_ Hxs]".
-      simplify_eq.
-      iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-        as (w'' ws'' Heq'') "[_ _]".
-      discriminate. }
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-    as (w ws Heq) "[Hli Hxs]".
-  simpl in Heq; simplify_eq.
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-    as (w' ws' Heq') "[Hlc _]".
-  simplify_eq.
+  iDestruct (big_opLZ.big_sepLZ2_pair_inv_r with "Hxs") as (li lc) "(-> & Hli & Hlc)".
 
   (* Persist the immutable knowledge: the [id] field and both block tags. *)
   iMod (gen_heap.pointsto_persist with "Hli") as "#Hli".
@@ -510,13 +478,13 @@ Proof.
   (* Goal: [ match x.content with ... ]. The scrutinee is read atomically
      under the invariant; the match continuation receives the loaded
      value together with the persistent description of its record. *)
-  iApply (imp_EMatch (A':=val) (λ v : val,
+  imp_match val $! (λ v : val,
     ∃ (rc : record) (ci : cinfo),
       ⌜v = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ i)%Z⌝ ∗
       match ci with
       | CRoot _ => True
       | CLink b => ∃ lp : locations.loc, isBlockLocs rc [lp]
-      end)%I with "[]").
+      end)%I with "[]".
   { (* The atomic read of the content cell. *)
     iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [li; lc] x
               with "Hxlocs [] []").
@@ -569,8 +537,7 @@ Proof.
     iModIntro.
     iExists rc, ci. iFrame "Hrc Hpayload".
     iSplit; iPureIntro; [done | exact Hb]. }
-  iIntros (v) "(%rc & %ci & -> & #Hrc & %Hb & #Hpayload)".
-  iNext.
+  iIntros "(%rc & %ci & -> & #Hrc & %Hb & #Hpayload)".
   destruct ci as [v0|b]; simpl.
 
   { (* [Root _ -> x]: no field read; [x] is returned, with [j := i]. *)
@@ -777,14 +744,10 @@ Proof.
   iSplit; iPureIntro; [done | exact Hbound].
   }
   iIntros (cxv) "(%rc & %ci & -> & #Hrc & %Hbound & #HrcP)".
-  iApply (imp_EMatch (A':=val) (λ v : val, ⌜v = cval ci rc⌝)%I).
-  {
-  rewrite {1}/deco.
-  imp_path.
-  }
-  iIntros (cv) "->".
+  (* Re-match on the already-loaded [cx]: a plain path lookup, closed
+     automatically by [imp_match]'s own scrutinee handling. *)
+  imp_match val with "[]".
   destruct ci as [v0|b]; simpl.
-  iNext.
   next_branch.
   rewrite {1}/deco.
   iApply (imp_EIfThenElse _ _ _ _ (λ b : bool, if b then True else lv' ↦ v)%I with "[Hlv'] []").
@@ -997,7 +960,6 @@ Proof.
   iSpecialize ("Hm" $! j rc' lv' v with "Hinv Hzv").
   iApply ("Hm" with "[//] Hrc'locs Hrc'P HΦb").
   -
-  iNext.
   next_branch.
   next_branch.
   rewrite {1}/deco.
@@ -1065,30 +1027,9 @@ Proof.
   simpl.
   iIntros (r) "H".
   iDestruct "H" as (xs) "((%ls & #Hlocs & Htag & Hxs) & ->)".
-  iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs") as "%Hlen".
-  simpl in Hlen.
-  destruct ls as [|lv0 [|]]; try (simpl in Hlen; lia).
-  {
-  iDestruct (big_opLZ.big_sepLZ2_nil_inv_l with "Hxs") as %Hnil;
-      discriminate.
-  }
-  {
-  iExists lv0.
-  iFrame "Hlocs Htag".
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-      as (w ws Heq) "[Hlv0 _]".
-  simpl in Heq.
-  simplify_eq.
-  iFrame.
-  }
-  {
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs")
-      as (w ws Heq) "[_ Hxs]".
-  simpl in Heq.
-  simplify_eq.
-  iDestruct (big_opLZ.big_sepLZ2_nil_inv_r with "Hxs") as %Hnil;
-      discriminate.
-  }
+  iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv0) "[-> Hlv0]".
+  iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+  iExists lv0. iFrame "Hlocs". iFrame.
   iIntros (rc') "(%lv0 & #Hlocs & Htag & Hlv0)".
   iApply imp_fupd.
   iDestruct "Htag" as (rls) "Htag".
@@ -1267,15 +1208,11 @@ Proof.
   iSplit; iPureIntro; [done | exact Hbound].
   }
   iIntros (cxv) "(%rc & %ci & -> & #Hrc & %Hbound & #HrcP & #Hpayload)".
-  iApply (imp_EMatch (A':=val) (λ v : val, ⌜v = cval ci rc⌝)%I).
-  {
-  rewrite {1}/deco.
-  imp_path.
-  }
-  iIntros (cv) "->".
+  (* Re-match on the already-loaded [cx]: a plain path lookup, closed
+     automatically by [imp_match]'s own scrutinee handling. *)
+  imp_match val with "[]".
   destruct ci as [v0|b]; simpl.
   iDestruct "Hpayload" as (lv) "#Hrclocs".
-  iNext.
   next_branch.
   iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
   iNext.
@@ -1371,27 +1308,9 @@ Proof.
   }
   iIntros (r) "H".
   iDestruct "H" as (x0) "((%ls & #Hlocs2 & Htag2 & Hxs2) & _)".
-  iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs2") as "%Hlen2".
-  simpl in Hlen2.
-  destruct ls as [|lv2 [|]]; try (simpl in Hlen2; lia).
-  {
-  iDestruct (big_opLZ.big_sepLZ2_nil_inv_l with "Hxs2") as %Hnil;
-    discriminate.
-  }
-  {
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs2")
-    as (w ws Heq) "[Hlv2 _]".
-  simpl in Heq.
-  simplify_eq.
-  iExists lv2, x0.
-  iFrame "Hlocs2 Htag2 Hlv2".
-  }
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs2") as (ww ws Heq) "[_ Hxs2]".
-  simpl in Heq.
-  simplify_eq.
-  iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs2") as (ww2 ws2 Heq2) "[_ Hxs2]".
-  simplify_eq.
-  simpl.
+  iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
+  iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
+  iExists lv2, x0. iFrame "Hlocs2 Htag2 Hlv2".
   iIntros (rc3 rc2) "->".
   iIntros (lc2) "-> Hown".
   iIntros (m2) "Hm2".
@@ -1592,7 +1511,6 @@ Proof.
   iSpecialize ("Hm3" $! j).
   iApply ("Hm3" with "Hinv Hzv").
   -
-  iNext.
   next_branch.
   next_branch.
   rewrite {1}/deco.
@@ -2007,7 +1925,7 @@ Proof.
   iMod "Hfupd" as "%Hij".
   destruct Hij as (Hij & Hrepi & Hrepj).
   rewrite {1}/deco.
-  iApply (imp_EMatch (A':=unit) (λ _ : unit, ⌜i' ≠ j'⌝)%I).
+  imp_match unit with "[]".
   { iApply (imp_EAssert (R:=⌜i' ≠ j'⌝%I)).
     iSplit; first done.
     rewrite {1}/deco.
@@ -2038,20 +1956,9 @@ Proof.
       iSplit; [iPureIntro|done].
       rewrite eq_repr_repr; try assumption.
       destruct (Z.eqb_spec i' j') as [Habs|_]; [exfalso; exact (Hij Habs)|done]. } }
-  iIntros (a0) "%HR".
+  iIntros "%HR".
   destruct a0. simpl.
   next_branch.
-  iApply icpattern_pure_cps.
-  { apply cpat_CVal_abst.
-    intros v Heqv.
-    assert (v = #()) as -> by (injection Heqv; done).
-    eapply pat_PUnit.
-    { match goal with |- ?φ ?d => unify φ (fun x : env => x = d) end.
-      reflexivity. }
-    { reflexivity. } }
-  iSplit.
-  iIntros (δ') "%Heq3".
-  simplify_eq.
   iApply (imp_EIfThenElse _ _ _ _ (λ b : bool, ⌜b = (i' >? j')%Z⌝)%I).
   { iApply (imp_EOpGt_Z _ _ _ i' j').
     { exact Hrepi. }
@@ -2075,8 +1982,7 @@ Proof.
       { rewrite Hlc0b. iExact "Hyli". }
       { rewrite Hlc0b. iIntros "!> _". done. } } }
   iIntros ([|]) "%Hcmp2".
-  { iNext.
-    (* [let cx = x.content in match cx with | Root {v} -> if cas[...] cx
+  { (* [let cx = x.content in match cx with | Root {v} -> if cas[...] cx
        (Link{parent=y}) then Some v else union x y | _ -> union x y]. This
        mirrors [update_proof]'s own atomic-content-read + match, replacing
        the [Root{value=f v}] installation with [Link{parent=y}]. *)
@@ -2134,12 +2040,11 @@ Proof.
       iFrame "Hrc HrcP Hpayload".
       iSplit; iPureIntro; [done | exact Hbound]. }
     iIntros (cxv) "(%rc & %ci & -> & #Hrc & %Hbound & #HrcP & #Hpayload)".
-    iApply (imp_EMatch (A':=val) (λ v : val, ⌜v = cval ci rc⌝)%I).
-    { rewrite {1}/deco. imp_path. }
-    iIntros (cv) "->".
+    (* Re-match on the already-loaded [cx]: a plain path lookup, closed
+       automatically by [imp_match]'s own scrutinee handling. *)
+    imp_match val with "[]".
     destruct ci as [v0|b]; simpl.
     { iDestruct "Hpayload" as (lv) "#Hrclocs".
-      iNext.
       next_branch.
       iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
       iNext.
@@ -2217,11 +2122,8 @@ Proof.
         iDestruct "H" as "[Hown %Heq4]".
         simplify_eq.
         iDestruct "Hown" as (ls) "(#Hlocs2 & Htag2 & Hxs2)".
-        iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs2") as "%Hlen2".
-        simpl in Hlen2.
-        destruct ls as [|lv2 [|]]; try (unfold list_z.length in Hlen2; simpl in Hlen2; lia).
-        iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs2") as (w ws Heq2) "[Hlv2 _]".
-        simpl in Heq2. simplify_eq.
+        iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
+        iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
         iExists (VInline "Link" r).
         iSplit; first done.
         iExists r.
@@ -2418,7 +2320,6 @@ Proof.
          (already a [Link], not a [Root]) — retry via the outer recursive
          [union x y] call, mirroring [find_proof]'s own [CRoot]/[CLink]
          match handling. *)
-      iNext.
       next_branch.
       next_branch.
       rewrite {1}/deco.
@@ -2450,7 +2351,6 @@ Proof.
   { (* [x.id <= y.id]: the symmetric CAS on [y.content], installing
        [Link{parent=x}] and (on success) registering it as [CLink j']
        (needs [i' < j'], from [Hcmp2] together with [Hij : i' ≠ j']). *)
-    iNext.
     iApply (imp_ELet_var (λ v : val, ∃ rc ci,
         ⌜v = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ j')%Z⌝ ∗ isBlockP rc Mut ∗
         match ci with CRoot _ => ∃ lv : locations.loc, isBlockLocs rc [lv] | CLink _ => True end)%I).
@@ -2505,12 +2405,11 @@ Proof.
       iFrame "Hrc HrcP Hpayload".
       iSplit; iPureIntro; [done | exact Hbound]. }
     iIntros (cxv) "(%rc & %ci & -> & #Hrc & %Hbound & #HrcP & #Hpayload)".
-    iApply (imp_EMatch (A':=val) (λ v : val, ⌜v = cval ci rc⌝)%I).
-    { rewrite {1}/deco. imp_path. }
-    iIntros (cv) "->".
+    (* Re-match on the already-loaded [cy]: a plain path lookup, closed
+       automatically by [imp_match]'s own scrutinee handling. *)
+    imp_match val with "[]".
     destruct ci as [v0|b]; simpl.
     { iDestruct "Hpayload" as (lv) "#Hrclocs".
-      iNext.
       next_branch.
       iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
       iNext.
@@ -2574,11 +2473,8 @@ Proof.
         iDestruct "H" as "[Hown %Heq4]".
         simplify_eq.
         iDestruct "Hown" as (ls) "(#Hlocs2 & Htag2 & Hxs2)".
-        iPoseProof (big_opLZ.big_sepLZ2_length with "Hxs2") as "%Hlen2".
-        simpl in Hlen2.
-        destruct ls as [|lv2 [|]]; try (unfold list_z.length in Hlen2; simpl in Hlen2; lia).
-        iDestruct (big_opLZ.big_sepLZ2_cons_inv_l with "Hxs2") as (w ws Heq2) "[Hlv2 _]".
-        simpl in Heq2. simplify_eq.
+        iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs2") as (lv2) "[-> Hlv2]".
+        iEval (rewrite list_z.singleton_unfold) in "Hlocs2".
         iExists (VInline "Link" r).
         iSplit; first done.
         iExists r.
@@ -2760,8 +2656,7 @@ Proof.
           split.
           { eapply rtc_l; [|exact Hza]. exists Dx, Fx. eauto. }
           { eapply rtc_l; [|exact Hzy]. exists Dy, Fy. eauto. } } } }
-    { iNext.
-      next_branch.
+    { next_branch.
       next_branch.
       rewrite {1}/deco.
       iApply (imp_EApp τ[elem; elem]).
@@ -2789,9 +2684,6 @@ Proof.
         split.
         { eapply rtc_l; [|exact Hza]. exists Dx, Fx. eauto. }
         { eapply rtc_l; [|exact Hzy]. exists Dy, Fy. eauto. } } } }
-  { iNext.
-    iIntros "[%Hbad|[]]".
-    exfalso. simpl in Hbad. exact Hbad. }
 Qed.
 
 End ConcurrentUnionFind.

@@ -563,7 +563,15 @@ Tactic Notation "imp_branches" := ltac2:(imp_branches0 ()).
 
 From osiris.proofmode Require Import imp_tactics.
 
-Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
+(* [phi], when given, fixes the scrutinee's postcondition [Φ'] up front
+   (via [imp_EMatch (Φ':=phi)]) — needed whenever the continuation
+   proof picks its own witnesses for an existential [Φ'] (e.g. [iExists]
+   under a match on an atomically-read value): left as an evar, [Φ']
+   could only be resolved by direct unification against a single
+   sub-lemma application, which [iExists] cannot do to an evar-headed
+   goal. Mirrors the [imp_store' l $! Φ] convention. *)
+
+Ltac2 imp_match_tac (a' : constr option) (phi : constr option) (selpat : constr option) :=
   let e := get_expr () in
   lazy_match! eval hnf in $e with
   | EMatch _ _ =>
@@ -587,7 +595,12 @@ Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
       | Some a => a
       end
     in
-    let specialized_match := open_constr:(imp_EMatch (A':=$a)) in
+    let specialized_match :=
+      match phi with
+      | None => open_constr:(imp_EMatch (A':=$a))
+      | Some phi => open_constr:(imp_EMatch (A':=$a) $phi)
+      end
+    in
     match selpat with
     | None => iApply $specialized_match
     | Some sel => iApply ($specialized_match with $sel)
@@ -598,21 +611,33 @@ Ltac2 imp_match_tac (a' : constr option) (selpat : constr option) :=
         (Some (fprintf "[imp_match] Expected EMatch expression, got %t" e)))
   end.
 
-Ltac2 Notation "imp_match" a'(constr) := imp_match_tac (Some a') None.
-Ltac2 Notation "imp_match" := imp_match_tac None None.
+Ltac2 Notation "imp_match" a'(constr) := imp_match_tac (Some a') None None.
+Ltac2 Notation "imp_match" := imp_match_tac None None None.
 Ltac2 Notation "imp_match" a'(constr) "with" sel(constr) :=
-  imp_match_tac (Some a') (Some sel).
+  imp_match_tac (Some a') None (Some sel).
 Ltac2 Notation "imp_match" "with" sel(constr) :=
-  imp_match_tac None (Some sel).
+  imp_match_tac None None (Some sel).
+Ltac2 Notation "imp_match" a'(constr) "$!" phi(constr) :=
+  imp_match_tac (Some a') (Some phi) None.
+Ltac2 Notation "imp_match" a'(constr) "$!" phi(constr) "with" sel(constr) :=
+  imp_match_tac (Some a') (Some phi) (Some sel).
 
 Tactic Notation "imp_match" constr(a') :=
-  let tac := ltac2:(a' |- imp_match_tac (Ltac1.to_constr a') None) in
+  let tac := ltac2:(a' |- imp_match_tac (Ltac1.to_constr a') None None) in
   tac a'.
-Tactic Notation "imp_match" := ltac2:(imp_match_tac None None).
+Tactic Notation "imp_match" := ltac2:(imp_match_tac None None None).
 Tactic Notation "imp_match" constr(a') "with" constr(sel) :=
   let tac := ltac2:(a' sel |-
-                      imp_match_tac (Ltac1.to_constr a') (Ltac1.to_constr sel)) in
+                      imp_match_tac (Ltac1.to_constr a') None (Ltac1.to_constr sel)) in
   tac a' sel.
 Tactic Notation "imp_match" "with" constr(sel) :=
-  let tac := ltac2:(sel |- imp_match_tac None (Ltac1.to_constr sel)) in
+  let tac := ltac2:(sel |- imp_match_tac None None (Ltac1.to_constr sel)) in
   tac sel.
+Tactic Notation "imp_match" constr(a') "$!" constr(phi) :=
+  let tac := ltac2:(a' phi |-
+                      imp_match_tac (Ltac1.to_constr a') (Ltac1.to_constr phi) None) in
+  tac a' phi.
+Tactic Notation "imp_match" constr(a') "$!" constr(phi) "with" constr(sel) :=
+  let tac := ltac2:(a' phi sel |-
+                      imp_match_tac (Ltac1.to_constr a') (Ltac1.to_constr phi) (Ltac1.to_constr sel)) in
+  tac a' phi sel.
