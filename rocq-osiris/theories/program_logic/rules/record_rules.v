@@ -35,7 +35,7 @@ Section record_resources.
      themselves; [imp_ERecord] hands it back for exactly that reason. *)
 
   Definition ownBlock {τ : types} (r : record) dq (t : mut_tag) (xs : τ) : iProp Σ :=
-    ∃ ls, isBlockLocs r ls ∗ isBlockP r t ∗
+    ∃ ls, isBlockLocs r ls ∗ isBlock r DfracDiscarded t ∗
       [∗ listZ] l;v ∈ ls; (to_vals xs), l ↦{dq} v.
 
 End record_resources.
@@ -76,6 +76,9 @@ Section record_resources_frac.
      to [record]-typed arguments; restate it. *)
   Global Instance isBlock_dfractional_rec (r : record) t :
     DFractional (λ dq, isBlock r dq t) := isBlock_dfractional r t.
+
+  Global Instance isBlock_pers (r : record) t : Persistent (isBlock r DfracDiscarded t).
+  Proof. unfold record in r. unfold tc_opaque in r. apply _. Qed.
 
   Global Instance ownBlock_dfractional {τ : types} (r : record) t (xs : τ) :
     DFractional (λ dq, ownBlock r dq t xs).
@@ -498,15 +501,6 @@ Section encoded_fields.
 
 End encoded_fields.
 
-Notation "r ⤇ a" :=
-  (ownRecord r (DfracOwn 1) a)
-    (at level 20, format "r  ⤇  a").
-Notation "r ⤇{ dq } a" :=
+Notation "r ⤇ dq a" :=
   (ownRecord r dq a)
-    (at level 20, dq at level 1, format "r  ⤇{ dq }  a") : bi_scope.
-Notation "r ⤇{# q } a" :=
-  (ownRecord r (DfracOwn q) a)
-    (at level 20, q at level 1, format "r  ⤇{# q }  a") : bi_scope.
-Notation "r ⤇□ a" :=
-  (ownRecord r DfracDiscarded a)
-    (at level 20, format "r  ⤇□  a") : bi_scope.
+    (at level 20, dq custom dfrac at level 1, format "r  ⤇ dq  a") : bi_scope.

@@ -163,7 +163,7 @@ Definition vertex (γ : gname) x i : iProp Σ :=
   ∃ (li lc : locations.loc),
     x ↪[γ]□ i ∗
     isBlockLocs x [li; lc] ∗
-    isBlockP x Mut ∗
+    isBlock x DfracDiscarded Mut ∗
     li ↦□ #i.
 
 Global Instance vertex_persistent γ x i : Persistent (vertex γ x i).
@@ -186,9 +186,25 @@ Definition content_own (γ γc : gname) rc (ci : cinfo) : iProp Σ :=
    a shared invariant. These two equations bridge between the two views,
    and are the only place the bridging happens. *)
 
+Lemma content_own_acc γ γc rc v :
+  content_own γ γc rc (CRoot v) ⊣⊢
+  ∃ lv, lv ↦ v ∗ (∀ v, lv ↦ v -∗ content_own γ γc rc (CRoot v)).
+Proof.
+  rewrite /content_own. rewrite /ownRecord.
+  iSplit.
+  - iIntros "(%ls & #Hlocs & #HP & Hxs)".
+    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
+    iFrame.
+    iIntros "%v' Hlv".
+    iFrame "#".
+    iApply (big_opLZ.big_sepLZ2_singleton with "Hlv").
+  - iIntros "(%lv & Hlv & Hblock)".
+    iApply ("Hblock" with "Hlv").
+Qed.
+
 Lemma content_own_root γ γc rc v :
   content_own γ γc rc (CRoot v) ⊣⊢
-  ∃ lv : locations.loc, isBlockLocs rc [lv] ∗ isBlockP rc Mut ∗ lv ↦ v.
+  ∃ lv : locations.loc, isBlockLocs rc [lv] ∗ isBlock rc DfracDiscarded Mut ∗ lv ↦ v.
 Proof.
   rewrite /content_own /ownRecord /ownBlock /=.
   iSplit.
@@ -204,7 +220,7 @@ Qed.
 Lemma content_own_link γ γc rc b :
   content_own γ γc rc (CLink b) ⊣⊢
   ∃ (lp : locations.loc) (y : elem) j,
-    isBlockLocs rc [lp] ∗ isBlockP rc Mut ∗ lp ↦ #y ∗ vertex γ y j ∗ ⌜(j < b)%Z⌝.
+    isBlockLocs rc [lp] ∗ isBlock rc DfracDiscarded Mut ∗ lp ↦ #y ∗ vertex γ y j ∗ ⌜(j < b)%Z⌝.
 Proof.
   rewrite /content_own /ownRecord /ownBlock /=.
   iSplit.
@@ -318,7 +334,7 @@ Proof. exact (populate (CLink 0%Z)). Qed.
    it can be read off [content_own] without giving it up. *)
 
 Lemma content_own_mut γ γc rc ci :
-  content_own γ γc rc ci -∗ isBlockP rc Mut ∗ content_own γ γc rc ci.
+  content_own γ γc rc ci -∗ isBlock rc DfracDiscarded Mut ∗ content_own γ γc rc ci.
 Proof.
   destruct ci as [v0|b].
   - rewrite content_own_root.
@@ -914,7 +930,7 @@ Definition set_content_spec (γ γc γn : gname) (x : elem) (cx' : val) (m : mic
     vertex γ x i -∗
     ⌜cx' = VInline "Root" rc'⌝ -∗
     isBlockLocs rc' [lv'] -∗
-    isBlockP rc' Mut -∗
+    isBlock rc' DfracDiscarded Mut -∗
     lv' ↦ v -∗
     imp m {{ λ _ : unit, True }}.
 
@@ -952,7 +968,7 @@ Proof.
      [γc]. The invariant is opened and closed unchanged. *)
   iApply (imp_ELet_var (λ w : val, ∃ rc ci,
     ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ j)%Z⌝ ∗
-    isBlockP rc Mut)%I).
+    isBlock rc DfracDiscarded Mut)%I).
   { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lzi; lzc] z
               with "Hzlocs [] []").
     { list_z.length; lia. }
@@ -1013,7 +1029,7 @@ Proof.
       iMod (uf_inv_split with "Hzfrag Hzlocs H") as (M C N F rc0 ci0)
         "(%HMz & %HCrc0 & %Hbound0 & %HFz0 & %Hrep & %HdsfF & %HidF &
           Hauth & Hcauth & Hnauth & #Hrc0 & Hlc & Htok & Hco0 & HM & HC)".
-      iAssert (▷ (isBlockP rc0 Mut ∗ content_own γ γc rc0 ci0))%I
+      iAssert (▷ (isBlock rc0 DfracDiscarded Mut ∗ content_own γ γc rc0 ci0))%I
         with "[Hco0]" as "[#Hrc0P Hco0]".
       { iNext. iApply (content_own_mut with "Hco0"). }
       set (c0 := match ci0 with CRoot _ => "Root" | CLink _ => "Link" end).
@@ -1190,7 +1206,7 @@ Proof.
      [Root] branch immediately reads that field. *)
   iApply (imp_ELet_var (λ w : val, ∃ rc ci (lv : locations.loc),
     ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ j)%Z⌝ ∗
-    isBlockP rc Mut ∗ isBlockLocs rc [lv])%I).
+    isBlock rc DfracDiscarded Mut ∗ isBlockLocs rc [lv])%I).
   { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lzi; lzc] z
               with "Hzlocs [] []").
     { list_z.length; lia. }
@@ -1281,7 +1297,7 @@ Proof.
       iMod (uf_inv_split with "Hzfrag Hzlocs H") as (M2 C2 N2 F2 rc0 ci0)
         "(%HMz & %HCrc0 & %Hbound0 & %HFz0 & %Hrep2 & %HdsfF2 & %HidF2 &
           Hauth & Hcauth & Hnauth & #Hrc0 & Hlc & Htok0 & Hco0 & HM & HC)".
-      iAssert (▷ (isBlockP rc0 Mut ∗ content_own γ γc rc0 ci0))%I
+      iAssert (▷ (isBlock rc0 DfracDiscarded Mut ∗ content_own γ γc rc0 ci0))%I
         with "[Hco0]" as "[#Hrc0P Hco0]".
       { iNext. iApply (content_own_mut with "Hco0"). }
       set (c0 := match ci0 with CRoot _ => "Root" | CLink _ => "Link" end).
@@ -1343,7 +1359,6 @@ Proof.
   (* [Link _ -> update x f]: [z] is no longer a root — restart from [z]. *)
   next_branch.
   next_branch.
-  rewrite {1}/deco.
   imp_app τ[elem; val].
   iIntros "Hm3".
   iApply ("Hm3" with "Hf Hinv Hz").
@@ -1724,13 +1739,11 @@ Proof.
                 ∃ Dx Fx, ⌜DSF Fx Dx⌝ ∗ ⌜x ∈ Dx⌝ ∗ ⌜Repr Fx x z⌝)%I
           $! (λ z : elem, ∃ j', vertex γ z j' ∗ ⌜(j' ≤ j)%Z⌝ ∗
                 ∃ Dy Fy, ⌜DSF Fy Dy⌝ ∗ ⌜y ∈ Dy⌝ ∗ ⌜Repr Fy y z⌝)%I.
-  { rewrite {1}/deco.
-    imp_app τ[elem].
+  { imp_app τ[elem].
     iIntros "Hm".
     unfold findc_spec.
     iApply ("Hm" $! i with "Hinv Hx"). }
-  { rewrite {1}/deco.
-    imp_app τ[elem].
+  { imp_app τ[elem].
     iIntros "Hm".
     unfold findc_spec.
     iApply ("Hm" $! j with "Hinv Hy"). }
@@ -1822,7 +1835,7 @@ Proof.
     { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
     iApply (imp_ELet_var (λ w : val, ∃ rc ci (lv : locations.loc),
       ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ i')%Z⌝ ∗
-      isBlockP rc Mut ∗ isBlockLocs rc [lv])%I).
+      isBlock rc DfracDiscarded Mut ∗ isBlockLocs rc [lv])%I).
     { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lai; lac] a
                 with "Halocs [] []").
       { list_z.length; lia. }
@@ -1906,7 +1919,6 @@ Proof.
           set_postcondition
             (λ c : content, ∃ r' : record, ⌜c = CtLink r'⌝ ∗
                content_own γ γc r' (CLink i'))%I.
-          rewrite {1}/deco.
           imp_record $! link_fields.
           iIntros (c) "(%r' & -> & %xs & Hown & ->)".
           iExists r'. iSplit; first done.
@@ -1918,7 +1930,7 @@ Proof.
         iMod (uf_inv_split with "Hafrag Halocs H") as (M2 C2 N2 F2 rc0 ci0)
           "(%HMa2 & %HCrc0 & %Hbound0 & %HFa2 & %Hrep2 & %HdsfF2 & %HidF2 &
             Hauth & Hcauth & Hnauth & #Hrc0 & Hlc & Htok0 & Hco0 & HM & HC)".
-        iAssert (▷ (isBlockP rc0 Mut ∗ content_own γ γc rc0 ci0))%I
+        iAssert (▷ (isBlock rc0 DfracDiscarded Mut ∗ content_own γ γc rc0 ci0))%I
           with "[Hco0]" as "[#Hrc0P Hco0]".
         { iNext. iApply (content_own_mut with "Hco0"). }
         set (c0 := match ci0 with CRoot _ => "Root" | CLink _ => "Link" end).
@@ -2010,7 +2022,7 @@ Proof.
     { pose proof (Zgt_cases i' j') as Hgt. rewrite <- Hcmp2 in Hgt. lia. }
     iApply (imp_ELet_var (λ w : val, ∃ rc ci (lv : locations.loc),
       ⌜w = cval ci rc⌝ ∗ rc ↪[γc]□ ci ∗ ⌜∀ b, ci = CLink b → (b ≤ j')%Z⌝ ∗
-      isBlockP rc Mut ∗ isBlockLocs rc [lv])%I).
+      isBlock rc DfracDiscarded Mut ∗ isBlockLocs rc [lv])%I).
     { iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lyi; lyc] y'
                 with "Hylocs [] []").
       { by list_z.length; lia. }
@@ -2072,7 +2084,6 @@ Proof.
         { set_postcondition
             (λ c : content, ∃ r' : record, ⌜c = CtLink r'⌝ ∗
                content_own γ γc r' (CLink j'))%I.
-          rewrite {1}/deco.
           imp_record $! link_fields.
           iIntros (c) "(%r' & -> & %xs & Hown & ->)".
           iExists r'. iSplit; first done.
@@ -2084,7 +2095,7 @@ Proof.
         iMod (uf_inv_split with "Hyfrag Hylocs H") as (M2 C2 N2 F2 rc0 ci0)
           "(%HMy2 & %HCrc0 & %Hbound0 & %HFy2 & %Hrep2 & %HdsfF2 & %HidF2 &
             Hauth & Hcauth & Hnauth & #Hrc0 & Hlc & Htok0 & Hco0 & HM & HC)".
-        iAssert (▷ (isBlockP rc0 Mut ∗ content_own γ γc rc0 ci0))%I
+        iAssert (▷ (isBlock rc0 DfracDiscarded Mut ∗ content_own γ γc rc0 ci0))%I
           with "[Hco0]" as "[#Hrc0P Hco0]".
         { iNext. iApply (content_own_mut with "Hco0"). }
         set (c0 := match ci0 with CRoot _ => "Root" | CLink _ => "Link" end).

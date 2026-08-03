@@ -173,31 +173,12 @@ Proof. apply (osiris_genGS Σ). Defined.
 Definition isBlock `{osirisGS Σ} (b : locations.loc) dq t : iProp Σ :=
   ∃ ls, gen_heap.pointsto b dq (Block t ls).
 
-(* [isBlockP b t] is the persistent knowledge that the block [b] carries
-   the mutability tag [t]. It is obtained by discarding the fraction of
-   the block's points-to, which is sound for any block whose tag will not
-   change again. It is what resolves the physical comparisons performed
-   by [EOpPhysEq] and by the CAS instructions: those need a tag witness
-   that can be carried across atomic steps, outside any invariant, which
-   a fractional one cannot be. *)
-
-Definition isBlockP `{osirisGS Σ} (b : locations.loc) (t : mut_tag) : iProp Σ :=
-  isBlock b DfracDiscarded t.
-
-Global Instance isBlockP_persistent `{osirisGS Σ} b t : Persistent (isBlockP b t).
-Proof. rewrite /isBlockP /isBlock. apply _. Qed.
-
-(* [record] is typeclass-opaque, so the previous instance does not apply
-   to [record]-typed arguments; restate it. *)
-Global Instance isBlockP_persistent_rec `{osirisGS Σ} (rc : record) t :
-  Persistent (isBlockP rc t) := isBlockP_persistent rc t.
-
 (* Taking a freshly allocated block's exclusive tag to the persistent
    form above. Every block that enters a shared invariant goes through
    this. *)
 
 Lemma isBlock_persist `{osirisGS Σ} b t :
-  isBlock b (DfracOwn 1) t ==∗ isBlockP b t.
+  isBlock b (DfracOwn 1) t ==∗ isBlock b DfracDiscarded t.
 Proof.
   iIntros "H".
   iDestruct "H" as (ls) "H".
