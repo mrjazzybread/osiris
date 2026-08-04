@@ -322,57 +322,5 @@ Abort.
 
 Goal (trivial (Branch (CVal PAny) 2)). Abort.
 
-(* -------------------------------------------------------------------------- *)
-(* Records *)
-
-Notation "n1 := v1" :=
-  ([Fexpr n1 v1])
-    (only printing,
-     at level 80,
-     right associativity,
-     format "n1  ':='   v1").
-
-Notation "n1 := v1 ; tail" :=
-  ((Fexpr n1 v1) :: tail)
-    (only printing,
-     at level 80,
-     right associativity,
-     format "n1  ':='   v1 ;  '/' tail").
-
-Notation "{ }" :=
-  (ERecord _ [])
-    (only printing,
-      format "{ }").
-
-Notation "{ fds }" :=
-  (ERecord _ fds)
-    (only printing,
-      format "{ '[hv' fds ']' }").
-
-Goal (trivial (ERecord Immut [])). Abort.
-
-Goal (trivial
-        (ERecord Mut [0;
-                  1;
-                  2;
-                  (EString "val")])).
-Abort.
-
-Notation "r . f" :=
-  (ERecordAccess r f)
-    (only printing,
-      at level 80, format "r . f").
-
-Goal (trivial
-        (ERecordAccess (ERecord Immut [0;
-                                 1;
-                                 2;
-                                 (EString "val")]) (0%Z))).
-Abort.
-
-Notation "{ r 'with' fds }" :=
-  (ERecordUpdate r fds)
-    (only printing,
-      format "{  r  'with'  fds  }").
 
 Close Scope expr_scope.
