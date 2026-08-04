@@ -1406,6 +1406,33 @@ Definition findc_spec (γ γc γn : gname) (x : elem) (m : microvx) : iProp Σ :
              ∃ D F, ⌜DSF F D⌝ ∗ ⌜x ∈ D⌝ ∗ ⌜Repr F x z⌝ }}.
 
 (* ------------------------------------------------------------------------ *)
+(* Snapshot reachability. *)
+
+(* [snap_reaches u z]: [z] is [u]'s representative in *some* valid
+   disjoint-set forest [F] — a single-snapshot fact, exactly what one
+   [findc] call (or one successful CAS's own closing argument) can
+   honestly establish. [ev_reaches] is its reflexive-transitive closure:
+   a *chain* of such single-snapshot facts, each possibly witnessed by a
+   completely different [F] (no shared history needed between them).
+
+   This is what lets the recursive calls of [set], [update] and [union]
+   compose without a monotone ghost history: a call on [x] first derives
+   [snap_reaches x z] from its own [findc], then either finishes
+   directly (one hop) or recurses on [z] — and the recursive call's own
+   [ev_reaches z z'] chains with the first hop via plain [rtc]
+   transitivity ([rtc_l]) into [ev_reaches x z'], regardless of whether
+   the recursive call's internal snapshots have anything to do with this
+   call's own [F]. *)
+
+Definition snap_reaches (u z : elem) : Prop := ∃ D F, DSF F D ∧ u ∈ D ∧ Repr F u z.
+
+Definition ev_reaches : elem -> elem -> Prop := rtc snap_reaches.
+
+Lemma ev_reaches_head (x z z' : elem) :
+  snap_reaches x z → ev_reaches z z' → ev_reaches x z'.
+Proof. apply rtc_l. Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Verification of [set]. *)
 
 (* [set x cx'] is the internal, two-argument recursive helper (the public,
@@ -1413,15 +1440,22 @@ Definition findc_spec (γ γc γn : gname) (x : elem) (m : microvx) : iProp Σ :
    caller supplies ownership of the freshly-allocated record underlying
    [cx'] — it must be a not-yet-registered [Root] record — which [set]
    consumes when its CAS succeeds, registering it in the content-record
-   registry [γc]. On failure it hands the same ownership back to the
-   caller through the postcondition, ready for another attempt. *)
+   registry [γc].
+
+   The functional contract mirrors [union_post]'s snapshot style: [set]
+   terminates only through a successful CAS, at which point [cx'] became
+   the content of some vertex [z] that was [x]'s representative in a
+   chain of [findc] snapshots. The caller keeps the CAS's persistent
+   receipt [cx' ↪[γc]□ CRoot v]: [cx'] is registered — forever a [Root]
+   holding exactly [v] (a [Root]'s registration never changes; see
+   [cinfo]'s comment). *)
 
 Definition set_content_spec (γ γc γn : gname) (x : elem) (cx' : content) (m : microvx) : iProp Σ :=
   ∀ i v,
     is_uf γ γc γn -∗
     vertex γ x i -∗
     content_own γ γc cx' (CRoot v) -∗
-    imp m {{ λ _ : unit, True }}.
+    imp m {{ λ _ : unit, ∃ z, ⌜ev_reaches x z⌝ ∗ cx' ↪[γc]□ CRoot v }}.
 
 Lemma set_proof γ γc γn η :
   ▷ in_env "set" (λ set, □ iSpec τ[elem; content] set (set_content_spec γ γc γn)) η -∗
@@ -1439,13 +1473,14 @@ Proof.
   iApply imp_please; iNext.
 
   (* [let z = findc x in ...]: chase [x] to a root [z], whose identifier
-     [j] is at most [x]'s. The reachability snapshot [findc] also returns
-     is irrelevant here (only [union] consumes it). *)
+     [j] is at most [x]'s; the reachability snapshot is [set]'s own
+     one-hop [snap_reaches x z]. *)
   imp_let.
   { imp_app τ[elem].
     iIntros "Hm".
     iApply ("Hm" $! i with "Hinv Hx"). }
-  iIntros (z) "(%j & #Hz & %Hj & _)".
+  iIntros (z) "(%j & #Hz & %Hj & %Dz & %Fz & %HdsfFz & %HxDz & %HReprXz)".
+  assert (Hsz : snap_reaches x z) by (exists Dz, Fz; auto).
   subst imp_let_B imp_let_HB.
 
   (* [let cx = z.content in ...]: read [z]'s content cell through
@@ -1467,31 +1502,41 @@ Proof.
     next_branch.
     rewrite -encode_encode'.
     iApply (imp_EIfThenElse _ _ _ _
-              (λ b : bool, if b then True else content_own γ γc cx' (CRoot v))%I
+              (λ b : bool, if b then cx' ↪[γc]□ CRoot v
+                           else content_own γ γc cx' (CRoot v))%I
               with "[Hcx'] []").
 
-    { (* The CAS, through [uf_cas_fupd]. *)
+    { (* The CAS, through [uf_cas_fupd]. On success the caller's fresh
+         content is registered — its persistent receipt comes back. *)
       imp_app τ[loc;content;content].
       { iApply (vertex_content_ptr with "Hz"). imp_path. }
       iIntros "Hptr Hm".
       iApply ("Hm" $! (⊤ ∖ ↑ufN)).
       iNext.
       iApply (uf_cas_fupd
-               (λ b, if b then True else content_own γ γc cx' (CRoot v))%I
+               (λ b, if b then cx' ↪[γc]□ CRoot v
+                     else content_own γ γc cx' (CRoot v))%I
                with "Hinv [] Hptr Hrc HrcP Hcx'").
       { discriminate. }
       { iApply (vertex_frag with "Hz"). }
-      { iNext. iIntros ([|]) "H"; [done | iExact "H"]. } }
+      { iNext. iIntros ([|]) "H"; iExact "H". } }
 
-    (* The two branches: on success there is nothing left to do; on
-       failure the caller's content comes back and [set] retries from [z]
-       (whose identifier [j] is a valid decreasing measure). *)
+    (* The two branches: on success [z] — reached in one snapshot hop —
+       is the witness; on failure the caller's content comes back and
+       [set] retries from [z] (whose identifier [j] is a valid
+       decreasing measure), prepending the same hop to the recursive
+       result. *)
     iIntros ([|]) "HΦb".
-    { iApply imp_EUnit. done. }
+    { iApply imp_EUnit.
+      iExists z. iFrame "HΦb". iPureIntro. by apply rtc_once. }
     imp_app τ[elem; content].
     iIntros "Hm".
     unfold set_content_spec.
-    iApply ("Hm" $! j v with "Hinv Hz HΦb"). }
+    iSpecialize ("Hm" $! j v with "Hinv Hz HΦb").
+    iApply (imp_wand with "Hm").
+    iIntros (u) "(%z' & %Hz' & #Hfrag)".
+    iExists z'. iFrame "Hfrag".
+    iPureIntro. exact (ev_reaches_head _ _ _ Hsz Hz'). }
 
   (* [Link _ -> set x cx']: [z] is no longer a root, so restart from
      [z] — again with the strictly smaller identifier [j]. *)
@@ -1501,17 +1546,26 @@ Proof.
   imp_app τ[elem; content].
   iIntros "Hm".
   unfold set_content_spec.
-  iApply ("Hm" $! j v with "Hinv Hz Hcx'").
+  iSpecialize ("Hm" $! j v with "Hinv Hz Hcx'").
+  iApply (imp_wand with "Hm").
+  iIntros (u) "(%z' & %Hz' & #Hfrag)".
+  iExists z'. iFrame "Hfrag".
+  iPureIntro. exact (ev_reaches_head _ _ _ Hsz Hz').
 Qed.
 
 (* The public, one-argument [set x v]: allocates the fresh [Root {value =
    v}] record and calls the internal, two-argument [set] above. *)
 
+(* [set x v] wrote [v] at some vertex [z] reachable from [x] in the
+   snapshot chain, through a fresh root record [rc] whose registration
+   [CtRoot rc ↪[γc]□ CRoot v] is the caller's persistent receipt. *)
+
 Definition set_spec (γ γc γn : gname) (x : elem) (v : val) (m : microvx) : iProp Σ :=
   ∀ i,
     is_uf γ γc γn -∗
     vertex γ x i -∗
-    imp m {{ λ _ : unit, True }}.
+    imp m {{ λ _ : unit,
+      ∃ z (rc : elem), ⌜ev_reaches x z⌝ ∗ CtRoot rc ↪[γc]□ CRoot v }}.
 
 Lemma set_wrapper_proof γ γc γn η :
   in_env "set" (λ setv, □ iSpec τ[elem; content] setv (set_content_spec γ γc γn)) η -∗
@@ -1537,10 +1591,17 @@ Proof.
     iDestruct "H" as (r) "(-> & %xs & Hown & ->)".
     iApply "Hown". }
   iIntros (cx') "Hco".
+  (* The allocated content is a [Root]: read its tag off the diagonal
+     [content_own] to expose the underlying record [rc]. *)
+  destruct cx' as [rc|rc]; last first.
+  { iDestruct (content_own_tag with "Hco") as %[b [=]]. }
   imp_app τ[elem; content].
   iIntros "Hm".
   unfold set_content_spec.
-  iApply ("Hm" $! i v with "Hinv Hx Hco").
+  iSpecialize ("Hm" $! i v with "Hinv Hx Hco").
+  iApply (imp_wand with "Hm").
+  iIntros (u) "(%z & %Hz & #Hfrag)".
+  iExists z, rc. by iFrame "Hfrag".
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -1550,16 +1611,48 @@ Qed.
    [Root {value = f v}], retrying on failure. Unlike [set], each retry
    allocates its own fresh record internally (there is no externally
    supplied [cx'] to thread through failed attempts), so the proof does
-   not need [set_content_spec]'s ownership hand-back trick. [f] is
-   treated as an arbitrary total pure function: the caller supplies a
-   trivial safety spec for it, [∀ w, imp (call f w) {{ λ _, True }}]. *)
+   not need [set_content_spec]'s ownership hand-back trick.
+
+   The caller describes [f] by an arbitrary input/output relation [Φf],
+   packaged as an [iSpec] — the same shape as e.g. [Array.init]'s
+   function argument. The □ makes it reusable across retries: each
+   attempt calls [f] afresh on that attempt's root value.
+
+   [update]'s own functional contract is then the successful attempt's
+   linearization snapshot: some vertex [z] reachable from [x] had its
+   root swung from a record [rc] registered with value [v] (the receipt
+   [CtRoot rc ↪[γc]□ CRoot v] of the CAS's "seen" side) to a fresh
+   record [rc'] registered with value [w] (the receipt of its "new"
+   side), where [Φf v w] came out of the [f v] call of that same
+   attempt. *)
+
+Definition update_post (γc : gname) (Φf : val → val → iProp Σ) (x : elem)
+    (_ : unit) : iProp Σ :=
+  ∃ z (rc rc' : elem) (v w : val),
+    ⌜ev_reaches x z⌝ ∗
+    CtRoot rc ↪[γc]□ CRoot v ∗
+    CtRoot rc' ↪[γc]□ CRoot w ∗
+    Φf v w.
 
 Definition update_spec (γ γc γn : gname) (x : elem) (f : val) (m : microvx) : iProp Σ :=
-  □ (∀ w : val, imp (call f w) {{ λ _ : val, True }}) -∗
-  ∀ i,
-    is_uf γ γc γn -∗
-    vertex γ x i -∗
-    imp m {{ λ _ : unit, True }}.
+  ∀ (Φf : val → val → iProp Σ),
+    □ iSpec τ[val] f (λ v m', imp m' {{ λ w, Φf v w }}) -∗
+    ∀ i,
+      is_uf γ γc γn -∗
+      vertex γ x i -∗
+      imp m {{ update_post γc Φf x }}.
+
+(* The retry sites' chaining step, as in [union_post_extend]. *)
+
+Lemma update_post_extend γc Φf (x z : elem) u :
+  snap_reaches x z →
+  update_post γc Φf z u -∗ update_post γc Φf x u.
+Proof.
+  intros Hsz.
+  iIntros "(%z' & %rc & %rc' & %v & %w & %Hz' & Hrc & Hrc' & HΦ)".
+  iExists z', rc, rc', v, w. iFrame.
+  iPureIntro. exact (ev_reaches_head _ _ _ Hsz Hz').
+Qed.
 
 
 Lemma update_proof γ γc γn η :
@@ -1575,17 +1668,19 @@ Proof.
   iIntros "!> /=".
   iIntros (x f).
   unfold update_spec.
-  iIntros "#Hf".
+  iIntros (Φf) "#Hf".
   iIntros (i) "#Hinv #Hx".
   iApply imp_please; iNext.
 
-  (* [let z = findc x in ...]: chase [x] to a root [z]. *)
+  (* [let z = findc x in ...]: chase [x] to a root [z]; the snapshot is
+     this attempt's one-hop [snap_reaches x z]. *)
   iApply (imp_ELet_var (B:=elem)).
   { imp_app τ[elem].
     iIntros "Hm".
     unfold findc_spec.
     iApply ("Hm" $! i with "Hinv Hx"). }
-  iIntros (z) "(%j & #Hz & %Hj & _)".
+  iIntros (z) "(%j & #Hz & %Hj & %Dz & %Fz & %HdsfFz & %HxDz & %HReprXz)".
+  assert (Hsz : snap_reaches x z) by (exists Dz, Fz; auto).
 
   (* [let cx = z.content in ...]: read [z]'s content cell through
      [read_vertex]. The snapshot includes the record's field location,
@@ -1613,42 +1708,53 @@ Proof.
     iApply (uf_root_value_acc with "Hinv Hrc Hrclocs").
     iNext.
 
-    iApply (imp_EIfThenElse _ _ _ _ (λ _ : bool, True)%I).
+    iApply (imp_EIfThenElse _ _ _ _
+              (λ b : bool, if b then update_post γc Φf x () else True)%I).
 
     { (* The CAS. Unlike [set]'s, the "new value" argument is built here:
          a freshly allocated [Root { value = f v }] record, whose
-         ownership this attempt consumes (each retry allocates its own). *)
+         ownership this attempt consumes (each retry allocates its own),
+         together with [Φf v w] from this attempt's [f v] call. *)
       imp_app τ[loc;content;content].
       { iApply (vertex_content_ptr with "Hz"). imp_path. }
-      { (* Allocate [Root { value = f v }], already typed as a [content].
-           [f] is only known to be safe, so nothing is remembered about
-           the stored value. *)
+      { (* Allocate [Root { value = f v }], already typed as a [content],
+           calling [f] through its [iSpec]. *)
         set_postcondition
-          (λ c : content, ∃ w : val, content_own γ γc c (CRoot w))%I.
+          (λ c : content, ∃ (rc' : elem) (w : val),
+             ⌜c = CtRoot rc'⌝ ∗ content_own γ γc c (CRoot w) ∗ Φf v w)%I.
         imp_record $! root_fields.
-        { iApply (imp_EApp' (B:=val)).
-          { imp_path. }
-          { imp_path. }
-          iIntros "!>" (f0 w0) "-> ->".
-          iApply "Hf". }
-        iIntros (c) "(%r & -> & %xs & Hown & _)".
-        iExists xs. iApply "Hown". }
-      iIntros "Hptr (%w & Hco') Hm".
+        { imp_app τ[val].
+          iIntros "Hm".
+          iApply "Hm". }
+        iIntros (c) "(%r & -> & %xs & Hown & HΦf)".
+        iExists r, xs. iSplit; first done. iFrame "HΦf". iApply "Hown". }
+      iIntros "Hptr (%rc' & %w & -> & Hco' & HΦf) Hm".
       iApply ("Hm" $! (⊤ ∖ ↑ufN)).
       iNext.
-      iApply (uf_cas_fupd (λ b, True)%I with "Hinv [] Hptr Hrc HrcP Hco' []").
+      iApply (uf_cas_fupd
+                (λ b, if b then update_post γc Φf x () else True)%I
+                with "Hinv [] Hptr Hrc HrcP Hco' [HΦf]").
       { discriminate. }
       { iApply (vertex_frag with "Hz"). }
-      { iNext. iIntros ([|]) "_"; done. } }
+      { (* On success both receipts are in hand: the absorbed root's
+           [Hrc] and the fresh record's registration. *)
+        iNext. iIntros ([|]) "Hfrag"; last done.
+        iExists z, rc, rc', v, w.
+        iFrame "Hrc Hfrag HΦf".
+        iPureIntro. by apply rtc_once. } }
 
-    (* Both branches: on success there is nothing left to do; on failure
-       [update] retries from [z]. *)
-    iIntros ([|]) "_".
-    { iApply imp_EUnit. done. }
+    (* Both branches: on success the CAS's snapshot is the result; on
+       failure [update] retries from [z], prepending this attempt's
+       one-hop snapshot. *)
+    iIntros ([|]) "HΦb".
+    { iApply imp_EUnit. iExact "HΦb". }
     imp_app τ[elem; val].
     iIntros "Hm3".
     unfold update_spec.
-    iApply ("Hm3" with "Hf Hinv Hz"). }
+    iSpecialize ("Hm3" $! Φf with "Hf Hinv Hz").
+    iApply (imp_wand with "Hm3").
+    iIntros (u) "Hpost".
+    iApply (update_post_extend with "Hpost"). exact Hsz. }
 
   (* [Link _ -> update x f]: [z] is no longer a root — restart from [z]. *)
   rewrite (@encode_encode' content).
@@ -1657,7 +1763,10 @@ Proof.
   imp_app τ[elem; val].
   iIntros "Hm3".
   unfold update_spec.
-  iApply ("Hm3" with "Hf Hinv Hz").
+  iSpecialize ("Hm3" $! Φf with "Hf Hinv Hz").
+  iApply (imp_wand with "Hm3").
+  iIntros (u) "Hpost".
+  iApply (update_post_extend with "Hpost"). exact Hsz.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -1704,26 +1813,6 @@ Qed.
    The return value's TYPE is [option val], not [option elem]: [Root]'s
    "value" field ([content_own]'s CRoot case) is untyped ([lv ↦ v] for an
    arbitrary [v : val], mirroring [set]/[update]'s own genericity). *)
-
-(* [snap_reaches u z]: [z] is [u]'s representative in *some* valid
-   disjoint-set forest [F] — a single-snapshot fact, exactly what one
-   [findc] call (or one successful CAS's own closing argument) can
-   honestly establish. [ev_reaches] is its reflexive-transitive closure:
-   a *chain* of such single-snapshot facts, each possibly witnessed by a
-   completely different [F] (no shared history needed between them).
-
-   This is what lets [union_proof]'s recursive calls compose without a
-   monotone ghost history: a call on [x]/[y] first derives [snap_reaches
-   x a]/[snap_reaches y y'] from its own [findc], then either finishes
-   directly (one hop) or recurses on [a]/[y'] — and the recursive call's
-   own [ev_reaches a z]/[ev_reaches y' z] chains with the first hop via
-   plain [rtc] transitivity ([rtc_l]) into [ev_reaches x z]/[ev_reaches y
-   z], regardless of whether the recursive call's internal snapshots have
-   anything to do with this call's [Fx]/[Fy]. *)
-
-Definition snap_reaches (u z : elem) : Prop := ∃ D F, DSF F D ∧ u ∈ D ∧ Repr F u z.
-
-Definition ev_reaches : elem -> elem -> Prop := rtc snap_reaches.
 
 (* [x] and [y] have become equivalent: they share a common representative
    in the chain of successive snapshots [ev_reaches] tracks. Naming this
