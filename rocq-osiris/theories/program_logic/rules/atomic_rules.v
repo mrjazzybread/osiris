@@ -220,6 +220,43 @@ Section imp_atomic_rules.
     iApply (imp_load' with "Hl Hload").
   Qed.
 
+  (* Atomically writing a record field — the mirror image of
+     [imp_ERecordAccess_atomic]. As there, the evaluation performs a ghost
+     block lookup (through the persistent [isBlockLocs]) and then a single
+     atomic store, so ownership of the field's location is only needed
+     inside the atomic step and may come from an invariant. This is what
+     [imp_ERecordSet]/[imp_ERecordSet2] cannot do: both demand a full
+     [ownBlock], which a record shared through an invariant never has. *)
+  Lemma imp_ERecordSet_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 f ls (r : record)
+      (Φ2 : A → _) (Φ : unit → _) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    impure E1 (eval η e1) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    (* The value's postcondition is consumed *outside* the mask-changing
+       update, so a client can introduce the stored value first and only
+       then open its invariant — which is what an accessor phrased as
+       "here is the field, give it back holding [#a]" needs. *)
+    ▷ (∀ a, Φ2 a -∗
+            |={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦ v ∗
+                             ▷ ((ls !!! f) ↦ #a -∗ |={E2,E1}=> Φ ())) -∗
+    impure E1 (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvalid) "#Hblock He1 He2 Hstore".
+    simpl_eval.
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_record with "He1"). }
+    iIntros (r' a) "-> HΦ2".
+    iNext.
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hstore]").
+    { iApply (imp_load_block_ghost' with "Hblock Hstore"). }
+    iIntros ((? & ?)) "(-> & Hstore) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hstore" with "HΦ2") as (v) "[Hl Hstore]".
+    iApply (imp_store' with "Hl Hstore").
+  Qed.
+
   (* A [CLoad] instruction followed by a pure continuation is atomic. *)
   Lemma stop_load_atomic_outcome {A X} (l : loc) (k : outcome2 val exn → micro A X) :
     (∀ o, is_outcome3 (k o)) →
