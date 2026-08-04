@@ -196,14 +196,14 @@ Section imp_atomic_rules.
      knowledge) followed by a single atomic load of the field's location.
      Ownership of that location is only required inside the atomic step,
      which allows it to come from an invariant. *)
-  Lemma imp_ERecordAccess_atomic (E2 E1 : coPset) η e f ls (r : record)
-      (Φ : val → _) :
+  Lemma imp_ERecordAccess_atomic `{Encode A} (E2 E1 : coPset) η e f ls (r : record)
+      (Φ : A → _) :
     valid f ls →
     ▷ isBlockLocs r ls -∗
     impure E1 (eval η e) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
     ▷ (|={E1,E2}=>
-         ∃ v, ▷ (ls !!! f) ↦ v ∗
-              ▷ ((ls !!! f) ↦ v -∗ |={E2,E1}=> Φ v)) -∗
+         ∃ a, ▷ (ls !!! f) ↦ #a ∗
+              ▷ ((ls !!! f) ↦ #a -∗ |={E2,E1}=> Φ a)) -∗
     impure E1 (eval η (ERecordAccess e f)) Ψ ζ Φ.
   Proof.
     iIntros (Hvalid) "#Hblock He Hload".
@@ -217,7 +217,7 @@ Section imp_atomic_rules.
     rewrite (list_lookup_lookup_total_valid ls f Hvalid).
     iApply (imp_atomic' E1 E2).
     iMod "Hload" as "(%v & Hl & Hload)".
-    iApply (imp_load' (A:=val) with "Hl Hload").
+    iApply (imp_load' with "Hl Hload").
   Qed.
 
   (* A [CLoad] instruction followed by a pure continuation is atomic. *)
