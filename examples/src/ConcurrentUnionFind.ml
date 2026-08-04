@@ -286,6 +286,9 @@ let[@inline] union (x : 'a elem) (y : 'a elem) : 'a option =
    Tarjan. *)
 
 let rec eq (x : 'a elem) (y : 'a elem) : bool =
+  (* Note: find [x] first. Order matters here. *)
+  let x = findc x in
+  let y = findc y in
   x == y ||
   match x.content with (* atomic access *)
   | Root _ ->
@@ -298,13 +301,7 @@ let rec eq (x : 'a elem) (y : 'a elem) : bool =
       false
   | Link { parent = x } ->
       (* There has been interference. Continue. *)
-      continue_eq x y
-
-and continue_eq (x : 'a elem) (y : 'a elem) : bool =
-  (* Note: find [x] first. Order matters here. *)
-  let x = findc x in
-  let y = findc y in
-  eq x y
+      eq x y
 
 let[@inline] eq (x : 'a elem) (y : 'a elem) : bool =
-  x == y || continue_eq x y
+  x == y || eq x y

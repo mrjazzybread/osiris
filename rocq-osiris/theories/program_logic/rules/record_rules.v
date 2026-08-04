@@ -8,6 +8,12 @@ From osiris.utils Require Import list_z big_opLZ dfractional.
 
 (** This file defines record resource predicates and [imp] rules for record expressions. *)
 
+(* [record] is [tc_opaque loc]; expose [loc]'s instances *)
+Global Instance record_eq_decision : EqDecision record.
+Proof. unfold record; simpl. apply _. Defined.
+Global Instance record_countable : Countable record.
+Proof. unfold record; simpl. apply _. Defined.
+
 Section record_resources.
 
   Context `{!osirisGS Σ}.

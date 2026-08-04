@@ -6,7 +6,7 @@ From osiris Require Import osiris.
 From osiris.stdlib.proofs Require Import atomic.
 From osiris.examples Require Import og_ConcurrentUnionFind.
 
-Require Import UnionFind01Data UnionFind02EmptyCreate UnionFind03Link.
+Require Import UnionFind01Data UnionFind02EmptyCreate UnionFind03Link UnionFind08GhostReach.
 
 (** * Concurrent union-find
 
@@ -21,13 +21,6 @@ Notation id_field := 0%Z (only parsing).
 Notation content_field := 1%Z (only parsing).
 
 Definition ufN : namespace := nroot .@ "concurrent_uf".
-
-(* [elem]/[record] is [tc_opaque loc]; expose [loc]'s instances so that
-   vertices and content records can be used as ghost-map keys. *)
-Local Instance record_eq_decision : EqDecision record.
-Proof. unfold record; simpl. apply _. Defined.
-Local Instance record_countable : Countable record.
-Proof. unfold record; simpl. apply _. Defined.
 
 (* The static description of a content record; see below. The value
    carried by [CRoot] is the record's payload at allocation time — since a
@@ -54,14 +47,9 @@ Inductive cinfo :=
 
 Section ConcurrentUnionFind.
 
-(* [content] is the OCaml type of a vertex's [content] field: the
-   two-constructor variant whose payloads are the inline records
-   [Root {value}] and [Link {parent}]. It is the *key* of the content
-   registry [γc]: the registry maps each content value ever stored in a
-   vertex's content cell to its static description [cinfo]. Keying by
-   the typed value (rather than by the bare record location) means the
-   registration fragment [c ↪[γc]□ ci] pins down the value's tag as
-   well as its record, so clients never fall back to the [val] level. *)
+(* [content] is the *key* of the content registry [γc]: the registry
+   maps each content value ever stored in a vertex's content cell to
+   its static description [cinfo]. *)
 
 Inductive content := CtRoot (r : record) | CtLink (r : record).
 
@@ -73,6 +61,25 @@ Definition content_root (c : content) : bool :=
 
 Definition content_tag (c : content) :=
   match c with CtRoot _ => "Root" | CtLink _ => "Link" end.
+
+Global Instance Encode_content : Encode content :=
+  {| encode' c := match c with
+                  | CtRoot r => VInline "Root" r
+                  | CtLink r => VInline "Link" r
+                  end |}.
+
+Global Instance Inline_content_Root : Inline "Root" content :=
+  {| inline_apply := CtRoot; inline_encode := λ _, eq_refl |}.
+
+Global Instance Inline_content_Link : Inline "Link" content :=
+  {| inline_apply := CtLink; inline_encode := λ _, eq_refl |}.
+
+(* The stored shape of a [content] value, for the rules (notably the
+   CAS) that inspect the raw [VInline] representation. *)
+
+Lemma content_encode_inline c :
+  #c = VInline (content_tag c) (content_loc c).
+Proof. rewrite encode_encode'. by destruct c. Qed.
 
 Instance content_eq_decision : EqDecision content.
 Proof. solve_decision. Defined.
@@ -95,170 +102,7 @@ Context `{!osirisGS Σ,
 Implicit Types x y z : elem.
 Implicit Types rc : record.
 Implicit Types i j : Z.
-
-(* Without this, an unannotated [γR] binder in a statement that also
-   mentions [gset (elem * elem)] gets eagerly unified with the [Finite]
-   instance that [Countable] resolution is looking for, instead of being
-   read as a ghost name. *)
 Implicit Types γ γc γn γR : gname.
-
-(* ------------------------------------------------------------------------ *)
-(* [isBlockP], its persistence instances and [isBlock_persist] now live
-   in [program_logic/ewp.v], next to [isBlock] — [ownBlock] holds the
-   mutability tag in exactly this persistent form. *)
-
-(* ------------------------------------------------------------------------ *)
-(* The registry of content records. *)
-
-(* A content record is the record block wrapped in a [Root]/[Link]
-   constructor. Its "static" description never changes over its lifetime:
-   - a [Root] record stays a root record (its [value] field is in fact
-     never written);
-   - a [Link] record keeps, forever, a parent whose identifier is strictly
-     smaller than the bound [b] fixed at its creation (path compression
-     only ever lowers the parent's identifier).
-   This stability is what makes the description [cinfo] a persistent
-   fragment of the ghost registry [γc], and is the key to reasoning about
-   the racy read of the [parent] field: even if the vertex that carried
-   this record has moved on, the record itself still satisfies its
-   description. *)
-
-(* [content] is the OCaml type of a vertex's [content] field: the
-   two-constructor variant whose payloads are the inline records
-   [Root {value}] and [Link {parent}].
-
-   Naming it, rather than working with the underlying [VInline ...]
-   values, is what keeps [val] out of the proofs. It matters because
-   [compare_and_set_spec] types its "seen" and "new" arguments by a
-   *single* [Encode A]: swinging a [Root]-tagged record for a
-   [Link]-tagged one has no common [Encode record] instance (there is one
-   per tag, [encode_record c]), so without this type every such CAS has
-   to be instantiated at [A := val] with the identity encoding. With it,
-   all three CAS sites in this file instantiate at [A := content]. *)
-
-Global Instance Encode_content : Encode content :=
-  {| encode' c := match c with
-                  | CtRoot r => VInline "Root" r
-                  | CtLink r => VInline "Link" r
-                  end |}.
-
-(* Registering the two constructors lets [imp_path] recover a [content]
-   from a stored [VInline c r], which its encoding — a [match] on
-   constructors — gives unification no way to invert. *)
-
-Global Instance Inline_content_Root : Inline "Root" content :=
-  {| inline_apply := CtRoot; inline_encode := λ _, eq_refl |}.
-
-Global Instance Inline_content_Link : Inline "Link" content :=
-  {| inline_apply := CtLink; inline_encode := λ _, eq_refl |}.
-
-(* The stored shape of a [content] value, for the rules (notably the
-   CAS) that inspect the raw [VInline] representation. *)
-
-Lemma content_encode_inline c :
-  #c = VInline (content_tag c) (content_loc c).
-Proof. rewrite encode_encode'. by destruct c. Qed.
-
-(* ------------------------------------------------------------------------ *)
-(* Reachability in the abstract graph. *)
-
-(* [reaches γR u w]: [w] is reachable from [u] in the abstract equivalence
-   graph [F] of [uf_inv] — the ghost record of the edges installed by
-   successful [union] calls.
-
-   This *must* be ghost state, and the reason is worth stating, because
-   the obvious pure alternative is silently worthless. One is tempted to
-   write the fact as its own existential,
-
-     snap_step u w := ∃ D F, DSF F D ∧ u ∈ D ∧ rtc F u w,
-
-   "there is some valid disjoint-set forest in which [w] is reachable
-   from [u]". That proposition is a tautology: instantiate [D] with
-   [{[u; w]}] and [F] with the single edge [u → w]. That graph is
-   confined, functional, and every vertex has a representative, so it is
-   a genuine [DSF] — hence [snap_step u w] holds for *any* two vertices,
-   and so does its reflexive-transitive closure. A specification stated
-   in those terms says nothing at all. The defect is that the graph is
-   bound by the specification's own quantifier, leaving it free to be
-   chosen to suit the claim; it is never tied to the structure's actual
-   state.
-
-   Anchoring to ghost state fixes exactly that. [uf_inv] owns the
-   authority [own γR (● R)] over a set [R] of vertex pairs, together with
-   [reaches_sound R F]: every recorded pair really is [F]-reachable. A
-   fragment [reaches γR u w] is therefore not something one can conjure —
-   it is obtainable only by a ghost update performed at an [uf_inv] open
-   where [rtc F u w] genuinely holds, and once held it constrains every
-   *later* open, since the authority persists and [R] only grows.
-
-   That last property is what makes [reaches] usable across the atomic
-   steps of a recursive traversal. [F] itself is re-quantified at each
-   open, so a bare [rtc F u w] read out of one open is meaningless at the
-   next; [reaches γR u w] is not, and re-entering the invariant turns it
-   back into an [rtc F u w] about *that* open's [F]. This is what lets
-   [find] compose its recursive calls, and what makes [compress]'s
-   rerouting write justifiable at all.
-
-   The fragment is persistent — [◯] of a [gset] is [CoreId] — so it is
-   freely duplicable and survives in [content_own], which is where a
-   link record records the class of the parent it currently points to. *)
-
-Definition reaches (γR : gname) (u w : elem) : iProp Σ :=
-  own γR (◯ {[ (u, w) ]}).
-
-Global Instance reaches_persistent γR u w : Persistent (reaches γR u w).
-Proof. apply _. Qed.
-
-(* The invariant's coupling between the recorded pairs and the graph. *)
-
-Definition reaches_sound (R : gset (elem * elem)) (F : elem → elem → Prop) : Prop :=
-  ∀ u w, (u, w) ∈ R → rtc F u w.
-
-(* Reading a recorded pair back: this is how a holder of [reaches] turns
-   it into a fact about the graph of the open it is currently inside. *)
-
-Lemma reaches_lookup γR R u w :
-  own γR (● R) -∗ reaches γR u w -∗ ⌜(u, w) ∈ R⌝.
-Proof.
-  iIntros "HR Hf".
-  iCombine "HR Hf" gives %[Hincl _]%auth_both_valid_discrete.
-  iPureIntro. apply gset_included in Hincl. set_solver.
-Qed.
-
-(* Recording a new pair. The caller owes [rtc F u w] for the graph of the
-   open it is inside; [reaches_sound] is re-established for the widened
-   set, and the fresh fragment is handed back. *)
-
-Lemma reaches_update γR R F u w :
-  reaches_sound R F →
-  rtc F u w →
-  own γR (● R) ==∗
-  ∃ R', own γR (● R') ∗ reaches γR u w ∗ ⌜reaches_sound R' F⌝ ∗ ⌜R ⊆ R'⌝.
-Proof.
-  intros HRsound Huw.
-  iIntros "HR".
-  iMod (own_update _ _ (● (R ∪ {[ (u, w) ]}) ⋅ ◯ (R ∪ {[ (u, w) ]}))
-         with "HR") as "[Hauth Hfrag]".
-  { apply auth_update_alloc, gset_local_update. set_solver. }
-  iModIntro. iExists (R ∪ {[ (u, w) ]}). iFrame "Hauth".
-  iSplitL "Hfrag".
-  { iApply (own_mono with "Hfrag").
-    apply auth_frag_mono, gset_included. set_solver. }
-  iPureIntro. split; last set_solver.
-  intros a b Hab.
-  apply elem_of_union in Hab as [Hab | Hab]; first by apply HRsound.
-  apply elem_of_singleton in Hab. by simplify_eq.
-Qed.
-
-(* [reaches_sound] survives the one way [F] ever changes: [union]'s
-   [link] only adds an edge, and [rtc] is monotone in its relation. *)
-
-Lemma reaches_sound_link R F a y' :
-  reaches_sound R F → reaches_sound R (link F a y').
-Proof.
-  intros HR u w Huw.
-  eapply rtc_subrel; [|by apply HR]. intros ? ? ?. by left.
-Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* [RecordRepr] instances for the three record shapes allocated in this
@@ -304,23 +148,12 @@ Global Instance vertex_persistent γ x i : Persistent (vertex γ x i).
 Proof. apply _. Qed.
 
 (* [content_own γ γc γR c ci] is the invariant-owned footprint of the
-   content value [c] — the record [content_loc c] wrapped in [c]'s own
-   constructor — as described by [ci]. The description is *diagonal*: a
-   [CtRoot] value is only ever registered as [CRoot v], and a [CtLink]
-   value as [CLink b h], so a mismatched pair is simply [False]. Clients
-   that learn a value's shape (say, in a match branch) therefore recover
-   the shape of its registered description for free.
+   content value [c] as described by [ci]. The description is a
+   *diagonal*: a [CtRoot] value is only ever registered as [CRoot v],
+   and a [CtLink] value as [CLink b h].
 
    The link case ties the current parent [y] to the holder [h]'s
-   equivalence class: [reaches γR h y]. It is established by the linking
-   CAS (whose freshly-widened graph contains the edge [h → y] directly),
-   and is what [find] hands to its recursive call.
-
-   Being a conjunct of the invariant, it is an obligation on every write
-   to a link's [parent] field: the CAS that creates the link
-   ([uf_inv_reassemble_link]), and path compression's [link.parent <- z]
-   inside [findc], which must show the vertex it reroutes to is one the
-   holder already reaches. *)
+   equivalence class: [reaches γR h y]. *)
 
 Definition content_own (γ γc γR : gname) (c : content) (ci : cinfo) : iProp Σ :=
   match c, ci with
@@ -331,12 +164,12 @@ Definition content_own (γ γc γR : gname) (c : content) (ci : cinfo) : iProp �
   | _, _ => False
   end.
 
-(* [content_init γ γc c ci] is what the *creator* of a fresh content
-   value can put together before it is installed anywhere: the same
-   footprint minus the [reaches] fact, which only comes into existence
-   at the installing CAS (nothing relates a link's parent to its future
-   holder at allocation time). [uf_cas_fupd] consumes a [content_init]
-   and upgrades it internally. For root values the two coincide. *)
+(* [content_init γ γc c ci] is what the creator of a fresh content
+   value can put together before it is installed anywhere.
+
+   The [reaches] fact we find in [content_own] comes into existence at
+   the installing CAS. [uf_cas_fupd] consumes a [content_init] and
+   upgrades it internally. *)
 
 Definition content_init (γ γc : gname) (c : content) (ci : cinfo) : iProp Σ :=
   match c, ci with
@@ -350,13 +183,9 @@ Lemma content_init_root γ γc γR c v :
   content_init γ γc c (CRoot v) ⊣⊢ content_own γ γc γR c (CRoot v).
 Proof. destruct c; reflexivity. Qed.
 
-(* The field-level view of a content record. [ownRecord] is the right
-   *statement* of the ownership — it says "this is a [Root {value}]" —
-   but the rules that actually touch these records are the atomic ones
-   ([imp_ERecordAccess_atomic], [ipat_PRecord_var_atomic], the CAS),
-   which consume a single field's points-to because the record lives in
-   a shared invariant. These two equations bridge between the two views,
-   and are the only place the bridging happens. *)
+(* The field-level view of a content record:
+   [imp_ERecordAccess_atomic], [ipat_PRecord_var_atomic], and the CAS
+   consume a single field's points-to. *)
 
 Lemma content_own_root γ γc γR rc v :
   content_own γ γc γR (CtRoot rc) (CRoot v) ⊣⊢
@@ -409,31 +238,21 @@ Proof.
     iApply big_opLZ.big_sepLZ2_singleton. iFrame "Hlp".
 Qed.
 
-(* [vertex_own γ γc γn γR x i] is the invariant-owned footprint of the
-   vertex [x]: its content cell, holding a registered content record
-   whose description is compatible with [x]'s identifier, together
-   with the exclusive ownership of [i] in the identifier registry
-   [γn] — this is what makes identifiers injective (see [union]'s
-   [x.id <> y.id] assertion below): two vertices both claiming the
-   same identifier would both need to exclusively own the same [γn]
-   fragment, which is impossible. *)
+(* [vertex_own γ γc γn γR F x i] is the invariant-owned footprint of
+   the vertex [x]: its content cell, holding a registered content
+   record whose description is compatible with [x]'s identifier,
+   together with the exclusive ownership of [i] in the identifier
+   registry [γn]. *)
 
-(* [F] is the *abstract* equivalence graph: a permanent, ghost-only record
-   of the edges installed by successful [union] calls. It is deliberately
-   decoupled from [content_own]'s [CLink] case: the physically stored
-   parent need not be [F]'s own edge target, since path compression is
-   free to reroute it (see [compress_proof], which does exactly that).
-   What ties the two together is not an equality but [content_own]'s
-   [reaches γR h y] conjunct, which places the stored parent in the
-   holder's *class* while saying nothing about which edge it is. That is
-   enough for [find]'s postcondition, and — unlike an equality — it is
-   stable under rerouting, which is what lets compression touch the
-   parent field at all.
+(* [F] is the equivalence graph.
 
-   [F] only ever changes in [union_proof], via [UnionFind03Link.link]; a
-   vertex's own tag ([CRoot]/[CLink]) is correlated with [F]'s topology
-   (root-ness only, never the specific edge target) via [vertex_own]'s
-   last conjunct below. *)
+   It is decoupled from [content_own]'s [CLink] case: the physically
+   stored parent need not be [F]'s own edge target, since path
+   compression is free to reroute it.
+
+   What ties the two together is [content_own]'s [reaches γR h y]
+   conjunct, which places the stored parent in the holder's class while
+   saying nothing about which edge it is. *)
 
 Definition vertex_own (γ γc γn γR : gname) (F : elem → elem → Prop) x i : iProp Σ :=
   ∃ (li lc : locations.loc) (c : content) (ci : cinfo),
@@ -444,28 +263,16 @@ Definition vertex_own (γ γc γn γR : gname) (F : elem → elem → Prop) x i 
     ⌜if content_root c then Root F x else ¬ Root F x⌝ ∗
     i ↪[γn] ().
 
-(* The global invariant: the authoritative maps of vertices and content
-   records, together with their physical footprints, and the registry
-   of identifiers already handed out by [G.fresh]. *)
-
-(* [G.fresh] hands out genuine OCaml [int]s, so every identifier ever
-   registered in [M] is representable; this is what lets [union] bridge
-   the machine-level comparison [x.id > y.id] back to a [Z]-level fact
-   usable in [content_own]'s [CLink] bound. *)
-
-(* [F]'s edges strictly decrease the identifier: every [union] CAS only
-   ever installs an edge from the higher-id side to the lower-id side
-   (that's exactly the [x.id > y.id] branch guard). This is what rules
-   out cycles even when the *target* of a freshly-installed edge is no
-   longer a root by the time the edge goes in (a genuine possibility: the
-   target is a STALE [findc] snapshot, and nothing re-checks its
-   root-status right before the CAS) — a cycle would need some edge along
-   it to *increase* the id, contradicting this invariant. See
-   [dsf_link_general] below, which reuses this instead of the (root-only)
-   [UnionFind03Link.is_dsf_link]. *)
+(* [F]'s edges strictly decrease the identifier. This rules out cycles
+   even when the target of a freshly-installed edge is no longer a root
+   by the time the edge goes in. *)
 
 Definition id_bounded (M : gmap elem Z) (F : elem → elem → Prop) : Prop :=
   ∀ w z iw iz, F w z → M !! w = Some iw → M !! z = Some iz → (iz < iw)%Z.
+
+(* The global invariant: the authoritative maps of vertices and content
+   records, together with their physical footprints, and the registry
+   of identifiers. *)
 
 Definition uf_inv (γ γc γn γR : gname) : iProp Σ :=
   ∃ (M : gmap elem Z) (C : gmap content cinfo) (N : gmap Z unit)
@@ -509,11 +316,6 @@ Qed.
 (* ------------------------------------------------------------------------ *)
 (* The [reaches] API. *)
 
-(* Both of these are ordinary same-mask fancy updates rather than
-   accessors, so they can be [iMod]'d straight into an [imp] proof at any
-   point (via [elim_modal_fupd_imp]) — they need an [uf_inv] open only to
-   touch [γR], not to hang off a physical step. *)
-
 (* Reflexivity: [rtc] is reflexive, so the pair is recordable at any
    open whatsoever. *)
 
@@ -531,10 +333,7 @@ Proof.
   by iModIntro.
 Qed.
 
-(* Transitivity: both fragments are read back against the *same* open's
-   [F], composed there by [rtc_trans], and the result recorded. This is
-   the step that a pure, per-open reachability fact could never justify,
-   and it is why [reaches] is ghost state. *)
+(* Transitivity. *)
 
 Lemma reaches_trans γ γc γn γR x y z :
   is_uf γ γc γn γR -∗ reaches γR x y -∗ reaches γR y z ={⊤}=∗ reaches γR x z.
@@ -561,8 +360,7 @@ Proof. by (unfold elem, record; simpl; apply _). Qed.
 Instance inhabited_cinfo : Inhabited cinfo.
 Proof. exact (populate (CLink 0%Z inhabitant)). Qed.
 
-(* Every content record is a mutable block. This fact is persistent, so
-   it can be read off [content_own] without giving it up. *)
+(* Every content record is a mutable block. *)
 
 Lemma content_own_mut γ γc γR c ci :
   content_own γ γc γR c ci -∗
@@ -577,9 +375,8 @@ Proof.
     iSplitR; [iExact "HP"|]. iExists lp, y, j. by iFrame "#∗".
 Qed.
 
-(* Likewise, every content record has exactly one field, whichever tag
-   it carries — [Root]'s [value] or [Link]'s [parent]. Callers that go
-   on to read that field atomically need its location. *)
+(* Every content record has exactly one field.
+   Callers that go on to read that field atomically need its location. *)
 
 Lemma content_own_locs γ γc γR c ci :
   content_own γ γc γR c ci -∗
@@ -594,12 +391,7 @@ Proof.
     iSplitR; [by iExists lp|]. iExists lp, y, j. by iFrame "#∗".
 Qed.
 
-(* Whatever its tag, a registered content value owns exactly one field
-   of its underlying record, outright. Consequently two [content_own]s
-   over the same underlying record — whether for the same content value
-   or for differently-tagged views of it — cannot coexist. This is the
-   form the registration sites use to establish freshness, and how the
-   CAS identifies the current content value from its bare location. *)
+(* Every content record owns exactly one field of its underlying records. *)
 
 Lemma content_own_field γ γc γR c ci :
   content_own γ γc γR c ci -∗
@@ -620,10 +412,6 @@ Lemma content_init_field γ γc c ci :
   ∃ (lw : locations.loc) (w : val), isBlockLocs (content_loc c) [lw] ∗ lw ↦ w.
 Proof.
   destruct c as [rc|rc]; destruct ci as [v|b h]; try (by iIntros "[]").
-  (* The root case is unfolded here rather than routed through
-     [content_own_root]: that lemma is stated at a [γR] which nothing in
-     this statement determines, so borrowing it would leave the proof
-     term with an unresolved ghost name. *)
   - rewrite /content_init /ownRecord /ownBlock /=.
     iIntros "(%ls & #Hlocs & #HP & Hxs)".
     iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
@@ -666,7 +454,7 @@ Proof.
 Qed.
 
 (* The registered description's shape always matches the value's own
-   tag — [content_own] is diagonal. *)
+   tag. *)
 
 Lemma content_own_tag γ γc γR c ci :
   content_own γ γc γR c ci -∗
@@ -680,12 +468,7 @@ Qed.
    cell (a vertex whose identifier is [j]) learns about the loaded value
    [c]: it is registered, with a description whose shape matches [c]'s
    own tag and whose bound (in the link case) is dominated by [j], and
-   its underlying record is a mutable single-field block. In the link
-   case, the registered holder is [x] itself — a link value read out of
-   [x]'s cell was installed there and nowhere else (see [cinfo]'s
-   comment), which is what lets [find] tie the parent it later re-reads
-   back to [x]'s own class. All of it is persistent — a snapshot that
-   outlives the read. *)
+   its underlying record is a mutable single-field block. *)
 
 Definition content_info (γc : gname) (x : elem) (c : content) (j : Z) : iProp Σ :=
   isBlock (content_loc c) DfracDiscarded Mut ∗
@@ -740,12 +523,7 @@ Qed.
    [z] and [rc] deleted from the two big separating conjunctions.
    [uf_inv_reassemble] is the converse: it rebuilds [uf_inv] from those
    pieces, for a possibly *different* content record — which is exactly
-   what a successful CAS produces.
-
-   Together they replace the ~15-line [iInv]/[ghost_map_lookup]/
-   [big_sepM_delete] preamble (and its mirror image at closing time) that
-   every atomic step in [set], [update] and [union] would otherwise
-   repeat verbatim. *)
+   what a successful CAS produces. *)
 
 Lemma uf_inv_split γ γc γn γR z j lzi lzc :
   z ↪[γ]□ j -∗
@@ -2968,6 +2746,203 @@ Proof.
       iApply (imp_wand with "Hm3").
       iIntros (ov) "Hov".
       iApply (union_post_extend with "Hinv Hsx Hsy Hov"). } }
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Verification of [eq]. *)
+
+(* [eq x y] decides whether [x] and [y] are in the same equivalence class,
+   following Anderson and Woll's algorithm.
+
+   What is proved is the *sound* half:
+
+       if the answer is [true], then [x] and [y] really are equivalent.
+
+   The [false] case is [True] — it says nothing — and that is a
+   deliberate choice rather than unfinished work. The reasoning is worth
+   recording, because "complete the specification" looks like an obvious
+   improvement and is not one.
+
+   A [false] answer is the only *negative* claim anywhere in this
+   development, and negative class facts are not monotone: classes only
+   ever merge, so a disequality true now is false a moment later. It
+   cannot be stated as a persistent fact about the current graph the way
+   [reaches] is. The honest form is a linearization statement — "there
+   was an instant during this call at which [x] and [y] were in
+   different classes" — which needs a time-indexed history of the graph
+   (a monotone list of past [F]s, say).
+
+   The decisive objection is not the cost of that history but that no
+   client could use the result. [is_uf] is a shared invariant, so anyone
+   holding it must assume concurrent [union]s, and "different at instant
+   [t]" can never be strengthened to "different now". The one setting
+   where it would pay — a quiescent phase with no concurrent writers —
+   needs an ownership discipline (exclusive or fractional control of the
+   structure) that [is_uf] does not provide. The machinery would be
+   large and its conclusion unusable through this API.
+
+   The corresponding cost, stated plainly: this specification is
+   satisfied by [fun _ _ -> false]. It certifies that a [true] answer is
+   trustworthy, not that the implementation does anything. That is a
+   safety contract, not an effectiveness one — the same is true of
+   [find_spec], which [fun x -> x] satisfies. ([union] is the exception:
+   its [None] case demands a positive [same_class] proof.) Anyone wanting
+   effectiveness should read that as the axis to revisit, and it is a
+   different project from linearizability.
+
+   For the record, since it is the part that would be easy to lose: the
+   algorithm's own justification, quoted in the OCaml source, rests on
+   root-ness being *anti*-monotone — a vertex's content goes
+   [Root → Link] and never back, since every CAS swings a [Root] out. So
+   [a] being a root now means it was a root at every earlier instant, in
+   particular when [b = findc y] was found; if [findc] also reported [b]
+   root at its own linearization instant, the two were distinct roots
+   simultaneously and the call linearizes there. Both ingredients are
+   absent here: [findc_spec] does not report root-ness (dropped with the
+   vacuous [Repr] conjunct, see [reaches]), and instants cannot be
+   compared.
+
+   What IS proved composes exactly like the rest of the file: each
+   iteration turns [x] into its representative [a] and then into [a]'s
+   parent, and the [reaches] facts for those hops are chained onto the
+   recursive call's result with [reaches_trans]. *)
+
+Definition eq_spec (γ γc γn γR : gname) (x y : elem) (m : microvx) : iProp Σ :=
+  ∀ i j,
+    is_uf γ γc γn γR -∗
+    vertex γ x i -∗
+    vertex γ y j -∗
+    imp m {{ λ b : bool, if b then same_class γR x y else True }}.
+
+(* The internal, recursive [eq]. Since the two mutually recursive
+   functions were merged into one, both [findc] calls happen at the top
+   of every iteration rather than only on the retry path. *)
+
+Lemma eq_proof γ γc γn γR η :
+  ▷ in_env "eq" (λ eq, □ iSpec τ[elem; elem] eq (eq_spec γ γc γn γR)) η -∗
+  ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (findc_spec γ γc γn γR)) η -∗
+  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __eq_fun))))
+    {{ λ c, □ iSpec τ[elem; elem] c (eq_spec γ γc γn γR) }}.
+Proof.
+  iIntros "#IEq #IFindc".
+  iApply imp_EAnon_pers.
+  iIntros "!> /=".
+  iIntros (x y).
+  unfold eq_spec.
+  iIntros (i j) "#Hinv #Hx #Hy".
+  iApply imp_please; iNext.
+
+  (* [let x = findc x in let y = findc y in ...]. The order matters for
+     the linearization argument the [false] case would need; it is
+     irrelevant to the sound half proved here. *)
+  iApply (imp_ELet_var (B:=elem)).
+  { imp_app τ[elem].
+    iIntros "Hm".
+    unfold findc_spec.
+    iApply ("Hm" $! i with "Hinv Hx"). }
+  iIntros (a) "(%i' & #Hav & %Hi' & #Hxa)".
+  iApply (imp_ELet_var (B:=elem)).
+  { imp_app τ[elem].
+    iIntros "Hm".
+    unfold findc_spec.
+    iApply ("Hm" $! j with "Hinv Hy"). }
+  iIntros (b) "(%j' & #Hbv & %Hj' & #Hyb)".
+
+  (* [x == y || ...]: physical equality of two non-inline records, so at
+     least one operand must be a mutable block ([vertex_mut]). The
+     short-circuit means the match is only reached when [a ≠ b]. *)
+  iDestruct (vertex_mut with "Hav") as "#HaP".
+  iDestruct (vertex_mut with "Hbv") as "#HbP".
+  iApply (imp_EBoolDisj _ (λ bb : bool, if bb then ⌜a = b⌝ else ⌜a ≠ b⌝)%I).
+  { iApply (imp_EOpPhysEq_record _ _ _ (λ l : record, ⌜l = a⌝)%I
+                                       (λ l : record, ⌜l = b⌝)%I _ Mut Mut).
+    { auto. }
+    { imp_path. equality. }
+    { imp_path. equality. }
+    { iIntros "!>" (l1 l2) "-> ->".
+      by destruct (locations.eqb_spec a b) as [->|Hneq]. } }
+  iIntros ([|]) "Hcmp".
+
+  { (* [a = b]: the two chains meet, so [x] and [y] are equivalent. *)
+    iDestruct "Hcmp" as %->.
+    iExists b. by iFrame "Hxa Hyb". }
+
+  iDestruct "Hcmp" as %Hne.
+  imp_match content.
+  { iApply (read_vertex with "Hinv Hav"). imp_path. }
+  iIntros "#Hc".
+  destruct a0 as [rc|rc]; simpl.
+
+  { (* [Root _ -> false]: the answer is [false] and the specification
+       asks nothing of it. This is the gap documented above. *)
+    rewrite (@encode_encode' content).
+    next_branch.
+    iApply (imp_wand with "[]").
+    { imp_constant. }
+    iIntros (v) "->". simpl. done. }
+
+  (* [Link { parent = x } -> eq x y]: interference, so retry from [a]'s
+     parent, chaining [x ⟶ a ⟶ x'] onto whatever the recursive call
+     returns. *)
+  iDestruct "Hc" as "(_ & (%lp & #Hlocs) & (%b0 & #Hrc & %Hb0))".
+  rewrite (@encode_encode' content).
+  next_branch.
+  next_branch.
+  iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lp with "Hlocs []").
+  iNext.
+  iApply (uf_link_parent_acc with "Hinv Hrc Hlocs []").
+  iNext.
+  iIntros (x' jx' Hjx') "#Hax' #Hx'v".
+  iMod (reaches_trans with "Hinv Hxa Hax'") as "#Hxx'".
+  imp_app τ[elem; elem].
+  iIntros "Hm".
+  unfold eq_spec.
+  iSpecialize ("Hm" $! jx' j' with "Hinv Hx'v Hbv").
+  iApply imp_fupd.
+  iApply (imp_wand with "Hm").
+  iIntros ([|]) "Hres".
+  { iDestruct "Hres" as (w) "[#Hx'w #Hbw]".
+    iMod (reaches_trans with "Hinv Hxx' Hx'w") as "#Hxw".
+    iMod (reaches_trans with "Hinv Hyb Hbw") as "#Hyw".
+    iModIntro. iExists w. by iFrame "Hxw Hyw". }
+  { by iModIntro. }
+Qed.
+
+(* The public [eq x y = x == y || eq x y]: a fast path for the physically
+   identical case, which needs only reflexivity of [reaches]. *)
+
+Lemma eq_wrapper_proof γ γc γn γR η :
+  in_env "eq" (λ eq, □ iSpec τ[elem; elem] eq (eq_spec γ γc γn γR)) η -∗
+  imp (eval η (EAnonFun __eq)) {{ λ c, □ iSpec τ[elem; elem] c (eq_spec γ γc γn γR) }}.
+Proof.
+  iIntros "#IEq".
+  iApply imp_EAnon_pers.
+  iIntros "!> /=".
+  iIntros (x y).
+  unfold eq_spec.
+  iIntros (i j) "#Hinv #Hx #Hy".
+  (* The [x == y] branch's postcondition is a bare assertion, so the
+     reflexivity fact is minted up front (as in [find_proof]). *)
+  iMod (reaches_refl _ _ _ _ x with "Hinv") as "#Hxx".
+  iApply imp_please; iNext.
+  iDestruct (vertex_mut with "Hx") as "#HxP".
+  iDestruct (vertex_mut with "Hy") as "#HyP".
+  iApply (imp_EBoolDisj _ (λ bb : bool, if bb then ⌜x = y⌝ else ⌜x ≠ y⌝)%I).
+  { iApply (imp_EOpPhysEq_record _ _ _ (λ l : record, ⌜l = x⌝)%I
+                                       (λ l : record, ⌜l = y⌝)%I _ Mut Mut).
+    { auto. }
+    { imp_path. equality. }
+    { imp_path. equality. }
+    { iIntros "!>" (l1 l2) "-> ->".
+      by destruct (locations.eqb_spec x y) as [->|Hneq]. } }
+  iIntros ([|]) "Hcmp".
+  { iDestruct "Hcmp" as %<-.
+    iExists x. by iFrame "Hxx". }
+  iDestruct "Hcmp" as %Hne.
+  imp_app τ[elem; elem].
+  iIntros "Hm".
+  unfold eq_spec.
+  iApply ("Hm" $! i j with "Hinv Hx Hy").
 Qed.
 
 End ConcurrentUnionFind.

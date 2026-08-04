@@ -213,6 +213,26 @@ Section imp_rules_expr.
     iApply (imp_ret with "HΦ"); first encode.
   Qed.
 
+  (* [e1 || e2] short-circuits: [e2] is evaluated only when [e1] yields
+     [false], so the continuation owes a proof for [e2] in that case
+     alone, and [Φ true] outright in the other. *)
+  Lemma imp_EBoolDisj {ζ} (Φ Φ1 : bool → iProp Σ) η e1 e2 :
+    impure E (eval η e1) Ψ ζ Φ1 -∗
+    (∀ b1, Φ1 b1 -∗
+           if b1 then Φ true else impure E (eval η e2) Ψ ζ Φ) -∗
+    impure E (eval η (EBoolDisj e1 e2)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2".
+    simpl_eval.
+    iApply (imp_bind with "[He1]").
+    { iApply (imp_as_bool with "He1"). }
+    iIntros (b1) "HΦ1".
+    iDestruct ("He2" with "HΦ1") as "He2".
+    destruct b1.
+    - iApply (imp_ret with "He2"); first encode.
+    - iApply "He2".
+  Qed.
+
   (** * EInt : Z → expr *)
 
   Lemma imp_EInt {ζ} η i :
