@@ -1,5 +1,4 @@
 From iris.algebra Require Import auth gset.
-From iris.base_logic.lib Require Import invariants ghost_map.
 From stdpp Require Import relations.
 
 From osiris Require Import osiris.

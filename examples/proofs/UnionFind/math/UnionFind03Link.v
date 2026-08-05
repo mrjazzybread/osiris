@@ -190,3 +190,16 @@ Proof.
 Qed.
 
 End Link.
+
+(* [link]'s only effect on root-ness, for any vertex [w] other than the
+   one it installs the new edge at, is none at all: [link F a y']'s edges
+   are exactly [F]'s edges plus [a -> y'], so a vertex [w ≠ a] has no new
+   outgoing edge and loses none of its old ones. *)
+
+Lemma root_link_ne {V} (F : V -> V -> Prop) (a y' w : V) :
+  w ≠ a -> (Root F w <-> Root (link F a y') w).
+Proof.
+  intros Hne. split.
+  - intros Hroot. apply is_root_link; [exact Hroot | exact (not_eq_sym Hne)].
+  - intros [Hroot2]. constructor. intros y0 HF0. apply (Hroot2 y0). left. exact HF0.
+Qed.

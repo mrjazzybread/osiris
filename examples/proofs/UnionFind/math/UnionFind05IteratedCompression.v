@@ -273,3 +273,24 @@ Proof.
   intros Hbw Hdsf HxD.
   eapply is_dsf_fw_ipc; eauto using bw_ipc_fw_ipc.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* In a functional graph every vertex has at most one outgoing edge, so
+   the vertices reachable from a common origin are linearly ordered:
+   two paths out of [x] cannot diverge. This is what [compress] needs in
+   order to relate "the vertex it is rerouting to" against the one it
+   currently points at see [reaches_sibling]. *)
+
+Lemma path_confluent {V} (F : relation V) :
+  Functional F ->
+  forall x y, rtc F x y -> forall z, rtc F x z -> rtc F y z \/ rtc F z y.
+Proof.
+  intros [Hfun] x y Hxy.
+  induction Hxy as [x | x x' y HF Hx'y IH]; intros z Hxz.
+  - left. exact Hxz.
+  - apply rtc_inv in Hxz as [-> | (x'' & HF' & Hx''z)].
+    + right. eapply rtc_l; [exact HF | exact Hx'y].
+    + assert (x' = x'') as -> by (eapply Hfun; eassumption).
+      exact (IH z Hx''z).
+Qed.

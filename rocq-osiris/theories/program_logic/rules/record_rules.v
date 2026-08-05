@@ -13,6 +13,8 @@ Global Instance record_eq_decision : EqDecision record.
 Proof. unfold record; simpl. apply _. Defined.
 Global Instance record_countable : Countable record.
 Proof. unfold record; simpl. apply _. Defined.
+Global Instance record_inhabited : Inhabited record.
+Proof. unfold record; simpl; apply _. Defined.
 
 Section record_resources.
 
