@@ -382,6 +382,34 @@ Fixpoint lookup_rec_bindings rbs g : option anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [loadfs ls fps] reads the fields [fps] of a block [ls], and returns
+   their values in the order in which [fps] selects them.
+
+   Only the selected fields are read: a record pattern that mentions
+   one field of a wide record performs one load. A field index out of
+   bounds triggers a crash. *)
+
+Fixpoint loadfs {E} (ls : list loc) (fps : list (field * pat)) : micro (list val) E :=
+  match fps with
+  | [] => ret []
+  | (f, _) :: fps =>
+      v ← (match ls !! f with Some l => load l | None => Crash end) ;
+      vs ← loadfs ls fps ;
+      ret (v :: vs)
+  end.
+
+(* [fvals vs fps] is the pure counterpart of [loadfs]: if [vs] are the
+   values of a block's fields, then [fvals vs fps] is what reading the
+   fields selected by [fps] yields. *)
+
+Fixpoint fvals (vs : list val) (fps : list (field * pat)) : list val :=
+  match fps with
+  | [] => []
+  | (f, _) :: fps => vs !!! f :: fvals vs fps
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* This section defines the auxiliary functions that are mutually recursive
    with [eval_pat]. *)
 
@@ -419,22 +447,26 @@ Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
       length_mismatch "shorter tuple expected"
  end.
 
-(* [eval_fpats η δ fps vs] matches the positionally-indexed record values
-   [vs] against the field-indexed patterns [fps].
+(* [eval_fpats η δ fps vs] matches the values [vs] against the field
+   patterns [fps]. The two lists are in one-to-one correspondence: [vs]
+   holds the value of the field selected by each pattern of [fps], in the
+   order in which [fps] selects them (this is what [loadfs] produces).
 
    In case of success, the result is an extension of [δ] with bindings for
-   the bound variables of [fps]. A field index out of bounds is a meta-level
-   invariant violation and triggers a crash. *)
+   the bound variables of [fps]. *)
 
-Fixpoint pre_eval_fpats (η δ : env) fps vs : micro env unit :=
+Fixpoint pre_eval_fpats (η δ : env) (fps : list (field * pat)) vs : micro env unit :=
   let eval_fpats := pre_eval_fpats in
-  match fps with
-  | [] => ret δ
-  | (f, p) :: fps =>
-      v ← of_option (vs !! f) ;
+  match fps, vs with
+  | [], _ => ret δ
+  | (_, p) :: fps, v :: vs =>
       δ ← eval_pat η δ p v ;
       δ ← eval_fpats η δ fps vs ;
       ret δ
+  | _ :: _, [] =>
+      (* [loadfs] produces one value per field pattern, so this cannot
+         arise from [eval_pat]. *)
+      length_mismatch "one value per field pattern expected"
   end.
 
 End EvalPat.
@@ -497,11 +529,10 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       if (locations.eqb l l') then eval_pats η δ ps vs else throw ()
   | PRecord fps, VRecord l =>
       (* A record pattern matches a record value. The pattern may
-         mention fewer fields than the value. The values are loaded
-         from the heap in field order; field indices in [fps] are
-         positional and looked up against [vs]. *)
+         mention fewer fields than the value; only the fields it
+         mentions are loaded, in the order in which it mentions them. *)
       '(_, ls) ← load_block l ;
-      vs ← loadn ls ;
+      vs ← loadfs ls fps ;
       eval_fpats η δ fps vs
   | PInline c p, VInline c' l =>
       (* An inline-record pattern matches an inline-record value with the
