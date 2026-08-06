@@ -254,6 +254,19 @@ Fixpoint loadn {E} (ls : list loc) : micro (list val) E :=
       ret (v :: vs)
   end.
 
+(* Loading a concatenation is loading each part in turn. *)
+
+Lemma loadn_app {E} (ls1 ls2 : list loc) :
+  loadn (E:=E) (ls1 ++ ls2) =
+  (vs1 ← loadn ls1 ;
+   vs2 ← loadn ls2 ;
+   ret (vs1 ++ vs2)).
+Proof.
+  induction ls1 as [| l ls1 IH]; simpl.
+  { symmetry. apply bind_ret_right. }
+  rewrite IH. repeat setoid_rewrite bind_bind. reflexivity.
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 
 (* [alloc v] allocates a new ref cell with initial value [v] and returns the

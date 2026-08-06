@@ -398,9 +398,17 @@ Local Ltac2 ipat_record_cps (v : constr) (k : unit -> unit) :=
               | _ => '"Hrec"%string
               end in
   let pat := '("% -> " ++ $name)%string in
+  (* The record rules ask that every field the pattern selects be a
+     field of the record's type — the pattern only reads those, so only
+     those need to exist. For the concrete patterns the automation
+     handles this is arithmetic. *)
+  let solve_valid_fields := fun () =>
+    solve [ ltac1:(unfold valid_field; repeat constructor; simpl; lia) ]
+  in
   let apply_one := fun (lem : constr) =>
     iApply ($lem with $hname) >
       [ solve_val_eq ()
+      | solve_valid_fields ()
       | pattern_match0 ()
       | solve [ ltac1:(tauto) ]
       | iIntros $pat; k () ]

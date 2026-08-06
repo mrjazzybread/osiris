@@ -184,7 +184,6 @@ Proof.
     iDestruct "H" as (r) "(-> & %xs & Hown & ->)".
     iApply "Hown". }
   iIntros (a rc) "[Htok %Hrepa] Hco".
-  simpl.
 
   (* Goal: [ { id; content } ]. Allocate the vertex, then register it (and
      its content record) in the invariant; this last step is a pure ghost
@@ -244,7 +243,7 @@ Definition find_spec (γ γc γn γR : gname) (x : elem) (m : microvx) : iProp �
         [reaches_refl].
       - [CtLink]: the first branch is refuted; the second branch
         pattern-matches [{ parent = y }] against the link record,
-        *re-reading* the racy [parent] field. [ipat_PRecord_var_atomic]
+        *re-reading* the racy [parent] field. [ipat_PRecord_atomic]
         performs this single field load under [uf_inv], with
         [uf_link_parent_acc] supplying its fupd: even if [x] has moved
         on, the registration [CtLink rc ↪[γc]□ CLink b x] guarantees the
@@ -267,7 +266,6 @@ Proof.
   (* [reaches γR x x], minted up front: the [Root] branch needs it, and
      that branch's postcondition is a bare assertion with no fancy update
      left to run a ghost step under. *)
-  iMod (reaches_refl with "Hinv") as "#Hxx".
   iApply imp_please; iNext.
 
   (* Goal: [ match x.content with ... ]. The scrutinee is read atomically
@@ -283,6 +281,7 @@ Proof.
        intuitionistic context). *)
     rewrite (@encode_encode' content).
     next_branch.
+    iMod (reaches_refl with "Hinv") as "#Hreaches_refl".
     imp_path.
     iPureIntro; lia. }
 
@@ -293,7 +292,7 @@ Proof.
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lp with "Hlocs []").
+  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp] with "Hlocs []"); first done.
   iNext.
   iApply (uf_link_parent_acc with "Hinv Hrc Hlocs []").
   iNext.
@@ -537,7 +536,7 @@ Proof.
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lp with "Hlocs []").
+  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp] with "Hlocs []"); first done.
   iNext.
   iApply (uf_link_parent_acc with "Hinv Hrc Hlocs []").
   iNext.
@@ -929,7 +928,7 @@ Proof.
 
     (* Read the root's current value — pinned to [v] by the
        registration. This borrows only [rc]'s own content. *)
-    iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
+    iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lv] with "Hrclocs []"); first done.
     iNext.
     iApply (uf_root_value_acc with "Hinv Hrc Hrclocs").
     iNext.
@@ -1256,7 +1255,7 @@ Proof.
 
       (* Read the absorbed root's value — pinned to [v] by the
          registration; a borrow of the invariant that changes nothing. *)
-      iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
+      iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lv] with "Hrclocs []"); first done.
       iNext.
       iApply (uf_root_value_acc with "Hinv Hrc Hrclocs").
       iNext.
@@ -1344,7 +1343,7 @@ Proof.
       rewrite (@encode_encode' content).
       next_branch.
 
-      iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lv with "Hrclocs []").
+      iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lv] with "Hrclocs []"); first done.
       iNext.
       iApply (uf_root_value_acc with "Hinv Hrc Hrclocs").
       iNext.
@@ -1537,7 +1536,7 @@ Proof.
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iApply (ipat_PRecord_var_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ rc lp with "Hlocs []").
+  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp] with "Hlocs []"); first done.
   iNext.
   iApply (uf_link_parent_acc with "Hinv Hrc Hlocs []").
   iNext.

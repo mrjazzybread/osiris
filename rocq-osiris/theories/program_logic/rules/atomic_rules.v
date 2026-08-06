@@ -1,6 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import gen_heap invariants.
 
+(* [big_opLZ] is imported here, ahead of the osiris modules: it
+   re-exports stdpp's [x ← _ ; _] notation, which would otherwise
+   shadow the [micro] one that this file's statements are written in. *)
+From osiris.utils Require Import big_opLZ.
+
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import thread_step ewp tactics.
@@ -115,6 +120,10 @@ Section imp_atomic_rules.
 
   Context `{!osirisGS Σ}.
   Context {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
+
+  (* [imp_loadn] and the record rules are stated at this instance;
+     without it, [list val] postconditions do not typecheck here. *)
+  Local Instance notval_listval : NotVal (list val) := {}.
 
   Lemma imp_store_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) :
     impure E1 (eval η e1) Ψ ζ Φ1 -∗
@@ -282,26 +291,34 @@ Section imp_atomic_rules.
     ('a ← Stop c x k; f a) = Stop c x (λ o, 'a ← k o; f a).
   Proof. reflexivity. Qed.
 
-  (* Atomically matching the record pattern [{ f0 = x }] (a single
-     variable field): the pattern's field load is a single atomic
-     instruction, so its points-to may come from an invariant. This is
-     how a racy record field (e.g. one subject to concurrent writes
-     governed by an invariant) can be read by a pattern. *)
-  Lemma ipat_PRecord_var_atomic (E2 E1 : coPset) η δ x (r : record) (lp : loc)
-      (Φ : env → iProp Σ) (ψ : iProp Σ) :
-    ▷ isBlockLocs r [lp] -∗
-    ▷ (|={E1,E2}=> ∃ v, ▷ lp ↦ v ∗ ▷ (lp ↦ v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
-    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(0%Z, PVar x)]) (VRecord r) Φ ψ.
+  (* Atomically matching a record pattern [{ f = x }] that binds one
+     field to a variable. Since a record pattern reads only the fields
+     it mentions, matching this one is a single [load] followed by pure
+     code — an atomic step — so the field's points-to need not be held
+     by the caller at all: it may come from an invariant, which the
+     caller opens for the duration of that step.
+
+     This is how a racy record field (one subject to concurrent writes
+     governed by an invariant) is read by a pattern. Nothing is asked of
+     the record's other fields: they are not read. *)
+  Lemma ipat_PRecord_atomic (E2 E1 : coPset) η δ x (f : field) (r : record)
+      (ls : list loc) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    ▷ (|={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦ v ∗
+         ▷ ((ls !!! f) ↦ v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
+    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
   Proof.
-    iIntros "#Hlocs Hload".
+    iIntros (Hvalid) "#Hlocs Hload".
     rewrite /ipattern. simpl_eval_pat.
     iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hload]").
     { iApply (imp_load_block_ghost' with "Hlocs Hload"). }
-    iIntros ((t & ls)) "(-> & Hload) /=".
+    iIntros ((t & ls')) "(-> & Hload) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
     rewrite bind_bind {1}/load bind_stop_gen.
     match goal with
-    | |- context [ Stop CLoad lp ?k ] =>
-        pose proof (stop_load_atomic_outcome lp k) as Hat
+    | |- context [ Stop CLoad ?l ?k ] =>
+        pose proof (stop_load_atomic_outcome l k) as Hat
     end.
     specialize (Hat ltac:(intros [?|?];
       [eapply thread_step.is_ret | eapply thread_step.is_crash]; reflexivity)).

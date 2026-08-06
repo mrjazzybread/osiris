@@ -53,7 +53,7 @@ Lemma content_init_root γ γc γR c v :
   content_init γ γc c (CRoot v) ⊣⊢ content_own γ γc γR c (CRoot v).
 Proof. destruct c; reflexivity. Qed.
 (* The field-level view of a content record:
-   [imp_ERecordAccess_atomic], [ipat_PRecord_var_atomic], and the CAS
+   [imp_ERecordAccess_atomic], [ipat_PRecord_atomic], and the CAS
    consume a single field's points-to. *)
 Lemma content_own_root γ γc γR rc v :
   content_own γ γc γR (CtRoot rc) (CRoot v) ⊣⊢

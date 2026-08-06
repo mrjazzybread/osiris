@@ -121,15 +121,12 @@ Section eval_pat_app.
     - destruct vs; auto. rewrite IHp. rew. ext δ1. rew.
       rewrite (IHps _ δ1), (IHps _ (δ1 ++ _)).
       rew. ext δ2. rewrite app_assoc. auto.
-    - destruct vs; auto;
-      simpl_eval_fpats; by rew.
-    - destruct vs; auto; simpl_eval_fpats.
-      + rewrite (list_z.lookup_nil f). by rew.
-      + rewrite bind_bind; f_equal;
-        extensionality o.
-        rewrite IHp. rewrite !bind_bind. f_equal. extensionality δ'.
+    - simpl_eval_fpats. by rew.
+    - destruct vs; simpl_eval_fpats.
+      + by rew.
+      + rewrite IHp. rewrite !bind_bind. f_equal. extensionality δ'.
         rewrite bind_ret. rewrite !bind_ret_right. rewrite IHfps.
-        rewrite (IHfps (v :: vs) δ'). rewrite bind_bind. f_equal. extensionality δ''.
+        rewrite (IHfps vs δ'). rewrite bind_bind. f_equal. extensionality δ''.
         rew. by rewrite app_assoc.
   Qed.
 End eval_pat_app.

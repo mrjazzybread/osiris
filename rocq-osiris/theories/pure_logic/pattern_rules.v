@@ -472,13 +472,19 @@ Section pattern_rules.
     by apply fpats_nil.
   Qed.
 
-  Lemma fpats_cons_unary η δ f p fps vs v φ ψ1 ψ2 :
-    vs !! f = Some v →
-    pattern η δ p v (λ δ, fpatterns η δ fps vs φ ψ2) ψ1 →
+  (* [vs] is in one-to-one correspondence with [fps]: its head is the
+     value of the field that the head pattern selects. The field index
+     [f] therefore plays no role here — the selection happened in
+     [loadfs], at the point where the field was read. The head is still
+     named by an equation rather than by a [v :: vs'] pattern, so that
+     the automation can normalize it (see [fpats] in [pure_tactics]). *)
+
+  Lemma fpats_cons_unary η δ f p fps vs vs' v φ ψ1 ψ2 :
+    vs = v :: vs' →
+    pattern η δ p v (λ δ, fpatterns η δ fps vs' φ ψ2) ψ1 →
     fpatterns η δ ((f, p) :: fps) vs φ (ψ1 ∨ ψ2).
   Proof.
-    unfold fpatterns. intros Hf Hp. simpl_eval_fpats.
-    rewrite Hf. simpl. rewrite bind_ret.
+    unfold fpatterns. intros -> Hp. simpl_eval_fpats.
     eapply pure_strong_bind; [ apply Hp | | tauto ].
     intros δ' Hδ'.
     eapply pure_strong_bind; [ apply Hδ' | | tauto ].
@@ -486,10 +492,10 @@ Section pattern_rules.
     eapply pure_ret; eauto.
   Qed.
 
-  Lemma fpats_cons η δ f p fps vs v φ' φ ψ1 ψ2 :
-    vs !! f = Some v →
+  Lemma fpats_cons η δ f p fps vs vs' v φ' φ ψ1 ψ2 :
+    vs = v :: vs' →
     pattern η δ p v φ' ψ1 →
-    (∀ δ, φ' δ → fpatterns η δ fps vs φ ψ2) →
+    (∀ δ, φ' δ → fpatterns η δ fps vs' φ ψ2) →
     fpatterns η δ ((f, p) :: fps) vs φ (ψ1 ∨ ψ2).
   Proof.
     intros. eapply fpats_cons_unary; first eassumption.

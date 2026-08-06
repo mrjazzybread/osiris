@@ -238,26 +238,63 @@ Section ipattern.
       iFrame.
   Qed.
 
+  (* Reading the fields of a block that a record pattern selects — and
+     only those. The values come back in the order [fps] selects them,
+     which is what [fvals] describes. *)
+
+  Lemma imp_loadfs {X} (ζ : X → iProp Σ) (dq : dfrac) ls (vs : list val) fps :
+    Forall (λ fp, valid fp.1 ls) fps →
+    ([∗ listZ] l;v ∈ ls; vs, l ↦{dq} v) -∗
+    imp (loadfs ls fps) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ vs' : list val,
+        ⌜vs' = fvals vs fps⌝ ∗ [∗ listZ] l;v ∈ ls; vs, l ↦{dq} v }}.
+  Proof.
+    iIntros (Hvalid) "Hls".
+    iInduction fps as [|[f p] fps] "IH"; simpl.
+    - iApply imp_ret; first done. by iFrame.
+    - apply Forall_cons in Hvalid as [Hf Hfps]. simpl in Hf.
+      iDestruct (big_sepLZ2_length with "Hls") as %Hlen.
+      rewrite (list_lookup_lookup_total_valid ls f Hf).
+      iDestruct (big_sepLZ2_lookup_acc _ _ _ f (ls !!! f) (vs !!! f)
+                   with "Hls") as "[Hl Hback]".
+      { by apply list_lookup_lookup_total_valid. }
+      { apply list_lookup_lookup_total_valid. by rewrite -Hlen. }
+      iApply (imp_stop_load with "Hl").
+      iIntros "!> Hl /=".
+      iDestruct ("Hback" with "Hl") as "Hls".
+      iApply (imp_bind (A1:=list val) with "[Hls]").
+      { by iApply ("IH" with "[//] Hls"). }
+      iIntros (vs') "[-> Hls] /=".
+      iApply imp_ret; first done.
+      by iFrame.
+  Qed.
+
   (* The main rule: matching a record pattern against a record value
-     reads the record's fields and then matches the field patterns
-     purely. The ownership of the block is given back in both the
-     success and the failure branch. *)
+     reads the fields the pattern selects and then matches the field
+     patterns purely. The ownership of the block is given back in both
+     the success and the failure branch. *)
 
   Lemma ipat_PRecord {τ : types} η δ fps (r : record) q t (xs : τ)
       (φ : env → Prop) (ψ : Prop) :
-    fpatterns η δ fps (to_vals xs) φ ψ →
+    Forall (λ fp, valid_field fp.1 τ) fps →
+    fpatterns η δ fps (fvals (to_vals xs) fps) φ ψ →
     ownBlock r q t xs -∗
     ipattern η δ (PRecord fps) (VRecord r)
       (λ δ', ⌜φ δ'⌝ ∗ ownBlock r q t xs)
       (⌜ψ⌝ ∗ ownBlock r q t xs).
   Proof.
-    iIntros (Hfps) "Hown". rewrite /ipattern. simpl_eval_pat.
+    iIntros (Hvalid Hfps) "Hown". rewrite /ipattern. simpl_eval_pat.
     iDestruct "Hown" as "(%ls & #Hlocs & Htag & Hxs)".
     iApply (imp_bind (A1:=mut_tag * list loc)).
     { iApply (imp_load_block_ghost with "Hlocs"). }
     iIntros ((t' & ls')) "-> /=".
+    (* [valid_field _ τ] is validity in [ls]: the block has one location
+       per field of [τ]. *)
+    iDestruct (big_sepLZ2_length with "Hxs") as %Hlen.
+    rewrite to_vals_length in Hlen.
     iApply (imp_bind (A1:=list val) with "[Hxs]").
-    { iApply (imp_loadn with "Hxs"). }
+    { iApply (imp_loadfs with "Hxs").
+      eapply Forall_impl; first exact Hvalid.
+      intros fp Hfp. by rewrite Hlen. }
     iIntros (vs) "[-> Hxs] /=".
     iApply (imp_wand2 with "[] [-]").
     { iApply impure_pure2. exact Hfps. }
@@ -273,13 +310,14 @@ Section ipattern.
 
   Lemma ipat_PRecord_repr `{RecordRepr A τ t} η δ fps r q (a : A)
       (φ : env → Prop) (ψ : Prop) :
-    fpatterns η δ fps (to_vals (repr_to_types a)) φ ψ →
+    Forall (λ fp, valid_field fp.1 τ) fps →
+    fpatterns η δ fps (fvals (to_vals (repr_to_types a)) fps) φ ψ →
     ownRecord r q a -∗
     ipattern η δ (PRecord fps) (VRecord r)
       (λ δ', ⌜φ δ'⌝ ∗ ownRecord r q a)
       (⌜ψ⌝ ∗ ownRecord r q a).
   Proof.
-    intros Hfps. iApply ipat_PRecord. exact Hfps.
+    intros Hvalid Hfps. by iApply ipat_PRecord.
   Qed.
 
   (* Continuation-passing forms of the record rules, used by the
@@ -294,15 +332,16 @@ Section ipattern.
   Lemma ipat_PRecord_cps {τ : types} η δ fps v (r : record) q t (xs : τ)
       (φ : env → Prop) (ψp : Prop) (Φ : env → iProp Σ) (ψ : iProp Σ) :
     v = VRecord r →
-    fpatterns η δ fps (to_vals xs) φ ψp →
+    Forall (λ fp, valid_field fp.1 τ) fps →
+    fpatterns η δ fps (fvals (to_vals xs) fps) φ ψp →
     (ψp → False) →
     ownBlock r q t xs -∗
     (∀ δ', ⌜φ δ'⌝ -∗ ownBlock r q t xs -∗ Φ δ') -∗
     ipattern η δ (PRecord fps) v Φ ψ.
   Proof.
-    iIntros (-> Hfps Hψ) "Hown Hk".
+    iIntros (-> Hvalid Hfps Hψ) "Hown Hk".
     iApply (ipattern_mono with "[Hown]").
-    { iApply (ipat_PRecord with "Hown"). exact Hfps. }
+    { by iApply (ipat_PRecord with "Hown"). }
     iSplit.
     - iIntros (δ') "[%Hφ Hown]". iApply ("Hk" with "[//] Hown").
     - iIntros "[%Hp _]". destruct (Hψ Hp).
@@ -311,15 +350,16 @@ Section ipattern.
   Lemma ipat_PRecord_repr_cps `{RecordRepr A τ t} η δ fps v r q (a : A)
       (φ : env → Prop) (ψp : Prop) (Φ : env → iProp Σ) (ψ : iProp Σ) :
     v = VRecord r →
-    fpatterns η δ fps (to_vals (repr_to_types a)) φ ψp →
+    Forall (λ fp, valid_field fp.1 τ) fps →
+    fpatterns η δ fps (fvals (to_vals (repr_to_types a)) fps) φ ψp →
     (ψp → False) →
     ownRecord r q a -∗
     (∀ δ', ⌜φ δ'⌝ -∗ ownRecord r q a -∗ Φ δ') -∗
     ipattern η δ (PRecord fps) v Φ ψ.
   Proof.
-    iIntros (-> Hfps Hψ) "Hown Hk".
+    iIntros (-> Hvalid Hfps Hψ) "Hown Hk".
     iApply (ipattern_mono with "[Hown]").
-    { iApply (ipat_PRecord_repr with "Hown"). exact Hfps. }
+    { by iApply (ipat_PRecord_repr with "Hown"). }
     iSplit.
     - iIntros (δ') "[%Hφ Hown]". iApply ("Hk" with "[//] Hown").
     - iIntros "[%Hp _]". destruct (Hψ Hp).

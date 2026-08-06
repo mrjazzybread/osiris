@@ -577,7 +577,7 @@ Qed.
 
 (* Re-reading the single field of an already-registered content record,
    without going through any vertex: these accessors produce exactly the
-   mask-changing fupd that the atomic rules ([ipat_PRecord_var_atomic],
+   mask-changing fupd that the atomic rules ([ipat_PRecord_atomic],
    [imp_ERecordAccess_atomic]) consume. For a [Root] record the field's
    value is pinned by the registration itself; for a [Link] record the
    caller learns that the loaded parent is a vertex strictly below the
@@ -649,7 +649,7 @@ Proof.
 Qed.
 
 (* The same accessor, with the loaded parent existentially quantified at
-   [elem] rather than at [val]. [ipat_PRecord_var_atomic] — the rule
+   [elem] rather than at [val]. [ipat_PRecord_atomic] — the rule
    behind [find]'s [Link { parent = y }] pattern — is [val]-shaped, but
    [compress] reads the field through an ordinary [let y = link.parent],
    i.e. [imp_ERecordAccess_atomic], whose loaded value is at the
