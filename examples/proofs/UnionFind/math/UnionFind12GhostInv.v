@@ -21,6 +21,10 @@ Context `{!osirisGS Σ,
           !ghost_mapG Σ Z unit,
           !inG Σ (authR (gsetUR (elem * elem)%type))}.
 
+Implicit Types x y z : elem.
+Implicit Types i j : Z.
+Implicit Types γ γc γn γR : gname.
+
 (* The global invariant: the authoritative maps of vertices and content
    records, together with their physical footprints, and the registry
    of identifiers. *)
@@ -64,99 +68,89 @@ Proof.
   iModIntro. iExists γ, γc, γn, γR. iExact "Hinv".
 Qed.
 
-End uf_inv.
-
-Section reaches.
-
-Context `{!osirisGS Σ,
-          !ghost_mapG Σ elem Z,
-          !ghost_mapG Σ content cinfo,
-          !ghost_mapG Σ Z unit,
-          !inG Σ (authR (gsetUR (elem * elem)%type))}.
-
 (* ------------------------------------------------------------------------ *)
-(* The [reaches] API. *)
+(* Accessing the invariant.
 
-(* Reflexivity: [rtc] is reflexive, so the pair is recordable at any
-   open whatsoever. *)
+   [uf_inv] is never destructured outside this file, and inside it only
+   by the four accessors below. Each one hands out exactly the resources
+   its callers consume — and a wand to give them back — rather than the
+   whole pile of components; the ones a caller does not need it never
+   sees, which is what keeps the function proofs free of invariant
+   bookkeeping.
 
-Lemma reaches_refl γ γc γn γR x :
-  is_uf γ γc γn γR ={⊤}=∗ reaches γR x x.
+   The first accessor is the purely ghost one. [reaches_refl],
+   [reaches_trans], [reaches_sibling] and [vertex_representable] all read
+   the identifier map [M] and the abstract graph [F], change at most the
+   recorded-pairs set [R], and touch no physical footprint at all — so
+   that is all this exposes. Which of the pure facts each of them
+   actually uses is visible at their call sites, where the rest are
+   introduced as [_]. *)
+
+Lemma uf_inv_ghost_acc γ γc γn γR :
+  ▷ uf_inv γ γc γn γR -∗
+  ◇ ∃ (M : gmap elem Z) (R : gset (elem * elem)) F,
+      ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
+      ⌜DSF F (dom M)⌝ ∗ ⌜id_bounded M F⌝ ∗ ⌜reaches_sound R F⌝ ∗
+      ghost_map_auth γ 1 M ∗ own γR (● R) ∗
+      (∀ R', ⌜reaches_sound R' F⌝ -∗
+             ghost_map_auth γ 1 M -∗ own γR (● R') -∗ ▷ uf_inv γ γc γn γR).
 Proof.
-  iIntros "#Hinv".
-  iInv "Hinv" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HR & >%Hrep & >%HdsfF & >%HidF & >%HRs & HM & HC)"
-    "Hclose".
-  iMod (reaches_update _ _ F x x with "HR") as (R') "(HR & #Hxx & %HRs' & %Hsub)";
-    [exact HRs | reflexivity |].
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HR HM HC]") as "_".
-  { iNext. iExists M, C, N, R', F. by iFrame. }
-  by iModIntro.
+  iIntros "H".
+  iDestruct "H" as (M C N R F)
+    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs &
+      HM & HC)".
+  iModIntro. iExists M, R, F.
+  do 4 (iSplitR; first done).
+  iFrame "Hauth HRauth".
+  iIntros (R') "%HRs' Hauth HRauth". iNext.
+  iExists M, C, N, R', F. by iFrame.
 Qed.
 
-(* Transitivity. *)
+(* [uf_frame γ γc γn γR z j c] is everything [uf_inv] owns that a step on
+   vertex [z]'s content cell never inspects: the identifier map [M] with
+   its abstract graph [F], the identifier registry, the recorded
+   reachability pairs, and every OTHER vertex's footprint. Packaging it
+   under one name is what lets the accessors below expose the content
+   registry alone.
 
-Lemma reaches_trans γ γc γn γR x y z :
-  is_uf γ γc γn γR -∗ reaches γR x y -∗ reaches γR y z ={⊤}=∗ reaches γR x z.
-Proof.
-  iIntros "#Hinv #Hxy #Hyz".
-  iInv "Hinv" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HR & >%Hrep & >%HdsfF & >%HidF & >%HRs & HM & HC)"
-    "Hclose".
-  iDestruct (reaches_lookup with "HR Hxy") as %Hxy.
-  iDestruct (reaches_lookup with "HR Hyz") as %Hyz.
-  iMod (reaches_update _ _ F x z with "HR") as (R') "(HR & #Hxz & %HRs' & %Hsub)";
-    [exact HRs | by eapply rtc_trans; apply HRs |].
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HR HM HC]") as "_".
-  { iNext. iExists M, C, N, R', F. by iFrame. }
-  by iModIntro.
-Qed.
+   The frame is indexed by the content [c] the cell holds, because that
+   is the one thing the cell and the graph still have to agree on: [c]'s
+   tag says whether [z] is a root of [F]. Putting it back with a content
+   of the same tag ([uf_inv_reassemble]) needs no graph reasoning; the
+   one step that flips the tag ([uf_inv_reassemble_link]) is where the
+   graph grows. *)
 
-End reaches.
-
-(* ------------------------------------------------------------------------ *)
-(* Working with the invariant. *)
-
-Section uf_inv.
-
-Context `{!osirisGS Σ,
-          !ghost_mapG Σ elem Z,
-          !ghost_mapG Σ content cinfo,
-          !ghost_mapG Σ Z unit,
-          !inG Σ (authR (gsetUR (elem * elem)%type))}.
-
-Implicit Types x y z : elem.
-Implicit Types rc : record.
-Implicit Types i j : Z.
-Implicit Types γ γc γn γR : gname.
+Definition uf_frame (γ γc γn γR : gname) z j (c : content) : iProp Σ :=
+  ∃ (M : gmap elem Z) (N : gmap Z unit) (R : gset (elem * elem)) F,
+    ⌜M !! z = Some j⌝ ∗
+    ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
+    ⌜DSF F (dom M)⌝ ∗ ⌜id_bounded M F⌝ ∗ ⌜reaches_sound R F⌝ ∗
+    ⌜if content_root c then Root F z else ¬ Root F z⌝ ∗
+    ghost_map_auth γ 1 M ∗ ghost_map_auth γn 1 N ∗ own γR (● R) ∗
+    j ↪[γn] () ∗
+    ([∗ map] x ↦ i ∈ delete z M, vertex_own γ γc γn γR F x i).
 
 (* [uf_inv_split] singles out one vertex's footprint: given [z]'s
    persistent [vertex] components, it hands back the content cell
-   [lzc ↦ cval ci rc] of [z], the description [ci] of the content record
-   [rc] it currently holds, and everything else the invariant owns, with
-   [z] and [rc] deleted from the two big separating conjunctions.
-   [uf_inv_reassemble] is the converse: it rebuilds [uf_inv] from those
-   pieces, for a possibly *different* content record — which is exactly
-   what a successful CAS produces. *)
+   [lzc ↦ #c] of [z], the registration and description [ci] of the
+   content record [c] it currently holds, the content registry (which a
+   caller installing a fresh record has to extend), and the frame.
+   [uf_inv_reassemble] is the converse, for a possibly *different*
+   content record of the same tag — which is exactly what a successful
+   [Root]-to-[Root] CAS produces. *)
 
 Lemma uf_inv_split γ γc γn γR z j lzi lzc :
   z ↪[γ]□ j -∗
   isBlockLocs z [lzi; lzc] -∗
   ▷ uf_inv γ γc γn γR -∗
-  ◇ ∃ (M : gmap elem Z) (C : gmap content cinfo) (N : gmap Z unit)
-      (R : gset (elem * elem)) F c ci,
-      ⌜M !! z = Some j⌝ ∗ ⌜C !! c = Some ci⌝ ∗
+  ◇ ∃ (C : gmap content cinfo) c ci,
+      ⌜C !! c = Some ci⌝ ∗
       ⌜∀ b h, ci = CLink b h → (b ≤ j)%Z ∧ h = z⌝ ∗
-      ⌜if content_root c then Root F z else ¬ Root F z⌝ ∗
-      ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
-      ⌜DSF F (dom M)⌝ ∗ ⌜id_bounded M F⌝ ∗ ⌜reaches_sound R F⌝ ∗
-      ghost_map_auth γ 1 M ∗ ghost_map_auth γc 1 C ∗ ghost_map_auth γn 1 N ∗
-      own γR (● R) ∗
-      c ↪[γc]□ ci ∗
-      ▷ (lzc ↦ #c) ∗ ▷ (j ↪[γn] ()) ∗
+      ghost_map_auth γc 1 C ∗ c ↪[γc]□ ci ∗
+      ▷ (lzc ↦ #c) ∗
       ▷ content_own γ γc γR c ci ∗
-      ▷ ([∗ map] x ↦ i ∈ delete z M, vertex_own γ γc γn γR F x i) ∗
-      ▷ ([∗ map] c' ↦ ci' ∈ delete c C, content_own γ γc γR c' ci').
+      ▷ ([∗ map] d ↦ cd ∈ delete c C, content_own γ γc γR d cd) ∗
+      ▷ uf_frame γ γc γn γR z j c.
 Proof.
   iIntros "#Hzfrag #Hzlocs H".
   iDestruct "H" as (M C N R F)
@@ -173,54 +167,133 @@ Proof.
   iDestruct (ghost_map_lookup with "Hcauth Hrc") as %HCrc.
   rewrite (big_sepM_delete _ C c ci); last exact HCrc.
   iDestruct "HC" as "[Hco HC]".
-  iExists M, C, N, R, F, c, ci.
+  iExists C, c, ci.
   iModIntro.
-  do 8 (iSplitR; first done).
-  iFrame "Hauth Hcauth Hnauth HRauth Hrc Hlc Htok Hco HM HC".
+  do 2 (iSplitR; first done).
+  iFrame "Hcauth Hrc Hlc Hco HC".
+  iNext. iExists M, N, R, F.
+  do 6 (iSplitR; first done).
+  iFrame "Hauth Hnauth HRauth Htok HM".
 Qed.
 
-Lemma uf_inv_reassemble γ γc γn γR (M : gmap elem Z) (C : gmap content cinfo)
-    (N : gmap Z unit) (R : gset (elem * elem)) F z j lzi lzc c ci :
-  M !! z = Some j →
-  C !! c = Some ci →
-  (∀ b h, ci = CLink b h → (b ≤ j)%Z ∧ h = z) →
-  (if content_root c then Root F z else ¬ Root F z) →
-  (∀ x i, M !! x = Some i → representable i) →
-  DSF F (dom M) →
-  id_bounded M F →
-  reaches_sound R F →
-  ghost_map_auth γ 1 M -∗
+Lemma uf_inv_reassemble γ γc γn γR (C : gmap content cinfo) z j lzi lzc c c' ci' :
+  content_root c' = content_root c →
+  C !! c' = Some ci' →
+  (∀ b h, ci' = CLink b h → (b ≤ j)%Z ∧ h = z) →
   ghost_map_auth γc 1 C -∗
-  ghost_map_auth γn 1 N -∗
-  own γR (● R) -∗
+  c' ↪[γc]□ ci' -∗
   isBlockLocs z [lzi; lzc] -∗
-  lzc ↦ #c -∗
-  c ↪[γc]□ ci -∗
-  j ↪[γn] () -∗
-  content_own γ γc γR c ci -∗
-  ([∗ map] x ↦ i ∈ delete z M, vertex_own γ γc γn γR F x i) -∗
-  ([∗ map] c' ↦ ci' ∈ delete c C, content_own γ γc γR c' ci') -∗
+  lzc ↦ #c' -∗
+  content_own γ γc γR c' ci' -∗
+  ([∗ map] d ↦ cd ∈ delete c' C, content_own γ γc γR d cd) -∗
+  uf_frame γ γc γn γR z j c -∗
   uf_inv γ γc γn γR.
 Proof.
-  intros HMz HCrc Hbound HFz Hrep HdsfF HidF HRs.
-  iIntros "Hauth Hcauth Hnauth HRauth #Hzlocs Hlc #Hrc Htok Hco HM HC".
+  intros Htag HCc' Hbound.
+  iIntros "Hcauth #Hc' #Hzlocs Hlc Hco HC Hframe".
+  iDestruct "Hframe" as (M N R F)
+    "(%HMz & %Hrep & %HdsfF & %HidF & %HRs & %HFz &
+      Hauth & Hnauth & HRauth & Htok & HM)".
   iExists M, C, N, R, F. iFrame "Hauth Hcauth Hnauth HRauth".
   do 4 (iSplitR; first done).
   iSplitL "HM Hlc Htok".
   { rewrite (big_sepM_delete _ M z j); last exact HMz.
     iSplitL "Hlc Htok".
-    { iExists lzi, lzc, c, ci. by iFrame "Hzlocs Hlc Hrc Htok". }
+    { iExists lzi, lzc, c', ci'. iFrame "Hzlocs Hlc Hc' Htok".
+      iSplit; first done.
+      iPureIntro. rewrite Htag. exact HFz. }
     iApply "HM". }
-  rewrite (big_sepM_delete _ C c ci); last exact HCrc.
+  rewrite (big_sepM_delete _ C c' ci'); last exact HCc'.
   iFrame "Hco HC".
+Qed.
+
+(* The other way to put the frame back, for a successful linking CAS —
+   the one place where the abstract graph [F] grows: vertex [z], a root
+   (which is what [content_root c = true] says, through the frame's own
+   tag conjunct) with identifier [j], has just had its content cell swung
+   to the brand new link value [CtLink rcn], registered with bound
+   [b ≤ j] and holder [z] (the cell the value is going into is [z]'s own
+   — that is what makes [z] the holder). The new record's [content_init]
+   already carries the parent [y] and the strict bound [jy < b], which is
+   everything [dsf_link_general] needs to justify widening [F] by the
+   edge [z → y] without re-checking [y]'s root-status.
+
+   This is also where the link's [reaches γR z y] — the extra conjunct
+   [content_own] carries over [content_init] — is born, and it is the
+   only primitive source of a [reaches] fact in the whole file: the
+   widened graph [link F z y] contains the edge [z → y] outright, so
+   [y] is reachable from [z] in it, and the pair is recorded in [R].
+   Every other [reaches] in the development is derived from these by
+   [reaches_trans].
+
+   Recording the pair is a ghost update, so the conclusion is a basic
+   update rather than a bare [uf_inv]; the caller ([uf_cas_fupd]) is
+   already inside a fancy update when it re-closes, so it simply
+   [iMod]s this before handing the result to its [Hclose]. *)
+
+Lemma uf_inv_reassemble_link γ γc γn γR (C : gmap content cinfo) z j b lzi lzc
+    c (rcn : elem) :
+  content_root c = true →
+  C !! CtLink rcn = None →
+  (b ≤ j)%Z →
+  ghost_map_auth γc 1 (<[CtLink rcn := CLink b z]> C) -∗
+  CtLink rcn ↪[γc]□ CLink b z -∗
+  isBlockLocs z [lzi; lzc] -∗
+  lzc ↦ #(CtLink rcn) -∗
+  content_init γ γc (CtLink rcn) (CLink b z) -∗
+  ([∗ map] d ↦ cd ∈ C, content_own γ γc γR d cd) -∗
+  uf_frame γ γc γn γR z j c -∗
+  |==> uf_inv γ γc γn γR.
+Proof.
+  intros Htag HCn Hbj.
+  iIntros "Hcauth #Hr #Hzlocs Hlc Hco HC Hframe".
+  iDestruct "Hframe" as (M N R F)
+    "(%HMz & %Hrep & %HdsfF & %HidF & %HRs & %HFz &
+      Hauth & Hnauth & HRauth & Htok & HM)".
+  rewrite Htag in HFz.
+  (* Peek at the new link's parent [y]: a registered vertex whose
+     identifier sits strictly below [b], hence strictly below [j]. *)
+  iDestruct "Hco" as (y jy) "(Hrec & #Hy & %Hjy)".
+  iDestruct (vertex_frag with "Hy") as "#Hyfrag".
+  iDestruct (ghost_map_lookup with "Hauth Hyfrag") as %HMy.
+  assert (Hzy : z ≠ y).
+  { intros ->. rewrite HMz in HMy. simplify_eq. lia. }
+  pose proof (dsf_link_general M F z y j jy HdsfF HidF HMz HMy HFz
+                ltac:(lia) Hzy) as [HdsfF' HidF'].
+  (* Record the freshly-installed edge: this is the link's permanent tie
+     to its holder's class, and [z → y] is an edge of the widened graph
+     by construction. *)
+  iMod (reaches_update _ _ (link F z y) z y with "HRauth")
+    as (R') "(HRauth & #Hzy & %HRs' & _)".
+  { by apply reaches_sound_link. }
+  { apply rtc_once, link_appears. }
+  iModIntro.
+  iExists M, (<[CtLink rcn := CLink b z]> C), N, R', (link F z y).
+  iFrame "Hauth Hcauth Hnauth HRauth".
+  do 4 (iSplitR; first done).
+  iSplitL "HM Hlc Htok".
+  { rewrite (big_sepM_delete _ M z j); last exact HMz.
+    iSplitL "Hlc Htok".
+    { iExists lzi, lzc, (CtLink rcn), (CLink b z).
+      iFrame "Hzlocs Hlc Hr Htok".
+      iSplit.
+      { iPureIntro. intros b' h' Hb'. injection Hb' as -> ->. done. }
+      iPureIntro. simpl. intros [Hr']. eapply (Hr' y). right. done. }
+    iApply (vertex_own_widen_link with "HM").
+    rewrite lookup_delete_eq. done. }
+  rewrite big_sepM_insert; last exact HCn.
+  iSplitL "Hrec".
+  { iExists y, jy. by iFrame "Hrec Hy Hzy". }
+  iApply "HC".
 Qed.
 
 (* [find] and [update] also reach a content record *directly*, without
    going through a vertex: they re-read a field of a record whose
-   registration [rc ↪[γc]□ ci] they already hold. Nothing about the
+   registration [c ↪[γc]□ ci] they already hold. Nothing about the
    invariant changes across such a step, so this one is an ordinary
    accessor — borrow [content_own], hand it back — rather than a
-   split/reassemble pair. *)
+   split/reassemble pair, and it exposes that one record's footprint and
+   nothing else. *)
 
 Lemma uf_inv_content_acc γ γc γn γR c ci :
   c ↪[γc]□ ci -∗
@@ -243,38 +316,50 @@ Proof.
   iFrame "Hco HC".
 Qed.
 
-(* The third member of the reassembly family, for [make]: rather than
-   putting an existing vertex back, this registers a brand new one — with
-   its own brand new content record — extending both authoritative maps.
+(* The last member of the family, for [make]: rather than putting an
+   existing vertex back, this registers a brand new one — with its own
+   brand new content record — extending both authoritative maps. The
+   caller hands over the fresh vertex's content cell, the fresh content
+   record, and the identifier token, and gets back the invariant plus
+   the vertex's own persistent fragment; it never sees a component.
+
+   Neither [x] nor [c] can be registered already: an existing entry
+   would own the very field the caller is still holding.
+
    Widening [M] is where the pure invariants have to be re-established,
    which is the bulk of the proof: [representable] for the new id, [DSF]
    by covariance in the domain, and [id_bounded] because [F] confines its
    edges to the *old* domain and so has none touching [x] at all. *)
 
-Lemma uf_inv_insert_vertex γ γc γn γR (M : gmap elem Z) (C : gmap content cinfo)
-    (N : gmap Z unit) (R : gset (elem * elem)) F x i li lc c v :
-  M !! x = None →
-  C !! c = None →
+Lemma uf_inv_insert_vertex γ γc γn γR E x i li lc (c : content) v :
   representable i →
-  (∀ w iw, M !! w = Some iw → representable iw) →
-  DSF F (dom M) →
-  id_bounded M F →
-  reaches_sound R F →
-  ghost_map_auth γ 1 (<[x := i]> M) -∗
-  ghost_map_auth γc 1 (<[c := CRoot v]> C) -∗
-  ghost_map_auth γn 1 N -∗
-  own γR (● R) -∗
   isBlockLocs x [li; lc] -∗
   lc ↦ #c -∗
-  c ↪[γc]□ CRoot v -∗
-  i ↪[γn] () -∗
   content_own γ γc γR c (CRoot v) -∗
-  ([∗ map] w ↦ iw ∈ M, vertex_own γ γc γn γR F w iw) -∗
-  ([∗ map] c ↦ ci ∈ C, content_own γ γc γR c ci) -∗
-  uf_inv γ γc γn γR.
+  i ↪[γn] () -∗
+  ▷ uf_inv γ γc γn γR ={E}=∗
+  ▷ uf_inv γ γc γn γR ∗ x ↪[γ]□ i.
 Proof.
-  intros HMx HCrc Hrepi Hrep HdsfF HidF HRs.
-  iIntros "Hauth Hcauth Hnauth HRauth #Hxlocs Hlc #Hrc Htok Hco HM HC".
+  intros Hrepi.
+  iIntros "#Hxlocs Hlc Hco Htok H".
+  iDestruct "H" as (M C N R F)
+    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs &
+      HM & HC)".
+  destruct (M !! x) as [ix|] eqn:HMx.
+  { iDestruct (big_sepM_lookup _ _ x ix with "HM") as "Hvo"; first exact HMx.
+    iAssert (▷ False)%I with "[Hlc Hvo]" as ">[]".
+    iNext. iApply (vertex_own_fresh_ne with "Hxlocs Hlc Hvo"). }
+  destruct (C !! c) as [ci0|] eqn:HCrc.
+  { iDestruct (big_sepM_lookup _ _ _ ci0 with "HC") as "Hco0"; first exact HCrc.
+    iAssert (▷ False)%I with "[Hco Hco0]" as ">[]".
+    iNext. iApply (content_own_excl γ γc γR c (CRoot v) ci0 with "Hco Hco0"). }
+  iMod (ghost_map_insert c (CRoot v) with "Hcauth") as "[Hcauth Hrc]";
+    first exact HCrc.
+  iMod (ghost_map_elem_persist with "Hrc") as "#Hrc".
+  iMod (ghost_map_insert x i with "Hauth") as "[Hauth Hxfrag]";
+    first exact HMx.
+  iMod (ghost_map_elem_persist with "Hxfrag") as "#Hxfrag".
+  iModIntro. iFrame "Hxfrag". iNext.
   destruct c as [rc|rc]; last by iDestruct "Hco" as "[]".
   iExists (<[x := i]> M), (<[CtRoot rc := CRoot v]> C), N, R, F.
   iFrame "Hauth Hcauth Hnauth HRauth".
@@ -312,126 +397,101 @@ Proof.
   iFrame "Hco HC".
 Qed.
 
+End uf_inv.
 
-(* What [union]'s [assert (x.id <> y.id)] needs: distinct vertices have
-   distinct — and, from [uf_inv]'s own [representable] conjunct, machine-
-   comparable — identifiers. The invariant is handed back unchanged. *)
+Section reaches.
 
-Lemma uf_inv_ids_distinct γ γc γn γR (a w : elem) (ia iw : Z) :
-  a ≠ w →
-  a ↪[γ]□ ia -∗ w ↪[γ]□ iw -∗ ▷ uf_inv γ γc γn γR -∗
-  ◇ (⌜ia ≠ iw ∧ representable ia ∧ representable iw⌝ ∗ ▷ uf_inv γ γc γn γR).
+Context `{!osirisGS Σ,
+          !ghost_mapG Σ elem Z,
+          !ghost_mapG Σ content cinfo,
+          !ghost_mapG Σ Z unit,
+          !inG Σ (authR (gsetUR (elem * elem)%type))}.
+
+(* ------------------------------------------------------------------------ *)
+(* The [reaches] API. *)
+
+(* Reflexivity: [rtc] is reflexive, so the pair is recordable at any
+   open whatsoever. *)
+
+Lemma reaches_refl γ γc γn γR x :
+  is_uf γ γc γn γR ={⊤}=∗ reaches γR x x.
 Proof.
-  intros Hne.
-  iIntros "#Ha #Hw H".
-  iDestruct "H" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs &
-      HM & HC)".
-  iDestruct (ghost_map_lookup with "Hauth Ha") as %HMa.
-  iDestruct (ghost_map_lookup with "Hauth Hw") as %HMw.
-  assert (HMw' : delete a M !! w = Some iw) by (rewrite lookup_delete_ne; done).
-  rewrite (big_sepM_delete _ M a ia); last exact HMa.
-  iDestruct "HM" as "[Hvoa HM]".
-  rewrite (big_sepM_delete _ (delete a M) w iw); last exact HMw'.
-  iDestruct "HM" as "[Hvow HM]".
-  destruct (decide (ia = iw)) as [->|Hij].
-  { iAssert (▷ False)%I with "[Hvoa Hvow]" as ">[]".
-    iNext. iApply (vertex_own_id_ne with "Hvoa Hvow"). }
-  iModIntro.
-  iSplit.
-  { iPureIntro. split; [exact Hij | split; [exact (Hrep a ia HMa) | exact (Hrep w iw HMw)]]. }
-  iNext.
-  iExists M, C, N, R, F. iFrame "Hauth Hcauth Hnauth HRauth HC".
-  do 4 (iSplitR; first done).
-  rewrite (big_sepM_delete _ M a ia); last exact HMa.
-  rewrite (big_sepM_delete _ (delete a M) w iw); last exact HMw'.
-  iFrame "Hvoa Hvow HM".
+  iIntros "#Hinv".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_ghost_acc with "H") as (M R F)
+    "(_ & _ & _ & %HRs & Hauth & HRauth & Hback)".
+  iMod (reaches_update _ _ F x x with "HRauth") as (R') "(HRauth & #Hxx & %HRs' & _)";
+    [exact HRs | reflexivity |].
+  iMod ("Hclose" with "[Hback Hauth HRauth]") as "_";
+    first by iApply ("Hback" with "[//] Hauth HRauth").
+  by iModIntro.
 Qed.
 
-(* The counterpart of [uf_inv_reassemble] for a successful linking CAS —
-   the one place where the abstract graph [F] grows: vertex [z], a root
-   with identifier [i], has just had its content cell swung to the brand
-   new link value [CtLink rcn], registered with bound [b ≤ i] and holder
-   [z] (the cell the value is going into is [z]'s own — that is what
-   makes [z] the holder). The new record's [content_init] already carries
-   the parent [y] and the strict bound [jy < b], which is everything
-   [dsf_link_general] needs to justify widening [F] by the edge [z → y]
-   without re-checking [y]'s root-status.
+(* Transitivity. *)
 
-   This is also where the link's [reaches γR z y] — the extra conjunct
-   [content_own] carries over [content_init] — is born, and it is the
-   only primitive source of a [reaches] fact in the whole file: the
-   widened graph [link F z y] contains the edge [z → y] outright, so
-   [y] is reachable from [z] in it, and the pair is recorded in [R].
-   Every other [reaches] in the development is derived from these by
-   [reaches_trans].
+Lemma reaches_trans γ γc γn γR x y z :
+  is_uf γ γc γn γR -∗ reaches γR x y -∗ reaches γR y z ={⊤}=∗ reaches γR x z.
+Proof.
+  iIntros "#Hinv #Hxy #Hyz".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_ghost_acc with "H") as (M R F)
+    "(_ & _ & _ & %HRs & Hauth & HRauth & Hback)".
+  iDestruct (reaches_lookup with "HRauth Hxy") as %Hxy.
+  iDestruct (reaches_lookup with "HRauth Hyz") as %Hyz.
+  iMod (reaches_update _ _ F x z with "HRauth") as (R') "(HRauth & #Hxz & %HRs' & _)";
+    [exact HRs | by eapply rtc_trans; apply HRs |].
+  iMod ("Hclose" with "[Hback Hauth HRauth]") as "_";
+    first by iApply ("Hback" with "[//] Hauth HRauth").
+  by iModIntro.
+Qed.
 
-   Recording the pair is a ghost update, so the conclusion is a basic
-   update rather than a bare [uf_inv]; the caller ([uf_cas_fupd]) is
-   already inside a fancy update when it re-closes, so it simply
-   [iMod]s this before handing the result to its [Hclose]. *)
+End reaches.
 
-Lemma uf_inv_reassemble_link γ γc γn γR (M : gmap elem Z) (C : gmap content cinfo)
-    (N : gmap Z unit) (R : gset (elem * elem)) F z i b lzi lzc (rcn : elem) :
-  M !! z = Some i →
-  C !! CtLink rcn = None →
-  Root F z →
-  (b ≤ i)%Z →
-  (∀ x ix, M !! x = Some ix → representable ix) →
-  DSF F (dom M) →
-  id_bounded M F →
-  reaches_sound R F →
-  ghost_map_auth γ 1 M -∗
-  ghost_map_auth γc 1 (<[CtLink rcn := CLink b z]> C) -∗
-  ghost_map_auth γn 1 N -∗
-  own γR (● R) -∗
+(* ------------------------------------------------------------------------ *)
+(* The vertex-level API: the only interface the function proofs use. It
+   speaks of [vertex], [is_uf], [content_info] and the persistent
+   registration fragments — never of the invariant's components. *)
+
+Section uf_api.
+
+Context `{!osirisGS Σ,
+          !ghost_mapG Σ elem Z,
+          !ghost_mapG Σ content cinfo,
+          !ghost_mapG Σ Z unit,
+          !inG Σ (authR (gsetUR (elem * elem)%type))}.
+
+Implicit Types x y z : elem.
+Implicit Types rc : record.
+Implicit Types i j : Z.
+Implicit Types γ γc γn γR : gname.
+
+(* Reading a vertex's content cell, in the shape the atomic record-access
+   rule wants. The reader learns [content_info] — the loaded value is
+   registered, its description matches its tag, and in the link case
+   names [z] as the holder with a bound dominated by [z]'s identifier —
+   and gives the cell straight back, unchanged. *)
+
+Lemma uf_vertex_content_acc γ γc γn γR z j lzi lzc (Φ : content → iProp Σ) :
+  is_uf γ γc γn γR -∗
+  z ↪[γ]□ j -∗
   isBlockLocs z [lzi; lzc] -∗
-  lzc ↦ #(CtLink rcn) -∗
-  CtLink rcn ↪[γc]□ CLink b z -∗
-  i ↪[γn] () -∗
-  content_init γ γc (CtLink rcn) (CLink b z) -∗
-  ([∗ map] x ↦ ix ∈ delete z M, vertex_own γ γc γn γR F x ix) -∗
-  ([∗ map] c ↦ ci ∈ C, content_own γ γc γR c ci) -∗
-  |==> uf_inv γ γc γn γR.
+  ▷ (∀ c : content, content_info γc z c j -∗ Φ c) -∗
+  |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
+    ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
 Proof.
-  intros HMz HCr Hroot Hbi Hrep HdsfF HidF HRs.
-  iIntros "Hauth Hcauth Hnauth HRauth #Hzlocs Hlc #Hr Htok Hco HM HC".
-  (* Peek at the new link's parent [y]: a registered vertex whose
-     identifier sits strictly below [b], hence strictly below [i]. *)
-  iDestruct "Hco" as (y jy) "(Hrec & #Hy & %Hjy)".
-  iDestruct (vertex_frag with "Hy") as "#Hyfrag".
-  iDestruct (ghost_map_lookup with "Hauth Hyfrag") as %HMy.
-  assert (Hzy : z ≠ y).
-  { intros ->. rewrite HMz in HMy. simplify_eq. lia. }
-  pose proof (dsf_link_general M F z y i jy HdsfF HidF HMz HMy Hroot
-                ltac:(lia) Hzy) as [HdsfF' HidF'].
-  (* Record the freshly-installed edge: this is the link's permanent tie
-     to its holder's class, and [z → y] is an edge of the widened graph
-     by construction. *)
-  iMod (reaches_update _ _ (link F z y) z y with "HRauth")
-    as (R') "(HRauth & #Hzy & %HRs' & _)".
-  { by apply reaches_sound_link. }
-  { apply rtc_once, link_appears. }
-  iModIntro.
-  iExists M, (<[CtLink rcn := CLink b z]> C), N, R', (link F z y).
-  iFrame "Hauth Hcauth Hnauth HRauth".
-  do 4 (iSplitR; first done).
-  iSplitL "HM Hlc Htok".
-  { rewrite (big_sepM_delete _ M z i); last exact HMz.
-    iSplitL "Hlc Htok".
-    { iExists lzi, lzc, (CtLink rcn), (CLink b z).
-      iFrame "Hzlocs Hlc Hr Htok".
-      iSplit.
-      { iPureIntro. intros b' h' Hb'. injection Hb' as -> ->. done. }
-      iPureIntro. simpl. intros [Hr']. eapply (Hr' y). right. done. }
-    iApply (vertex_own_widen_link with "HM").
-    rewrite lookup_delete_eq. done. }
-  rewrite big_sepM_insert; last exact HCr.
-  iSplitL "Hrec".
-  { iExists y, jy. by iFrame "Hrec Hy Hzy". }
-  iApply "HC".
+  iIntros "#Hinv #Hzfrag #Hzlocs HΦ".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (C c ci)
+    "(%HCc & %Hbound & Hcauth & #Hc & Hlc & Hco & HC & Hframe)".
+  iModIntro. iExists c. iFrame "Hlc".
+  iIntros "!> Hlc".
+  iDestruct (content_own_info with "Hc Hco") as "[#Hinfo Hco]"; first exact Hbound.
+  iMod ("Hclose" with "[Hcauth Hlc Hco HC Hframe]") as "_".
+  { iNext.
+    iApply (uf_inv_reassemble γ γc γn γR C z j lzi lzc c c ci
+              with "Hcauth Hc Hzlocs Hlc Hco HC Hframe"); done. }
+  iModIntro. iApply ("HΦ" with "Hinfo").
 Qed.
-
 
 (* Registering a fresh vertex: the caller owns the vertex record — its
    [id] field holding a fresh identifier, its [content] cell a fresh,
@@ -456,38 +516,19 @@ Proof.
      way, so nothing has to be discarded here. *)
   iMod (gen_heap.pointsto_persist with "Hli") as "#Hli".
 
-  (* Register the vertex and its content record in the invariant. Neither
-     can be registered already: an existing entry would own the very
-     field we are still holding. *)
+  (* Register the vertex and its content record in the invariant. *)
   iInv "Hinv" as "H" "Hclose".
-  iDestruct "H" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs &
-      HM & HC)".
-  destruct (M !! r) as [ix|] eqn:HMx.
-  { iDestruct (big_sepM_lookup _ _ r ix with "HM") as "Hvo"; first exact HMx.
-    iAssert (▷ False)%I with "[Hlc Hvo]" as ">[]".
-    iNext. iApply (vertex_own_fresh_ne with "Hxlocs Hlc Hvo"). }
-  destruct (C !! c) as [ci0|] eqn:HCc.
-  { iDestruct (big_sepM_lookup _ _ _ ci0 with "HC") as "Hco0"; first exact HCc.
-    iAssert (▷ False)%I with "[Hco Hco0]" as ">[]".
-    iNext. iApply (content_own_excl γ γc γR c (CRoot v) ci0 with "Hco Hco0"). }
-  iMod (ghost_map_insert c (CRoot v) with "Hcauth") as "[Hcauth Hcfrag]";
-    first exact HCc.
-  iMod (ghost_map_elem_persist with "Hcfrag") as "#Hcfrag".
-  iMod (ghost_map_insert r i with "Hauth") as "[Hauth Hxfrag]";
-    first exact HMx.
-  iMod (ghost_map_elem_persist with "Hxfrag") as "#Hxfrag".
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth Hlc Htok Hco HM HC]") as "_".
-  { iNext.
-    iApply (uf_inv_insert_vertex
-              with "Hauth Hcauth Hnauth HRauth Hxlocs Hlc Hcfrag Htok Hco HM HC");
-      try done. }
+  iMod (uf_inv_insert_vertex with "Hxlocs Hlc Hco Htok H") as "[H #Hxfrag]";
+    first exact Hrepi.
+  iMod ("Hclose" with "H") as "_".
   iModIntro.
   iExists li, lc. iFrame "Hxfrag Hxlocs HxP Hli".
 Qed.
 
-(* Distinct vertices have distinct — and machine-comparable —
-   identifiers; the folded, vertex-level form of [uf_inv_ids_distinct]. *)
+(* What [union]'s [assert (x.id <> y.id)] needs: distinct vertices have
+   distinct — and, from [uf_inv]'s own [representable] conjunct, machine-
+   comparable — identifiers. The two vertices' footprints are the only
+   thing read, and the invariant is handed back unchanged. *)
 
 Lemma vertex_ids_ne γ γc γn γR (a w : elem) ia iw :
   a ≠ w →
@@ -499,10 +540,27 @@ Proof.
   iIntros (Hne) "#Hinv #Ha #Hw".
   iDestruct (vertex_frag with "Ha") as "#Hafrag".
   iDestruct (vertex_frag with "Hw") as "#Hwfrag".
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_ids_distinct with "Hafrag Hwfrag H") as "[%Hids H]"; first exact Hne.
-  iMod ("Hclose" with "H") as "_".
-  by iModIntro.
+  iInv "Hinv" as (M C N R F)
+    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs &
+      HM & HC)" "Hclose".
+  iDestruct (ghost_map_lookup with "Hauth Hafrag") as %HMa.
+  iDestruct (ghost_map_lookup with "Hauth Hwfrag") as %HMw.
+  assert (HMw' : delete a M !! w = Some iw) by (rewrite lookup_delete_ne; done).
+  rewrite (big_sepM_delete _ M a ia); last exact HMa.
+  iDestruct "HM" as "[Hvoa HM]".
+  rewrite (big_sepM_delete _ (delete a M) w iw); last exact HMw'.
+  iDestruct "HM" as "[Hvow HM]".
+  destruct (decide (ia = iw)) as [->|Hij].
+  { iAssert (▷ False)%I with "[Hvoa Hvow]" as ">[]".
+    iNext. iApply (vertex_own_id_ne with "Hvoa Hvow"). }
+  iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth Hvoa Hvow HM HC]") as "_".
+  { iNext. iExists M, C, N, R, F. iFrame "Hauth Hcauth Hnauth HRauth HC".
+    do 4 (iSplitR; first done).
+    rewrite (big_sepM_delete _ M a ia); last exact HMa.
+    rewrite (big_sepM_delete _ (delete a M) w iw); last exact HMw'.
+    iFrame "Hvoa Hvow HM". }
+  iModIntro. iPureIntro.
+  split; [exact Hij | split; [exact (Hrep a ia HMa) | exact (Hrep w iw HMw)]].
 Qed.
 
 (* A single vertex's identifier is machine-comparable. [vertex_ids_ne]
@@ -515,12 +573,12 @@ Lemma vertex_representable γ γc γn γR x i :
 Proof.
   iIntros "#Hinv #Hx".
   iDestruct (vertex_frag with "Hx") as "#Hxfrag".
-  iInv "Hinv" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs & HM & HC)"
-    "Hclose".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_ghost_acc with "H") as (M R F)
+    "(%Hrep & _ & _ & %HRs & Hauth & HRauth & Hback)".
   iDestruct (ghost_map_lookup with "Hauth Hxfrag") as %HMx.
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth HM HC]") as "_".
-  { iNext. iExists M, C, N, R, F. by iFrame. }
+  iMod ("Hclose" with "[Hback Hauth HRauth]") as "_";
+    first by iApply ("Hback" with "[//] Hauth HRauth").
   iModIntro. iPureIntro. exact (Hrep _ _ HMx).
 Qed.
 
@@ -553,9 +611,9 @@ Proof.
   iIntros (Hlt) "#Hinv #Hy #Hz #Hxy #Hxz".
   iDestruct (vertex_frag with "Hy") as "#Hyfrag".
   iDestruct (vertex_frag with "Hz") as "#Hzfrag".
-  iInv "Hinv" as (M C N R F)
-    "(>Hauth & >Hcauth & >Hnauth & >HRauth & >%Hrep & >%HdsfF & >%HidF & >%HRs & HM & HC)"
-    "Hclose".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_ghost_acc with "H") as (M R F)
+    "(_ & %HdsfF & %HidF & %HRs & Hauth & HRauth & Hback)".
   iDestruct (reaches_lookup with "HRauth Hxy") as %Hinxy.
   iDestruct (reaches_lookup with "HRauth Hxz") as %Hinxz.
   iDestruct (ghost_map_lookup with "Hauth Hyfrag") as %HMy.
@@ -570,21 +628,27 @@ Proof.
     lia. }
   iMod (reaches_update _ _ F y z with "HRauth") as (R') "(HRauth & #Hyz & %HRs' & _)";
     [exact HRs | exact Hyz |].
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth HM HC]") as "_".
-  { iNext. iExists M, C, N, R', F. by iFrame. }
+  iMod ("Hclose" with "[Hback Hauth HRauth]") as "_";
+    first by iApply ("Hback" with "[//] Hauth HRauth").
   by iModIntro.
 Qed.
 
-(* Re-reading the single field of an already-registered content record,
-   without going through any vertex: these accessors produce exactly the
-   mask-changing fupd that the atomic rules ([ipat_PRecord_atomic],
-   [imp_ERecordAccess_atomic]) consume. For a [Root] record the field's
-   value is pinned by the registration itself; for a [Link] record the
-   caller learns that the loaded parent is a vertex strictly below the
-   registered bound — even if the record's erstwhile vertex has moved
-   on. *)
+End uf_api.
 
-End uf_inv.
+(* ------------------------------------------------------------------------ *)
+(* Re-reading (and, for [compress], rewriting) the single field of an
+   already-registered content record, without going through any vertex:
+   these accessors produce exactly the mask-changing fupd that the atomic
+   rules ([ipat_PRecord_atomic], [imp_ERecordAccess_atomic],
+   [imp_ERecordSet_atomic]) consume. All of them expose that one field
+   and nothing else.
+
+   For a [Root] record the field's value is pinned by the registration
+   itself; for a [Link] record the caller learns that the loaded parent
+   is a vertex strictly below the registered bound and inside the
+   holder's class — even if the record's erstwhile vertex has moved
+   on — and, symmetrically, may store any parent it can establish the
+   same three facts about. *)
 
 Section uf_acc.
 
@@ -598,7 +662,6 @@ Implicit Types x y z : elem.
 Implicit Types rc : record.
 Implicit Types i j : Z.
 Implicit Types γ γc γn γR : gname.
-
 
 Lemma uf_root_value_acc γ γc γn γR rc v lp (Φ : val → iProp Σ) :
   is_uf γ γc γn γR -∗
@@ -624,6 +687,40 @@ Proof.
   iModIntro. iApply "HΦ".
 Qed.
 
+(* The [Link] counterpart, and the single primitive the three link
+   accessors below are built from: it borrows the [parent] field,
+   reporting the vertex it currently holds, and takes back a field
+   holding any vertex the caller can place strictly below the registered
+   bound and inside the holder's class. Reading is the special case where
+   the same vertex goes back. *)
+
+Lemma uf_link_field_acc γ γc γn γR rc b h lp :
+  is_uf γ γc γn γR -∗
+  CtLink rc ↪[γc]□ CLink b h -∗
+  isBlockLocs rc [lp] -∗
+  |={⊤,⊤ ∖ ↑ufN}=> ∃ (y : elem) jy,
+    ▷ (lp ↦ #y) ∗ ▷ (vertex γ y jy ∗ reaches γR h y ∗ ⌜(jy < b)%Z⌝) ∗
+    (∀ (z : elem) k, ⌜(k < b)%Z⌝ -∗ vertex γ z k -∗ reaches γR h z -∗
+       lp ↦ #z -∗ |={⊤ ∖ ↑ufN,⊤}=> True).
+Proof.
+  iIntros "#Hinv #Hrc #Hlocs".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
+  iEval (rewrite content_own_link) in "Hco".
+  iDestruct "Hco" as (lp' y jy) "(#Hlocs' & #HP & Hlp & #Hy & >%Hjy & #Hsnap)".
+  iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
+  { iNext. iApply (isBlockLocs_valid with "Hlocs' Hlocs"). }
+  simplify_eq.
+  iModIntro. iExists y, jy.
+  iFrame "Hlp".
+  iSplitR; first by iNext; iFrame "Hy Hsnap".
+  iIntros (z k) "%Hk #Hz #Hhz Hlp".
+  iMod ("Hclose" with "[Hback Hlp]") as "_".
+  { iApply "Hback". iNext. rewrite content_own_link.
+    iExists lp', z, k. by iFrame "Hlocs' HP Hlp Hz Hhz". }
+  by iModIntro.
+Qed.
+
 Lemma uf_link_parent_acc γ γc γn γR rc b h lp (Φ : val → iProp Σ) :
   is_uf γ γc γn γR -∗
   CtLink rc ↪[γc]□ CLink b h -∗
@@ -632,20 +729,13 @@ Lemma uf_link_parent_acc γ γc γn γR rc b h lp (Φ : val → iProp Σ) :
   |={⊤,⊤ ∖ ↑ufN}=> ∃ w, ▷ lp ↦ w ∗ ▷ (lp ↦ w -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ w).
 Proof.
   iIntros "#Hinv #Hrc #Hlocs HΦ".
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
-  iEval (rewrite content_own_link) in "Hco".
-  iDestruct "Hco" as (lp' y j) "(#Hlocs' & #HP & Hlp & #Hy & >%Hj & #Hsnap)".
-  iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
-  { iNext. iApply (isBlockLocs_valid with "Hlocs' Hlocs"). }
-  simplify_eq.
+  iMod (uf_link_field_acc with "Hinv Hrc Hlocs") as (y jy) "(Hlp & Hy & Hback)".
   iModIntro. iExists #y.
   iSplitL "Hlp"; first by iFrame.
   iIntros "!> Hlp".
-  iMod ("Hclose" with "[Hback Hlp]") as "_".
-  { iApply "Hback". iNext. rewrite content_own_link.
-    iExists lp', y, j. by iFrame "Hlocs' HP Hlp Hy Hsnap". }
-  iModIntro. iApply ("HΦ" with "[//] Hsnap Hy").
+  iDestruct "Hy" as "(#Hyv & #Hsnap & %Hjy)".
+  iMod ("Hback" $! y jy with "[//] Hyv Hsnap Hlp") as "_".
+  iModIntro. iApply ("HΦ" with "[//] Hsnap Hyv").
 Qed.
 
 (* The same accessor, with the loaded parent existentially quantified at
@@ -664,20 +754,13 @@ Lemma uf_link_parent_acc_elem γ γc γn γR rc b h lp (Φ : elem → iProp Σ) 
   |={⊤,⊤ ∖ ↑ufN}=> ∃ y : elem, ▷ lp ↦ #y ∗ ▷ (lp ↦ #y -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ y).
 Proof.
   iIntros "#Hinv #Hrc #Hlocs HΦ".
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
-  iEval (rewrite content_own_link) in "Hco".
-  iDestruct "Hco" as (lp' y j) "(#Hlocs' & #HP & Hlp & #Hy & >%Hj & #Hsnap)".
-  iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
-  { iNext. iApply (isBlockLocs_valid with "Hlocs' Hlocs"). }
-  simplify_eq.
+  iMod (uf_link_field_acc with "Hinv Hrc Hlocs") as (y jy) "(Hlp & Hy & Hback)".
   iModIntro. iExists y.
   iSplitL "Hlp"; first by iFrame.
   iIntros "!> Hlp".
-  iMod ("Hclose" with "[Hback Hlp]") as "_".
-  { iApply "Hback". iNext. rewrite content_own_link.
-    iExists lp', y, j. by iFrame "Hlocs' HP Hlp Hy Hsnap". }
-  iModIntro. iApply ("HΦ" with "[//] Hsnap Hy").
+  iDestruct "Hy" as "(#Hyv & #Hsnap & %Hjy)".
+  iMod ("Hback" $! y jy with "[//] Hyv Hsnap Hlp") as "_".
+  iModIntro. iApply ("HΦ" with "[//] Hsnap Hyv").
 Qed.
 
 (* Rerouting a link's [parent] field, which is what path compression
@@ -700,19 +783,11 @@ Lemma uf_link_parent_set γ γc γn γR rc b h lp (z : elem) k (Φ : iProp Σ) :
   |={⊤,⊤ ∖ ↑ufN}=> ∃ w, ▷ lp ↦ w ∗ ▷ (lp ↦ #z -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ).
 Proof.
   iIntros (Hk) "#Hinv #Hrc #Hlocs #Hz #Hhz HΦ".
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_content_acc with "Hrc H") as "[Hco Hback]".
-  iEval (rewrite content_own_link) in "Hco".
-  iDestruct "Hco" as (lp' y j) "(#Hlocs' & #HP & Hlp & #Hy & >%Hj & #Hsnap)".
-  iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
-  { iNext. iApply (isBlockLocs_valid with "Hlocs' Hlocs"). }
-  simplify_eq.
+  iMod (uf_link_field_acc with "Hinv Hrc Hlocs") as (y jy) "(Hlp & _ & Hback)".
   iModIntro. iExists #y.
   iSplitL "Hlp"; first by iFrame.
   iIntros "!> Hlp".
-  iMod ("Hclose" with "[Hback Hlp]") as "_".
-  { iApply "Hback". iNext. rewrite content_own_link.
-    iExists lp', z, k. by iFrame "Hlocs' HP Hlp Hz Hhz". }
+  iMod ("Hback" $! z k with "[//] Hz Hhz Hlp") as "_".
   by iModIntro.
 Qed.
 
@@ -725,7 +800,11 @@ Qed.
    [cnew] is registered — the caller gets the persistent fragment, and
    the invariant absorbs the replacement, growing the abstract graph by
    the new link's edge when [cinew] is a [CLink]; on failure the
-   untouched [content_own] comes back, ready for another attempt. *)
+   untouched [content_own] comes back, ready for another attempt.
+
+   This is the one caller of [uf_inv_split] that needs more than the
+   content cell: it extends the content registry, so it takes the
+   registry map [C] as well. Everything else stays inside the frame. *)
 
 Lemma uf_cas_fupd (Φ : bool → iProp Σ)
       γ γc γn γR z i lzc (rce : elem) vexp (cnew : content) cinew :
@@ -749,9 +828,8 @@ Proof.
   intros Hbound.
   iIntros "#Hinv #Hzfrag (%lzi & #Hzlocs) #Hrce #HrceP Hco' HΦ".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (M C N R F c0 ci0)
-    "(%HMz & %HCc0 & %Hbound0 & %HFz & %Hrep & %HdsfF & %HidF & %HRs &
-      Hauth & Hcauth & Hnauth & HRauth & #Hc0 & Hlc & Htok & Hco0 & HM & HC)".
+  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (C c0 ci0)
+    "(%HCc0 & %Hbound0 & Hcauth & #Hc0 & Hlc & Hco0 & HC & Hframe)".
   iAssert (▷ (isBlock (content_loc c0) DfracDiscarded Mut ∗ content_own γ γc γR c0 ci0))%I
     with "[Hco0]" as "[#Hc0P Hco0]".
   { iNext. iApply (content_own_mut with "Hco0"). }
@@ -769,11 +847,10 @@ Proof.
   { (* CAS failure: the cell still holds [c0]; close untouched and hand
        the fresh record's ownership back. *)
     iEval (rewrite -content_encode_inline) in "Hlc'".
-    iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth Hlc' Htok Hco0 HM HC]") as "_".
+    iMod ("Hclose" with "[Hcauth Hlc' Hco0 HC Hframe]") as "_".
     { iNext.
-      iApply (uf_inv_reassemble γ γc γn γR M C N R F z i lzi lzc c0 ci0
-                with "Hauth Hcauth Hnauth HRauth Hzlocs Hlc' Hc0 Htok Hco0 HM HC");
-        done. }
+      iApply (uf_inv_reassemble γ γc γn γR C z i lzi lzc c0 c0 ci0
+                with "Hcauth Hc0 Hzlocs Hlc' Hco0 HC Hframe"); done. }
     iModIntro. iApply ("HΦ" $! false with "Hco'"). }
 
   (* CAS success: the current content value sits at the very record the
@@ -785,7 +862,6 @@ Proof.
     { rewrite lookup_delete_ne; [exact HCe | discriminate]. }
     iDestruct (content_own_excl_loc with "Hco0 Hcoe") as "[]". done. }
   iDestruct (ghost_map_elem_agree with "Hc0 Hrce") as %->.
-  simpl in HFz.
 
   (* The replacement is fresh: its single field is still owned by the
      caller, so no registered entry can be [cnew]. *)
@@ -818,12 +894,12 @@ Proof.
     iAssert ([∗ map] c' ↦ ci' ∈ delete (CtRoot rcn) (<[CtRoot rcn := CRoot v']> C),
                content_own γ γc γR c' ci')%I with "[HC]" as "HC".
     { rewrite delete_insert_eq (delete_id _ _ HCnew). iApply "HC". }
-    iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth Hlc' Htok Hco' HM HC]") as "_".
+    iMod ("Hclose" with "[Hcauth Hlc' Hco' HC Hframe]") as "_".
     { iNext.
-      iApply (uf_inv_reassemble γ γc γn γR M (<[CtRoot rcn := CRoot v']> C) N R F z i
-                lzi lzc (CtRoot rcn) (CRoot v')
-                with "Hauth Hcauth Hnauth HRauth Hzlocs Hlc' Hnewfrag Htok Hco' HM HC");
-        first [ done | apply lookup_insert_eq | discriminate | assumption ]. }
+      iApply (uf_inv_reassemble γ γc γn γR (<[CtRoot rcn := CRoot v']> C) z i
+                lzi lzc (CtRoot rce) (CtRoot rcn) (CRoot v')
+                with "Hcauth Hnewfrag Hzlocs Hlc' Hco' HC Hframe");
+        first [ reflexivity | apply lookup_insert_eq | discriminate ]. }
     iModIntro. iApply ("HΦ" $! true with "Hnewfrag"). }
 
   (* The new content is a [Link]: [z] stops being a root and [F] grows
@@ -837,9 +913,9 @@ Proof.
      trailing [first [...]]: unlike the [iApply]s elsewhere in this
      proof, [iMod] leaves the main goal open, so a [;]-chained tactic
      would be run against it too. *)
-  iMod (uf_inv_reassemble_link γ γc γn γR M C N R F z i b lzi lzc rcn
-          HMz HCnew HFz Hbi Hrep HdsfF HidF HRs
-          with "Hauth Hcauth Hnauth HRauth Hzlocs Hlc' Hnewfrag Htok Hco' HM HC")
+  iMod (uf_inv_reassemble_link γ γc γn γR C z i b lzi lzc (CtRoot rce) rcn
+          eq_refl HCnew Hbi
+          with "Hcauth Hnewfrag Hzlocs Hlc' Hco' HC Hframe")
     as "Hufinv".
   iMod ("Hclose" with "[Hufinv]") as "_"; first by iNext.
   iModIntro. iApply ("HΦ" $! true with "Hnewfrag").

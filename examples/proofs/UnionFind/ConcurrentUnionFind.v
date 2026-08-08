@@ -53,21 +53,8 @@ Proof.
             with "Hzlocs He []").
   { list_z.length; lia. }
   iNext.
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (M C N R F c ci)
-    "(%HMz & %HCc & %Hbound & %HFz & %Hrep & %HdsfF & %HidF & %HRs &
-      Hauth & Hcauth & Hnauth & HRauth & #Hrc & Hlc & Htok & Hco & HM & HC)".
-  iModIntro.
-  iExists c.
-  iSplitL "Hlc"; first by iFrame.
-  iIntros "!> Hlc".
-  iDestruct (content_own_info with "Hrc Hco") as "[#Hinfo Hco]"; first exact Hbound.
-  iMod ("Hclose" with "[Hauth Hcauth Hnauth HRauth Hlc Htok Hco HM HC]") as "_".
-  { iNext.
-    iApply (uf_inv_reassemble γ γc γn γR M C N R F z j lzi lzc c ci
-              with "Hauth Hcauth Hnauth HRauth Hzlocs Hlc Hrc Htok Hco HM HC");
-      done. }
-  iModIntro. iExact "Hinfo".
+  iApply (uf_vertex_content_acc with "Hinv Hzfrag Hzlocs").
+  iNext. iIntros (c) "#Hinfo". iExact "Hinfo".
 Qed.
 
 (* Reading a vertex's immutable [id] field, through the persistent

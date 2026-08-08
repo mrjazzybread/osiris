@@ -86,23 +86,6 @@ Proof.
     iExists [lp]. iFrame "Hlocs HP".
     iApply big_opLZ.big_sepLZ2_singleton. iFrame "Hlp".
 Qed.
-Lemma content_init_link γ γc rc b h :
-  content_init γ γc (CtLink rc) (CLink b h) ⊣⊢
-  ∃ (lp : locations.loc) (y : elem) j,
-    isBlockLocs rc [lp] ∗ isBlock rc DfracDiscarded Mut ∗ lp ↦ #y ∗ vertex γ y j ∗
-    ⌜(j < b)%Z⌝.
-Proof.
-  rewrite /content_init /ownRecord /ownBlock /=.
-  iSplit.
-  - iIntros "(%y & %j & (%ls & #Hlocs & #HP & Hxs) & #Hy & %Hj)".
-    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lp) "[-> Hlp]".
-    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-    iExists lp, y, j. iFrame "Hlocs HP Hlp Hy". done.
-  - iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj)".
-    iExists y, j. iFrame "Hy". iSplit; last done.
-    iExists [lp]. iFrame "Hlocs HP".
-    iApply big_opLZ.big_sepLZ2_singleton. iFrame "Hlp".
-Qed.
 (* [vertex_own γ γc γn γR F x i] is the invariant-owned footprint of
    the vertex [x]: its content cell, holding a registered content
    record whose description is compatible with [x]'s identifier,
@@ -146,22 +129,6 @@ Proof.
     iSplitR; [iExact "HP"|]. iExists lp, y, j. by iFrame "#∗".
 Qed.
 
-(* Every content record has exactly one field.
-   Callers that go on to read that field atomically need its location. *)
-
-Lemma content_own_locs γ γc γR c ci :
-  content_own γ γc γR c ci -∗
-  (∃ lv : locations.loc, isBlockLocs (content_loc c) [lv]) ∗ content_own γ γc γR c ci.
-Proof.
-  destruct c as [rc|rc]; destruct ci as [v|b h]; try (by iIntros "[]").
-  - rewrite content_own_root.
-    iIntros "(%lv & #Hlocs & #HP & Hlv)".
-    iSplitR; [by iExists lv|]. iExists lv. by iFrame "#∗".
-  - rewrite content_own_link.
-    iIntros "(%lp & %y & %j & #Hlocs & #HP & Hlp & #Hy & %Hj & #Hsnap)".
-    iSplitR; [by iExists lp|]. iExists lp, y, j. by iFrame "#∗".
-Qed.
-
 (* Every content record owns exactly one field of its underlying records. *)
 
 Lemma content_own_field γ γc γR c ci :
@@ -172,23 +139,6 @@ Proof.
   - rewrite content_own_root.
     iIntros "(%lv0 & #H1 & _ & H2)". iExists lv0, v. iFrame "H1 H2".
   - rewrite content_own_link.
-    iIntros "(%lp & %y0 & %j0 & #H1 & _ & H2 & _)". iExists lp, #y0. iFrame "H1 H2".
-Qed.
-
-(* The same field-ownership fact for a not-yet-installed value: it is what
-   makes a fresh value provably unregistered at CAS time. *)
-
-Lemma content_init_field γ γc c ci :
-  content_init γ γc c ci -∗
-  ∃ (lw : locations.loc) (w : val), isBlockLocs (content_loc c) [lw] ∗ lw ↦ w.
-Proof.
-  destruct c as [rc|rc]; destruct ci as [v|b h]; try (by iIntros "[]").
-  - rewrite /content_init /ownRecord /ownBlock /=.
-    iIntros "(%ls & #Hlocs & #HP & Hxs)".
-    iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
-    iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-    iExists lv, v. iFrame "Hlocs Hlv".
-  - rewrite content_init_link.
     iIntros "(%lp & %y0 & %j0 & #H1 & _ & H2 & _)". iExists lp, #y0. iFrame "H1 H2".
 Qed.
 
@@ -210,29 +160,38 @@ Lemma content_own_excl γ γc γR c ci ci' :
   content_own γ γc γR c ci -∗ content_own γ γc γR c ci' -∗ False.
 Proof. by apply content_own_excl_loc. Qed.
 
+(* The same argument for a not-yet-installed value against an installed
+   one: this is what makes a fresh value provably unregistered at CAS
+   time. A [content_init] owns its record's single field just as a
+   [content_own] does — the only difference between them is the [reaches]
+   conjunct, which plays no part here — so the field is extracted inline
+   rather than through a [content_own_field] analogue. *)
+
 Lemma content_init_own_excl_loc γ γc γR c ci c' ci' :
   content_loc c = content_loc c' →
   content_init γ γc c ci -∗ content_own γ γc γR c' ci' -∗ False.
 Proof.
   intros Heq.
   iIntros "Hci Hco'".
-  iDestruct (content_init_field with "Hci") as (lw w) "[#Hlocs Hlw]".
+  iAssert (∃ (lw : locations.loc) (w : val),
+             isBlockLocs (content_loc c) [lw] ∗ lw ↦ w)%I
+    with "[Hci]" as (lw w) "[#Hlocs Hlw]".
+  { destruct c as [rc|rc]; destruct ci as [v|b h];
+      try (by iDestruct "Hci" as "[]");
+      rewrite /content_init /ownRecord /ownBlock /=.
+    - iDestruct "Hci" as (ls) "(#Hlocs & _ & Hxs)".
+      iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lv) "[-> Hlv]".
+      iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+      iExists lv, v. iFrame "Hlocs Hlv".
+    - iDestruct "Hci" as (y j) "((%ls & #Hlocs & _ & Hxs) & _ & _)".
+      iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lp) "[-> Hlp]".
+      iEval (rewrite list_z.singleton_unfold) in "Hlocs".
+      iExists lp, #y. iFrame "Hlocs Hlp". }
   iDestruct (content_own_field with "Hco'") as (lw' w') "[#Hlocs' Hlw']".
   iEval (rewrite Heq) in "Hlocs".
   iDestruct (isBlockLocs_valid with "Hlocs' Hlocs") as %[= ->].
   iCombine "Hlw Hlw'" gives %[Hbad _].
   exfalso. by eapply dfrac_full_exclusive.
-Qed.
-
-(* The registered description's shape always matches the value's own
-   tag. *)
-
-Lemma content_own_tag γ γc γR c ci :
-  content_own γ γc γR c ci -∗
-  ⌜if content_root c then ∃ v, ci = CRoot v else ∃ b h, ci = CLink b h⌝.
-Proof.
-  destruct c; destruct ci; simpl;
-    try (by iIntros "[]"); iIntros "_"; iPureIntro; eauto.
 Qed.
 
 (* [content_info γc x c j] is everything a reader of vertex [x]'s content
@@ -253,6 +212,14 @@ Global Instance content_info_persistent γc x c j :
   Persistent (content_info γc x c j).
 Proof. destruct c; apply _. Qed.
 
+(* Reading it off a [content_own]. The two tags are taken apart down to
+   the field level, which settles all three of [content_info]'s conjuncts
+   at once: the description's shape is fixed by the tag ([content_own] is
+   [False] on the off-diagonal), and the mutability tag and the field's
+   location come out of the same destructuring. The borrowed
+   [content_own] is put straight back — everything [content_info] holds
+   is persistent. *)
+
 Lemma content_own_info γ γc γR x c ci j :
   (∀ b h, ci = CLink b h → (b ≤ j)%Z ∧ h = x) →
   c ↪[γc]□ ci -∗
@@ -261,15 +228,23 @@ Lemma content_own_info γ γc γR x c ci j :
 Proof.
   intros Hbound.
   iIntros "#Hrc Hco".
-  iDestruct (content_own_tag with "Hco") as %Htag.
-  iDestruct (content_own_mut with "Hco") as "[#HP Hco]".
-  iDestruct (content_own_locs with "Hco") as "[#Hlocs Hco]".
-  iFrame "Hco". rewrite /content_info. iFrame "HP Hlocs".
-  destruct c as [rc|rc]; simpl in Htag.
-  - destruct Htag as [v ->]. by iExists v.
-  - destruct Htag as (b & h & ->).
-    destruct (Hbound b h eq_refl) as [Hb ->].
-    iExists b. iFrame "Hrc". by iPureIntro.
+  destruct c as [rc|rc]; destruct ci as [v|b h];
+    try (by iDestruct "Hco" as "[]").
+  - iEval (rewrite content_own_root) in "Hco".
+    iDestruct "Hco" as (lv) "(#Hlocs & #HP & Hlv)".
+    iSplitR "Hlv".
+    { rewrite /content_info /=. iFrame "HP".
+      iSplit; [by iExists lv | by iExists v]. }
+    rewrite content_own_root. iExists lv. iFrame "Hlocs HP Hlv".
+  - destruct (Hbound b h eq_refl) as [Hb ->].
+    iEval (rewrite content_own_link) in "Hco".
+    iDestruct "Hco" as (lp y jy) "(#Hlocs & #HP & Hlp & #Hy & %Hjy & #Hsnap)".
+    iSplitR "Hlp".
+    { rewrite /content_info /=. iFrame "HP".
+      iSplit; first by iExists lp.
+      iExists b. by iFrame "Hrc". }
+    rewrite content_own_link. iExists lp, y, jy.
+    by iFrame "Hlocs HP Hlp Hy Hsnap".
 Qed.
 
 (* The same argument one level up, for vertices: a registered vertex owns
