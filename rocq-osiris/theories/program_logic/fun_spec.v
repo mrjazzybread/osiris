@@ -139,7 +139,7 @@ Section imp_spec.
     iApply ("IH" with "HP").
   Qed.
 
-  Local Lemma prove_iSpec_pers (τ : types) η x e (P : τ -#> microvx -> iProp Σ) :
+  Lemma prove_iSpec_pers (τ : types) η x e (P : τ -#> microvx -> iProp Σ) :
     □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
     □ iSpec τ (VClo η (AnonFun x e)) P.
   Proof.
