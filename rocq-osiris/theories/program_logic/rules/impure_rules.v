@@ -231,6 +231,34 @@ Section updates.
     iIntros (? []).
   Qed.
 
+  Lemma imp_step_fupd' E1 E2 m Ψ ζ P Φ :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    impure E2 m Ψ (λ e, P ={E1}=∗ ζ e) (λ a, P ={E1}=∗ Φ a) -∗
+    impure E1 m Ψ ζ Φ.
+  Proof.
+    iIntros (??) "HR He".
+    iApply (ewp_step_fupd with "HR"); [ done.. | ].
+    iApply (ewp_wand with "He").
+    iIntros ([|]); [ iIntros "(%r & -> & HΦ) HP" | iIntros "Hζ HP" ].
+    - iMod ("HΦ" with "HP") as "HΦ". by iFrame.
+    - by iApply "Hζ".
+  Qed.
+
+  Lemma imp_step_fupd E1 E2 m Ψ P Φ :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    impure E2 m Ψ ⊥ (λ a, P ={E1}=∗ Φ a) -∗
+    impure E1 m Ψ ⊥ Φ.
+  Proof.
+    iIntros (??) "HR He".
+    iApply (imp_step_fupd' with "HR"); [ done.. | ].
+    iApply (imp_wand_exn with "He").
+    iIntros (? []).
+  Qed.
+
 End updates.
 
 Section proofmode_classes.

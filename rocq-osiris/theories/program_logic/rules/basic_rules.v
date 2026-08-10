@@ -166,6 +166,27 @@ Section ewp.
     { inversion Hjoin. }
   Qed.
 
+  (* A fancy update that takes a step can be eliminated around a computation
+     that takes a step. *)
+  Lemma ewp_step_fupd E1 E2 m Ψ P Q :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    ewp_def E2 m Ψ (λ o, P ={E1}=∗ Q o) -∗
+    ewp_def E1 m Ψ Q.
+  Proof.
+    iIntros (Hcase HE) "HR H".
+    apply TCEq_eq in Hcase.
+    ewp_unfold_all. rewrite Hcase.
+    iIntros (σ π) "Hsi". iMod "HR".
+    iMod ("H" with "Hsi") as "[$ H]".
+    iIntros "!>" (σ' m' μ Hstep).
+    iMod ("H" $! σ' m' μ with "[//]") as "H".
+    iIntros "!> !>". iMod "H" as "[H $]". iMod "HR". iModIntro.
+    iApply (ewp_strong_mono with "H"); [done|iApply iEff_le_refl|].
+    iIntros (o) "HQ". by iApply "HQ".
+  Qed.
+
   (** Derived rules *)
 
   Lemma ewp_mono E m Ψ Q' Q : (∀ o, Q' o ⊢ Q o) → ewp_def E m Ψ Q' ⊢ ewp_def E m Ψ Q.
