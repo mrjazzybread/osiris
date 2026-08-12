@@ -166,7 +166,7 @@ Section proofs.
      elements of that type. *)
 
   Definition create_spec (u : unit) (m : microvx) : iProp Σ :=
-    ∀ A (HencA : Encode A), imp m {{ λ q, Queue (@nil A) q }}.
+    ∀ A (HencA : Encode A), EWP m {{ q, Queue (@nil A) q }}.
 
   Definition create := (EAnonFun __create).
 
@@ -176,7 +176,7 @@ Section proofs.
   Hypothesis max_fields : 3 ≤ max_array_length.
 
   Lemma imp_create η :
-    ⊢ imp (eval η create) {{ λ f, □ iSpec τ[unit] f create_spec }}.
+    ⊢ EWP (eval η create) {{ f, □ iSpec τ[unit] f create_spec }}.
   Proof.
     (* [imp_EAnon_pers] is the lemma for proving that a function
        persistently satisfies its specification. *)
@@ -243,7 +243,7 @@ Section module_proof.
   (* The proof of the whole module. *)
 
   Lemma module_proof η :
-    ⊢ imp (eval_mexpr η __main) {{ queue_module_spec }}.
+    ⊢ EWP (eval_mexpr η __main) {{ queue_module_spec }}.
   Proof.
     iApply imp_module.
     iApply imp_sitems_extend. iIntros (empty) "Hempty".

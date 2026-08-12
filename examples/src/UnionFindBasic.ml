@@ -86,7 +86,7 @@ let is_representative (x : 'a elem) : bool =
    and [y] are physically equal. *)
 
 let eq (x : 'a elem) (y : 'a elem) : bool =
-  x == y || find x == find y
+  x == y || let x = find x in x == find y
 
 (* -------------------------------------------------------------------------- *)
 

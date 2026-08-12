@@ -97,7 +97,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     (* Calling [find l pred] returns an option [o] such that
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
-    imp m {{ λ (o : option A), ⌜match o with
+    EWP m {{ (o : option A), ⌜match o with
                                 | Some x => x ∈ l ∧ φ x
                                 | None => Forall (λ x, ¬ (φ x)) l
                                 end⌝ }}.
@@ -109,7 +109,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 
 Lemma iter_module_pure η :
-  ⊢ imp (eval_mexpr η __main)
+  ⊢ EWP (eval_mexpr η __main)
     {{ context [
          var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)
        ]

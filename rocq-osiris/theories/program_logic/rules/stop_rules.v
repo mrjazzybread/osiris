@@ -33,7 +33,7 @@ Definition is_Ret_proj {A X} (m : micro A X) :=
   | Par m1 m2 k => False_rect A ∘ (is_Ret_Par m1 m2 k)
   end.
 (* ------------------------------------------------------------------------ *)
-(** This file contains [imp] rules for [Stop] system calls, concurrency primitives, and loop combinators. *)
+(** This file contains [EWP] rules for [Stop] system calls, concurrency primitives, and loop combinators. *)
 Section imp_stop.
   Context `{!osirisGS Σ}.
   Context {A X : Type} `{Hobs : Observe Encoded A}.
@@ -43,8 +43,8 @@ Section imp_stop.
   (* [CFlip]. *)
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma imp_stop_flip u (k: _ → micro A X) :
-    ▷(imp continue k true @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp continue k false @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }})
-    ⊢ imp (Stop CFlip u k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ▷(EWP continue k true @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ EWP continue k false @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }})
+    ⊢ EWP (Stop CFlip u k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head.
@@ -61,8 +61,8 @@ Section imp_stop.
   Lemma imp_stop_alloc' v (k : _ → micro A X) :
     ▷ (∀ (l : loc),
           (l ↦ v ∗ meta_token l ⊤) -∗
-          imp (continue k l) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAlloc v k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+          EWP (continue k l) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -74,8 +74,8 @@ Section imp_stop.
   Qed.
   Lemma imp_stop_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), l ↦ v -∗
-            imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp (Stop CAlloc v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+            EWP (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    EWP (Stop CAlloc v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_stop_alloc'.
@@ -88,8 +88,8 @@ Section imp_stop.
     ▷ (∀ (l : loc),
          isBlock l (DfracOwn 1) t -∗
          isBlockLocs l ls -∗
-         imp (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CAllocBlock (t, ls) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+         EWP (continue k l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CAllocBlock (t, ls) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hbound H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
@@ -111,9 +111,9 @@ Section imp_stop.
     ▷ l ↦{dq} v ⊢
     ▷ (
         l ↦{dq} v -∗
-        imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CLoad l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -135,9 +135,9 @@ Section imp_stop.
     ▷ pointsto l dq (Block t ls) ⊢
     ▷ (
         pointsto l dq (Block t ls) -∗
-        imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -159,8 +159,8 @@ Section imp_stop.
   Lemma imp_stop_load_block_ghost (l : loc) ls (k: _ → micro A X) :
     ▷ isBlockLocs l ls -∗
     ▷ (∀ t,
-        imp (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+        EWP (continue k (t, ls)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CLoadBlock l k) @ E <|Ψ|>  ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "#(Hfrag & _) Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -180,9 +180,9 @@ Section imp_stop.
     ▷ l ↦ v ⊢
     ▷ (
         l ↦ v' -∗
-        imp (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CExchange (l, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CExchange (l, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -203,9 +203,9 @@ Section imp_stop.
     ▷ (isBlock l (DfracOwn 1) t) ⊢
     ▷ (
         (isBlock l (DfracOwn 1) t') -∗
-        imp (continue k ()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k ()) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CSetBlockTag (l, t') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CSetBlockTag (l, t') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -274,9 +274,9 @@ Section imp_stop.
     ▷ l ↦ #v ⊢
     ▷ (
           l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
-          imp (continue k #(phys_eq_val_ v seen)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+          EWP (continue k #(phys_eq_val_ v seen)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CCAS (l, #seen, #v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CCAS (l, #seen, #v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -310,9 +310,9 @@ Section imp_stop.
         l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
         isBlock r dq1 t -∗
         isBlock rs dq2 Mut -∗
-        imp (continue k #(locations.eqb r rs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k #(locations.eqb r rs)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CCAS (l, VInline cs rs, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CCAS (l, VInline cs rs, v') k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hr Hrs Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -343,9 +343,9 @@ Section imp_stop.
     ▷ l ↦ #j ⊢
     ▷ (
         l ↦ #(int.add j i) -∗
-        imp (continue k #j) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
+        EWP (continue k #j) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}
       ) -∗
-    imp (Stop CFAA (l, i) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CFAA (l, i) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -363,7 +363,7 @@ Section imp_stop.
   (* [CPerform]. *)
   Lemma imp_stop_perform (v : val) (k : _ → micro A X) :
     Ψ allows perform v << λ o, ▷ impure E (k o) Ψ ζ Φ >> -∗
-    imp (Stop CPerf v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (Stop CPerf v k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hallows".
     ewp_unfold (Stop CPerf v k).
@@ -374,8 +374,8 @@ Section imp_stop.
   (* Resuming a continuation from a location in the store. *)
   Lemma imp_stop_resume l o sk (k: _ → micro A X) :
     isCont l sk ⊢
-    (isShot l -∗ ▷ imp (try2 (sk o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CResume (l, o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    (isShot l -∗ ▷ EWP (try2 (sk o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CResume (l, o) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -396,8 +396,8 @@ Section imp_stop.
 
   Lemma imp_stop_resume_crash l o (k: _ → micro A X) :
     isShot l -∗
-    imp (crash "resume error: unbound location") @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp (Stop CResume (l, o) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (crash "resume error: unbound location") @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP (Stop CResume (l, o) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hcrash".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -420,8 +420,8 @@ Section imp_stop.
     (∀ l',
       isCont l'
         (λ o, Handle (stop CResume (l, o)) (wrap_eval_branches η bs)) -∗
-     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+     ▷ EWP (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CWrap (true, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -437,8 +437,8 @@ Section imp_stop.
     (∀ l',
       isCont l'
         (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs)) -∗
-     ▷ imp (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CWrap (false, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+     ▷ EWP (continue k l') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CWrap (false, l, η, bs) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hwp".
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
@@ -481,9 +481,9 @@ Section imp_stop_concurrent.
   Lemma imp_stop_fork' `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
-         imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }} ∗
-         imp (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+         EWP call v1 v2 ⟨⟨ e, □ μ e ⟩⟩ {{ v, □ φ v }} ∗
+         EWP (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hfork".
     ewp_unfold_head. intro_state.
@@ -504,9 +504,9 @@ Section imp_stop_concurrent.
 
   (* We do not expect that the forked thread needs to know its own postcondition. *)
   Lemma imp_stop_fork `{Encode B} μ (φ : B → iProp Σ) v1 v2 (k : _ -> micro A X) :
-    ▷ (∀ ι', isThread ι' μ φ -∗ imp (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    ▷ (imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ v, □ φ v }}) -∗
-    imp (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ▷ (∀ ι', isThread ι' μ φ -∗ EWP (continue k (VThread ι')) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    ▷ (EWP call v1 v2 ⟨⟨ e, □ μ e ⟩⟩ {{ v, □ φ v }}) -∗
+    EWP (Stop CFork (v1, v2) k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hcontinue Hfork".
     iApply (imp_stop_fork' (B:=B)).
@@ -520,9 +520,9 @@ Section imp_stop_concurrent.
   (* [CJoin]. *)
   Lemma imp_stop_join `{Observe B val} ι' (k : _ -> micro A X) φ μ :
     isThread ι' μ φ -∗
-    ▷ (∀ x, □ φ x -∗ imp continue k ♯x @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    ▷ (∀ e, □ μ e -∗ imp discontinue k e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Stop CJoin ι' k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ▷ (∀ x, □ φ x -∗ EWP continue k ♯x @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    ▷ (∀ e, □ μ e -∗ EWP discontinue k e @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Stop CJoin ι' k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hι Hk".
     ewp_unfold_head. intro_state.
@@ -550,8 +550,8 @@ Section imp_combinators.
   (* ------------------------------------------------------------------------ *)
   (* [CEval]. *)
   Lemma imp_please `{Observe A val} {Φ : A → iProp Σ} η e :
-    ▷ imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp please_eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    ▷ EWP eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP please_eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
     rewrite /please_eval.
@@ -569,7 +569,7 @@ Section imp_combinators.
     int.representable j →
     ⌜(j < i)%Z⌝ -∗
     R -∗
-    imp code.loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), R }}.
+    EWP code.loop x η (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), R }}.
   Proof.
     iIntros (Hrepr1 Hrepr2 Hbounds) "HR".
     rewrite /impure /=.
@@ -594,8 +594,8 @@ Section imp_combinators.
     □ (∀ i',
          ⌜(i ≤ i' ≤ j)%Z⌝ -∗
          I i' -∗
-         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
-    imp code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (j + 1)%Z }}.
+         EWP (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), I (i' + 1)%Z }}) -∗
+    EWP code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), I (j + 1)%Z }}.
   Proof.
     iIntros (Hrepr1 Hrepr2 Hbounds) "HR #He".
     iLöb as "IH" forall (i j Hrepr1 Hrepr2 Hbounds) "He".
@@ -647,9 +647,9 @@ Section imp_combinators.
     □ (∀ i',
          ⌜(i ≤ i' ≤ j)%Z⌝ -∗
          I i' -∗
-         imp (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), I (i' + 1)%Z }}) -∗
-    imp code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (_ : unit), I ((j + 1) `max` i)%Z }}.
+         EWP (eval ((x, #i') :: η) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), I (i' + 1)%Z }}) -∗
+    EWP code.loop η x (int.repr i) (int.repr j) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (_ : unit), I ((j + 1) `max` i)%Z }}.
   Proof.
     iIntros (Hrepr1 Hrepr2) "HI #He".
     case (decide (j < i)%Z); intros Hlt.
@@ -666,7 +666,7 @@ Section imp_combinators.
   (* Non-deterministic choose: note the use of non-separating conjunction *)
   Lemma imp_flip {Φ : bool → iProp Σ} :
       ▷( Φ true ∧ Φ false)
-      ⊢ imp code.flip @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+      ⊢ EWP code.flip @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_stop_flip. iNext.
@@ -678,8 +678,8 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_choose {V : Type} `{Observe A V} {Φ : A → iProp Σ} (m1 m2 : micro V exn) :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ∧ EWP m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP (code.choose m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm". rewrite /code.choose.
     iApply (imp_bind (λ (b : bool), True)%I).
@@ -693,7 +693,7 @@ Section imp_combinators.
   (* [CAlloc]. *)
   Lemma imp_alloc2' {Φ : loc → iProp Σ} v :
     ▷ (∀ (l : loc), l ↦ v ∗ meta_token l ⊤ -∗ Φ l) -∗
-    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_stop_alloc'.
@@ -704,7 +704,7 @@ Section imp_combinators.
 
   Lemma imp_alloc2 {Φ : loc → iProp Σ} v :
     ▷ (∀ (l : loc), l ↦ v -∗ Φ l) -∗
-    imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_alloc2'.
@@ -713,14 +713,14 @@ Section imp_combinators.
   Qed.
 
   Lemma imp_alloc' v :
-    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ v ∗ meta_token l ⊤ }}.
+    ⊢ EWP (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l, l ↦ v ∗ meta_token l ⊤ }}.
   Proof.
     iApply (imp_alloc2').
     iIntros "!> %l $".
   Qed.
 
   Lemma imp_alloc v :
-    ⊢ imp (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ l, l ↦ v }}.
+    ⊢ EWP (alloc v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l, l ↦ v }}.
   Proof.
     iApply imp_alloc2.
     iIntros "!> %l $".
@@ -733,7 +733,7 @@ Section imp_combinators.
     (▷^(List.length xs) ∀ (ls : list loc),
        ([∗ listZ] l;x ∈ ls;xs, l ↦ #x ∗ meta_token l ⊤) -∗
        Φ ls) ⊢
-    imp (allocn ♯xs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (allocn ♯xs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iInduction xs as [|x xs] forall (Φ).
@@ -761,7 +761,7 @@ Section imp_combinators.
   Lemma imp_allocn `{Encode A} {Φ : list loc → iProp Σ} (xs : list A) :
     ▷^(List.length xs) (∀ ls,
        ([∗ listZ] l;x ∈ ls;xs, l ↦ #x) -∗ Φ ls) ⊢
-    imp (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (allocn ♯xs) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H".
     iApply imp_allocn'.
@@ -794,7 +794,7 @@ Section imp_combinators.
   Lemma imp_load' `{Encode A} {Φ : A → iProp Σ} l a dq :
     ▷ l ↦{dq} #a ⊢
     ▷ (l ↦{dq} #a -∗ Φ a) -∗
-    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_load with "Hl").
@@ -804,7 +804,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_load `{Encode A} l (a : A) dq :
     ▷ l ↦{dq} #a ⊢
-    imp (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ ∗ l ↦{dq} #a }}.
+    EWP (load l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a' = a⌝ ∗ l ↦{dq} #a }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load' with "Hl").
@@ -815,7 +815,7 @@ Section imp_combinators.
   Lemma imp_load_block' {Φ : (mut_tag * list loc) → iProp Σ} (l : loc) dq t ls :
     ▷ pointsto l dq (Block t ls) ⊢
     ▷ (pointsto l dq (Block t ls) -∗ Φ (t, ls)) -∗
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_load_block with "Hl").
@@ -825,7 +825,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_load_block (l : loc) dq t ls :
     ▷ pointsto l dq (Block t ls) ⊢
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Block t ls) }}.
+    EWP (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (t', ls'), ⌜t' = t⌝ ∗ ⌜ls' = ls⌝ ∗ pointsto l dq (Block t ls) }}.
   Proof.
     iIntros "Hl".
     iApply (imp_load_block' with "Hl").
@@ -837,7 +837,7 @@ Section imp_combinators.
   Lemma imp_exchange' `{Encode A} {Φ : A → iProp Σ} l a v' :
     ▷ l ↦ #a ⊢
     ▷ (l ↦ v' -∗ Φ a) -∗
-    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_exchange with "Hl").
@@ -847,7 +847,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_exchange `{Encode A} {Φ : A → iProp Σ} l a v' :
     ▷ l ↦ #a ⊢
-    imp (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a' : A), ⌜a' = a⌝ ∗ l ↦ v' }}.
+    EWP (exchange l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (a' : A), ⌜a' = a⌝ ∗ l ↦ v' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_stop_exchange with "Hl").
@@ -859,7 +859,7 @@ Section imp_combinators.
   Lemma imp_store' {Φ : unit → iProp Σ} l v v' :
     ▷ l ↦ v ⊢
     ▷ (l ↦ v' -∗ Φ ()) -∗
-    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ". unfold code.store.
     iApply (imp_stop_exchange with "Hl").
@@ -869,7 +869,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_store l v v' :
     ▷ l ↦ v ⊢
-    imp (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), l ↦ v' }}.
+    EWP (code.store l v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), l ↦ v' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_store' with "Hl").
@@ -880,7 +880,7 @@ Section imp_combinators.
   Lemma imp_set_tag' {Φ : unit → iProp Σ} l t t' :
     ▷ isBlock l (DfracOwn 1) t ⊢
     ▷ (isBlock l (DfracOwn 1) t' -∗ Φ ()) -∗
-    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_set_tag with "Hl").
@@ -890,7 +890,7 @@ Section imp_combinators.
   Qed.
   Lemma imp_set_tag l t t' :
     ▷ isBlock l (DfracOwn 1) t ⊢
-    imp (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (_ : unit), isBlock l (DfracOwn 1) t' }}.
+    EWP (set_tag l t') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_ : unit), isBlock l (DfracOwn 1) t' }}.
   Proof.
     iIntros "Hl".
     iApply (imp_set_tag' with "Hl").
@@ -902,7 +902,7 @@ Section imp_combinators.
     ▷ l ↦ #v ⊢
     ▷ (l ↦ (if phys_eq_val_ v seen then #v' else #v) -∗
        Φ (phys_eq_val_ v seen)) -∗
-    imp (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (cas l #seen #v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_cas with "Hl").
@@ -921,7 +921,7 @@ Section imp_combinators.
        isBlock r dq1 t -∗
        isBlock rs dq2 Mut -∗
        Φ (locations.eqb r rs)) -∗
-    imp (cas l (VInline cs rs) v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (cas l (VInline cs rs) v') @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hr Hrs HΦ".
     iApply (imp_stop_cas_inline with "Hl Hr Hrs").
@@ -935,7 +935,7 @@ Section imp_combinators.
   Lemma imp_faa {Φ : Z → iProp Σ} l (i j : Z) :
     ▷ l ↦ #j ⊢
     ▷ (l ↦ #(j + i) -∗ Φ j) -∗
-    imp (faa l ♯i) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (faa l ♯i) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl HΦ".
     iApply (imp_stop_faa with "Hl").
@@ -950,7 +950,7 @@ Section imp_combinators.
   (* [CPerform]. *)
   Lemma imp_perform `{Encode A} {Φ : A → iProp Σ} (v : val) :
     Ψ allows perform v << (ilift ζ (ireturns Φ)) >> -∗
-    imp perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP perform v @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hallows".
     iApply imp_stop_perform.
@@ -962,8 +962,8 @@ Section imp_combinators.
   (* [CResume]. *)
   Lemma imp_resume `{Encode A} {Φ : A → iProp Σ} l o sk :
     isCont l sk ⊢
-    (isShot l -∗ ▷ imp (sk o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (resume l o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    (isShot l -∗ ▷ EWP (sk o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (resume l o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hl Hwp".
     iApply (imp_stop_resume with "Hl").
@@ -978,7 +978,7 @@ Section imp_combinators.
     (∀ l',
       isCont l' (λ o, Handle (resume l o) (wrap_eval_branches η bs)) -∗
       ▷ Φ l') -∗
-    imp (wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hwp".
     iApply imp_stop_wrap_deep.
@@ -1017,7 +1017,7 @@ Section imp_combinators.
     (∀ l',
       isCont l' (λ o, Handle (resume l o) (shallow_eval_branches η bs bs)) -∗
       ▷ Φ l') -∗
-    imp (shallow_wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (shallow_wrap l η bs) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hwp".
     iApply imp_stop_wrap_shallow.
@@ -1039,7 +1039,7 @@ Section polymorphic_combinators.
   Lemma imp_load_block_ghost' P (l : loc) ls :
     ▷ isBlockLocs l ls -∗
     ▷ P -∗
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(_, ls'), ⌜ls'=ls⌝ ∗ P }}.
+    EWP (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (_, ls'), ⌜ls'=ls⌝ ∗ P }}.
   Proof.
     iIntros "Hblock P".
     iApply (imp_stop_load_block_ghost with "Hblock").
@@ -1050,7 +1050,7 @@ Section polymorphic_combinators.
 
   Lemma imp_load_block_ghost (l : loc) ls :
     ▷ isBlockLocs l ls -∗
-    imp (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(t', ls'), ⌜ls' = ls⌝ }}.
+    EWP (load_block l) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (t', ls'), ⌜ls' = ls⌝ }}.
   Proof.
     iIntros "#Harr".
     iApply (imp_stop_load_block_ghost with "Harr").
@@ -1075,9 +1075,9 @@ Section imp_concurrent_combinators.
   Lemma imp_fork {ζ} `{Encode B} {Φ : thread → iProp Σ} μ (φ : B → iProp Σ) v1 v2 :
     ▷ (∀ ι',
          isThread ι' μ φ -∗
-         imp call v1 v2 ⟨⟨ λ e, □ μ e ⟩⟩ {{ λ o, □ φ o }} ∗
+         EWP call v1 v2 ⟨⟨ e, □ μ e ⟩⟩ {{ o, □ φ o }} ∗
          Φ ι') -∗
-    imp (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "HΦ".
     iApply (imp_stop_fork' (B:=B)).
@@ -1090,9 +1090,9 @@ Section imp_concurrent_combinators.
   Lemma imp_fork_persistent {ζ} `{Encode B} {Φ : thread → iProp Σ} φ v1 v2 :
     ▷ (∀ ι',
           □ joinable B ι' φ -∗
-          imp call v1 v2 {{ λ (_ : B), □ φ }} ∗
+          EWP call v1 v2 {{ (_ : B), □ φ }} ∗
           Φ ι') -∗
-    imp (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (fork v1 v2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "HΦ".
     iApply (imp_fork (λ _, False)%I (λ (_ : B), φ)).
@@ -1110,9 +1110,9 @@ Section imp_concurrent_combinators.
   Lemma imp_fork_resourceful {ζ} `{Encode B} {Φ : thread → iProp Σ} φs v1 v2 :
     ▷ (∀ ι',
           ([∗ list] φ ∈ φs, joinable B ι' φ) -∗
-          imp call v1 v2 {{ λ (_ : B), [∗] φs }} ∗
+          EWP call v1 v2 {{ (_ : B), [∗] φs }} ∗
           Φ ι') -∗
-    imp (fork v1 v2) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (fork v1 v2) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "HΦ".
 
@@ -1125,7 +1125,7 @@ Section imp_concurrent_combinators.
     (* In the postcondition of the spawned thread we can transfer the resources
     [φs] into [ψ] by the escrow mechanism *)
     iAssert (▷ ∀ ι, ([∗ list] φ ∈ φs, joinable B ι φ) -∗
-      imp call v1 v2 {{ λ (_ : B), □ φ }} ∗ Φ ι)%I
+      EWP call v1 v2 {{ (_ : B), □ φ }} ∗ Φ ι)%I
       with "[HΦ]" as "HΦ".
     {
       iIntros "!>" (ι') "Hjs".
@@ -1162,7 +1162,7 @@ Section imp_concurrent_combinators.
   Lemma imp_join {ζ} `{Encode A} {Φ : A → iProp Σ} ι' μ φ :
     isThread ι' μ φ -∗
     ▷ (∀ x, □ φ x -∗ Φ x) ∧ ▷ (∀ e, □ μ e -∗ ζ e) -∗
-    imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hvalid HΦ".
     iApply (imp_stop_join ι' inject2 with "Hvalid [HΦ]").
@@ -1181,7 +1181,7 @@ Section imp_concurrent_combinators.
     ↑joinN ⊆ E →
     joinable A ι' φ -∗
     ▷ (▷ φ -∗ (∀ x, Φ x) ∧ (∀ e, ζ e)) -∗
-    imp (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (code.join ι') @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "%Hmask (%μ & %φ' & Hthread & Hcont) Hφ".
     iApply (imp_fupd E (code.join ι')).

@@ -1,7 +1,12 @@
 From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token.
 From iris.base_logic Require Import ghost_map.
 From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
-From iris.program_logic Require Export weakestpre.
+(* [weakestpre] is imported, not exported: Osiris does not use Iris' [wp], and
+   re-exporting it would put Iris' Texan triple notations in scope everywhere,
+   where they clash with ours (see [triples.v]). We do re-export [fancy_updates],
+   the one part of its export chain that the rest of the development relies on. *)
+From iris.base_logic.lib Require Export fancy_updates.
+From iris.program_logic Require Import weakestpre.
 From iris.proofmode Require Import proofmode.
 
 From osiris.lang Require Import thread_ids syntax locations encode.
@@ -626,60 +631,188 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
    The exception postcondition comes BEFORE the return postcondition
    so the parser can distinguish from the short form. *)
 
-Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ζ%I Φ%I)
-    (at level 20, e, Φ, ζ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' '}}' ']'")
+    (at level 20, e, Ψ, Φ, ζ at level 200,
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
-Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E Ψ%I ζ%I Φ%I)
     (at level 20, e, Ψ, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 (* Notations without exceptional postcondition (uses ⊥) *)
 
-Notation "'imp' e {{ Φ }}" :=
+Notation "'EWP' e {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E {{ Φ }}" :=
+Notation "'EWP' e @ E {{ Φ } }" :=
   (impure E e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|>' {{ Φ }}" :=
+Notation "'EWP' e <| Ψ '|>' {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ⊥ Φ%I)
-    (at level 20, e, Φ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' '}}' ']'")
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
-Notation "'imp' e @ E <| Ψ |> {{ Φ }}" :=
+Notation "'EWP' e @ E <| Ψ |> {{ Φ } }" :=
   (impure E e%E Ψ%I ⊥ Φ%I)
     (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
-  pre-existing notation; might be brittle *)
-Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
-  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ imp e {{ Φ }}).
+(* Notations taking the postconditions as a binder and a body, the analogue of
+   Iris' [WP e {{ v, Q }}]. Either postcondition may be written in either style,
+   so each of the four [@ E] / [<| Ψ |>] shapes comes in four flavours.
+
+   These come after the predicate notations above, and printing picks the most
+   recently declared match, so they are the ones used for printing. As in Iris,
+   that means an opaque postcondition prints eta-expanded, as [{{ v, Φ v }}].
+
+   The general approach for the formats: an outer '[hv' to switch between
+   "horizontal mode" where it all fits on one line, and "vertical mode" where
+   each '/' becomes a line break; then a nested box around each postcondition so
+   that it stays maximally horizontal and suitably indented. *)
+
+(* Binder on the return postcondition, exceptional postcondition given. *)
+
+Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ ζ%I (λ v, Q%I))
+    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E ⊥ ζ%I (λ v, Q%I))
+    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I ζ%I (λ v, Q%I))
+    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E Ψ%I ζ%I (λ v, Q%I))
+    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Binder on the exceptional postcondition only. *)
+
+Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure ⊤ e%E ⊥ (λ w, R%I) Φ%I)
+    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure E e%E ⊥ (λ w, R%I) Φ%I)
+    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure ⊤ e%E Ψ%I (λ w, R%I) Φ%I)
+    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure E e%E Ψ%I (λ w, R%I) Φ%I)
+    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+(* Binders on both postconditions. *)
+
+Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E ⊥ (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, Ψ, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E Ψ%I (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, Ψ, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Binder on the return postcondition, no exceptional postcondition.
+
+   These must come last: for a computation whose exceptional postcondition is
+   [⊥], the notations above also match (printing [⊥] eta-expanded as
+   [⟨⟨ w, ⊥ w ⟩⟩]), and printing picks the most recently declared match. *)
+
+Notation "'EWP' e {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ ⊥ (λ v, Q%I))
+    (at level 20, e, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E {{ v , Q } }" :=
+  (impure E e%E ⊥ ⊥ (λ v, Q%I))
+    (at level 20, e, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I ⊥ (λ v, Q%I))
+    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' {{ v , Q } }" :=
+  (impure E e%E Ψ%I ⊥ (λ v, Q%I))
+    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Both binders are parsed [as pattern], so either postcondition may destructure
+   its result directly: [{{ (x, y), Q }}], [⟨⟨ (i, j), R ⟩⟩]. Write the pattern
+   without a leading ['] — a quoted [{{ '(x, y), Q }}] would send the parser into
+   stdpp's ["' x ← y ; z"] (monadic bind) rule and fail asking for [←]. This is
+   also the form Rocq prints back, so the notation round-trips. *)
+
+(* Texan triples for [EWP] are declared in [program_logic/triples.v]. *)
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)

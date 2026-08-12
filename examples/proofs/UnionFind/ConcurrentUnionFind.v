@@ -45,9 +45,9 @@ Implicit Types γ : uf_names.
 Lemma read_vertex {ζ : exn → iProp Σ} {Ψ η} γ z j e :
   is_uf γ -∗
   vertex γ z j -∗
-  imp (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ z' : elem, ⌜z' = z⌝ }} -∗
-  imp (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
-    {{ λ c : content, content_info γ z c }}.
+  EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = z⌝ }} -∗
+  EWP (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
+    {{ (c : content), content_info γ z c }}.
 Proof.
   iIntros "#Hinv #Hz He".
   iDestruct "Hz" as (lzi lzc) "(#Hzfrag & #Hzlocs & #HzP & #Hzli)".
@@ -64,9 +64,9 @@ Qed.
 
 Lemma read_vertex_id {ζ : exn → iProp Σ} {Ψ η} γ z i e :
   vertex γ z i -∗
-  imp (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ z' : elem, ⌜z' = z⌝ }} -∗
-  imp (eval η (ERecordAccess e id_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
-    {{ λ n : Z, ⌜n = i⌝ }}.
+  EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = z⌝ }} -∗
+  EWP (eval η (ERecordAccess e id_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
+    {{ (n : Z), ⌜n = i⌝ }}.
 Proof.
   iIntros "#Hz He".
   iDestruct "Hz" as (li lc) "(_ & #Hlocs & _ & #Hli)".
@@ -82,9 +82,9 @@ Qed.
 
 Lemma vertex_content_ptr {ζ : exn → iProp Σ} {Ψ η} γ z i e :
   vertex γ z i -∗
-  imp (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ z' : elem, ⌜z' = z⌝ }} -∗
-  imp (eval η (EAtomicLoc e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
-    {{ λ l : locations.loc, ∃ li, isBlockLocs z [li; l] }}.
+  EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = z⌝ }} -∗
+  EWP (eval η (EAtomicLoc e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
+    {{ (l : locations.loc), ∃ li, isBlockLocs z [li; l] }}.
 Proof.
   iIntros "#Hz He".
   iDestruct "Hz" as (li lc) "(_ & #Hlocs & _ & _)".
@@ -109,8 +109,8 @@ Qed.
 
 Lemma cas_proof η :
   in_env "Atomic" atomic_module_spec η -∗
-  imp (eval η (EPath ["Atomic"; "Loc"; "compare_and_set"]))
-    {{ λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec }}.
+  EWP (eval η (EPath ["Atomic"; "Loc"; "compare_and_set"]))
+    {{ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec }}.
 Proof.
   iIntros "HAtomic".
   iDestruct (atomic_cas_path_spec with "HAtomic") as (cas Hcas) "#Hspec".
@@ -141,9 +141,9 @@ Lemma read_vertex_lp {ζ : exn → iProp Σ} {Ψ η} γ (x : elem) i e
        content_info γ x c -∗ content_val V x c -∗
        P -∗ UF γ D R V ={⊤ ∖ ↑ufN}=∗
        UF γ D R V ∗ Q c) -∗
-  imp (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ z' : elem, ⌜z' = x⌝ }} -∗
-  imp (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
-    {{ λ c : content,
+  EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = x⌝ }} -∗
+  EWP (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
+    {{ (c : content),
          if content_root c then Q c else content_info γ x c ∗ P }}.
 Proof.
   iIntros "#Hinv #Hx HP Hhook He".
@@ -170,7 +170,7 @@ Qed.
 
 Definition fresh_spec (γ : uf_names) (u : unit) (m : microvx) : iProp Σ :=
   is_uf γ -∗
-  imp m {{ λ i : Z, i ↪[γ.(uf_ids)] () ∗ ⌜representable i⌝ }}.
+  EWP m {{ (i : Z), i ↪[γ.(uf_ids)] () ∗ ⌜representable i⌝ }}.
 
 (* ------------------------------------------------------------------------ *)
 (* Verification of [make]. *)
@@ -219,7 +219,7 @@ Hypothesis Hmax2 : (2 ≤ max_array_length)%Z.
 
 Lemma make_proof γ η :
   path_spec ["G"; "fresh"] (λ fresh, □ iSpec τ[unit] fresh (fresh_spec γ))%I η -∗
-  imp (eval η (EAnonFun __make)) {{ λ c, □ iSpec τ[val] c (make_spec γ) }}.
+  EWP (eval η (EAnonFun __make)) {{ c, □ iSpec τ[val] c (make_spec γ) }}.
 Proof.
   iIntros "#HG".
   iApply imp_EAnon_pers.
@@ -275,7 +275,7 @@ Qed.
    Consider the sequential [find_spec] (UnionFind.v):
 
      ∀ D R V, ⌜e ∈ D⌝ -∗ UF D R V -∗
-       imp m {{ λ z : elem, ⌜z = R e⌝ ∗ UF D R V }}
+       EWP m {{ (z : elem), ⌜z = R e⌝ ∗ UF D R V }}
 
    The concurrent version below is the same statement with the state
    quantified atomically instead of owned by the caller throughout, and
@@ -337,7 +337,7 @@ Definition find_spec (γ : uf_names) x (m : microvx) : iProp Σ :=
 Definition find_observe_spec (γ : uf_names) (x : elem) (m : microvx) : iProp Σ :=
   is_uf γ -∗
   in_uf γ x -∗
-  imp m {{ λ z : elem, in_uf γ z ∗ same_class γ x z }}.
+  EWP m {{ (z : elem), in_uf γ z ∗ same_class γ x z }}.
 
 (* Proof outline:
    1. Read [x.content] atomically, through [read_vertex_lp]. This is the
@@ -360,9 +360,9 @@ Definition find_observe_spec (γ : uf_names) (x : elem) (m : microvx) : iProp Σ
 
 Lemma find_proof γ η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find (find_spec γ)) η -∗
-  imp (eval η (EAnonFun (AnonFun "x"
+  EWP (eval η (EAnonFun (AnonFun "x"
         (EMatch (ERecordAccess (EPath ["x"]) content_field) __find_branches))))
-    {{ λ c, □ iSpec τ[elem] c (find_spec γ) }}.
+    {{ c, □ iSpec τ[elem] c (find_spec γ) }}.
 Proof.
   iIntros "#IH".
   iApply imp_EAnon_pers.
@@ -450,9 +450,9 @@ Qed.
 
 Lemma find_observe_proof γ η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find (find_observe_spec γ)) η -∗
-  imp (eval η (EAnonFun (AnonFun "x"
+  EWP (eval η (EAnonFun (AnonFun "x"
         (EMatch (ERecordAccess (EPath ["x"]) content_field) __find_branches))))
-    {{ λ c, □ iSpec τ[elem] c (find_observe_spec γ) }}.
+    {{ c, □ iSpec τ[elem] c (find_observe_spec γ) }}.
 Proof.
   iIntros "#IH".
   iApply imp_EAnon_pers.
@@ -536,13 +536,13 @@ Definition compress_spec (γ : uf_names) (x z : elem) (m : microvx) : iProp Σ :
     vertex γ x i -∗
     vertex γ z k -∗
     same_class γ x z -∗
-    imp m {{ λ w : elem, ⌜w = z⌝ }}.
+    EWP m {{ (w : elem), ⌜w = z⌝ }}.
 
 Lemma compress_proof γ η :
   ▷ in_env "compress"
       (λ compress, □ iSpec τ[elem; elem] compress (compress_spec γ)) η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __compress_fun))))
-    {{ λ c, □ iSpec τ[elem; elem] c (compress_spec γ) }}.
+  EWP (eval η (EAnonFun (AnonFun "x" (EAnonFun __compress_fun))))
+    {{ c, □ iSpec τ[elem; elem] c (compress_spec γ) }}.
 Proof.
   iIntros "#IH".
   iApply imp_EAnon_pers.
@@ -691,8 +691,8 @@ Lemma findc_proof γ η :
   in_env "find" (λ find, □ iSpec τ[elem] find (find_spec γ)) η -∗
   in_env "compress"
     (λ compress, □ iSpec τ[elem; elem] compress (compress_spec γ)) η -∗
-  imp (eval η (EAnonFun __findc))
-    {{ λ c, □ iSpec τ[elem] c (find_spec γ) }}.
+  EWP (eval η (EAnonFun __findc))
+    {{ c, □ iSpec τ[elem] c (find_spec γ) }}.
 Proof.
   iIntros "#IFind #ICompress".
   iApply imp_EAnon_pers.
@@ -791,8 +791,8 @@ Lemma findc_observe_proof γ η :
   in_env "find" (λ find, □ iSpec τ[elem] find (find_observe_spec γ)) η -∗
   in_env "compress"
     (λ compress, □ iSpec τ[elem; elem] compress (compress_spec γ)) η -∗
-  imp (eval η (EAnonFun __findc))
-    {{ λ c, □ iSpec τ[elem] c (find_observe_spec γ) }}.
+  EWP (eval η (EAnonFun __findc))
+    {{ c, □ iSpec τ[elem] c (find_observe_spec γ) }}.
 Proof.
   iIntros "#IFind #ICompress".
   iApply imp_EAnon_pers.
@@ -892,7 +892,7 @@ Definition get_spec (γ : uf_names) (x : elem) (m : microvx) : iProp Σ :=
     is_uf γ -∗
     in_uf γ x -∗
     get_hook γ x Ψ -∗
-    imp m {{ Ψ }}.
+    EWP m {{ Ψ }}.
 
 (* The specification as a client sees it: the sequential [get_spec]'s
    postcondition verbatim. There is no private postcondition — a value is
@@ -933,10 +933,10 @@ Qed.
 Lemma get_proof γ η :
   ▷ in_env "get" (λ get, □ iSpec τ[elem] get (get_spec γ)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_observe_spec γ)) η -∗
-  imp (eval η (EAnonFun (AnonFun "x"
+  EWP (eval η (EAnonFun (AnonFun "x"
         (ELet [Binding (PVar "x") (EApp (EPath ["findc"]) (EPath ["x"]))]
               __get_exp))))
-    {{ λ c, □ iSpec τ[elem] c (get_spec γ) }}.
+    {{ c, □ iSpec τ[elem] c (get_spec γ) }}.
 Proof.
   iIntros "#IGet #IFindc".
   iApply imp_EAnon_pers.
@@ -1057,7 +1057,7 @@ Definition set_content_spec (γ : uf_names) (x : elem) (cx' : content)
     in_uf γ x -∗
     fresh_root cx' v -∗
     set_hook γ x v Ψ -∗
-    imp m {{ λ _ : unit, Ψ }}.
+    EWP m {{ (_ : unit), Ψ }}.
 
 Definition set_spec (γ : uf_names) (x : elem) (v : val)
     (m : microvx) : iProp Σ :=
@@ -1065,7 +1065,7 @@ Definition set_spec (γ : uf_names) (x : elem) (v : val)
     is_uf γ -∗
     in_uf γ x -∗
     set_hook γ x v Ψ -∗
-    imp m {{ λ _ : unit, Ψ }}.
+    EWP m {{ (_ : unit), Ψ }}.
 
 (* The specification as a client sees it. *)
 
@@ -1113,8 +1113,8 @@ Lemma set_proof γ η :
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_observe_spec γ)) η -∗
   in_env "cas"
     (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __set_fun))))
-    {{ λ c, □ iSpec τ[elem; content] c (set_content_spec γ) }}.
+  EWP (eval η (EAnonFun (AnonFun "x" (EAnonFun __set_fun))))
+    {{ c, □ iSpec τ[elem; content] c (set_content_spec γ) }}.
 Proof.
   iIntros "#ISet #IFindc #Hcas".
   iApply imp_EAnon_pers.
@@ -1202,8 +1202,8 @@ Qed.
 Lemma set_wrapper_proof γ η :
   in_env "set"
     (λ setv, □ iSpec τ[elem; content] setv (set_content_spec γ)) η -∗
-  imp (eval η (EAnonFun __set))
-    {{ λ c, □ iSpec τ[elem; val] c (set_spec γ) }}.
+  EWP (eval η (EAnonFun __set))
+    {{ c, □ iSpec τ[elem; val] c (set_spec γ) }}.
 Proof.
   iIntros "#ISet".
   iApply imp_EAnon_pers.
@@ -1903,7 +1903,7 @@ Definition eq_spec (γ γl γn γe : gname) (x y : elem) (m : microvx) : iProp �
     is_uf γ γl γn γe -∗
     vertex γ x i -∗
     vertex γ y j -∗
-    imp m {{ λ b : bool, if b then same_class γ x y else True }}.
+    EWP m {{ (b : bool), if b then same_class γ x y else True }}.
 
 (* The internal, recursive [eq]. Since the two mutually recursive
    functions were merged into one, both [findc] calls happen at the top
@@ -1912,8 +1912,8 @@ Definition eq_spec (γ γl γn γe : gname) (x y : elem) (m : microvx) : iProp �
 Lemma eq_proof γ γl γn γe η :
   ▷ in_env "eq" (λ eq, □ iSpec τ[elem; elem] eq (eq_spec γ γl γn γe)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (findc_spec γ γl γn γe)) η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __eq_fun))))
-    {{ λ c, □ iSpec τ[elem; elem] c (eq_spec γ γl γn γe) }}.
+  EWP (eval η (EAnonFun (AnonFun "x" (EAnonFun __eq_fun))))
+    {{ c, □ iSpec τ[elem; elem] c (eq_spec γ γl γn γe) }}.
 Proof.
   iIntros "#IEq #IFindc".
   iApply imp_EAnon_pers.
@@ -2004,7 +2004,7 @@ Qed.
 
 Lemma eq_wrapper_proof γ γl γn γe η :
   in_env "eq" (λ eq, □ iSpec τ[elem; elem] eq (eq_spec γ γl γn γe)) η -∗
-  imp (eval η (EAnonFun __eq)) {{ λ c, □ iSpec τ[elem; elem] c (eq_spec γ γl γn γe) }}.
+  EWP (eval η (EAnonFun __eq)) {{ c, □ iSpec τ[elem; elem] c (eq_spec γ γl γn γe) }}.
 Proof.
   iIntros "#IEq".
   iApply imp_EAnon_pers.

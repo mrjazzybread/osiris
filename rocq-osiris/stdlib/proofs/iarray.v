@@ -36,7 +36,7 @@ Section freeze_iarray.
       (λ (a : array) m,
          ∀ `(Encode A) (xs : list A),
          a ↦∗ xs -∗
-         imp m {{ λ (a' : iarray), a' ↦□∗ xs ∗ isBlock a' (DfracOwn 1) Immut  }})%I.
+         EWP m {{ (a' : iarray), a' ↦□∗ xs ∗ isBlock a' (DfracOwn 1) Immut  }})%I.
 
   Lemma imp_freeze_array freeze :
     freeze_spec freeze -∗
@@ -77,18 +77,18 @@ Section init_proof.
          (* [f] is a function [Z → A], such that [f i] preserves
             an invariant [I] over the results of all calls to [f i] so far. *)
          □ iSpec τ[Z] f (λ i m, ∀ xs, ⌜0 ≤ i < n⌝ -∗ ⌜length xs = i⌝ -∗ I xs -∗
-                                      imp m {{ λ x, I (xs ++ singleton x) }}) -∗
+                                      EWP m {{ x, I (xs ++ singleton x) }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
          I [] -∗
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ isBlock a (DfracOwn 1) Immut ∗ I xs }})%I.
+         EWP m {{ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦□∗ xs ∗ isBlock a (DfracOwn 1) Immut ∗ I xs }})%I.
 
   Definition init := (EAnonFun __init).
 
   Lemma imp_init η :
     □ in_env "Array" array_module_spec η -∗
     □ in_env "unsafe_of_array" freeze_spec η -∗
-    imp (eval η init) {{ λ c, □ iSpec τ[Z; val] c init_spec }}.
+    EWP (eval η init) {{ c, □ iSpec τ[Z; val] c init_spec }}.
   Proof.
     iIntros "#Hlookup1 #Hlookup2".
     iApply imp_EAnon_pers.
@@ -194,7 +194,7 @@ Section module_proof.
 
   Lemma module_proof η :
     in_env "Stdlib" (λ (η : env), in_env "Array" array_module_spec η) η -∗
-    imp (eval_mexpr η __main) {{ iarray_module_spec }}.
+    EWP (eval_mexpr η __main) {{ iarray_module_spec }}.
   Proof.
     iIntros "#Hstdlib".
     iApply imp_module.

@@ -14,7 +14,7 @@ From osiris.utils Require Import list_z.
 
 Import ewp_rules_tactics.
 
-(** This file provides atomicity instances for memory operations and derived [imp] rules for atomic access. *)
+(** This file provides atomicity instances for memory operations and derived [EWP] rules for atomic access. *)
 
 Instance crash_atomic {V X} :
   thread_step.Atomic (@Crash V X).

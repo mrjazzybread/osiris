@@ -28,9 +28,9 @@ Section iteration_methods.
             ∀ (Xs : list A),
               ⌜permitted (Xs ++ [X])⌝ -∗
               I Xs -∗
-              imp m @ E <| Ψ |> {{ λ (_ : unit), I (Xs ++ [X]) }}) -∗
+              EWP m @ E <| Ψ |> {{ (_ : unit), I (Xs ++ [X]) }}) -∗
         I [] -∗
-        imp m @ E <|Ψ|> {{ λ (_ : unit), ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
+        EWP m @ E <|Ψ|> {{ (_ : unit), ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
 
 End iteration_methods.
 
@@ -84,7 +84,7 @@ Section lazy_sequences.
            : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
     λ Ψ k Xs,
       iSpec τ[unit] k (λ _ m,
-          imp m <| Ψ |> {{ λ h, isHead_pre isSeq Ψ h Xs }})%I.
+          EWP m <| Ψ |> {{ h, isHead_pre isSeq Ψ h Xs }})%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
   Local Instance isHead_pre_contractive : Contractive isSeq_pre.
@@ -186,7 +186,7 @@ Section verification.
     Definition invert_spec : val → microvx → iProp Σ :=
       λ (iter : val) m,
       (iSpec τ[val] iter (Iter_spec) -∗
-       imp m {{ λ k, isSeq ⊥ k [] }})%I.
+       EWP m {{ k, isSeq ⊥ k [] }})%I.
 
   End specification.
 
@@ -276,7 +276,7 @@ Section verification.
         { (* [fun () -> continue k ()] *)
           iApply imp_evals_singleton.
           iApply (imp_EAnon τ[unit]
-                    (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
+                    (λ _ m, EWP m {{ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
@@ -304,7 +304,7 @@ Section verification.
         xctor_encode := λ a, eq_refl }.
 
     Lemma ewp_invert η :
-      ⊢ imp (eval η invert) {{ λ c, □ iSpec τ[val] c invert_spec }}.
+      ⊢ EWP (eval η invert) {{ c, □ iSpec τ[val] c invert_spec }}.
     Proof.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
@@ -327,8 +327,8 @@ Section verification.
                                         ∀ (Xs : list A),
                                           ⌜permitted (Xs ++ [X])⌝ -∗
                                           iterView γ Xs -∗
-                                          imp m <| ψ_yield yl (iterView γ) |>
-                                          {{ λ (_ : unit), iterView γ (Xs ++ [X]) }}))%I).
+                                          EWP m <| ψ_yield yl (iterView γ) |>
+                                          {{ (_ : unit), iterView γ (Xs ++ [X]) }}))%I).
       { iApply (imp_EAnon_pers τ[A]). simpl.
         iIntros "!>" (X Xs) "Hiter Hpermitted".
         iApply imp_please; iNext.

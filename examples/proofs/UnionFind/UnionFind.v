@@ -491,10 +491,10 @@ Definition make_spec : val → microvx → iProp Σ :=
   λ v m,
     (∀ D R V,
        UF D R V -∗
-       imp m {{ λ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜x ∉ D ∧ R x = x⌝ }})%I.
+       EWP m {{ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜x ∉ D ∧ R x = x⌝ }})%I.
 
 Lemma imp_make η :
-  ⊢ imp (eval η (EAnonFun __make)) {{ λ c, □ iSpec τ[val] c make_spec }}.
+  ⊢ EWP (eval η (EAnonFun __make)) {{ c, □ iSpec τ[val] c make_spec }}.
 Proof.
   iApply imp_EAnon_pers.
   iIntros "!>" (v).
@@ -755,7 +755,7 @@ Definition find_spec' ( e : elem) (m : microvx) : iProp Σ :=
     ⌜e ∈ D⌝ -∗
     ⌜bw_ipc F e d F'⌝ -∗
     pointsto_M M -∗
-    imp m {{ λ (x : elem), ∃ M',
+    EWP m {{ (x : elem), ∃ M',
       ⌜x = R e⌝ ∗ ⌜skel M' = skel M⌝ ∗ pointsto_M M' ∗ ⌜Mem D F' V M'⌝ }}.
 
 (* -------------------------------------------------------------------------- *)
@@ -956,7 +956,7 @@ Definition find_spec (e : elem) (m : microvx) : iProp Σ :=
   ∀ D R V,
     ⌜e ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ (x : elem), ⌜x = R e⌝ ∗ UF D R V }}.
+    EWP m {{ (x : elem), ⌜x = R e⌝ ∗ UF D R V }}.
 
 Lemma find_proof :
   ∀ find, iSpec τ[elem] find find_spec' -∗ iSpec τ[elem] find find_spec.
@@ -992,11 +992,11 @@ Definition is_representative_spec (e : elem) (m : microvx) : iProp Σ :=
   ∀ D R V,
     ⌜e ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ (b : bool), ⌜b = bool_decide (R e = e)⌝ ∗ UF D R V }}.
+    EWP m {{ (b : bool), ⌜b = bool_decide (R e = e)⌝ ∗ UF D R V }}.
 
 Lemma is_representative_proof η :
-  ⊢ imp (eval η (EAnonFun __is_representative))
-      {{ λ c, □ iSpec τ[elem] c is_representative_spec }}.
+  ⊢ EWP (eval η (EAnonFun __is_representative))
+      {{ c, □ iSpec τ[elem] c is_representative_spec }}.
 Proof.
   iApply imp_EAnon_pers.
   iIntros "!>" (e).
@@ -1045,11 +1045,11 @@ Definition get_spec (e : elem) (m : microvx) : iProp Σ :=
   ∀ D R V,
     ⌜e ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ (x : val), ⌜x = V e⌝ ∗ UF D R V }}.
+    EWP m {{ (x : val), ⌜x = V e⌝ ∗ UF D R V }}.
 
 Lemma get_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
-  imp (eval η (EAnonFun __get)) {{ λ c, □ iSpec τ[elem] c get_spec }}.
+  EWP (eval η (EAnonFun __get)) {{ c, □ iSpec τ[elem] c get_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1091,11 +1091,11 @@ Definition set_spec (e : elem) (v : val) (m : microvx) : iProp Σ :=
   ∀ D R V,
     ⌜e ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ (x : unit), UF D R V.[ e -/R/> v] }}.
+    EWP m {{ (x : unit), UF D R V.[ e -/R/> v] }}.
 
 Lemma set_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec)%I η -∗
-  imp (eval η (EAnonFun __set)) {{ λ c, □ iSpec τ[elem;val] c set_spec }}.
+  EWP (eval η (EAnonFun __set)) {{ c, □ iSpec τ[elem;val] c set_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1137,12 +1137,12 @@ Definition union_spec (x y : elem) (m : microvx) : iProp Σ :=
     ⌜x ∈ D⌝ -∗
     ⌜y ∈ D⌝ -∗
     UF D R V -∗
-    imp m {{ λ z, UF D R.[y -/R/> z].[x -/R/> z] V.[y -/R/> (V z)].[x -/R/> (V z)] ∗
+    EWP m {{ z, UF D R.[y -/R/> z].[x -/R/> z] V.[y -/R/> (V z)].[x -/R/> (V z)] ∗
                   ⌜z = R x ∨ z = R y⌝ }}.
 
 Lemma union_proof η :
   in_env "find" (λ c, □ iSpec τ[elem] c find_spec) η -∗
-  imp (eval η (EAnonFun __union)) {{ λ c, □ iSpec τ[elem;elem] c union_spec }}.
+  EWP (eval η (EAnonFun __union)) {{ c, □ iSpec τ[elem;elem] c union_spec }}.
 Proof.
   iIntros "#Hfind".
   iApply imp_EAnon_pers.
@@ -1349,7 +1349,7 @@ Local Ltac find_in_env :=
   reflexivity.
 
 Theorem UnionFind_module_proof η :
-  ⊢ imp (eval_mexpr η __main)
+  ⊢ EWP (eval_mexpr η __main)
     {{ context [
          var_spec "make"  (λ make,  □ iSpec τ[val] make make_spec);
          var_spec "find"  (λ find,  □ iSpec τ[elem] find find_spec);

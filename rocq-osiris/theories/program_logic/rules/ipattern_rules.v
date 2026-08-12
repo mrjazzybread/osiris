@@ -33,18 +33,18 @@ Section ipattern.
      guarantees [ψ]. *)
 
   Definition ipattern η δ p v (Φ : env → iProp Σ) (ψ : iProp Σ) : iProp Σ :=
-    imp (eval_pat η δ p v) @ E <|Ψ|> ⟨⟨ (λ _ : unit, ψ) ⟩⟩ {{ Φ }}.
+    EWP (eval_pat η δ p v) @ E <|Ψ|> ⟨⟨ (_ : unit), ψ ⟩⟩ {{ Φ }}.
 
   Definition icpattern η δ cp o (Φ : env → iProp Σ) (ψ : iProp Σ) : iProp Σ :=
-    imp (eval_cpat η δ cp o) @ E <|Ψ|> ⟨⟨ (λ _ : unit, ψ) ⟩⟩ {{ Φ }}.
+    EWP (eval_cpat η δ cp o) @ E <|Ψ|> ⟨⟨ (_ : unit), ψ ⟩⟩ {{ Φ }}.
 
   (* A two-channel consequence rule for [impure]. *)
 
   Lemma imp_wand2 {V X A} `{Observe A V} (m : micro V X)
       (ζ ζ' : X → iProp Σ) (Φ Φ' : A → iProp Σ) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     (∀ a, Φ a -∗ Φ' a) ∧ (∀ e, ζ e -∗ ζ' e) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }}.
   Proof.
     iIntros "Hm Hw".
     iApply (imp_wand' with "Hm"). iSplit.
@@ -152,7 +152,7 @@ Section ipattern.
      matched left to right. *)
 
   Definition ipatterns η δ ps vs (Φ : env → iProp Σ) (ψ : iProp Σ) : iProp Σ :=
-    imp (eval_pats η δ ps vs) @ E <|Ψ|> ⟨⟨ (λ _ : unit, ψ) ⟩⟩ {{ Φ }}.
+    EWP (eval_pats η δ ps vs) @ E <|Ψ|> ⟨⟨ (_ : unit), ψ ⟩⟩ {{ Φ }}.
 
   Lemma ipats_nil η δ Φ ψ :
     Φ δ -∗
@@ -220,7 +220,7 @@ Section ipattern.
 
   Lemma imp_loadn {X} (ζ : X → iProp Σ) (dq : dfrac) ls (vs : list val) :
     ([∗ listZ] l;v ∈ ls; vs, l ↦{dq} v) -∗
-    imp (loadn ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ vs' : list val,
+    EWP (loadn ls) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (vs' : list val),
         ⌜vs' = vs⌝ ∗ [∗ listZ] l;v ∈ ls; vs, l ↦{dq} v }}.
   Proof.
     iInduction ls as [|l ls] "IH" forall (vs); iIntros "Hls"; simpl.
@@ -245,7 +245,7 @@ Section ipattern.
   Lemma imp_loadfs {X} (ζ : X → iProp Σ) (dq : dfrac) ls (vs : list val) fps :
     Forall (λ fp, valid fp.1 ls) fps →
     ([∗ listZ] l;v ∈ ls; vs, l ↦{dq} v) -∗
-    imp (loadfs ls fps) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ vs' : list val,
+    EWP (loadfs ls fps) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (vs' : list val),
         ⌜vs' = fvals vs fps⌝ ∗ [∗ listZ] l;v ∈ ls; vs, l ↦{dq} v }}.
   Proof.
     iIntros (Hvalid) "Hls".

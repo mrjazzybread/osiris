@@ -8,7 +8,7 @@ From osiris.utils Require Import tactics.
 Require Import equality.
 
 (* This file defines the [imp_path] tactic, used for solving goals of the
-   form [imp (eval η (EPath p)) {{ Φ }}]. *)
+   form [EWP (eval η (EPath p)) {{ Φ }}]. *)
 
 (* --------------------------------------------------------------------------*)
 (* Specifications for whole modules. *)
@@ -80,8 +80,8 @@ Section ModuleSpecs.
 
   (* Check *)
   (*   context [ *)
-  (*      var_spec "+" (λ add, iSpec τ[Z; Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})%I); *)
-  (*      var_spec "-" (λ sub, iSpec τ[Z; Z] sub (λ i j m, imp m {{ λ n, ⌜(n = i - j)%Z⌝ }})%I) *)
+  (*      var_spec "+" (λ add, iSpec τ[Z; Z] add (λ i j m, EWP m {{ n, ⌜(n = i + j)%Z⌝ }})%I); *)
+  (*      var_spec "-" (λ sub, iSpec τ[Z; Z] sub (λ i j m, EWP m {{ n, ⌜(n = i - j)%Z⌝ }})%I) *)
   (*    ] {["+";"-";"*"]}. *)
 
 End ModuleSpecs.
@@ -434,7 +434,7 @@ Section PathRule.
   Lemma imp_EPath_spec {E : coPset} {Ψ : iEff Σ} {A : Type} {EncA : Encode A}
     {Φ : A → iProp Σ} {ζ : exn → iProp Σ} (η : env) (p : path) :
     path_spec p Φ η -∗
-    imp eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} : iProp Σ.
+    EWP eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} : iProp Σ.
   Proof.
     iIntros "(% & %Hlookup & Hspec)".
     simpl_eval.
@@ -592,7 +592,7 @@ Ltac2 in_env_here () :=
    [solve_in_env]'s cons branch — and all three break callers in the same
    way: a *later* argument goal of the same [imp_app] then fails, with
    [set_postcondition] reporting a goal that is no longer of the form
-   [imp m @ E <|Ψ|> ⟨⟨ζ⟩⟩ {{Φ}}]. Reverting just the alternation, with
+   [EWP m @ E <|Ψ|> ⟨⟨ζ⟩⟩ {{Φ}}]. Reverting just the alternation, with
    everything else in place, restores it.
 
    So the obstacle is not where the rule choice is made: merely making
@@ -602,8 +602,8 @@ Ltac2 in_env_here () :=
    What instrumenting [imp_app] established (baseline, alternation off).
    After [imp_app τ[loc;content;content]] and its first bracket, exactly
    three goals remain: the two argument goals
-     [imp eval η (EPath ["cx"])  {{ λ c : content, ?x  c }}]
-     [imp eval η (EPath ["cx'"]) {{ λ c : content, ?x0 c }}]
+     [EWP eval η (EPath ["cx"])  {{ (c : content), ?x  c }}]
+     [EWP eval η (EPath ["cx'"]) {{ (c : content), ?x0 c }}]
    and the continuation, whose premises mention the same [?x]/[?x0].
    Both argument evars are plain, unapplied postcondition evars. On the
    first of them [set_postcondition] succeeds, [iApply imp_EPath_spec]
@@ -926,8 +926,8 @@ Section TacticTests.
      - Module2 is in the environment and contains [Module3],
        which contains [sub] *)
 
-  Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }})%I.
-  Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
+  Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, EWP m {{ k, ⌜(k = i + j)%Z⌝ }})%I.
+  Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, EWP m {{ k, ⌜(k = i - j)%Z⌝ }})%I.
   Definition a_spec a : iProp Σ := ∀ (A : Type), □ ⌜a > 2⌝.
 
   Definition module3_spec η := context [var_spec "sub" sub_spec] {["sub"]} η.
@@ -942,7 +942,7 @@ Section TacticTests.
                          var_spec "add" add_spec] {["some_other_val";"add"]})
       ] {["Module1"]} δ -∗
     context [var_spec "Module2" module2_spec] {["Module2";"z"]} η -∗
-    imp (eval (δ ++ η) e) {{ λ (i : Z), ⌜i > 0⌝ }}.
+    EWP (eval (δ ++ η) e) {{ (i : Z), ⌜i > 0⌝ }}.
   Proof.
     iIntros "#zspec #aspec #δspec #ηspec".
     (* TODO: imp_let tactic which instantiates

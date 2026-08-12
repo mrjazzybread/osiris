@@ -11,7 +11,7 @@ Ltac2 get_expr () :=
   | _ =>
       Control.zero
         (Tactic_failure
-           (Some (fprintf "Expected goal of the form [imp (eval η e) _]")))
+           (Some (fprintf "Expected goal of the form [EWP (eval η e) _]")))
   end.
 
 Ltac2 simple_intros () :=
@@ -50,7 +50,7 @@ Ltac2 set_postcondition_tac (φ : constr) : unit :=
   | impure ?_e ?_m ?_Ψ ?_ζ ?Φ =>
       Std.unify Φ φ
   | _ => Control.zero
-           (Tactic_failure (Some (Message.of_string "Expected goal of the form [imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}]")))
+           (Tactic_failure (Some (Message.of_string "Expected goal of the form [EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}]")))
   end.
 Ltac2 Notation "set_postcondition" φ(open_constr) := set_postcondition_tac φ.
 Tactic Notation "set_postcondition" open_constr(φ) :=

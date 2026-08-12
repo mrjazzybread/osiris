@@ -27,13 +27,13 @@ Section verification.
   Definition length_spec r (m : microvx) : iProp Σ :=
     ∀ qp t (x y : Z),
       ▷ ownBlock (τ:=τ[Z; Z]) r (DfracOwn qp) t (x, y) -∗
-      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗
+      EWP m {{ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗
                  ownBlock (τ:=τ[Z;Z]) r (DfracOwn qp) t (x, y) }}.
 
   Definition elength := EAnonFun __fun0.
 
   Lemma imp_length η :
-    ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length length_spec }}.
+    ⊢ EWP (eval η elength) {{ length, □ iSpec τ[record] length length_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r qp t x y) "Hown".
@@ -50,12 +50,12 @@ Section verification.
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ t (x0 y : Z),
       ▷ ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x0, y) -∗
-      imp m {{ λ (_ : unit), ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x, y) }}.
+      EWP m {{ (_ : unit), ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x, y) }}.
 
   Definition eupdate_x := EAnonFun __fun2.
 
   Lemma imp_update_x η :
-    ⊢ imp (eval η eupdate_x) {{ λ update_x, □ iSpec τ[record; Z] update_x update_x_spec }}.
+    ⊢ EWP (eval η eupdate_x) {{ update_x, □ iSpec τ[record; Z] update_x update_x_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r x t x0 y) "Hown".
@@ -78,11 +78,11 @@ Section verification.
 
   Lemma match_record_fields η r qp t (x y : Z) :
     ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
-    imp eval (("v", VRecord r) :: η)
+    EWP eval (("v", VRecord r) :: η)
         (EMatch (EVar "v")
            [Branch (CVal (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]))
                    (EIntAdd (EVar "a") (EVar "b"))])
-        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
   Proof.
     iIntros "Hown".
     iApply (imp_EMatch (A':=record) (λ r', ⌜r' = r⌝)%I with "[]").
@@ -99,12 +99,12 @@ Section verification.
 
   Lemma match_inline_record_fields η r qp t (x y : Z) :
     ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
-    imp eval (("v", VInline "Root" r) :: η)
+    EWP eval (("v", VInline "Root" r) :: η)
         (EMatch (EVar "v")
            [Branch (CVal (PInline "Root"
                             (PAlias (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]) "w")))
                    (EIntAdd (EVar "a") (EVar "b"))])
-        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
   Proof.
     iIntros "Hown".
     iApply (imp_EMatch (A':=val) (λ v, ⌜v = VInline "Root" r⌝)%I with "[]").
@@ -124,11 +124,11 @@ Section verification.
 
   Lemma match_mixed_fields η r qp t (x y : Z) :
     ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
-    imp eval (("v", VTuple ((#1%Z) :: VRecord r :: nil)) :: η)
+    EWP eval (("v", VTuple ((#1%Z) :: VRecord r :: nil)) :: η)
         (EMatch (EVar "v")
            [Branch (CVal (PTuple [PInt 1; PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]]))
                    (EIntAdd (EVar "a") (EVar "b"))])
-        {{ λ i : Z, ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
   Proof.
     iIntros "Hown".
     iApply (imp_EMatch (A':=val) (λ v, ⌜v = VTuple ((#1%Z) :: VRecord r :: nil)⌝)%I
@@ -146,7 +146,7 @@ Section verification.
 
   Lemma module_proof η :
     2 ≤ max_array_length →
-    ⊢ imp (eval_mexpr η __main)
+    ⊢ EWP (eval_mexpr η __main)
       {{ context
            [ var_spec "length" (λ length, iSpec τ[record] length length_spec);
              var_spec "update_x" (λ update, iSpec τ[record;Z] update update_x_spec) ]
@@ -198,15 +198,15 @@ Section encoded_fields.
   Definition point_length_spec r (m : microvx) : iProp Σ :=
     ∀ qp (p : point),
       ▷ r ⤇{#qp} p -∗
-      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{#qp} p }}.
+      EWP m {{ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{#qp} p }}.
 
   Definition point_update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ (p : point),
       ▷ r ⤇ p -∗
-      imp m {{ λ (_ : unit), r ⤇ {| x := x; y:=p.(y) |} }}.
+      EWP m {{ (_ : unit), r ⤇ {| x := x; y:=p.(y) |} }}.
 
   Lemma imp_point_length η :
-    ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length point_length_spec }}.
+    ⊢ EWP (eval η elength) {{ length, □ iSpec τ[record] length point_length_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r qp p) "Hown".
@@ -218,7 +218,7 @@ Section encoded_fields.
   Qed.
 
   Lemma imp_point_update_x η :
-    ⊢ imp (eval η eupdate_x) {{ λ update_x, □ iSpec τ[record; Z] update_x point_update_x_spec }}.
+    ⊢ EWP (eval η eupdate_x) {{ update_x, □ iSpec τ[record; Z] update_x point_update_x_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r x p) "Hown".
@@ -234,7 +234,7 @@ Section encoded_fields.
   (* -------------------------------------------------------------------------- *)
 
   Lemma point_module_proof η :
-    ⊢ imp (eval_mexpr η __main)
+    ⊢ EWP (eval_mexpr η __main)
       {{ context
            [ var_spec "length" (λ length, iSpec τ[record] length point_length_spec);
              var_spec "update_x" (λ update, iSpec τ[record;Z] update point_update_x_spec) ]
@@ -276,8 +276,8 @@ Section encoded_fields.
 
   Lemma imp_point_read_discarded η e (r : record) (p : point) :
     ▷ r ⤇□ p -∗
-    imp (eval η e) {{ λ r' : record, ⌜r' = r⌝ }} -∗
-    imp (eval η (ERecordAccess e 0%Z)) {{ λ i : Z, ⌜i = p.(x)⌝ ∗ r ⤇□ p }}.
+    EWP (eval η e) {{ (r' : record), ⌜r' = r⌝ }} -∗
+    EWP (eval η (ERecordAccess e 0%Z)) {{ (i : Z), ⌜i = p.(x)⌝ ∗ r ⤇□ p }}.
   Proof.
     iIntros "Hown He".
     iApply (imp_record_access with "Hown He").

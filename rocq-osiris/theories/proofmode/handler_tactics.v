@@ -61,7 +61,7 @@ Ltac2 do_iintros () :=
   try (iModIntro);
   lazy_match! get_iris_goal () with
   | bi_forall _ =>
-      (* Match case: [∀ η', ⌜Hη η'⌝ -∗ imp (eval η' e) ...].
+      (* Match case: [∀ η', ⌜Hη η'⌝ -∗ EWP (eval η' e) ...].
          When [Hη] is a concrete equality [λ η', η' = δ] (the no-guard case,
          e.g. built-in patterns), rewrite with it.  When [Hη] is still an evar
          (unreachable branch), close via [False].  Otherwise [Hη] is a guarded
@@ -119,7 +119,7 @@ Ltac2 do_iintros () :=
    *before* matching began, it collects the hypotheses introduced during
    matching ([delta]) and instantiates [?Hη] to the existential closure
      [λ η', ∃ <delta vars>, <delta guards> ∧ η' = δ],
-   so the branch body goal becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ imp …]
+   so the branch body goal becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ EWP …]
    and genuinely carries the matched-constructor equation.  When [delta] is
    empty (built-in patterns) this degenerates to [λ η', η' = δ], reproducing
    the old [apply eq_refl] behaviour exactly. *)
@@ -252,7 +252,7 @@ Local Ltac2 close_pure_leaves (before : ident list) : unit :=
                      matched environment.  [close_success] instantiates
                      [?Hη] to the existential closure of the hypotheses
                      introduced since [before], so the continuation's match
-                     case becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ imp …]
+                     case becomes [∀ η', ⌜∃ …, c = Ctor … ∧ η' = δ⌝ -∗ EWP …]
                      (degenerating to [λ η', η' = δ] when matching
                      introduced nothing).  If this fails it is skipped. *)
                   Control.plus
@@ -311,7 +311,7 @@ Local Ltac2 ipattern_pure_route (k : unit -> unit) :=
 
 (** *Iris-level pattern matching *)
 
-(* [next_branch] processes one branch of an [imp (eval_branches η o
+(* [next_branch] processes one branch of an [EWP (eval_branches η o
    (Branch cp e :: bs))] goal. It applies [deep_handle_cons_iris'] —
    which threads the branch body and the remaining branches through
    the [icpattern] judgement — and then dispatches on the pattern:
@@ -329,10 +329,10 @@ Local Ltac2 ipattern_pure_route (k : unit -> unit) :=
      their field sub-patterns are discharged by the pure [fpatterns]
      automation;
    - on success, the goal that remains is the branch body
-     [imp (eval η' e) ...] in the extended environment, with the
+     [EWP (eval η' e) ...] in the extended environment, with the
      ownership hypotheses back in the context under their own names;
    - if the pattern is refuted (constructor mismatch), the goal that
-     remains is [imp (eval_branches η o bs) ...] for the remaining
+     remains is [EWP (eval_branches η o bs) ...] for the remaining
      branches, on which [next_branch] can be used again. *)
 
 (* [reads_heap p] detects (sub-)patterns whose matching must read the
@@ -487,7 +487,7 @@ Ltac2 rec ipattern_match_aux () :=
   end.
 
 (* [iApply deep_handle_cons_iris'] can succeed *vacuously* on a goal
-   whose postcondition is still an evar (e.g. [∀ a, ?Φ' a -∗ ▷ imp
+   whose postcondition is still an evar (e.g. [∀ a, ?Φ' a -∗ ▷ EWP
    (eval_branches …)] before the scrutinee has been resolved), by
    unifying the whole [icpattern] premise into the evar and leaving no
    goal at all.  Reject that case so [next_branch] fails cleanly —
@@ -532,14 +532,14 @@ Ltac2 next_branch0 () :=
 Ltac2 Notation "next_branch" := next_branch0 ().
 Tactic Notation "next_branch" := ltac2:(next_branch0 ()).
 
-(* [imp_branches] processes all branches of an [imp (eval_branches η o bs)]
+(* [imp_branches] processes all branches of an [EWP (eval_branches η o bs)]
    goal, creating one Iris subgoal per branch — the analogue of [pure_match]
    for the Iris world.
 
    For each branch [Branch cp e] in [bs] it applies [next_branch], which:
      - resolves the pattern and [iSplit]s into the match/no-match pair;
      - auto-closes no-match goals whose postcondition is provably [False];
-     - leaves the branch body [imp (eval η' e) ...] as an open subgoal.
+     - leaves the branch body [EWP (eval η' e) ...] as an open subgoal.
 
    Recursion terminates when [next_branch] fails (either the branch list is
    exhausted or the current goal is not an [eval_branches] goal). *)
@@ -559,8 +559,8 @@ Tactic Notation "imp_branches" := ltac2:(imp_branches0 ()).
 (** *Match *)
 
 (* [imp_match] applies the [imp_EMatch] rule to a goal of the form
-   [imp eval η (EMatch e bs) ...].  It dispatches two subgoals:
-     1. the scrutinee expression [imp eval η e {{ Φ' }}], which [imp_step]
+   [EWP eval η (EMatch e bs) ...].  It dispatches two subgoals:
+     1. the scrutinee expression [EWP eval η e {{ Φ' }}], which [imp_step]
         is tried on automatically;
      2. the eval_branches continuation, where [simple_intros] peels off the
         [∀ a, Φ' a -∗ ▷] prefix and then [imp_branches] automatically

@@ -17,31 +17,31 @@ Section init_proof.
          (* [f] is a function [Z → A], such that [f i] preserves
             an invariant [I] over the results of all calls to [f i] so far. *)
          □ iSpec τ[Z] f (λ i m, ∀ xs, ⌜0 ≤ i < n⌝ -∗ ⌜length xs = i⌝ -∗ I xs -∗
-                                      imp m {{ λ x, I (xs ++ singleton x) }}) -∗
+                                      EWP m {{ x, I (xs ++ singleton x) }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
          I [] -∗
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ I xs }})%I.
+         EWP m {{ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ I xs }})%I.
 
   Definition init_spec' : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (Φ : Z → A → iProp Σ),
          ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], such that [f i] satisfies [Φ i]. *)
-         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, Φ i x }}) -∗
+         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ EWP m {{ x, Φ i x }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
-         imp m {{ λ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ [∗ listZ] i↦x ∈ xs, Φ i x }})%I.
+         EWP m {{ a, ∃ (xs : list A), ⌜length xs = n⌝ ∗ a ↦∗ xs ∗ [∗ listZ] i↦x ∈ xs, Φ i x }})%I.
 
   Definition init_pure_spec : Z → val → microvx → iProp Σ :=
     λ n f m,
       (∀ (A : Type) `(Encode A, Inhabited A) (Φ : Z → A),
          ⌜0 ≤ n ≤ max_array_length⌝ -∗
          (* [f] is a function [Z → A], which has a pure model [Φ]. *)
-         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ imp m {{ λ x, ⌜x = Φ i⌝ }}) -∗
+         □ iSpec τ[Z] f (λ i m, ⌜0 ≤ i < n⌝ -∗ EWP m {{ x, ⌜x = Φ i⌝ }}) -∗
          (* Calling [init f n] returns an array [a] such that [ownArray a xs],
             and such that [Φ i] holds for the [i]'th element of xs. *)
-         imp m {{ λ a, a ↦∗ (init n Φ) }})%I.
+         EWP m {{ a, a ↦∗ (init n Φ) }})%I.
 
   Lemma init_spec_spec' n f m :
     init_spec n f m -∗ init_spec' n f m.
@@ -96,7 +96,7 @@ Section init_proof.
   Lemma imp_init η :
     □ in_env "make" array_make_spec η -∗
     □ in_env "unsafe_set" array_set_spec η -∗
-    imp (eval η init) {{ λ c, □ iSpec τ[Z; val] c init_spec }}.
+    EWP (eval η init) {{ c, □ iSpec τ[Z; val] c init_spec }}.
   Proof.
     iIntros "#Hlookup1 #Hlookup2".
     iApply imp_EAnon_pers.
@@ -198,9 +198,9 @@ Section iter_proof.
                            ∀ (Xs : list A),
                            ⌜Xs ++ singleton X `prefix_of` xs⌝ -∗
                            I Xs -∗
-                           imp m {{ λ (_ : unit), I (Xs ++ singleton X) }}) -∗
+                           EWP m {{ (_ : unit), I (Xs ++ singleton X) }}) -∗
          I [] -∗
-         imp m {{ λ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
+         EWP m {{ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
 
 
   Definition iter := (EAnonFun __iter).
@@ -244,7 +244,7 @@ Section iter_proof.
   Lemma imp_iter η :
     □ in_env "length" array_length_spec η -∗
     □ in_env "unsafe_get" array_get_spec η -∗
-    imp (eval η iter) {{ λ c, □ iSpec τ[val; array] c iter_spec }}.
+    EWP (eval η iter) {{ c, □ iSpec τ[val; array] c iter_spec }}.
   Proof.
     iIntros "#Hlength #Hget".
     iApply imp_EAnon_pers.
@@ -313,9 +313,9 @@ Section iter2_spec.
                               ∀ (visited : list (A * B)),
                               ⌜visited ++ singleton (x, y) `prefix_of` zip xs ys⌝ -∗
                               I visited -∗
-                              imp m {{ λ (_ : unit), I (visited ++ singleton (x, y)) }}) -∗
+                              EWP m {{ (_ : unit), I (visited ++ singleton (x, y)) }}) -∗
          I [] -∗
-         imp m {{ λ (_ : unit), I (zip xs ys) ∗ a ↦∗{dq1} xs ∗ b ↦∗{dq2} ys }})%I.
+         EWP m {{ (_ : unit), I (zip xs ys) ∗ a ↦∗{dq1} xs ∗ b ↦∗{dq2} ys }})%I.
 
 End iter2_spec.
 
@@ -332,8 +332,8 @@ Section map_spec.
       (∀ (A B : Type) `(Encode A, Inhabited A) `(Encode B, Inhabited B)
          dq (xs : list A) (Φ : A → B → iProp Σ),
          a ↦∗{dq} xs -∗
-         □ iSpec τ[A] f (λ (x : A) m, imp m {{ λ (y : B), Φ x y }}) -∗
-         imp m {{ λ a', ∃ (ys : list B),
+         □ iSpec τ[A] f (λ (x : A) m, EWP m {{ (y : B), Φ x y }}) -∗
+         EWP m {{ a', ∃ (ys : list B),
                     a' ↦∗ ys ∗
                     a ↦∗{dq} xs ∗
                     [∗ listZ] x;y ∈ xs;ys, Φ x y }})%I.
@@ -345,7 +345,7 @@ Section map_spec.
     □ in_env "unsafe_get" array_get_spec η -∗
     □ in_env "unsafe_set" array_set_spec η -∗
     □ in_env "make" array_make_spec η -∗
-    imp (eval η map) {{ λ c, □ iSpec τ[val; array] c map_spec }}.
+    EWP (eval η map) {{ c, □ iSpec τ[val; array] c map_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset #Hmake".
     iApply imp_EAnon_pers.
@@ -493,8 +493,8 @@ Section map_inplace_spec.
     λ f a m,
       (∀ (A : Type) (_ : Encode A) (_ : Inhabited A) (xs : list A) (Φ : A → A → iProp Σ),
          a ↦∗ xs -∗
-         □ iSpec τ[A] f (λ (x : A) m, imp m {{ λ (y : A), Φ x y }}) -∗
-         imp m {{ λ (_ : unit), ∃ (ys : list A),
+         □ iSpec τ[A] f (λ (x : A) m, EWP m {{ (y : A), Φ x y }}) -∗
+         EWP m {{ (_ : unit), ∃ (ys : list A),
                     a ↦∗ ys ∗
                     [∗ listZ] x;y ∈ xs;ys, Φ x y }})%I.
 
@@ -504,7 +504,7 @@ Section map_inplace_spec.
     □ in_env "length" array_length_spec η -∗
     □ in_env "unsafe_get" array_get_spec η -∗
     □ in_env "unsafe_set" array_set_spec η -∗
-    imp (eval η map_inplace) {{ λ c, □ iSpec τ[val; array] c map_inplace_spec }}.
+    EWP (eval η map_inplace) {{ c, □ iSpec τ[val; array] c map_inplace_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset".
     iApply imp_EAnon_pers.
@@ -594,8 +594,8 @@ Section mapi_inplace_spec.
          a ↦∗ xs -∗
          □ iSpec τ[Z; A] f (λ (i : Z) (x : A) m,
                               ⌜0 ≤ i < length xs⌝ -∗
-                              imp m {{ λ (y : A), Φ i x y }}) -∗
-         imp m {{ λ (_ : unit), ∃ (ys : list A),
+                              EWP m {{ (y : A), Φ i x y }}) -∗
+         EWP m {{ (_ : unit), ∃ (ys : list A),
                     a ↦∗ ys ∗
                     [∗ listZ] i↦x;y ∈ xs;ys, Φ i x y }})%I.
 
@@ -605,7 +605,7 @@ Section mapi_inplace_spec.
     □ in_env "length" array_length_spec η -∗
     □ in_env "unsafe_get" array_get_spec η -∗
     □ in_env "unsafe_set" array_set_spec η -∗
-    imp (eval η mapi_inplace) {{ λ c, □ iSpec τ[val; array] c mapi_inplace_spec }}.
+    EWP (eval η mapi_inplace) {{ c, □ iSpec τ[val; array] c mapi_inplace_spec }}.
   Proof.
     iIntros "#Hlength #Hget #Hset".
     iApply imp_EAnon_pers.
@@ -697,8 +697,8 @@ Section map2_spec.
          ⌜length xs = length ys⌝ -∗
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
-         □ iSpec τ[A; B] f (λ (x : A) (y : B) m, imp m {{ λ (z : C), Φ x y z }}) -∗
-         imp m {{ λ c, ∃ (zs : list C),
+         □ iSpec τ[A; B] f (λ (x : A) (y : B) m, EWP m {{ (z : C), Φ x y z }}) -∗
+         EWP m {{ c, ∃ (zs : list C),
                     ⌜length zs = length xs⌝ ∗
                     c ↦∗ zs ∗
                     a ↦∗{dq1} xs ∗
@@ -724,16 +724,16 @@ Section iteri_spec.
                               ⌜Xs ++ singleton x `prefix_of` xs⌝ -∗
                               ⌜length Xs = i⌝ -∗
                               I Xs -∗
-                              imp m {{ λ (_ : unit), I (Xs ++ singleton x) }}) -∗
+                              EWP m {{ (_ : unit), I (Xs ++ singleton x) }}) -∗
          I [] -∗
-         imp m {{ λ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
+         EWP m {{ (_ : unit), I xs ∗ a ↦∗{dq} xs }})%I.
 
   Definition iteri := (EAnonFun __iteri).
 
   Lemma imp_iteri η :
     □ in_env "length" array_length_spec η -∗
     □ in_env "unsafe_get" array_get_spec η -∗
-    imp (eval η iteri) {{ λ c, □ iSpec τ[val; array] c iteri_spec }}.
+    EWP (eval η iteri) {{ c, □ iSpec τ[val; array] c iteri_spec }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_EAnon_pers.
@@ -799,8 +799,8 @@ Section mapi_spec.
          a ↦∗{dq} xs -∗
          □ iSpec τ[Z; A] f (λ (i : Z) (x : A) m,
                               ⌜0 ≤ i < length xs⌝ -∗
-                              imp m {{ λ (y : B), Φ i x y }}) -∗
-         imp m {{ λ b, ∃ (ys : list B),
+                              EWP m {{ (y : B), Φ i x y }}) -∗
+         EWP m {{ b, ∃ (ys : list B),
                     b ↦∗ ys ∗
                     a ↦∗{dq} xs ∗
                     [∗ listZ] i↦x;y ∈ xs;ys, Φ i x y }})%I.
@@ -818,7 +818,7 @@ Section to_list_spec.
     λ a m,
       (∀ (A : Type) (_ : Encode A) (_ : Inhabited A) dq (xs : list A),
          a ↦∗{dq} xs -∗
-         imp m {{ λ (ys : list A), ⌜ys = xs⌝ ∗ a ↦∗{dq} xs }})%I.
+         EWP m {{ (ys : list A), ⌜ys = xs⌝ ∗ a ↦∗{dq} xs }})%I.
 
 End to_list_spec.
 
@@ -834,7 +834,7 @@ Section of_list_spec.
       (∀ (A : Type) (_ : Encode A) (xs : list A),
          ⌜l = #xs⌝ -∗
          ⌜length xs ≤ max_array_length⌝ -∗
-         imp m {{ λ a, a ↦∗ xs }})%I.
+         EWP m {{ a, a ↦∗ xs }})%I.
 
 End of_list_spec.
 
@@ -853,8 +853,8 @@ Section equal_spec.
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
          □ iSpec τ[A; A] eq (λ (x : A) (y : A) m,
-                               imp m {{ λ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
-         imp m {{ λ (r : bool),
+                               EWP m {{ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
+         EWP m {{ (r : bool),
                     a ↦∗{dq1} xs ∗
                     b ↦∗{dq2} ys ∗
                     ⌜r = true ↔ length xs = length ys ∧ Forall2 P xs ys⌝ }})%I.
@@ -876,8 +876,8 @@ Section compare_spec.
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
          □ iSpec τ[A; A] cmp (λ (x : A) (y : A) m,
-                                imp m {{ λ (c : Z), ⌜c = f x y⌝ }}) -∗
-         imp m {{ λ (r : Z),
+                                EWP m {{ (c : Z), ⌜c = f x y⌝ }}) -∗
+         EWP m {{ (r : Z),
                     a ↦∗{dq1} xs -∗
                     b ↦∗{dq2} ys -∗
                     ⌜(length xs ≠ length ys → r = if bool_decide (length xs < length ys) then -1 else 1) ∧
@@ -901,9 +901,9 @@ Section fold_left_spec.
                               ∀ (visited : list B),
                               ⌜visited ++ singleton b `prefix_of` xs⌝ -∗
                               I acc visited -∗
-                              imp m {{ λ (acc' : A), I acc' (visited ++ singleton b) }}) -∗
+                              EWP m {{ (acc' : A), I acc' (visited ++ singleton b) }}) -∗
          I x [] -∗
-         imp m {{ λ (r : A), I r xs ∗ a ↦∗{dq} xs }})%I.
+         EWP m {{ (r : A), I r xs ∗ a ↦∗{dq} xs }})%I.
 
   (** [fold_left f init a] computes [f (... (f (f init a.(0)) a.(1)) ...) a.(n-1)]. *)
   Definition fold_left_pure_spec A `{Encode A} : val → A → array → microvx → iProp Σ :=
@@ -911,8 +911,8 @@ Section fold_left_spec.
       (∀ `(Encode B, Inhabited B)
          dq (xs : list B) (Φ : A → B → A),
          a ↦∗{dq} xs -∗
-         □ iSpec τ[A; B] f (λ (acc : A) (b : B) m, imp m {{ λ acc', ⌜acc' = Φ acc b⌝ }}) -∗
-         imp m {{ λ (r : A), ⌜r = fold_left Φ xs x⌝ ∗ a ↦∗{dq} xs }})%I.
+         □ iSpec τ[A; B] f (λ (acc : A) (b : B) m, EWP m {{ acc', ⌜acc' = Φ acc b⌝ }}) -∗
+         EWP m {{ (r : A), ⌜r = fold_left Φ xs x⌝ ∗ a ↦∗{dq} xs }})%I.
 
   Lemma fold_left_spec_pure_spec `{Encode A} f x a m :
     fold_left_spec A f x a m -∗ fold_left_pure_spec A f x a m.
@@ -937,7 +937,7 @@ Section fold_left_spec.
   Lemma imp_fold_left η :
     □ in_env "length" array_length_spec η -∗
     □ in_env "unsafe_get" array_get_spec η -∗
-    imp (eval η fold_left) {{ λ c, □ ∀ `(Encode A), iSpec τ[val; A; array] c (fold_left_spec A) }}.
+    EWP (eval η fold_left) {{ c, □ ∀ `(Encode A), iSpec τ[val; A; array] c (fold_left_spec A) }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_EAnon_poly_pers.
@@ -1025,8 +1025,8 @@ Section fold_left_map_spec.
          dq (xs : list B) (Φ : A → B → A → C → iProp Σ),
          input_array ↦∗{dq} xs -∗
          □ iSpec τ[A; B] f (λ (acc : A) (b : B) m,
-                              imp m {{ λ (p : τ[A; C]), Φ acc b p.1 p.2 }}) -∗
-         imp m {{ λ '((y, output_array) : τ[A; array]),
+                              EWP m {{ (p : τ[A; C]), Φ acc b p.1 p.2 }}) -∗
+         EWP m {{ ((y, output_array) : τ[A; array]),
                     ∃ (ys : list C), ⌜length ys = length xs⌝ ∗
                       input_array ↦∗{dq} xs ∗
                       output_array ↦∗ ys ∗
@@ -1051,9 +1051,9 @@ Section fold_right_spec.
                               ∀ i, ⌜0 ≤ i < length xs⌝ -∗
                                    ⌜xs !!! i = a⌝ -∗
                                    I b (i + 1) -∗
-                                   imp m {{ λ (b' : B), I b' i }}) -∗
+                                   EWP m {{ (b' : B), I b' i }}) -∗
          I x (length xs) -∗
-         imp m {{ λ (r : B), I r 0 ∗ a ↦∗{dq} xs }})%I.
+         EWP m {{ (r : B), I r 0 ∗ a ↦∗{dq} xs }})%I.
 
 End fold_right_spec.
 
@@ -1070,8 +1070,8 @@ Section exists_spec.
          dq (xs : list A) (P : A → Prop) (_ : ∀ x, Decision (P x)),
          a ↦∗{dq} xs -∗
          □ iSpec τ[A] p (λ (x : A) m,
-                           imp m {{ λ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
-         imp m {{ λ (b : bool),
+                           EWP m {{ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
+         EWP m {{ (b : bool),
                     a ↦∗{dq} xs ∗
                     ⌜b = true ↔ Exists P xs⌝ }})%I.
 
@@ -1090,8 +1090,8 @@ Section for_all_spec.
          dq (xs : list A) (P : A → Prop) (_ : ∀ x, Decision (P x)),
          a ↦∗{dq} xs -∗
          □ iSpec τ[A] p (λ (x : A) m,
-                           imp m {{ λ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
-         imp m {{ λ (b : bool),
+                           EWP m {{ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
+         EWP m {{ (b : bool),
                     a ↦∗{dq} xs ∗
                     ⌜b = true ↔ Forall P xs⌝ }})%I.
 
@@ -1113,8 +1113,8 @@ Section for_all2_spec.
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
          □ iSpec τ[A; B] p (λ (x : A) (y : B) m,
-                              imp m {{ λ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
-         imp m {{ λ (r : bool),
+                              EWP m {{ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
+         EWP m {{ (r : bool),
                     a ↦∗{dq1} xs ∗
                     b ↦∗{dq2} ys ∗
                     ⌜r = true ↔ Forall2 P xs ys⌝ }})%I.
@@ -1137,8 +1137,8 @@ Section exists2_spec.
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
          □ iSpec τ[A; B] p (λ (x : A) (y : B) m,
-                              imp m {{ λ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
-         imp m {{ λ (r : bool),
+                              EWP m {{ (r : bool), ⌜r = bool_decide (P x y)⌝ }}) -∗
+         EWP m {{ (r : bool),
                     a ↦∗{dq1} xs ∗
                     b ↦∗{dq2} ys ∗
                     ⌜r = true ↔ Exists (λ p, P p.1 p.2) (zip xs ys)⌝ }})%I.
@@ -1163,8 +1163,8 @@ Section find_opt_spec.
          dq (xs : list A) (P : A → Prop) (_ : ∀ x, Decision (P x)),
          a ↦∗{dq} xs -∗
          □ iSpec τ[A] p (λ (x : A) m,
-                           imp m {{ λ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
-         imp m {{ λ (r : option A),
+                           EWP m {{ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
+         EWP m {{ (r : option A),
                     a ↦∗{dq} xs ∗
                     match r with
                     | Some x => ⌜x ∈ xs ∧ P x⌝
@@ -1187,8 +1187,8 @@ Section find_index_spec.
          dq (xs : list A) (P : A → Prop) (_ : ∀ x, Decision (P x)),
          a ↦∗{dq} xs -∗
          □ iSpec τ[A] p (λ (x : A) m,
-                           imp m {{ λ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
-         imp m {{ λ (r : option Z),
+                           EWP m {{ (b : bool), ⌜b = bool_decide (P x)⌝ }}) -∗
+         EWP m {{ (r : option Z),
                     a ↦∗{dq} xs ∗
                     match r with
                     | Some i => ⌜0 ≤ i < length xs ∧ P (xs !!! i) ∧
@@ -1212,8 +1212,8 @@ Section find_map_spec.
          dq (xs : list A) (g : A → option B),
          a ↦∗{dq} xs -∗
          □ iSpec τ[A] f (λ (x : A) m,
-                           imp m {{ λ (r : option B), ⌜r = g x⌝ }}) -∗
-         imp m {{ λ (r : option B),
+                           EWP m {{ (r : option B), ⌜r = g x⌝ }}) -∗
+         EWP m {{ (r : option B),
                     a ↦∗{dq} xs ∗
                     match r with
                     | Some y => ⌜∃ x, x ∈ xs ∧ g x = Some y⌝
@@ -1237,8 +1237,8 @@ Section find_mapi_spec.
          a ↦∗{dq} xs -∗
          □ iSpec τ[Z; A] f (λ (i : Z) (x : A) m,
                               ⌜0 ≤ i < length xs⌝ -∗
-                              imp m {{ λ (r : option B), ⌜r = g i x⌝ }}) -∗
-         imp m {{ λ (r : option B),
+                              EWP m {{ (r : option B), ⌜r = g i x⌝ }}) -∗
+         EWP m {{ (r : option B),
                     a ↦∗{dq} xs ∗
                     match r with
                     | Some y => ⌜∃ i, 0 ≤ i < length xs ∧ g i (xs !!! i) = Some y⌝
@@ -1259,7 +1259,7 @@ Section split_spec.
       (∀ (A B : Type) `(Encode A) `(Encode B) (_ : Inhabited (A * B))
          dq (ps : list (A * B)),
          a ↦∗{dq} ps -∗
-         imp m {{ λ '((b1, b2) : τ[array;array]),
+         EWP m {{ ((b1, b2) : τ[array;array]),
                     a ↦∗{dq} ps ∗
                     b1 ↦∗ (fst <$> ps) ∗
                     b2 ↦∗ (snd <$> ps) }})%I.
@@ -1281,7 +1281,7 @@ Section combine_spec.
          ⌜length xs = length ys⌝ -∗
          a ↦∗{dq1} xs -∗
          b ↦∗{dq2} ys -∗
-         imp m {{ λ r,
+         EWP m {{ r,
                     a ↦∗{dq1} xs -∗
                     b ↦∗{dq2} ys -∗
                     r ↦∗ (zip xs ys) }})%I.
@@ -1384,7 +1384,7 @@ Section module_proof.
   Proof. apply _. Qed.
 
   Lemma module_proof η :
-    ⊢ imp (eval_mexpr η __main) {{ array_module_spec }}.
+    ⊢ EWP (eval_mexpr η __main) {{ array_module_spec }}.
   Proof.
     iApply imp_module.
     iApply imp_externals_length. iIntros (length) "#Hlength".

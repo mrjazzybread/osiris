@@ -59,7 +59,7 @@ Section evals_rules.
   Lemma imp_EData `{DC : Data c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(ctor_apply) xs)) -∗
-    imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H Hk". simpl_eval.
     iApply (imp_bind with "H").
@@ -72,7 +72,7 @@ Section evals_rules.
 
   Lemma imp_EData_evar `{DC : Data c τ A} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
-    imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ∃# xs, ⌜x = DC.(ctor_apply) xs⌝ ∗ Φs xs }}.
+    EWP eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, ∃# xs, ⌜x = DC.(ctor_apply) xs⌝ ∗ Φs xs }}.
   Proof.
     iIntros "Hes".
     iApply (imp_EData with "Hes").
@@ -84,7 +84,7 @@ Section evals_rules.
     lookup_path η π = Some #l →
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(xctor_apply) xs)) -∗
-    imp eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hlookup) "He Hk". simpl_eval.
     rewrite Hlookup. unfold as_loc; simpl. rewrite !bind_ret.

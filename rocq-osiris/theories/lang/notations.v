@@ -133,10 +133,9 @@ Definition ELetRec1Var (f x : var) (e1 e2 : expr) :=
 
 (* ------------------------------------------------------------------------ *)
 
-(* A notation scope for [expr], includes arithmetic and booleans *)
-
-Declare Scope expr_scope.
-Delimit Scope expr_scope with E.
+(* A notation scope for [expr], includes arithmetic and booleans.
+   The scope itself is declared in [syntax.v], so that the [%E] delimiter is
+   available to files that only need to delimit, not to those notations. *)
 
 Notation "- e" := (EIntNeg e) : expr_scope.
 Infix "+" := EIntAdd : expr_scope.

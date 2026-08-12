@@ -7,7 +7,7 @@ Require Import impure_rules stop_rules.
 Require Export record_rules.
 From osiris.utils Require Import list_z big_opLZ.
 
-(** This file defines record resource predicates and [imp] rules for inline-records. *)
+(** This file defines record resource predicates and [EWP] rules for inline-records. *)
 
 Section inline_record_reasoning.
 

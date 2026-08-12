@@ -273,7 +273,7 @@ Section ewp_pure.
 
   Lemma ewp_pure `{Encode A} (m : micro val exn) (ζ : exn → Prop) (φ : A → Prop) :
     pure m φ ζ →
-    ⊢ imp m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜φ x⌝ }} .
+    ⊢ EWP m ⟨⟨ e, ⌜ζ e⌝ ⟩⟩ {{ x, ⌜φ x⌝ }} .
   Proof.
     iIntros (Hpure).
     iApply ewp_mono; last (iApply pure_ewp; apply Hpure).

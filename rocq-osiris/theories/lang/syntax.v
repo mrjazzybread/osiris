@@ -473,6 +473,20 @@ Inductive val : Type :=
   | VChar (c: char)
 .
 
+(* Osiris' own scopes for expressions and values. Osiris used to borrow the
+   [expr_scope] and [val_scope] that Iris declares in [iris.bi.weakestpre], but
+   pulling that module into scope also brings Iris' Texan triple notations,
+   which clash with ours (see [program_logic/triples.v]).
+
+   Only the scopes are declared here; the notations that populate [expr_scope]
+   live in [notations.v]. This way a file can delimit with [%E] / [%V] without
+   pulling in the notations themselves. *)
+Declare Scope expr_scope.
+Delimit Scope expr_scope with E.
+
+Declare Scope val_scope.
+Delimit Scope val_scope with V.
+
 Definition env := list (var * val).
 Definition envs := (env * env)%type.
 

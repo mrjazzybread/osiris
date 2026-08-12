@@ -3,6 +3,7 @@
 Require Export
   thread_step
   ewp
+  triples
   stop_rules
   handler_rules
   fun_spec

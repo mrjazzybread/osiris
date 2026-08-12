@@ -69,7 +69,7 @@ Definition atomic_ewp `{!osirisGS Σ} `{Observe A V} {X} {TA TB TP : tele}
             (* The (outer) user mask is what is left after the implementation
             opened its things. *)
             atomic_update (⊤∖E) ∅ α β (λ.. x y, ∀.. z, POST x y z -∗? Φ (f x y z)) -∗
-            imp m {{ Φ }}.
+            EWP m {{ Φ }}.
 
 (** We avoid '<<{'/'}>>' since those can also reasonably be infix operators
 (and in fact Autosubst uses the latter). *)
@@ -264,7 +264,7 @@ Section lemmas.
   (* Atomic triples imply sequential triples. *)
   Lemma atomic_ewp_seq {X} e E α β POST f :
     atomic_ewp (X:=X) e E α β POST f -∗
-    ∀ Φ, ∀.. x, α x -∗ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ imp e {{ Φ }}.
+    ∀ Φ, ∀.. x, α x -∗ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ EWP e {{ Φ }}.
   Proof.
     iIntros "Hwp" (Φ x) "Hα HΦ".
     iApply (imp_frame_wand with "HΦ"). iApply "Hwp".
@@ -278,7 +278,7 @@ Section lemmas.
   Lemma atomic_ewp_seq_step {X} (e : micro V X) E α β POST f :
     TCEq (is_ewp_case e) WPStep →
     atomic_ewp e E α β POST f -∗
-    ∀ Φ, ∀.. x, α x -∗ ▷ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ imp e {{ Φ }}.
+    ∀ Φ, ∀.. x, α x -∗ ▷ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ EWP e {{ Φ }}.
   Proof.
     iIntros (?) "H"; iIntros (Φ x) "Hα HΦ".
     iApply (imp_step_fupd ⊤ ⊤ _ _ (∀.. y : TB, _)
@@ -292,7 +292,7 @@ Section lemmas.
       `{!thread_step.Atomic e}
       `{!TCEq (to_eff e) None}
       `{!TCEq (to_join e) None} :
-    (∀ Φ, ∀.. x, α x -∗ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ imp e @ ∅ {{ Φ }}) -∗
+    (∀ Φ, ∀.. x, α x -∗ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ EWP e @ ∅ {{ Φ }}) -∗
     atomic_ewp e E α β POST f.
   Proof.
     iIntros "Hwp" (Φ) "AU". iMod "AU" as (x) "[Hα [_ Hclose]]".
@@ -307,7 +307,7 @@ Section lemmas.
       (α : [tele] → iProp) (β : [tele] → TB → iProp)
       (POST : [tele] → TB → TP → option iProp) (f : [tele] → TB → TP → A)
       {HP : Persistent (α [tele_arg])} :
-    (∀ Φ, α [tele_arg] -∗ (∀.. y, β [tele_arg] y -∗ ∀.. z, POST [tele_arg] y z -∗? Φ (f [tele_arg] y z)) -∗ imp e {{ Φ }}) -∗
+    (∀ Φ, α [tele_arg] -∗ (∀.. y, β [tele_arg] y -∗ ∀.. z, POST [tele_arg] y z -∗? Φ (f [tele_arg] y z)) -∗ EWP e {{ Φ }}) -∗
     atomic_ewp e E α β POST f.
   Proof.
     simpl in HP. iIntros "Hwp" (Φ) "HΦ". iApply fupd_imp.

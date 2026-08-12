@@ -48,11 +48,11 @@ Section atomic_proofs.
              ▷ (l ↦ (if locations.eqb r rs then #v' else VInline c r) -∗
                 isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
                 |={E2,⊤}=> Φ (locations.eqb r rs))) -∗
-      imp m {{ Φ }}.
+      EWP m {{ Φ }}.
 
   Lemma imp_Loc_compare_and_set η :
-    ⊢ imp (eval η (EAnonFun __Loc_fun5))
-        {{ λ c, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] c compare_and_set_spec }}.
+    ⊢ EWP (eval η (EAnonFun __Loc_fun5))
+        {{ c, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] c compare_and_set_spec }}.
   Proof.
     iApply imp_EAnon_poly_pers.
     iIntros "!>" (A HencA). simpl.
@@ -104,7 +104,7 @@ Section atomic_proofs.
   (* The [Atomic] module satisfies its specification. The operations
      without a specification are admitted, as in [array.module_proof]. *)
   Lemma module_proof η :
-    ⊢ imp (eval_mexpr η __main) {{ atomic_module_spec }}.
+    ⊢ EWP (eval_mexpr η __main) {{ atomic_module_spec }}.
   Proof.
     iApply imp_module.
     iApply (imp_sitems_module atomic_loc_module_spec).

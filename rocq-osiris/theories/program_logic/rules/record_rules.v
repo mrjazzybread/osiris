@@ -6,7 +6,7 @@ Require Import ewp.
 Require Import impure_rules stop_rules.
 From osiris.utils Require Import list_z big_opLZ dfractional.
 
-(** This file defines record resource predicates and [imp] rules for record expressions. *)
+(** This file defines record resource predicates and [EWP] rules for record expressions. *)
 
 (* [record] is [tc_opaque loc]; expose [loc]'s instances *)
 Global Instance record_eq_decision : EqDecision record.
@@ -167,7 +167,7 @@ Section records_reasoning.
   Context {η : env} {E : coPset} {Ψ : iEff Σ}.
 
   Lemma imp_as_record {ζ} {Φ : record → iProp Σ} (m : microvx) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     impure E (as_record m) Ψ ζ Φ.
   Proof.
     iIntros "Hm".
