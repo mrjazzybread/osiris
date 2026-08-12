@@ -1284,7 +1284,7 @@ Definition union_spec (γ : uf_names) (x y : elem) (m : microvx) : iProp Σ :=
     is_uf γ -∗
     in_uf γ x -∗ in_uf γ y -∗
     union_hook γ x y Ψ -∗
-    imp m {{ Ψ }}.
+    EWP m {{ Ψ }}.
 
 (* Re-basing a hook onto other members of the same two classes. This is
    what [union]'s retry needs: after a lost CAS the call restarts on the
@@ -1408,8 +1408,8 @@ Lemma union_proof γ η :
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_observe_spec γ)) η -∗
   in_env "cas"
     (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __union_fun))))
-    {{ λ c, □ iSpec τ[elem; elem] c (union_spec γ) }}.
+  EWP (eval η (EAnonFun (AnonFun "x" (EAnonFun __union_fun))))
+    {{ c, □ iSpec τ[elem; elem] c (union_spec γ) }}.
 Proof.
   iIntros "#IUnion #IFindc #Hcas".
   iApply imp_EAnon_pers.
@@ -1649,196 +1649,35 @@ Qed.
 (* ======================================================================== *)
 (* TODO (abstract state): everything below is the previous, non-atomic
    development, parked while the specifications are reworked one operation
-   at a time. What is left has to be re-specified atomically, against the
-   same [UF γ D R V] that [find], [get], [set] and [union] now use:
+   at a time. What is left is [eq], which has to be re-specified
+   atomically against the same [UF γ D R V] as the rest:
 
-     update  — [UF γ D R V.[x -/R/> w]] for [w] the result of
-               [f (V (R x))];
-     eq      — RET [bool_decide (R x = R y)].
+     eq — RET [bool_decide (R x = R y)].
 
-   Both linearize at a single step the invariant file already isolates
-   ([uf_find_content_acc] for a read, [uf_cas_set_fupd] for [update]'s
-   CAS). Note where that step is NOT: neither linearizes at the [findc]
-   call it opens with. They call it as observers ([find_observe_spec]),
-   which yields the two facts they need about the vertex they got back
-   ([in_uf] and [same_class]); their own hook is spent later.
+   It linearizes at a single step the invariant file already isolates
+   ([uf_find_content_acc], a read). Note where that step is NOT: not at
+   the [findc] call it opens with. Like [get], [set], [update] and
+   [union] it calls that as an observer ([find_observe_spec]), which
+   yields the two facts it needs about the vertex it got back ([in_uf]
+   and [same_class]).
 
-   [update] is [set] with the new value computed from the old one, so its
-   proof is [set_proof]'s with one more read (the payload of the [Root] it
-   is about to replace, exactly as in [get]) and one call to [f] in
-   between; [eq] is two observer traversals and a physical equality test,
-   whose linearization point is the second traversal's.
+   [eq] is two observer traversals and a physical equality test, whose
+   linearization point is the second traversal's — and see
+   [[cuf-eq-false-case]]: only the sound half is provable through this
+   API, which is a design decision, argued below, rather than unfinished
+   work.
 
-   Read the bodies below for their imp-level structure, not for their
-   ghost steps: those are several refactors out of date (the abstract
-   graph is gone, [reaches] is now [same_class], and the content registry
-   has been replaced by persistent [Root] payloads plus [linked]).
-   Concretely, every [content_own]/[cinfo]/[↪[γl]□ CRoot _] below has no
-   counterpart any more — a value read is now justified by [root_val]'s
-   persistent points-to, and values are reported through [V] instead of
-   through registration receipts. *)
+   Read the body below for its EWP-level structure, not for its ghost
+   steps: those are several refactors out of date (the abstract graph is
+   gone, [reaches] is now [same_class], and the content registry has been
+   replaced by persistent [Root] payloads plus [linked]). Concretely,
+   every [content_own]/[cinfo]/[↪[γl]□ CRoot _] below has no counterpart
+   any more — a value read is now justified by [root_val]'s persistent
+   points-to, and values are reported through [V] instead of through
+   registration receipts. *)
 (* ======================================================================== *)
 
 (*
-(* ------------------------------------------------------------------------ *)
-(* Verification of [update]. *)
-
-(* [update x f] reads the root's current value [v] and CASes in
-   [Root {value = f v}], retrying on failure.
-
-   The caller describes [f] by an arbitrary relation [Φf] as an [iSpec]
-   (which has to be persistent for the sake of re-tries).
-
-   [update]'s specification is then the successful attempt's
-   linearization snapshot: some vertex [z] reachable from [x] had its
-   root swung from a record [rc] registered with value [v] to a fresh
-   record [rc'] registered with value [w] such that [Φf v w]. *)
-
-Definition update_post (γl γe : gname) (Φf : val → val → iProp Σ) (x : elem)
-    (_ : unit) : iProp Σ :=
-  ∃ z (rc rc' : elem) (v w : val),
-    same_class γ x z ∗
-    CtRoot rc ↪[γl]□ CRoot v ∗
-    CtRoot rc' ↪[γl]□ CRoot w ∗
-    Φf v w.
-
-Definition update_spec (γ γl γn γe : gname) (x : elem) (f : val) (m : microvx) : iProp Σ :=
-  ∀ (Φf : val → val → iProp Σ),
-    □ iSpec τ[val] f (λ v m', imp m' {{ λ w, Φf v w }}) -∗
-    ∀ i,
-      is_uf γ γl γn γe -∗
-      vertex γ x i -∗
-      imp m {{ update_post γl γe Φf x }}.
-
-(* The retry sites' chaining step, as in [union_post_extend]. Composing
-   the two reachability facts is a ghost step, so this is a fancy update
-   rather than a plain entailment. *)
-
-Lemma update_post_extend γ γl γn γe Φf (x z : elem) u :
-  is_uf γ γl γn γe -∗
-  same_class γ x z -∗
-  update_post γl γe Φf z u ={⊤}=∗ update_post γl γe Φf x u.
-Proof.
-  iIntros "#Hinv #Hsz (%z' & %rc & %rc' & %v & %w & #Hz' & Hrc & Hrc' & HΦ)".
-  iMod (reaches_trans with "Hinv Hsz Hz'") as "#Hxz'".
-  iModIntro. iExists z', rc, rc', v, w. by iFrame.
-Qed.
-
-
-Lemma update_proof γ γl γn γe η :
-  ▷ in_env "update" (λ update, □ iSpec τ[elem; val] update (update_spec γ γl γn γe)) η -∗
-  ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (findc_spec γ γl γn γe)) η -∗
-  in_env "cas"
-    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EAnonFun __update_fun))))
-    {{ λ c, □ iSpec τ[elem; val] c (update_spec γ γl γn γe) }}.
-Proof.
-  iIntros "#IUpdate #IFindc #Hcas".
-  iApply imp_EAnon_pers.
-  iIntros "!> /=".
-  iIntros (x f).
-  unfold update_spec.
-  iIntros (Φf) "#Hf".
-  iIntros (i) "#Hinv #Hx".
-  iApply imp_please; iNext.
-
-  (* [let z = findc x in ...]: chase [x] to a root [z], reachable from
-     [x] — this attempt's chain. *)
-  iApply (imp_ELet_var (B:=elem)).
-  { imp_app τ[elem].
-    iIntros "Hm".
-    unfold findc_spec.
-    iApply ("Hm" $! i with "Hinv Hx"). }
-  iIntros (z) "(%j & #Hz & %Hj & #Hsz)".
-
-  (* [let cx = z.content in ...]: read [z]'s content cell through
-     [read_vertex]. The snapshot includes the record's field location,
-     which the [Root] branch immediately re-reads. *)
-  iApply (imp_ELet_var (B:=content) (λ c : content, content_info γ z c j)%I).
-  { iApply (read_vertex with "Hinv Hz"). imp_path. }
-  iIntros (cx) "#Hcx".
-
-  (* Re-match on the already-loaded [cx]: a plain path lookup, closed
-     automatically by [imp_match]'s own scrutinee handling. *)
-  imp_match content with "[]".
-  destruct cx as [rc|rc]; simpl.
-
-  { (* [Root { value = v } -> if cas z.content cx (Root {value = f v})
-       then () else update x f]. *)
-    iDestruct "Hcx" as "(#HrcP & (%lv & #Hrclocs) & (%v & #Hrc))".
-    rewrite {2}(@encode_encode' content).
-    next_branch.
-    rewrite -encode_encode'.
-
-    (* Read the root's current value — pinned to [v] by the
-       registration. This borrows only [rc]'s own content. *)
-    iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lv] with "Hrclocs []"); first done.
-    iNext.
-    iApply (uf_root_value_acc with "Hinv Hrc Hrclocs").
-    iNext.
-
-    iApply (imp_EIfThenElse _ _ _ _
-              (λ b : bool, if b then update_post γl γe Φf x () else True)%I).
-
-    { (* The CAS. Unlike [set]'s, the "new value" argument is built here:
-         a freshly allocated [Root { value = f v }] record, whose
-         ownership this attempt consumes (each retry allocates its own),
-         together with [Φf v w] from this attempt's [f v] call. *)
-      imp_app τ[loc;content;content].
-      { iApply (vertex_content_ptr with "Hz"). imp_path. }
-      { (* Allocate [Root { value = f v }], already typed as a [content],
-           calling [f] through its [iSpec]. *)
-        set_postcondition
-          (λ c : content, ∃ (rc' : elem) (w : val),
-             ⌜c = CtRoot rc'⌝ ∗ content_init γ γl c (CRoot w) ∗ Φf v w)%I.
-        imp_record $! root_fields.
-        { imp_app τ[val].
-          iIntros "Hm".
-          iApply "Hm". }
-        iIntros (c) "(%r & -> & %xs & Hown & HΦf)".
-        iExists r, xs. iSplit; first done. iFrame "HΦf". iApply "Hown". }
-      iIntros "Hptr (%rc' & %w & -> & Hco' & HΦf) Hm".
-      iApply ("Hm" $! (⊤ ∖ ↑ufN)).
-      iNext.
-      iApply (uf_cas_fupd
-                (λ b, if b then update_post γl γe Φf x () else True)%I
-                with "Hinv [] Hptr Hrc HrcP Hco' [HΦf]").
-      { discriminate. }
-      { iApply (vertex_frag with "Hz"). }
-      { (* On success both receipts are in hand: the absorbed root's
-           [Hrc] and the fresh record's registration. *)
-        iNext. iIntros ([|]) "Hfrag"; last done.
-        iExists z, rc, rc', v, w.
-        by iFrame "Hrc Hfrag HΦf Hsz". } }
-
-    (* Both branches: on success the CAS's snapshot is the result; on
-       failure [update] retries from [z], prepending this attempt's
-       own chain. *)
-    iIntros ([|]) "HΦb".
-    { iApply imp_EUnit. iExact "HΦb". }
-    imp_app τ[elem; val].
-    iIntros "Hm3".
-    unfold update_spec.
-    iSpecialize ("Hm3" $! Φf with "Hf Hinv Hz").
-    iApply imp_fupd.
-    iApply (imp_wand with "Hm3").
-    iIntros (u) "Hpost".
-    iApply (update_post_extend with "Hinv Hsz Hpost"). }
-
-  (* [Link _ -> update x f]: [z] is no longer a root — restart from [z]. *)
-  rewrite (@encode_encode' content).
-  next_branch.
-  next_branch.
-  imp_app τ[elem; val].
-  iIntros "Hm3".
-  unfold update_spec.
-  iSpecialize ("Hm3" $! Φf with "Hf Hinv Hz").
-  iApply imp_fupd.
-  iApply (imp_wand with "Hm3").
-  iIntros (u) "Hpost".
-  iApply (update_post_extend with "Hinv Hsz Hpost").
-Qed.
-
 (* ------------------------------------------------------------------------ *)
 (* Verification of [eq]. *)
 
