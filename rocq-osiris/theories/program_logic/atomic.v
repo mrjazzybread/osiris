@@ -318,6 +318,29 @@ Section lemmas.
     rewrite ->!tele_app_bind. iApply "HΦ". done.
   Qed.
 
+  (** An atomic update may be weakened in its continuation. Iris seals
+      [atomic_update] and keeps its introduction rule local, so this goes
+      through [iAuIntro] rather than through the fixpoint directly: reintroduce
+      the update with the old one as the coinductive invariant, unfold that one
+      into an accessor ([aupd_aacc]), and weaken the accessor
+      ([atomic_acc_wand]).
+
+      The wand must be persistent: an atomic update may be accessed any number
+      of times before it commits, and each access needs it again.
+
+      This is what lets an intermediate caller hand its client's update to a
+      callee whose private postcondition it wants to keep — see [findc] in
+      examples/proofs/UnionFind. *)
+  Lemma atomic_update_mono Eo Ei α β (Φ1 Φ2 : TA → TB → iProp) :
+    □ (∀.. x y, Φ1 x y -∗ Φ2 x y) -∗
+    atomic_update Eo Ei α β Φ1 -∗
+    atomic_update Eo Ei α β Φ2.
+  Proof.
+    iIntros "#HΦ HAU". iAuIntro.
+    iApply (atomic_acc_wand with "[] [HAU]"); last by iApply aupd_aacc.
+    iSplit; [by iIntros "$" | iApply "HΦ"].
+  Qed.
+
   Lemma atomic_ewp_mask_weaken {X} (e : micro V X) E1 E2 α β POST f :
     E1 ⊆ E2 → atomic_ewp e E1 α β POST f -∗ atomic_ewp e E2 α β POST f.
   Proof.

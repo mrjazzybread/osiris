@@ -45,12 +45,8 @@ Implicit Types V : elem -> val.      (* data stored at the roots *)
 
 (* -------------------------------------------------------------------------- *)
 
-(* [fcupdate f P b] coincides with [f] everywhere, except that it maps every
-   point satisfying the (decidable) predicate [P] to [b]. *)
-
-Definition fcupdate {A B : Type} (f : A -> B) (P : A -> Prop)
-    `{!forall a, Decision (P a)} (b : B) : A -> B :=
-  fun a => if decide (P a) then b else f a.
+(* [fcupdate], [update_class] and its algebra live in
+   UnionFind00Update.v, shared with the concurrent development. *)
 
 (* The predicate [Inv ...] relates the mathematical graph encoded by [D/F] and
    the view that is exposed to the client, which is encoded by [D/R/V].
@@ -194,73 +190,9 @@ Definition UF D R V : iProp Σ :=
    these functions, we must update it not just at one point, but at a whole
    equivalence class. *)
 
-(* The function [update1 R f x b] coincides with the function [f] everywhere,
-   except on the equivalence class of [x], whose elements are mapped to [b]. *)
-
-Definition update_class {B : Type} R x (f : elem -> B) (b : B) :=
-  fcupdate f (fun z => R z = R x) b.
-
-Local Notation "f .[ x -/ R /> b ]" :=
-    (update_class R x f b)
-      (at level 2, left associativity, format "f .[ x  -/ R />  b ]").
-
-Lemma lookup_update_class :
-  ∀ (B : Type) f x R (b : B),
-  f.[ x -/R/> b ] x = b.
-Proof.
-  intros.
-  unfold update_class, fcupdate.
-  rewrite decide_True; reflexivity.
-Qed.
-
-Lemma lookup_update_class_ne :
-  ∀ (B : Type) (f : elem → B) R x b a,
-  R a ≠ R x ->
-  f.[x -/R/> b] a = f a.
-Proof.
-  intros.
-  unfold update_class, fcupdate.
-  rewrite decide_False; [ reflexivity | assumption ].
-Qed.
-
-Lemma update_class_root `{@Idempotent elem R} {B : Type} (f : elem → B) x b :
-  f.[R x -/R/> b] = f.[x -/R/> b].
-Proof.
-  unfold update_class, fcupdate.
-  extensionality a.
-  rewrite idempotent.
-  case_decide; reflexivity.
-Qed.
-
-Lemma lookup_class_root `{@Idempotent elem R} {B : Type} (f : elem → B) r x b :
-  f x = f (R x) →
-  f.[r -/R/> b] x = f.[r -/R/> b] (R x).
-Proof.
-  intros Hequiv.
-  unfold update_class, fcupdate.
-  rewrite idempotent.
-  case_decide; first reflexivity.
-  apply Hequiv.
-Qed.
-
-(* We can reorder updates if they are to the same value [b]. *)
-
-Lemma update_classes_comm {B : Type} (f : elem → B) R x y b :
-  f.[x -/R/> b].[y -/R/> b] = f.[y -/R/> b].[x -/R/> b].
-Proof.
-  unfold update_class, fcupdate.
-  extensionality a.
-  case_decide; case_decide; tauto.
-Qed.
-
-(* Updating [x]'s class to [R x]/[V (R x)] is a no-op on [R]/[V]. *)
-
-Lemma update_class_R_diag R x :
-  R.[ x -/R/> (R x)] = R.
-Proof.
-  unfold update_class, fcupdate.
-  extensionality a. case_decide; eauto.
-Qed.
+(* Updating [x]'s class to [V (R x)] is a no-op on [V]. (The [R]
+   counterpart, [update_class_R_diag], is in UnionFind00Update.v; this one
+   stays here because it reads the invariant.) *)
 
 Lemma update_class_V_diag D F R V x :
   Inv D F R V →
@@ -910,14 +842,21 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* The body of [find], specified against [find_spec'], assuming that the
+   name "find" is bound in [η] to a value already satisfying [find_spec'].
+   This is stated as a [predicate_over_function_body] — the premise shape
+   demanded both by [imp_EAnon_pers] and by the [ILetRec] Löb rule
+   [imp_sitems_letrec_iSpec], which is what ties the knot below. *)
+
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
-  imp (eval η (EAnonFun (AnonFun "x" (EMatch (ELoad (EPath ["x"])) __find_branches))))
-    {{ λ c, □ iSpec τ[elem] c find_spec' }}.
+  (* [fun_spec.] disambiguates the program-logic (iProp-valued) predicate
+     from its pure-logic (Prop-valued) namesake. *)
+  fun_spec.predicate_over_function_body τ[elem] find_spec' η
+      (EAnonFun (AnonFun "x" (EMatch (ELoad (EPath ["x"])) __find_branches))).
 Proof.
   iIntros "#IH".
-  iApply imp_EAnon_pers.
-  iIntros "!>" (e).
+  iIntros (e).
   unfold find_spec' at 2.
   iIntros (d D R F F' M V HInv HMem Hin Hbw_ipc) "HM".
   iApply imp_please; iNext.
@@ -1038,6 +977,66 @@ Proof.
   split; eauto.
   eapply is_dsf_bw_ipc; eauto.
   eapply bw_ipc_preserves_RF_agreement; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Verification of [is_representative]. *)
+
+(* [is_representative x] reads [x]'s content cell and reports whether it is a
+   [Root]. Being a root is exactly being one's own representative, so the
+   answer is [bool_decide (R x = x)]. No call to [find] is involved, and the
+   data structure is left untouched. *)
+
+Definition is_representative_spec (e : elem) (m : microvx) : iProp Σ :=
+  ∀ D R V,
+    ⌜e ∈ D⌝ -∗
+    UF D R V -∗
+    imp m {{ λ (b : bool), ⌜b = bool_decide (R e = e)⌝ ∗ UF D R V }}.
+
+Lemma is_representative_proof η :
+  ⊢ imp (eval η (EAnonFun __is_representative))
+      {{ λ c, □ iSpec τ[elem] c is_representative_spec }}.
+Proof.
+  iApply imp_EAnon_pers.
+  iIntros "!>" (e).
+  iIntros (D R V) "%Hin HUF".
+  iDestruct "HUF" as (F M) "(%HInv & %HMem & HM)".
+  iApply imp_please; iNext.
+  destruct (M !! e) as [[re lc]|] eqn:Heq;
+    pose proof (proj2 HMem e) as Hlc; rewrite Heq in Hlc;
+    [|destruct (Mem_not_elem_of_dom _ _ _ _ _ HMem Heq Hin)].
+  iDestruct (pointsto_M_acc_same _ _ _ _ Heq with "HM") as "(Hv & Hback)".
+
+  (* Goal: [ match !x with ... ] *)
+  imp_match val with "[Hv]".
+  { iApply (imp_vertex_load with "Hv"). imp_path. }
+  iIntros "[-> Hv]".
+  destruct lc as [v|y]; simpl.
+
+  { (* [Root _ -> true]: a root is its own representative. *)
+    next_branch.
+    iApply (imp_wand _ _ _ _ (λ b : bool, ⌜b = true⌝)%I with "[]").
+    { imp_step. }
+    iIntros (b) "->".
+    iSplitR.
+    { iPureIntro. symmetry. apply bool_decide_eq_true_2.
+      destruct Hlc as [Hroot _]. eapply is_root_R_self; eauto. }
+    iExists F, M. iFrame "%". iApply ("Hback" with "Hv"). }
+
+  { (* [Link _ -> false]: [e] has a parent, so it is not a root, and
+       [R e = e] would make it one. *)
+    next_branch.
+    next_branch.
+    iApply (imp_wand _ _ _ _ (λ b : bool, ⌜b = false⌝)%I with "[]").
+    { imp_step. }
+    iIntros (b) "->".
+    iSplitR.
+    { iPureIntro. symmetry. apply bool_decide_eq_false_2.
+      intros HRe.
+      assert (Hroot : Root F e) by (eapply R_self_is_root; eauto).
+      eapply Hroot; eauto. }
+    iExists F, M. iFrame "%". iApply ("Hback" with "Hv"). }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1304,6 +1303,128 @@ Proof.
       by rewrite idempotent. by rewrite idempotent.
       rewrite !update_class_root; eauto.
       erewrite update_class_V_diag; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Module-level specification. *)
+
+(* [__main] is the whole [UnionFindBasic] structure. Walking down its items
+   with the [imp_sitems_*] rules turns the per-function lemmas above into a
+   single statement about the module: evaluating it produces an environment
+   in which every exported name is bound to a value satisfying its
+   specification.
+
+   The [let rec find] item is where [imp_sitems_letrec_iSpec] earns its keep.
+   The plain [imp_sitems_letrec] rule would ask us to establish [find]'s
+   specification for the recursive closure out of thin air; the Löb variant
+   instead hands [find_spec_inductive] the very hypothesis it needs — that
+   the closure being defined already satisfies [find_spec']. *)
+
+(* [eq] and [merge] are evaluated and bound, but are given no specification
+   here — they still have to be walked over, since the items after them
+   extend the same environment.
+
+   [merge] takes a user function as an argument and has no proof yet.
+   [eq]'s body is [x == y || find x == find y]: the two [find] calls sit on
+   either side of a [==], which [eval] compiles to an *unordered* [par], and
+   the only [par] rules available in the impure logic ([imp_bind_par],
+   [imp_bind_par_frac]) split the resources between the two operands. An
+   exclusive [UF D R V] cannot be split that way, so specifying [eq] first
+   needs a sequential (or both-orders) rule for [par] in the program logic,
+   analogous to [pure_par_seq] in the pure logic. *)
+
+Definition UnionFind_names : gset var :=
+  {["make"; "find"; "is_representative"; "eq"; "get"; "set"; "union"; "merge"]}.
+
+(* Resolve the name "find" in the current environment, which binds it under
+   an arbitrary number of later (differently named) bindings. This is the
+   [in_env] premise that [get_proof], [set_proof] and [union_proof] expect,
+   and it is what [imp_path] consumes at the recursive call sites. *)
+
+Local Ltac find_in_env :=
+  repeat (iApply (in_env_cons (Φ := λ c : val, (□ iSpec τ[elem] c find_spec)%I));
+          [reflexivity|]);
+  iApply (in_env_here (Φ := λ c : val, (□ iSpec τ[elem] c find_spec)%I) with "Hfind");
+  reflexivity.
+
+Theorem UnionFind_module_proof η :
+  ⊢ imp (eval_mexpr η __main)
+    {{ context [
+         var_spec "make"  (λ make,  □ iSpec τ[val] make make_spec);
+         var_spec "find"  (λ find,  □ iSpec τ[elem] find find_spec);
+         var_spec "is_representative"
+                          (λ isrep, □ iSpec τ[elem] isrep is_representative_spec);
+         var_spec "get"   (λ get,   □ iSpec τ[elem] get get_spec);
+         var_spec "set"   (λ set,   □ iSpec τ[elem; val] set set_spec);
+         var_spec "union" (λ union, □ iSpec τ[elem; elem] union union_spec)
+       ] UnionFind_names }}.
+Proof.
+  iApply imp_module.
+
+  (* [let make v = ref (Root { rank = 0; value = v })] *)
+  iApply (imp_sitems_let (λ make : val, □ iSpec τ[val] make make_spec)%I).
+  { iApply imp_make. }
+  iIntros (make) "#Hmake".
+
+  (* [let rec find x = ...]: the Löb induction happens inside
+     [imp_sitems_letrec_iSpec]; all we owe is the body, under the assumption
+     that "find" is bound (one step later) to a value satisfying
+     [find_spec']. *)
+  iApply (imp_sitems_letrec_iSpec τ[elem] find_spec').
+  { iIntros "!> #IH".
+    iApply find_spec_inductive.
+    iNext.
+    iApply (in_env_here (Φ := λ c : val, (□ iSpec τ[elem] c find_spec')%I) with "IH").
+    reflexivity. }
+  iIntros (find) "#Hfind'".
+
+  (* Weaken [find]'s inductive specification to its user-facing one. *)
+  iAssert (□ iSpec τ[elem] find find_spec)%I as "#Hfind".
+  { iModIntro. iApply (find_proof with "Hfind'"). }
+
+  (* [let is_representative x = ...] *)
+  iApply (imp_sitems_let
+            (λ isrep : val, □ iSpec τ[elem] isrep is_representative_spec)%I).
+  { iApply is_representative_proof. }
+  iIntros (is_representative) "#Hisrep".
+
+  (* [let eq x y = ...]: unverified, evaluated for its binding only. *)
+  iApply (imp_sitems_let (λ _ : val, True)%I).
+  { iApply imp_wand; [ iApply imp_EAnon_literal | auto ]. }
+  iIntros (eq) "_".
+
+  (* [let get x = ...] *)
+  iApply (imp_sitems_let (λ get : val, □ iSpec τ[elem] get get_spec)%I).
+  { iApply get_proof. find_in_env. }
+  iIntros (get) "#Hget".
+
+  (* [let set x v = ...] *)
+  iApply (imp_sitems_let (λ set : val, □ iSpec τ[elem; val] set set_spec)%I).
+  { iApply set_proof. find_in_env. }
+  iIntros (set) "#Hset".
+
+  (* [let union x y = ...] *)
+  iApply (imp_sitems_let (λ union : val, □ iSpec τ[elem; elem] union union_spec)%I).
+  { iApply union_proof. find_in_env. }
+  iIntros (union) "#Hunion".
+
+  (* [let merge f x y = ...]: likewise unverified. *)
+  iApply (imp_sitems_let (λ _ : val, True)%I).
+  { iApply imp_wand; [ iApply imp_EAnon_literal | auto ]. }
+  iIntros (merge) "_".
+
+  (* Conclude: read every exported specification back out of the
+     environment that the structure has built. *)
+  iApply imp_sitems_nil.
+  rewrite /context /UnionFind_names /=.
+  iSplit.
+  { iPureIntro. rewrite /dom /dom_env /=. set_solver. }
+  (* [vm_compute] resolves both the [lookup_name] chain and the (identity)
+     encoding of a [val]. *)
+  repeat iSplit; try done;
+    iExists _; (iSplit; [ iPureIntro; vm_compute; reflexivity | ]);
+    iModIntro; iFrame "#".
 Qed.
 
 End UnionFind.

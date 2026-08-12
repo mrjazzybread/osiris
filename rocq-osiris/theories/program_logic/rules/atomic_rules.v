@@ -302,11 +302,11 @@ Section imp_atomic_rules.
      governed by an invariant) is read by a pattern. Nothing is asked of
      the record's other fields: they are not read. *)
   Lemma ipat_PRecord_atomic (E2 E1 : coPset) η δ x (f : field) (r : record)
-      (ls : list loc) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+      (ls : list loc) (dq : dfrac) (Φ : env → iProp Σ) (ψ : iProp Σ) :
     valid f ls →
     ▷ isBlockLocs r ls -∗
-    ▷ (|={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦ v ∗
-         ▷ ((ls !!! f) ↦ v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
+    ▷ (|={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦{dq} v ∗
+         ▷ ((ls !!! f) ↦{dq} v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
     ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
   Proof.
     iIntros (Hvalid) "#Hlocs Hload".
@@ -328,6 +328,26 @@ Section imp_atomic_rules.
     iModIntro. iIntros "!> Hl".
     iApply imp_ret; first done.
     iApply ("Hload" with "Hl").
+  Qed.
+
+  (* The same single-field pattern read, when the field is not racy but
+     immutable: its points-to is held by the caller at some fraction —
+     [DfracDiscarded] for a field whose fraction has been discarded once
+     and for all — so there is no invariant to open and no atomicity
+     obligation to discharge. This is the pattern-level counterpart of
+     [imp_ERecordAccess_pers]. *)
+  Lemma ipat_PRecord_pers (E1 : coPset) η δ x (f : field) (r : record)
+      (ls : list loc) (dq : dfrac) (v : val) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    ▷ (ls !!! f) ↦{dq} v -∗
+    ▷ ((ls !!! f) ↦{dq} v -∗ Φ ((x, v) :: δ)) -∗
+    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
+  Proof.
+    iIntros (Hvalid) "#Hlocs Hl HΦ".
+    iApply (ipat_PRecord_atomic E1 E1 with "Hlocs [Hl HΦ]"); first done.
+    iNext. iModIntro. iExists v. iFrame "Hl".
+    iIntros "!> Hl". iModIntro. by iApply "HΦ".
   Qed.
 
 End imp_atomic_rules.

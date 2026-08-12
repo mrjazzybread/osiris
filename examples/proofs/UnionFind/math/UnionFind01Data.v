@@ -1,6 +1,8 @@
 From osiris Require Import osiris.
 From stdpp Require Import relations propset.
 
+Require Export UnionFind00Update.
+
 (* Definition of disjoint set forests. *)
 
 Section DisjointSetForest.
@@ -755,8 +757,9 @@ Class rel_incl  (f : V -> V) (Rel : relation V) :=
 Definition rel_in_fun (Rel : relation V) (f : V -> V) :=
   forall x y, Rel x y -> f x = y.
 
-Class Idempotent (f : V → V) :=
-  { idempotent : ∀ x, f (f x) = f x }.
+(* [Idempotent] lives in UnionFind00Update.v, next to the class-update
+   algebra that rests on it, so that the concurrent development can use it
+   without the disjoint-set-forest layer. *)
 
 (* The function [R] and the relation [is_repr] coincide. *)
 

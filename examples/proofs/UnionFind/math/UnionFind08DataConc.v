@@ -1,39 +1,59 @@
 From osiris Require Import osiris.
 
+Require Export UnionFind00Update.
+
 Notation elem := record.
 
-(* The static description of a content record; see below. The value
-   carried by [CRoot] is the record's payload at allocation time — since a
-   [Root] record's [value] field is never actually written again (see the
-   comment above [content_own]), this value is permanent, and recording it
-   in [cinfo] itself (rather than as a separate, ephemeral existential in
-   [content_own]) is what lets [union]'s functional spec relate its
-   returned [Some r] to a genuine, persistent fact (the discardable
-   fragment [CtRoot rc ↪[γc]□ CRoot r]) instead of an unconstrained
-   existential.
+(* ------------------------------------------------------------------------ *)
+(* The ghost names of one union-find structure. *)
 
-   [CLink] additionally records the *holder* [h]: the (unique) vertex
-   whose content cell the link value was installed into. A link value is
-   born in exactly one vertex's cell — [union]'s CAS — and is never
-   moved to another (every CAS in the code swings a [Root] value out,
-   never a [Link] in elsewhere), so the holder is as permanent as the
-   bound and can live in the registration. It is what lets a reader of
-   [x]'s content cell recognize, from the persistent fragment alone,
-   that the link it loaded describes [x] itself — the key to [find]'s
-   same-class postcondition. *)
+(* Five pieces of ghost state, bundled so that every predicate and every
+   specification in the development takes ONE [γ]. They are:
 
-Inductive cinfo :=
-| CRoot (v : val)
-| CLink (b : Z) (h : elem).
+   - [uf_vert]: [ghost_map elem Z], the vertices with their identifiers.
+     Its fragments are persistent, and they are the membership tokens
+     ([vertex], [in_uf]) every accessor uses to pull a vertex out of the
+     invariant's big [∗ map].
+   - [uf_link]: [ghost_map elem (option record)], a one-shot per vertex —
+     [None] exclusively while the vertex is a root, [Some rc] persistently
+     once it has been linked away ([linked]).
+   - [uf_ids]: [ghost_map Z unit], one exclusive token per identifier in
+     use, which is what makes identifiers injective ([id_tokens]).
+   - [uf_class]: [auth (gset (elem * elem))], the pairs ever recorded as
+     equivalent ([same_class]).
+   - [uf_abs]: [ghost_var uf_state], the abstract state, of which the
+     client holds one half ([UF]) and the invariant the other. *)
 
-Instance inhabited_cinfo : Inhabited cinfo.
-Proof. exact (populate (CLink 0%Z inhabitant)). Qed.
+Record uf_names : Type := UfNames {
+  uf_vert : gname;
+  uf_link : gname;
+  uf_ids : gname;
+  uf_class : gname;
+  uf_abs : gname;
+}.
+
+(* There used to be a [cinfo] here: a static description of each content
+   record — the payload of a [Root], the bound and holder of a [Link] —
+   kept in a registry mapping every content value ever installed to its
+   description, so that a reader of a content cell could still say, much
+   later, what the value it loaded was.
+
+   Both halves of that are now had for less. A [Root] record's [value]
+   field is never written after allocation (that is what its [mutable]
+   annotation is for: forcing heap allocation, so that the physical
+   equality test in [cas] is a pointer comparison), so the invariant
+   hands out a *persistent* points-to for it and a reader needs no ghost
+   state at all. A [Link] record is born in one vertex's cell and stays
+   there forever — every CAS in the code swings a [Root] value out, never
+   a [Link] — so the fact worth making permanent is about that vertex,
+   not about the record: see [linked] in UnionFind10ReprPred.v. The bound
+   went with it, being always the holder's own identifier. *)
 
 Section content.
 
-  (* [content] is the *key* of the content registry [γc]: the registry
-     maps each content value ever stored in a vertex's content cell to
-     its static description [cinfo]. *)
+  (* [content] is the OCaml type ['a content]: the value a vertex's
+     content cell holds, a tag together with a pointer to the record
+     carrying that constructor's field. *)
 
   Inductive content :=
   | CtRoot (r : record)
@@ -88,7 +108,7 @@ Record root_fields : Type := mkRootFields { root_value : val }.
 
 Record link_fields : Type := mkLinkFields { link_parent : elem }.
 
-Record vertex_fields : Type := mkVertexFields { vertex_id_f : Z; vertex_content_f : val }.
+Record vertex_fields : Type := mkVertexFields { vertex_id_f : Z; vertex_content_f : content }.
 
 Instance root_fields_repr : RecordRepr root_fields τ[val] Mut :=
   { repr_to_types r := r.(root_value);
@@ -100,7 +120,7 @@ Instance link_fields_repr : RecordRepr link_fields τ[elem] Mut :=
     types_to_repr := λ p, {| link_parent := p |};
     repr_id := λ p, eq_refl }.
 
-Instance vertex_fields_repr : RecordRepr vertex_fields τ[Z; val] Mut :=
+Instance vertex_fields_repr : RecordRepr vertex_fields τ[Z; content] Mut :=
   { repr_to_types r := (r.(vertex_id_f), r.(vertex_content_f));
     types_to_repr := λ i c, {| vertex_id_f := i; vertex_content_f := c |};
     repr_id := λ '(i, c), eq_refl }.
