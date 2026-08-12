@@ -1227,6 +1227,212 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
+(* Verification of [update]. *)
+
+(* [update x f] replaces the value of [x]'s class by [f] applied to it.
+
+   Abstractly that is [set]'s transition with the new value computed from
+   the old one, and the code is [set]'s with two differences.
+
+   The [Root] pattern BINDS the payload, so the branch reads it — an
+   ordinary persistent field read, as in [get], since a payload is never
+   written after allocation.
+
+   And the replacement record is allocated inside the CAS's argument
+   rather than by a wrapper. That is the difference that shows in the
+   specification: each attempt allocates its own record AND calls [f]
+   again, so a lost CAS discards both, and the [Φf] finally reported
+   belongs to the attempt that won. [set], whose record is allocated once
+   and handed back by every failed CAS, has nothing analogous.
+
+   [f] is described by an arbitrary relation [Φf] between its argument
+   and its result. Its specification must be persistent, precisely
+   because it is called once per attempt. *)
+
+Definition update_hook (γ : uf_names) (x : elem)
+    (Φf : val → val → iProp Σ) (Ψ : iProp Σ) : iProp Σ :=
+  ∀ D (R : elem → elem) (V : elem → val) (w : val),
+    Φf (V x) w -∗ UF γ D R V ={⊤ ∖ ↑ufN}=∗ UF γ D R V.[x -/R/> w] ∗ Ψ.
+
+(* Re-basing, as in [get] and [set] — with one more equation, because the
+   hook speaks of the OLD value too: [UF_val_congr] is what says the two
+   vertices' classes have the same one. *)
+
+Lemma update_hook_rebase γ x z Φf Ψ :
+  same_class γ x z -∗ update_hook γ x Φf Ψ -∗ update_hook γ z Φf Ψ.
+Proof.
+  iIntros "#Hxz Hhook" (D R V w) "HΦf Hst".
+  iDestruct (UF_same_class_eq with "Hst Hxz") as "[%Heq Hst]".
+  iDestruct (UF_val_congr with "Hst") as %Hcongr.
+  rewrite -(update_class_congr_class R x z V w Heq).
+  iApply ("Hhook" with "[HΦf] Hst").
+  rewrite (Hcongr x z Heq). iExact "HΦf".
+Qed.
+
+Definition update_spec (γ : uf_names) (x : elem) (f : val)
+    (m : microvx) : iProp Σ :=
+  ∀ (Φf : val → val → iProp Σ) (Ψ : iProp Σ),
+    □ iSpec τ[val] f (λ v m', EWP m' {{ (w : val), Φf v w }}) -∗
+    is_uf γ -∗
+    in_uf γ x -∗
+    update_hook γ x Φf Ψ -∗
+    EWP m {{ (_ : unit), Ψ }}.
+
+(* The specification as a client sees it. The witness [w] is existential
+   because it is [f]'s result on a value only known at the linearization
+   point — and [Φf (V x) w] ties the two together against the state at
+   that instant. *)
+
+Lemma update_atomic_spec γ x f m (Φf : val → val → iProp Σ) :
+  update_spec γ x f m -∗
+  □ iSpec τ[val] f (λ v m', EWP m' {{ (w : val), Φf v w }}) -∗
+  is_uf γ -∗
+  in_uf γ x -∗
+  <<{ ∀∀ (D : gset elem) (R : elem → elem) (V : elem → val), UF γ D R V }>>
+    m @ ↑ufN
+  <<{ ∃∃ w : val, Φf (V x) w ∗ UF γ D R V.[x -/R/> w] | RET tt }>>.
+Proof.
+  iIntros "Hspec #Hf #Hinv #Hx" (Φ) "AU".
+  iApply (imp_wand _ _ _ _ (λ _ : unit, Φ tt)%I _ with "[Hspec AU]"); last first.
+  { iIntros ([]) "H". iExact "H". }
+  iApply ("Hspec" $! Φf (Φ tt) with "Hf Hinv Hx [AU]").
+  iIntros (D R V w) "HΦf Hst".
+  iMod "AU" as (D' R' V') "[Hcl [_ Hcommit]]".
+  iDestruct (UF_agree with "Hst Hcl") as %(<- & <- & <-).
+  iDestruct (UF_val_congr with "Hst") as %Hcongr.
+  iMod (UF_update_2 _ _ _ _ D R V.[x -/R/> w] with "Hst Hcl") as "[Hst Hcl]";
+    [done | by apply uf_val_congr_set |].
+  iMod ("Hcommit" $! w with "[$HΦf $Hcl]") as "HΦ".
+  by iFrame "Hst HΦ".
+Qed.
+
+(* Proof outline (compare [set_proof], which this follows step for step):
+   1. [let x = findc x]: an observer call; the hook moves onto the vertex
+      it reached, once ([update_hook_rebase]).
+   2. [let cx = x.content]: an ordinary atomic read, not a linearization
+      point.
+   3. [Root { value = v } -> ...]: the pattern reads the payload, off the
+      persistent points-to that [content_info] hands out.
+   4. [if cas x.content cx (Root { value = f v }) ...]: the CAS's third
+      argument is EVALUATED here — [f v] is called and a fresh record
+      allocated — before [uf_cas_set_fupd] carries the CAS itself. On
+      success the hook is run against the state at that instant, where
+      [V x = v] is exactly what makes the [Φf v w] this attempt computed
+      into the [Φf (V x) w] the hook wants.
+   5. On failure the hook comes back and the call retries; this attempt's
+      record and its [Φf v w] are simply dropped.
+   6. [_ -> update x f]: the cell raced ahead; retry likewise. *)
+
+Lemma update_proof γ η :
+  ▷ in_env "update"
+      (λ update, □ iSpec τ[elem; val] update (update_spec γ)) η -∗
+  ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_observe_spec γ)) η -∗
+  in_env "cas"
+    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
+  EWP (eval η (EAnonFun (AnonFun "x" (EAnonFun __update_fun))))
+    {{ c, □ iSpec τ[elem; val] c (update_spec γ) }}.
+Proof.
+  iIntros "#IUpdate #IFindc #Hcas".
+  iApply imp_EAnon_pers.
+  iIntros "!> /=".
+  iIntros (x f).
+  unfold update_spec.
+  iIntros (Φf Ψ) "#Hf #Hinv #Hx Hhook".
+  iApply imp_please; iNext.
+
+  (* [let x = findc x in ...]: an observer call, as in [get] and [set]. *)
+  iApply (imp_ELet_var (B:=elem)
+    (λ z : elem, in_uf γ z ∗ same_class γ x z)%I with "[]").
+  { imp_app τ[elem].
+    iIntros "Hm".
+    iApply ("Hm" with "Hinv Hx"). }
+  iIntros (z) "[#Hz #Hxz]".
+  iDestruct "Hz" as (j) "#Hzv".
+  iDestruct (update_hook_rebase with "Hxz Hhook") as "Hhook".
+
+  (* [let cx = x.content in ...]: an ordinary read, and not a
+     linearization point. *)
+  iApply (imp_ELet_var (B:=content) (λ c : content, content_info γ z c)%I).
+  { iApply (read_vertex with "Hinv Hzv"). imp_path. }
+  iIntros (cx) "#Hcx".
+
+  imp_match content with "[]".
+  destruct cx as [rc|rc]; simpl.
+
+  { (* [Root { value = v } -> if cas x.content cx (Root {value = f v})
+       then () else update x f]. Unlike [set]'s, this pattern BINDS the
+       payload, so the branch reads it — a persistent field read, opening
+       nothing. *)
+    iDestruct "Hcx" as "(#HrcP & (%v & #Hrv))".
+    rewrite (@encode_encode' content).
+    next_branch.
+    iDestruct "Hrv" as (lv) "(#Hrclocs & _ & #Hlv)".
+    iApply (ipat_PRecord_pers ⊤ _ _ _ 0%Z rc [lv] _ v with "Hrclocs Hlv [Hhook]");
+      first done.
+    iNext. iIntros "_".
+
+    imp_if with "[Hhook]".
+    { set_postcondition
+        (λ res : bool, if res then Ψ else update_hook γ z Φf Ψ)%I.
+      imp_app τ[loc;content;content].
+      { iApply (vertex_content_ptr with "Hzv"). imp_path. }
+      { set_postcondition (λ c : content, ⌜c = CtRoot rc⌝)%I.
+        iApply (imp_EPath (A:=content) (CtRoot rc)); first reflexivity.
+        done. }
+      { (* The CAS's third argument: call [f] and wrap its result in a
+           fresh [Root]. This is where the attempt's [Φf v w] is born. *)
+        set_postcondition
+          (λ c : content, ∃ (rcn : record) (w : val),
+             ⌜c = CtRoot rcn⌝ ∗ rcn ⤇ {| root_value := w |} ∗ Φf v w)%I.
+        imp_record $! root_fields.
+        { set_postcondition (λ w : val, Φf v w)%I.
+          imp_app τ[val].
+          iIntros "Hm". iApply "Hm". }
+        iIntros (c) "(%r' & -> & %xs & Hown & HΦf)".
+        iExists r', xs. iSplit; first done. iFrame "HΦf". iApply "Hown". }
+      iIntros "-> Hptr (%rcn & %w & -> & Hrcn & HΦf) Hm".
+      iApply ("Hm" $! (⊤ ∖ ↑ufN)).
+      iNext.
+      (* The attempt's [Φf v w] rides along with the hook as the CAS's
+         linearization resources: spent together on success, dropped
+         together on failure. *)
+      iApply (uf_cas_set_fupd _ z j _ rc rcn v w
+                (update_hook γ z Φf Ψ ∗ Φf v w)%I Ψ
+                (λ res : bool, if res then Ψ else update_hook γ z Φf Ψ)%I
+                with "Hinv Hzv Hptr [] Hrcn [Hhook HΦf] [] []").
+      { iExists lv. by iFrame "Hrclocs Hlv". }
+      { by iFrame "Hhook HΦf". }
+      { (* The one step [set] does not have: the CAS reports [V z = v]
+           against the state at the linearization point, which is what
+           turns the value this attempt READ into the value the client's
+           hook speaks of. *)
+        iNext. iIntros (D R V) "%Hroot %Hval [Hhook HΦf] Hst".
+        iApply ("Hhook" $! D R V w with "[HΦf] Hst").
+        rewrite Hval. iExact "HΦf". }
+      { iNext. iIntros ([|]) "H";
+          [iExact "H" | by iDestruct "H" as "[[$ _] _]"]. } }
+
+    { (* CAS succeeded: the hook has already produced the postcondition. *)
+      iIntros "HΨ". iApply imp_EUnit. iExact "HΨ". }
+    { (* CAS failed: retry on the vertex [findc] found, with the hook
+         handed back — and already stated at that vertex. *)
+      iIntros "Hhook".
+      imp_app τ[elem; val].
+      iIntros "Hm".
+      iApply ("Hm" $! Φf Ψ with "Hf Hinv [] Hhook").
+      by iExists j. } }
+
+  (* [_ -> update x f]: the cell raced ahead of us; retry likewise. *)
+  rewrite {2}(@encode_encode' content).
+  next_branch.
+  next_branch.
+  imp_app τ[elem; val].
+  iIntros "Hm".
+  iApply ("Hm" $! Φf Ψ with "Hf Hinv [] Hhook").
+  by iExists j.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
 (* Specification of [union]. *)
 
 (* [union x y] merges the two classes and returns the value that was
