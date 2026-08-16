@@ -233,11 +233,72 @@ Proof.
   repeat case_decide; [done | by intros <-%HV | by intros ->%HV | by apply HV].
 Qed.
 
+(* [dethroned γ Rp]: every vertex that is not its own representative has
+   been linked away, and here is the persistent witness.
+
+   This is the bridge from the ABSTRACT state to the link registry, and it
+   is what makes anti-monotone root-ness usable by a client. [cell_own]
+   already correlates a cell's tag with [Rp] — a [Root] cell iff [Rp x = x]
+   — but only INSIDE an invariant open, and a client standing at a
+   linearization point holds [UF], not the invariant. [dethroned] is that
+   correlation in the one direction a client can carry away: from the pure
+   [Rp w ≠ w] it holds, to a [linked] it can transport forward in time.
+
+   Why in [UF] rather than in some operation's postcondition: [Rp] is only
+   named where [UF] is, so this is the only place the fact can be stated,
+   and putting it here means every atomic specification hands it out
+   already — no operation has to be re-specified to expose it.
+
+   [eq]'s [false] case is the consumer. At [findc y]'s linearization point
+   it holds [UF γ D R V] for the state at that instant, and must decide
+   whether the vertex [a] its first traversal reached is still a root. If
+   [R a ≠ a] this yields [linked γ a rc], which — root-ness being
+   anti-monotone ([cell_own_linked]) — settles the LATER [a.content] read
+   as a [Link]. *)
+
+Definition dethroned (γ : uf_names) (Rp : elem → elem) : iProp Σ :=
+  □ (∀ (w : elem) (j : Z), vertex γ w j -∗ ⌜Rp w ≠ w⌝ -∗ ∃ rc, linked γ w rc).
+
+Global Instance dethroned_persistent γ Rp : Persistent (dethroned γ Rp).
+Proof. apply _. Qed.
+
+(* Over the initial state every vertex is its own representative, so there
+   is nothing to witness. *)
+
+Lemma dethroned_id γ : ⊢ dethroned γ (λ x, x).
+Proof. iIntros "!>" (w j) "_ %Hne". done. Qed.
+
+(* The only transition that dethrones anyone: [union] links the root [b]
+   into [c]'s tree. Every other vertex keeps its representative, and [b]'s
+   own witness is the [linked] the linking CAS just minted. *)
+
+Lemma dethroned_link γ R b c rc :
+  R b = b →
+  dethroned γ R -∗ linked γ b rc -∗ dethroned γ R.[b -/R/> R c].
+Proof.
+  iIntros (Hb) "#Hdeth #Hlk".
+  iIntros "!>" (w j) "#Hw %Hne".
+  rewrite /update_class /fcupdate in Hne.
+  case_decide as Hcase.
+  - (* [w] is in [b]'s old class. If it was a root it IS [b]. *)
+    destruct (decide (R w = w)) as [Hrw | Hrw].
+    + rewrite -Hrw Hcase Hb. iExists rc. iExact "Hlk".
+    + iApply ("Hdeth" with "Hw"). iPureIntro. exact Hrw.
+  - iApply ("Hdeth" with "Hw"). iPureIntro. exact Hne.
+Qed.
+
 Definition UF (γ : uf_names) (Dp : gset elem) (Rp : elem → elem)
     (Vp : elem → val) : iProp Σ :=
   ⌜uf_val_congr Rp Vp⌝ ∗
   ghost_var γ.(uf_abs) (1/2) (Dp, Rp, Vp) ∗
+  dethroned γ Rp ∗
   ∃ S, ⌜same_class_sound S Rp⌝ ∗ own γ.(uf_class) (●{#1/2} S).
+
+(* Reading the bridge out of a handle, with no fupd and at any mask —
+   like [UF_same_class_eq], this is a capability the client already has. *)
+
+Lemma UF_dethroned γ Dp Rp Vp : UF γ Dp Rp Vp -∗ dethroned γ Rp.
+Proof. by iIntros "(_ & _ & #$ & _)". Qed.
 
 Global Instance UF_timeless γ Dp Rp Vp : Timeless (UF γ Dp Rp Vp).
 Proof. apply _. Qed.
@@ -257,9 +318,9 @@ Proof. by iIntros "($ & _)". Qed.
 Lemma UF_same_class_eq γ D R V u w :
   UF γ D R V -∗ same_class γ u w -∗ ⌜R u = R w⌝ ∗ UF γ D R V.
 Proof.
-  iIntros "(%Hcongr & Hvar & (%S & %HS & HSauth)) #Hsc".
+  iIntros "(%Hcongr & Hvar & #Hdeth & (%S & %HS & HSauth)) #Hsc".
   iDestruct (same_class_eq with "HSauth Hsc") as %Heq; first exact HS.
-  iFrame "Hvar". iSplitR; first done. iSplitR; first done.
+  iFrame "Hvar Hdeth". iSplitR; first done. iSplitR; first done.
   iExists S. by iFrame "HSauth".
 Qed.
 
@@ -268,20 +329,27 @@ Qed.
    them along, and coarsening [Rp] is exactly what keeps them sound
    ([same_class_sound_coarsen]). *)
 
+(* The transition also has to carry the abstract-to-registry bridge. For
+   every transition but [union]'s link, [R] does not move and the caller
+   passes back the one it already had; [union] rebuilds it with
+   [dethroned_link], out of the [linked] its CAS has just minted. *)
+
 Lemma UF_update_2 γ D R V D' R' V' :
   (∀ u w, R u = R w → R' u = R' w) →
   uf_val_congr R' V' →
+  dethroned γ R' -∗
   UF γ D R V -∗ UF γ D R V ==∗ UF γ D' R' V' ∗ UF γ D' R' V'.
 Proof.
-  iIntros (Hmono Hcongr) "(_ & Hv1 & (%S1 & %HS1 & Ha1))
-                          (_ & Hv2 & (%S2 & %HS2 & Ha2))".
+  iIntros (Hmono Hcongr) "#Hdeth'
+                          (_ & Hv1 & _ & (%S1 & %HS1 & Ha1))
+                          (_ & Hv2 & _ & (%S2 & %HS2 & Ha2))".
   iMod (ghost_var_update_halves (D', R', V') with "Hv1 Hv2") as "[Hv1 Hv2]".
   iCombine "Ha1 Ha2" gives %[_ [->%leibniz_equiv _]]%auth_auth_dfrac_op_valid.
   iModIntro.
   iSplitL "Hv1 Ha1".
-  - iSplitR; first done. iFrame "Hv1". iExists S2. iFrame "Ha1".
+  - iSplitR; first done. iFrame "Hv1 Hdeth'". iExists S2. iFrame "Ha1".
     iPureIntro. by eapply same_class_sound_coarsen.
-  - iSplitR; first done. iFrame "Hv2". iExists S2. iFrame "Ha2".
+  - iSplitR; first done. iFrame "Hv2 Hdeth'". iExists S2. iFrame "Ha2".
     iPureIntro. by eapply same_class_sound_coarsen.
 Qed.
 
@@ -293,7 +361,8 @@ Lemma UF_same_class_update γ D R V u w :
   UF γ D R V -∗ UF γ D R V ==∗
   UF γ D R V ∗ UF γ D R V ∗ same_class γ u w.
 Proof.
-  iIntros (Huw) "($ & $ & (%S1 & %HS1 & Ha1)) ($ & $ & (%S2 & %HS2 & Ha2))".
+  iIntros (Huw) "($ & $ & $ & (%S1 & %HS1 & Ha1))
+                 ($ & $ & $ & (%S2 & %HS2 & Ha2))".
   iCombine "Ha1 Ha2" gives %[_ [->%leibniz_equiv _]]%auth_auth_dfrac_op_valid.
   iCombine "Ha1 Ha2" as "Ha".
   iMod (same_class_update _ _ R u w with "Ha") as (S') "(Ha & #Hsc & %HS' & _)";
@@ -390,11 +459,13 @@ Proof.
   iDestruct "Hγe" as "[Hγe Hγe']".
   iAssert (UF γ ∅ (λ x, x) V0) with "[Hγs Hγe]" as "HUF".
   { iSplitR; first by iPureIntro; intros u w ->.
-    iFrame "Hγs". iExists ∅. iFrame "Hγe".
+    iFrame "Hγs". iSplitR; first iApply dethroned_id.
+    iExists ∅. iFrame "Hγe".
     iPureIntro. intros u w Huw. set_solver. }
   iAssert (UF γ ∅ (λ x, x) V0) with "[Hγs' Hγe']" as "HUF'".
   { iSplitR; first by iPureIntro; intros u w ->.
-    iFrame "Hγs'". iExists ∅. iFrame "Hγe'".
+    iFrame "Hγs'". iSplitR; first iApply dethroned_id.
+    iExists ∅. iFrame "Hγe'".
     iPureIntro. intros u w Huw. set_solver. }
   iMod (inv_alloc ufN _ (uf_inv γ) with "[Hγ Hγl Hγn HUF]") as "#Hinv".
   { iNext. iExists ∅, ∅, ∅, (λ x, x), V0.
@@ -779,6 +850,90 @@ Proof.
   iModIntro. iApply ("HΦ" with "Hinfo").
 Qed.
 
+(* The same read, for a vertex already known to have been linked away.
+   Root-ness is anti-monotone ([cell_own_linked]), so the load cannot
+   report a [Root]: whatever instant it happens at, the answer is the very
+   record [linked] names.
+
+   The equation is what a caller wants: it turns a [linked] observed at
+   SOME EARLIER instant into knowledge about a read that has not happened
+   yet. That is one of the two halves of [eq]'s [false] case — the other
+   is the prophecy, which says which way the read will go when [linked]
+   does NOT hold. *)
+
+Lemma uf_vertex_content_acc_linked γ z j lzi lzc rc (Φ : content → iProp Σ) :
+  is_uf γ -∗
+  z ↪[γ.(uf_vert)]□ j -∗
+  isBlockLocs z [lzi; lzc] -∗
+  linked γ z rc -∗
+  ▷ (∀ c : content, ⌜c = CtLink rc⌝ -∗ content_info γ z c -∗ Φ c) -∗
+  |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
+    ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
+Proof.
+  iIntros "#Hinv #Hzfrag #Hzlocs #Hlk HΦ".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (c D Rp Vp)
+    "(_ & Hcont & Hlc & Hcell & Hframe)".
+  iModIntro. iExists c. iFrame "Hlc".
+  iIntros "!> Hlc".
+  iDestruct (cell_own_linked with "Hlk Hcell") as "(%Hc & Hcell)".
+  iDestruct (cell_own_info with "Hcell") as "(_ & #Hinfo & _ & Hcell)".
+  iMod ("Hclose" with "[Hcont Hlc Hcell Hframe]") as "_".
+  { iNext.
+    iApply (uf_inv_reassemble with "Hcont Hzlocs Hlc Hcell Hframe"). }
+  iModIntro. iApply ("HΦ" with "[//] Hinfo").
+Qed.
+
+(* The same read once more, this time with the [linked] witness held by
+   the caller inside a DISJUNCTION whose right branch the load's own
+   result refutes.
+
+   A caller that observed [z] linked at some earlier instant cannot see a
+   [Root] here; but it may not know which branch it is in, and splitting
+   the case before the read would mean proving the whole continuation
+   twice. So it hands both alternatives over and gets back the same
+   disjunction with the right branch weakened to a PURE fact about the
+   value just loaded.
+
+   This is what keeps [eq]'s [false] case a single proof. Its two reasons
+   for expecting a [Link] — a [linked] minted at [findc y]'s linearization
+   point, and a prophecy predicting the read — are of quite different
+   kinds; this accessor reduces the first to the same pure shape the
+   second already has, and the continuation then handles one disjunction
+   rather than two proofs. *)
+
+Lemma uf_vertex_content_acc_or_linked γ z j lzi lzc (P Q : iProp Σ)
+    (Φ : content → iProp Σ) :
+  is_uf γ -∗
+  z ↪[γ.(uf_vert)]□ j -∗
+  isBlockLocs z [lzi; lzc] -∗
+  (P ∨ (∃ rc, linked γ z rc) ∗ Q) -∗
+  ▷ (∀ c : content, content_info γ z c -∗
+       (P ∨ ⌜content_root c = false⌝ ∗ Q) -∗ Φ c) -∗
+  |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
+    ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
+Proof.
+  iIntros "#Hinv #Hzfrag #Hzlocs HPQ HΦ".
+  iInv "Hinv" as "H" "Hclose".
+  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (c D Rp Vp)
+    "(_ & Hcont & Hlc & Hcell & Hframe)".
+  iModIntro. iExists c. iFrame "Hlc".
+  iIntros "!> Hlc".
+  (* Refute the right branch, if that is the one the caller is in, against
+     the cell the invariant currently holds. *)
+  iAssert (cell_own γ Rp Vp z j c ∗ (P ∨ ⌜content_root c = false⌝ ∗ Q))%I
+    with "[Hcell HPQ]" as "[Hcell HPQ]".
+  { iDestruct "HPQ" as "[HP | [(%rc & #Hlk) HQ]]".
+    - by iFrame "Hcell HP".
+    - iDestruct (cell_own_linked with "Hlk Hcell") as "(%Hc & Hcell)".
+      iFrame "Hcell". iRight. iFrame "HQ". by subst c. }
+  iDestruct (cell_own_info with "Hcell") as "(_ & #Hinfo & _ & Hcell)".
+  iMod ("Hclose" with "[Hcont Hlc Hcell Hframe]") as "_".
+  { iNext.
+    iApply (uf_inv_reassemble with "Hcont Hzlocs Hlc Hcell Hframe"). }
+  iModIntro. iApply ("HΦ" with "Hinfo HPQ").
+Qed.
+
 (* ------------------------------------------------------------------------ *)
 (* The linearization point of [find]. *)
 
@@ -1109,8 +1264,21 @@ Lemma uf_cas_link_fupd γ (a b : elem) ia ib lac
      inside the hook, where the client's atomic update is opened. So this
      is the one place it can be minted, and the transition is exactly what
      mints it: [UF_same_class_update] does both at once. *)
+  (* The hook also receives [dethroned] for the state it is asked to move
+     TO. Moving the abstract state has to re-establish that bridge, and
+     [a] is exactly the vertex this step dethrones: the accessor is the
+     only party holding both the [linked] its registry update just minted
+     and the [dethroned] of the old state, so it is the only one that can
+     build it ([dethroned_link]).
+
+     It is handed over already built, rather than as the [linked] witness,
+     because the hook travels: [union_hook_rebase] re-bases a hook from one
+     pair of vertices onto another, and [R b = b] does NOT survive that
+     — but this proposition does, being invariant under exactly the
+     [update_class_congr_class] rewrites the rebase performs. *)
   ▷ (∀ D (R : elem → elem) (V : elem → val),
        ⌜R a = a⌝ -∗ ⌜R a ≠ R b⌝ -∗ ⌜V a = vexp⌝ -∗
+       dethroned γ R.[a -/R/> R b] -∗
        P -∗ UF γ D R V ={⊤ ∖ ↑ufN}=∗
        UF γ D R.[a -/R/> R b] V.[a -/R/> V b] ∗ same_class γ a b ∗ Ψ) -∗
   ▷ (∀ res : bool,
@@ -1187,19 +1355,23 @@ Proof.
      the same class agree. *)
   assert (HeqV : Vp.[a -/Rp/> Vp b] = Vp.[a -/Rp/> Vp (Rp b)]).
   { by rewrite (HVp b). }
-  iMod ("Hhook" $! D Rp Vp with "[%] [%] [%] HP Hcont")
+  (* [a] is linked from now on: its record is fixed. The registry's domain
+     does not move — [a] was already in it. This happens BEFORE the hook
+     runs, because the hook needs the witness: dethroning [a] is what the
+     transition has to re-establish [dethroned] for. *)
+  iDestruct (ghost_map_lookup with "Hlauth Htokl") as %HLa.
+  iMod (ghost_map_update (Some rcn) with "Hlauth Htokl") as "[Hlauth Htokl]".
+  iMod (ghost_map_elem_persist with "Htokl") as "#Hlk".
+
+  iDestruct (UF_dethroned with "Hcont") as "#Hdeth".
+  iDestruct (dethroned_link _ _ a b rcn Hroot with "Hdeth Hlk")
+    as "#Hdeth'".
+  iMod ("Hhook" $! D Rp Vp with "[%] [%] [%] Hdeth' HP Hcont")
     as "(Hcont & #Hsab & HΨ)".
   { exact Hroot. }
   { rewrite Hroot. by intros ->. }
   { exact Hval. }
   rewrite HeqV.
-
-  (* [a] is linked from now on: its record is fixed. The registry's domain
-     does not move — [a] was already in it — and the class fact came out
-     of the hook, which is the only place it could be minted. *)
-  iDestruct (ghost_map_lookup with "Hlauth Htokl") as %HLa.
-  iMod (ghost_map_update (Some rcn) with "Hlauth Htokl") as "[Hlauth Htokl]".
-  iMod (ghost_map_elem_persist with "Htokl") as "#Hlk".
 
   (* Re-close under the merged state. *)
   iMod ("Hclose" with "[- HΨ HΦ]") as "_".

@@ -425,6 +425,12 @@ let rec expr (e : expr) =
   | EFAA (e1, e2) ->
       c "EFAA" [ expr e1; expr e2 ]
 
+  | ENewProph ->
+      c "ENewProph" []
+
+  | EResolve (e, p, v) ->
+      c "EResolve" [ expr e; expr p; expr v ]
+
   | EIgnore e ->
       c "EIgnore" [ expr e ]
 

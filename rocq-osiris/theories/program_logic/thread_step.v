@@ -25,15 +25,57 @@ Section thread_step.
   Definition th_config A X : Type := store * (micro A X) * (gset thread).
   Definition th_config_step A X : Type := store * (micro A X) * option (thread * microvx).
 
-  Inductive thread_step {A X} : th_config A X -> th_config_step A X -> Prop :=
+  (* [thread_step] is [step] plus the two things [step] cannot express: a
+     fork, which produces a new thread, and a prophecy resolution, which
+     produces an OBSERVATION. The label is what carries the latter.
+
+     Every rule but [ResolveS] emits nothing, so in practice the label is
+     [[]] everywhere except at a resolution — which is exactly what makes
+     the change to the existing rules a matter of threading [[]] through. *)
+
+  Inductive thread_step {A X} :
+    th_config A X -> list observation -> th_config_step A X -> Prop :=
   | BaseS : ∀ (m : micro A X) σ m' σ' π,
       step (σ, m) (σ', m') ->
-      thread_step (σ, m, π) (σ', m', None)
+      thread_step (σ, m, π) [] (σ', m', None)
   | ForkS : ∀ σ ι (π : gset thread) v1 v2 (k : outcome2 val exn -> micro A X),
       ι ∉ π ->
       thread_step
-        (σ, Stop CFork (v1, v2) k, π)
+        (σ, Stop CFork (v1, v2) k, π) []
         (σ, continue k (VThread ι), Some (ι, call v1 v2))
+
+  (* The resolution proper, and the reason this relation is labelled. The
+     premise is a step of the BARE system call [stop c x], whose targets
+     are exactly [Ret _], [Throw _] and [Crash] — three disjoint shapes,
+     so the three rules below never overlap and a resolution can never be
+     silently skipped.
+
+     Note that the call and the resolution happen in ONE step. That is the
+     whole point: an observation emitted one step later could be separated
+     from the call by another thread, and would be worthless as a
+     linearization point. *)
+  | ResolveS : ∀ {Y} σ σ' (c : code Y val exn) x p v w π
+        (k : outcome2 val exn -> micro A X),
+      step (σ, stop c x) (σ', Ret w) ->
+      thread_step
+        (σ, Stop (CResolve c) (x, p, v) k, π) [(p, (w, v))]
+        (σ', continue k w, None)
+
+  (* If the call throws or crashes there is no result to resolve with, and
+     the outcome propagates with no observation. *)
+  | ResolveThrowS : ∀ {Y} σ σ' (c : code Y val exn) x p v e π
+        (k : outcome2 val exn -> micro A X),
+      step (σ, stop c x) (σ', Throw e) ->
+      thread_step
+        (σ, Stop (CResolve c) (x, p, v) k, π) []
+        (σ', discontinue k e, None)
+
+  | ResolveCrashS : ∀ {Y} σ σ' (c : code Y val exn) x p v π
+        (k : outcome2 val exn -> micro A X),
+      step (σ, stop c x) (σ', Crash) ->
+      thread_step
+        (σ, Stop (CResolve c) (x, p, v) k, π) []
+        (σ', Crash, None)
   .
 
   Global Arguments thread_step {A X}.
@@ -48,12 +90,12 @@ Ltac destruct_thread_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
   try lazymatch goal with
-    | h: thread_step (?σ, Stop ?c ?x ?k, ?π) ?m' |- _ =>
+    | h: thread_step (?σ, Stop ?c ?x ?k, ?π) ?κ ?m' |- _ =>
           remember x
-    | h: thread_step (?σ, stop ?c ?x, ?π) ?m' |- _ =>
+    | h: thread_step (?σ, stop ?c ?x, ?π) ?κ ?m' |- _ =>
           remember x
     end;
-  match goal with h: thread_step ?m ?m' |- _ =>
+  match goal with h: thread_step ?m ?κ ?m' |- _ =>
                     dependent destruction h
   end;
   try destruct_step;
@@ -70,14 +112,15 @@ Section can_progress.
   Definition can_progress {A E} σ (π : gset thread) (m : micro A E) :=
     match m with
     | Stop CJoin ι' k => ι' ∈ π
-    | _ => ∃ σ' m' (μ : option (thread * microvx)),
-      thread_step (σ, m, π) (σ', m', μ)
+    | _ => ∃ κ σ' m' (μ : option (thread * microvx)),
+      thread_step (σ, m, π) κ (σ', m', μ)
     end.
 
   Lemma invert_can_progress {A E} σ π m :
     @can_progress A E σ π m ->
     ((∃ ι' k, m = Stop CJoin ι' k ∧ ι' ∈ π) ∨
       (∃ v1 v2 k, m = Stop CFork (v1, v2) k) ∨
+      (∃ Y (c : code Y val exn) y k, m = Stop (CResolve c) y k) ∨
       (can_step (σ, m))).
   Proof.
     intros Hcp.
@@ -87,11 +130,13 @@ Section can_progress.
       (* If that computation is a Stop, destruct the code *)
       try destruct_code;
       (* Generally try to invert Hcp *)
-      try (destruct Hcp as (σ' & m' & μ & Hcp);
+      try (destruct Hcp as (κ & σ' & m' & μ & Hcp);
            dependent destruction Hcp;
            destruct_step; auto with step can_step);
+      (* [Resolve]: one goal per code, all of the same shape. *)
+      try solve [do 2 right; left; repeat eexists];
       (* There remains some cases *)
-      try solve [(do 2 right; auto with step can_step)].
+      try solve [(do 3 right; auto with step can_step)].
 
     (* Only the concurrent [Stop] cases are left. *)
     - right; left. destruct x. repeat eexists.
@@ -108,7 +153,7 @@ Section can_progress.
     intros π ([σ' m'] & Hstep).
     unfold can_progress.
     destruct_step;
-      do 3 eexists;
+      do 4 eexists;
       by (eapply BaseS; eauto with step can_step).
     Unshelve. apply b.
   Qed.
@@ -118,8 +163,35 @@ Section can_progress.
   Proof.
     destruct x.
     unfold can_progress.
-    do 3 eexists. eapply ForkS.
+    do 4 eexists. eapply ForkS.
     apply is_fresh.
+  Qed.
+
+  (* A [Resolve] can progress provided the system call it wraps can step
+     AND that step lands on an outcome — which is what the three [Resolve]
+     rules cover between them.
+
+     The second hypothesis is not a technicality: it is atomicity. A code
+     like [CEval] steps to a whole computation, not to a result, and there
+     is nothing for a resolution to record at such a step. The rule for
+     [Resolve] in the program logic will require the same thing, exactly
+     as HeapLang's [wp_resolve] requires its expression to be atomic. *)
+
+  Lemma can_progress_resolve {A E X} σ π (c : code X val exn) x p v
+    (k : outcome2 val exn -> micro A E) :
+    can_step (σ, stop c x) ->
+    (∀ σ' m', step (σ, stop c x) (σ', m') ->
+       (∃ w, m' = Ret w) ∨ (∃ e, m' = Throw e) ∨ m' = Crash) ->
+    can_progress σ π (Stop (CResolve c) (x, p, v) k).
+  Proof.
+    intros Hcs Hat.
+    unfold can_progress.
+    destruct Hcs as ([σ' m'] & Hstep).
+    (* The shape of the target decides which of the three rules applies. *)
+    destruct (Hat _ _ Hstep) as [(w & ->) | [(e & ->) | ->]].
+    - do 4 eexists. by eapply ResolveS.
+    - do 4 eexists. by eapply ResolveThrowS.
+    - do 4 eexists. by eapply ResolveCrashS.
   Qed.
 
   Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) :
@@ -129,6 +201,46 @@ Section can_progress.
     intros Hπ; simpl.
     unfold can_progress.
     assumption.
+  Qed.
+
+  (* No rule for [Resolve] inspects its continuation, so progress does not
+     depend on it. This is what the congruence rules need: [try2] and the
+     [Par]/[Handle] float-ups all change only the continuation. *)
+
+  Lemma can_progress_resolve_cont {A B E E' X} σ π (c : code X val exn) y
+    (k : outcome2 val exn -> micro A E) (k' : outcome2 val exn -> micro B E') :
+    can_progress σ π (Stop (CResolve c) y k) ->
+    can_progress σ π (Stop (CResolve c) y k').
+  Proof.
+    unfold can_progress.
+    intros (κ & σ' & m' & μ & Hcp).
+    dependent destruction Hcp.
+    - exfalso. eapply (proj2 (stuck_Resolve _ c y k)); exact H.
+    - do 4 eexists. by eapply ResolveS.
+    - do 4 eexists. by eapply ResolveThrowS.
+    - do 4 eexists. by eapply ResolveCrashS.
+  Qed.
+
+  (* [try2] pushes into continuations, and no rule of [thread_step] looks
+     at a continuation, so progress is preserved by it. *)
+
+  Lemma can_progress_try2 {A B E E'} σ π (m : micro A E)
+    (f : outcome2 A E -> micro B E') :
+    can_progress σ π m ->
+    can_progress σ π (try2 m f).
+  Proof.
+    intros Hcp.
+    pose proof Hcp as Hcp'.
+    apply invert_can_progress in Hcp'.
+    destruct Hcp' as [ (ι' & k & -> & Hdom)
+                     | [ (v1 & v2 & k & ->)
+                     | [ (Y & c & y & k & ->) | Hcs ] ] ].
+    - by apply can_progress_join.
+    - apply can_progress_fork.
+    - (* [try2] only changes the continuation. *)
+      simpl try2. cbn match.
+      by eapply can_progress_resolve_cont.
+    - apply can_step_can_progress. by apply can_step_try2.
   Qed.
 
   Lemma inv_can_progress_join {A E} σ (π : post_map Σ) ι' (k : _ -> micro A E) :
@@ -141,11 +253,11 @@ Section can_progress.
     apply Hprog.
   Qed.
 
-  Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) m' μ (l : loc) (o : outcome2 val exn)
+  Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) κ m' μ (l : loc) (o : outcome2 val exn)
     (k : outcome2 val exn → micro A E)
     (sk : outcome2 val exn → microvx) :
     σ !! l = Some (Kont sk) →
-    thread_step (σ, Stop CResume (l, o) k, π) (σ', m', μ) →
+    thread_step (σ, Stop CResume (l, o) k, π) κ (σ', m', μ) →
       σ' = <[l:=Shot]> σ ∧
       m' = try2 (sk o) k ∧
       μ = None.
@@ -161,16 +273,21 @@ Section can_progress.
   (* If [m] takes a [thread_step] to some [m'],
      and [m] can take a sequential step,
      then it took that sequential step which resulted in [m']. *)
-  Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) m' μ σ' :
-    thread_step (σ, m, π) (σ', m', μ) ->
+  (* A computation that can take a sequential step took one, and a
+     sequential step emits nothing: only a [Resolve] does, and a [Resolve]
+     has no sequential step. *)
+  Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) m' μ σ' κ :
+    thread_step (σ, m, π) κ (σ', m', μ) ->
     can_step (σ, m) ->
     step (σ, m) (σ', m') ∧
-      μ = None.
+      μ = None ∧ κ = [].
   Proof.
     intros Hwpstep Hstep.
     dependent destruction Hwpstep;
       try solve [ exfalso; eauto with invert_can_step ].
-    done.
+    { done. }
+    (* The three [Resolve] cases are vacuous: a [Resolve] has no [step]. *)
+    all: exfalso; eauto with invert_can_step.
   Qed.
 
   Local Ltac invert_try2 :=
@@ -178,10 +295,10 @@ Section can_progress.
     | h: step (_, try2 _ _) (_, _) |- _ => apply invert_step_try2 in h as (? & ? & ->)
     end.
 
-  Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) σ' μ :
-    thread_step (σ, (try2 m k), π) (σ', m', μ) ->
+  Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) σ' μ κ :
+    thread_step (σ, (try2 m k), π) κ (σ', m', μ) ->
     can_step (σ, m) ->
-    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, π) (σ', m'', None).
+    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, π) [] (σ', m'', None).
   Proof.
     intros Hwp Hstep.
     dependent destruction Hwp;
@@ -189,6 +306,9 @@ Section can_progress.
     { apply invert_step_try2 in H; last assumption.
       destruct H as (? & Hstep' & ->).
       eexists; split; [ reflexivity | apply BaseS; assumption ]. }
+    (* In the remaining cases — [Fork], [Join] and the three [Resolve]s —
+       [try2] pushes into the continuation, so [m] is itself the offending
+       [Stop], which cannot step, contradicting [can_step (σ, m)]. *)
     all: symmetry in x;
       apply invert_try2_eq_stop in x as (k' & -> & ->);
         try (intros ? ->);
@@ -215,8 +335,8 @@ Section Atomicity.
 
   Class Atomic m : Prop :=
     atomic :
-      ∀ σ π σ' m' μ,
-      thread_step (σ, m, π) (σ', m', μ) →
+      ∀ σ π σ' m' μ κ,
+      thread_step (σ, m, π) κ (σ', m', μ) →
       is_outcome3 m'.
 
 End Atomicity.

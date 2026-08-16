@@ -71,6 +71,7 @@ Section imp_stop.
     iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta & _)".
     iIntros "!> !>". iSpecialize ("H" with "[$Hl $Hmeta]").
     ewp_mask_elim. iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
   Lemma imp_stop_alloc v (k : _ → micro A X) :
     ▷ (∀ (l : loc), l ↦ v -∗
@@ -103,6 +104,7 @@ Section imp_stop.
     { iFrame "Hl". }
     { iFrame "Hfrag". iPureIntro. done. }
     ewp_mask_elim. iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -195,7 +197,9 @@ Section imp_stop.
     { intros; discriminate. }
     rewrite /step_exchange_1 /step_exchange_2 H0.
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
+    iSplitR "Hpi".
+    - iApply ("Hwp" with "Hl").
+    - iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
   (* ------------------------------------------------------------------------ *)
   (* [CSetBlockTag]. *)
@@ -218,8 +222,8 @@ Section imp_stop.
     iMod (osiris_state_set_tag with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_set_tag_1 /step_set_tag_2 H0.
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "[Hl]").
-    iFrame.
+    iDestruct ("Hwp" with "[$]") as "$".
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
   (* ------------------------------------------------------------------------ *)
   (* [CCAS]. *)
@@ -289,7 +293,8 @@ Section imp_stop.
       { intros; discriminate. }
       rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
-      iApply ("Hwp" with "Hl").
+      iDestruct ("Hwp" with "Hl") as "$".
+      iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
     - rewrite /step_cas_1 /step_cas_2 Hvalid (phys_eq_val__store v seen σ) Hpeq /=.
       ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl").
@@ -332,7 +337,9 @@ Section imp_stop.
     - iMod (osiris_state_update (Val v') with "Hsi Hl") as "[Hsi Hl]".
       { intros; discriminate. }
       ewp_mask_elim. iFrame.
-      iApply ("Hwp" with "Hl [Hr] [Hrs]"); iExists _; iFrame.
+      iSplitR "Hpi".
+      + iApply ("Hwp" with "Hl [Hr] [Hrs]"); iExists _; iFrame.
+      + iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
     - ewp_mask_elim. iFrame.
       iApply ("Hwp" with "Hl [Hr] [Hrs]"); iExists _; iFrame.
   Qed.
@@ -357,7 +364,8 @@ Section imp_stop.
     { intros; discriminate. }
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
     ewp_mask_elim. iFrame.
-    iApply ("Hwp" with "Hl").
+    iDestruct ("Hwp" with "Hl") as "$".
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
   (* ------------------------------------------------------------------------ *)
   (* [CPerform]. *)
@@ -392,6 +400,8 @@ Section imp_stop.
     iSpecialize ("Hwp" with "Hl").
     ewp_mask_elim.
     rewrite /step_resume_1 /step_resume_2 H0. iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi").
+    apply dom_insert_subseteq.
   Qed.
 
   Lemma imp_stop_resume_crash l o (k: _ → micro A X) :
@@ -432,6 +442,7 @@ Section imp_stop.
     iMod (osiris_state_alloc σ l' (Kont _) H with "Hsi") as "(Hsi & Hl' & _)".
     iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim. iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
   Lemma imp_stop_wrap_shallow l η bs (k: _ -> micro A X) :
     (∀ l',
@@ -450,7 +461,8 @@ Section imp_stop.
     iSpecialize ("Hwp" with "Hl'").
     ewp_mask_elim.
     unfold step_wrap_2.
-    by iFrame.
+    iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi"). set_solver.
   Qed.
 
 End imp_stop.
@@ -525,7 +537,7 @@ Section imp_stop_concurrent.
     EWP (Stop CJoin ι' k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hι Hk".
-    ewp_unfold_head. intro_state.
+    ewp_unfold_head. intro_state_join.
     ewp_mask_intro "Hmod".
     iPoseProof (valid_thread_lookup with "Hti Hι") as "(Hti & %γ & %Hlookup & Hsaved)".
     assert (ι' ∈ dom π) as Hdom by (apply (elem_of_dom π ι'); eexists; eassumption).

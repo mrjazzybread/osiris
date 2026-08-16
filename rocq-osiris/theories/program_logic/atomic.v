@@ -1,5 +1,6 @@
 From stdpp Require Import namespaces.
-Require Import ewp rules.basic_rules rules.impure_rules.
+Require Import ewp rules.basic_rules rules.impure_rules rules.proph_rules.
+From iris.base_logic.lib Require Import proph_map.
 From osiris.lang Require Import encode.
 From iris.bi Require Import telescopes.
 From iris.bi.lib Require Export atomic.
@@ -366,3 +367,109 @@ Section lemmas.
   Qed.
 
 End lemmas.
+
+(** Prophecy resolution at a linearization point *)
+
+(* [resolved p v w pvs] is what a caller learns once a resolution has
+   fired: the prophecy's head was the pair of the value the call returned
+   and the tag [v], and the rest of the prediction is [pvs']. *)
+
+Definition resolved `{!osirisGS Σ} (p : locations.loc) (v w : val)
+    (pvs : list (val * val)) : iProp Σ :=
+  ∃ pvs', ⌜pvs = (w, v) :: pvs'⌝ ∗ proph p pvs'.
+
+Section proph_lemmas.
+  Context `{!osirisGS Σ} {TA TB TP : tele}.
+  Notation iProp := (iProp Σ).
+  Context `{Observe A val}.
+  Implicit Types (α : TA → iProp) (β : TA → TB → iProp)
+    (POST : TA → TB → TP → option iProp) (f : TA → TB → TP → A).
+
+  (* A resolution may be attached to an operation that already satisfies a
+     logically atomic triple, provided the operation is a single call. The
+     triple is unchanged — same atomic pre- and postcondition, same return
+     value — except that the caller additionally learns the prediction.
+
+     The observation is emitted at the call's own step, which is the
+     linearization point, so the prediction is available exactly where the
+     atomic update commits. That is the whole point of fusing: a
+     resolution one step later could be separated from the commit by
+     another thread. *)
+
+  Lemma atomic_ewp_resolve {Y} (c : code Y val exn) (y : Y)
+      (p : locations.loc) (v : val) (pvs : list (val * val)) E α β POST f :
+    call_is_atomic c y →
+    proph p pvs -∗
+    atomic_ewp (stop c y) E α β POST f -∗
+    atomic_ewp (resolve c y p v) E α β
+      (λ.. a b z, Some (resolved p v (♯(f a b z)) pvs ∗ default emp (POST a b z)))
+      f.
+  Proof.
+    iIntros (Hat) "Hproph Hwp". iIntros (Φ) "AU".
+    rewrite /atomic_ewp.
+    iApply (ewp_resolve with "Hproph"); first exact Hat.
+    (* Run the call against a postcondition that expects the prediction, and
+       weaken the client's atomic update to match: the commit now also has
+       to produce [resolved], which the resolution's own equation and the
+       leftover [proph] supply. *)
+    iAssert (EWP stop c y {{ a : A,
+        ∀ pvs', ⌜pvs = (♯a, v) :: pvs'⌝ -∗ proph p pvs' -∗
+          EWP (continue inject2 (♯a : val)) {{ Φ }} }})%I with "[Hwp AU]" as "H".
+    { iApply "Hwp". iApply (atomic_update_mono with "[] AU").
+      iIntros "!>" (a b) "HΦ".
+      rewrite ->!tele_app_bind. iIntros (z). iSpecialize ("HΦ" $! z).
+      rewrite ->!tele_app_bind.
+      destruct (POST a b z) as [P|] eqn:HP; simpl.
+      - iIntros "HP" (pvs2) "%Heq2 Hp2".
+        rewrite /continue /=. iApply imp_ret; [ encode | ].
+        iApply "HΦ". iFrame "HP". iExists pvs2. by iFrame.
+      - iIntros (pvs2) "%Heq2 Hp2".
+        rewrite /continue /=. iApply imp_ret; [ encode | ].
+        iApply "HΦ". iSplitR ""; last done. iExists pvs2. by iFrame. }
+    (* [ewp_resolve] states the call's postcondition over [val]; the triple
+       states it over [A]. The two agree under [♯], and the call cannot
+       throw, so its exception clause weakens to anything. *)
+    iApply (imp_wand_exn with "[H] []").
+    - iApply (imp_wand_observe (A2:=val) with "H").
+      iIntros (a) "HΦ0". iExists (♯a). by iSplit.
+    - iIntros (e) "[]".
+  Qed.
+
+  (* The same, for an operation that is not a single call. [eval] compiles
+     such an annotation to "run it, then resolve on the value it produced"
+     (see [CReturn]), so the observation lands one step after the triple's
+     linearization point rather than at it. The triple itself is again
+     unchanged: what the caller learns is what the operation RETURNED, not
+     when it returned it — which is all a non-atomic operation can offer. *)
+
+  Lemma atomic_ewp_resolve_return (m : micro val exn)
+      (p : locations.loc) (v : val) (pvs : list (val * val)) E α β POST f :
+    proph p pvs -∗
+    atomic_ewp m E α β POST f -∗
+    atomic_ewp (bind m (λ w, resolve CReturn w p v)) E α β
+      (λ.. a b z, Some (resolved p v (♯(f a b z)) pvs ∗ default emp (POST a b z)))
+      f.
+  Proof.
+    iIntros "Hproph Hwp". iIntros (Φ) "AU".
+    rewrite /atomic_ewp.
+    iApply (imp_bind (A1:=A)
+      (λ a, ∀ pvs', ⌜pvs = (♯a, v) :: pvs'⌝ -∗ proph p pvs' -∗
+              EWP (continue inject2 (♯a : val)) {{ Φ }})%I with "[Hwp AU]").
+    { iApply "Hwp". iApply (atomic_update_mono with "[] AU").
+      iIntros "!>" (a b) "HΦ".
+      rewrite ->!tele_app_bind. iIntros (z). iSpecialize ("HΦ" $! z).
+      rewrite ->!tele_app_bind.
+      destruct (POST a b z) as [P|] eqn:HP; simpl.
+      - iIntros "HP" (pvs2) "%Heq2 Hp2".
+        rewrite /continue /=. iApply imp_ret; [ encode | ].
+        iApply "HΦ". iFrame "HP". iExists pvs2. by iFrame.
+      - iIntros (pvs2) "%Heq2 Hp2".
+        rewrite /continue /=. iApply imp_ret; [ encode | ].
+        iApply "HΦ". iSplitR ""; last done. iExists pvs2. by iFrame. }
+    iIntros (a) "HΦ0".
+    iApply (ewp_resolve_return with "Hproph").
+    iIntros (pvs2) "%Heq2 Hp2".
+    by iApply ("HΦ0" with "[//] Hp2").
+  Qed.
+
+End proph_lemmas.

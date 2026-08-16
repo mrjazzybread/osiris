@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From iris.base_logic.lib Require Import gen_heap invariants.
+From iris.base_logic.lib Require Import gen_heap invariants proph_map.
 
 (* [big_opLZ] is imported here, ahead of the osiris modules: it
    re-exports stdpp's [x ← _ ; _] notation, which would otherwise
@@ -9,7 +9,7 @@ From osiris.utils Require Import big_opLZ.
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import thread_step ewp tactics.
-Require Import basic_rules impure_rules stop_rules record_rules ipattern_rules.
+Require Import basic_rules impure_rules stop_rules record_rules ipattern_rules proph_rules.
 From osiris.utils Require Import list_z.
 
 Import ewp_rules_tactics.
@@ -18,7 +18,7 @@ Import ewp_rules_tactics.
 
 Instance crash_atomic {V X} :
   thread_step.Atomic (@Crash V X).
-Proof. constructor. inversion H; subst. inversion H1. Qed.
+Proof. constructor. inversion H; subst. inversion H4. Qed.
 
 Global Instance load_atomic {E} l :
   thread_step.Atomic (load (E:=E) l).
@@ -166,6 +166,56 @@ Section imp_atomic_rules.
     iApply (imp_atomic' E1 E2).
     iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%v & Hl & Hcas)".
     iApply (imp_cas with "Hl Hcas").
+  Qed.
+
+  (* A RESOLVING compare-and-set. The resolution happens at the CAS's own
+     step, so the whole thing is still one thread step and an invariant may
+     be opened across it — which is the point: at the linearization point
+     the proof holds both the state the invariant describes AND the head of
+     the prophecy, i.e. a value the execution has not produced yet.
+
+     Compare [imp_cas_atomic]: the only difference is that the closing wand
+     also hands over the prediction. *)
+  Lemma imp_EResolve_ECAS_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3 ep ev
+      (p : loc) (v : val) (pvs : list (val * val))
+      (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    impure E1 (eval η e3) Ψ ζ Φ3 -∗
+    impure E1 (eval η ep) Ψ ζ (λ p', ⌜p' = p⌝)%I -∗
+    impure E1 (eval η ev) Ψ ζ (λ v', ⌜v' = v⌝)%I -∗
+    proph p pvs -∗
+    ▷ (|={E1,E2}=>
+         ∀ l seen v',
+         Φ1 l -∗ Φ2 seen -∗ Φ3 v' -∗
+         ∃ w, ▷ l ↦ #w ∗
+              ▷ (∀ pvs', ⌜pvs = (♯(phys_eq_val_ w seen), v) :: pvs'⌝ -∗
+                   proph p pvs' -∗
+                   l ↦ (if phys_eq_val_ w seen then #v' else #w) -∗
+                   |={E2,E1}=> Φ (phys_eq_val_ w seen))) -∗
+    impure E1 (eval η (EResolve (ECAS e1 e2 e3) ep ev)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 He3 Hp Hv Hproph Hcas".
+    simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind_par (A1:=loc * A) with "[He1 He2] He3").
+    { iApply (imp_par with "[He1] He2").
+      iApply (imp_as_loc with "He1"). }
+    iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3 !>".
+    rewrite /resolve.
+    (* [resolve_atomic]: the resolution is still a single thread step, so
+       the invariant may stay open across it. *)
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%w & Hl & Hcas)".
+    iModIntro.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_cas.
+    iApply (imp_stop_cas with "Hl"). iIntros "!> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iApply ("Hcas" with "[//] Hp2 Hl").
   Qed.
 
   (* The [VInline] variant of [imp_cas_atomic]; see [imp_stop_cas_inline].

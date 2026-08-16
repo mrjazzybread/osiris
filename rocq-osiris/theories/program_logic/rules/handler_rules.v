@@ -11,6 +11,7 @@ Require Import ipattern_rules.
 From osiris.pure_logic Require Import pure.
 
 From Stdlib Require Import FunctionalExtensionality.
+From Stdlib Require Import Program.Equality.
 
 Import ewp_rules_tactics.
 
@@ -237,7 +238,8 @@ Section handle_rules.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
+    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π';
+    try clear κs.
 
     { (* [StepHandleRet] *)
       ewp_unfold (@ret C.val exn v).
@@ -270,31 +272,33 @@ Section handle_rules.
       { iApply (monotonic_prot with "[HH] HP").
         iIntros (?) "Hwp"; cbn. iNext.
         rename σ into σ'.
-        ewp_unfold_head.
+        ewp_unfold_head. clear κs.
         intro_state. ewp_mask_intro "Hmod".
-        iDestruct (osiris_state_valid with "Hsi HH") as %Hl.
         construct_wp_nonret.
-        eapply invert_thread_step_resume in Hstep; [ | eexact Hl ].
-        destruct Hstep as (-> & -> & ->).
-        rewrite try2_inject2_right.
+        destruct_thread_step.
+        iPoseProof (osiris_state_valid with "Hsi HH") as "%Hv".
         iMod (osiris_state_update Shot with "Hsi HH") as "(Hsi & HH)".
         { intros; discriminate. }
         iFrame.
-        by ewp_mask_elim. }
+        ewp_mask_elim.
+        rewrite /step_resume_1 /step_resume_2 Hv try2_inject2_right.
+        iFrame.
+        iApply (osiris_proph_interp_mono with "Hpi").
+        apply dom_insert_subseteq. }
 
       iSpecialize ("Hsh" with "HΨ").
       ewp_mask_intro "Hmod"; ewp_mask_elim.
-      iFrame. }
+      iFrame. iApply (osiris_proph_interp_mono with "Hpi"). set_solver. }
 
     { (* [StepHandleFork] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      destruct x.
+      destruct x. clear κs.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
-      destruct Hstep as (? & ? & ? & Htstep).
+      destruct Hstep as (? & ? & ? & ? & Htstep).
       destruct_thread_step.
       construct_wp_nonret.
       destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CFork (v, v0) k, dom π) _) as Htstep.
+      eassert (thread_step (σ'0, Stop CFork (v, v0) k, dom π) _ _) as Htstep.
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
@@ -304,7 +308,7 @@ Section handle_rules.
 
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
-      ewp_unfold_all. intro_state. spec_state. iMod "He". iModIntro.
+      ewp_unfold_all. clear κs. intro_state_join. spec_state_join. iMod "He". iModIntro.
       destruct (π !! ι); last done.
       iDestruct "He" as "(%φ' & $ & He)".
       iIntros "!> %o Ho". iSpecialize ("He" with "Ho").
@@ -312,14 +316,33 @@ Section handle_rules.
       iMod "He" as "(He & $)". iModIntro.
       iApply ("IH" with "He Hsh"). }
 
+    { (* [StepHandleResolve]. Floating the resolution out of the handler
+         changed only its continuation, which none of the three rules
+         inspects, so each of them transfers — observation and all. *)
+      ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
+      clear κs.
+      ewp_unfold_all. intro_state. spec_state. iModIntro.
+      iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
+      iIntros (σ'' m'' μ) "%Hstep2".
+      dependent destruction Hstep2.
+      { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+      all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H) as Hs
+           | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H) as Hs
+           | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H) as Hs ];
+           iSpecialize ("He" $! _ _ _ Hs);
+           ewp_mask_elim; iMod "He" as "(He & $)"; iModIntro.
+      + iApply ("IH" with "He Hsh").
+      + iApply ("IH" with "He Hsh").
+      + ewp_unfold (@Crash val exn). by iMod "He". }
+
     { (* [StepHandleCrash] *)
       ewp_unfold (@Crash val exn).
       by iMod "He". }
 
     { (* [StepHandleLeft] *)
-      eassert (thread_step (σ, e, dom π') _) as Hstep.
+      eassert (thread_step (σ, e, dom π') _ _) as Hstep.
       { apply BaseS. eassumption. }
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hpi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi He") as ">H".
       iMod "H". ewp_mask_elim. iMod "H" as "(H & $)". iModIntro.
       iApply ("IH" with "H Hsh"). }
@@ -348,7 +371,10 @@ Section handle_rules.
     { intros; discriminate. }
     ewp_mask_elim.
     iFrame.
-    by rewrite try2_inject2_right.
+    rewrite try2_inject2_right; iFrame.
+    iApply (osiris_proph_interp_mono with "Hpi"). unfold cont, tc_opaque in l |- *.
+    unfold cont_store, tc_opaque, cont, tc_opaque.
+    apply dom_insert_subseteq.
   Qed.
 
   (* Variant inversion rule for [Handle] *)
@@ -376,7 +402,10 @@ Section handle_rules.
     ewp_mask_elim.
     iFrame.
     rewrite try2_inject2_right.
-    iApply ("H" with "Hl").
+    iDestruct ("H" with "Hl") as "$".
+    iApply (osiris_proph_interp_mono with "Hpi").
+    unfold cont_store, tc_opaque. unfold cont, tc_opaque in *.
+    apply dom_insert_subseteq.
   Qed.
 
 End handle_rules.
@@ -461,7 +490,7 @@ Section handler_proof.
       iFrame.
       (* Install the handler around the location [l]. *)
       ewp_mask_intro "Hmod".
-      ewp_mask_elim.
+      ewp_mask_elim. iPoseProof (osiris_proph_interp_mono with "Hpi") as "$". set_solver.
       iApply (imp_wrap_eval_branches (E:=E)).
       iIntros (?) "Hl".
       iSpecialize ("Hdh" $! e l').
@@ -480,7 +509,7 @@ Section handler_proof.
       ewp_mask_intro "Hmod".
       iModIntro. ewp_mask_elim. iFrame. destruct x.
       rewrite /impure (ewp_unfold (Stop CFork (v, v0) k)) /ewp_pre /=.
-      ewp_unfold_head.
+      ewp_unfold_head. clear κs.
       intro_state. spec_state. iModIntro.
       construct_wp_nonret. destruct_thread_step.
       epose proof (ForkS _ _ _ _ _ _ H1) as Hstep0.
@@ -492,8 +521,8 @@ Section handler_proof.
     { (* [StepHandleJoin] *)
       ewp_mask_intro "Hmod". iModIntro. ewp_mask_elim. iFrame.
       rewrite /impure (ewp_unfold (Stop CJoin ι k)) /ewp_pre /=.
-      ewp_unfold_head.
-      intro_state. spec_state. iMod "Hwp".
+      ewp_unfold_head. clear κs.
+      intro_state_join. spec_state_join. iMod "Hwp".
       destruct (π !! ι); last done.
       iDestruct "Hwp" as "(%φ' & $ & Hwp)".
       iIntros "!> !> %o Ho". iSpecialize ("Hwp" with "Ho").
@@ -501,12 +530,31 @@ Section handler_proof.
       iModIntro. rewrite /continue.
       iApply ("IH" with "Hwp Hdh"). }
 
+    { (* [StepHandleResolve]: as in the shallow handler above. *)
+      ewp_mask_intro "Hmod".
+      iModIntro. ewp_mask_elim. iFrame.
+      rewrite /impure (ewp_unfold (Stop (CResolve c) y k)) /ewp_pre /=.
+      ewp_unfold_head. clear κs.
+      intro_state. spec_state. iModIntro.
+      iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
+      iIntros (σ'' m'' μ) "%Hstep2".
+      dependent destruction Hstep2.
+      { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+      all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H1) as Hs
+           | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H1) as Hs
+           | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H1) as Hs ];
+           iSpecialize ("Hwp" $! _ _ _ Hs);
+           ewp_mask_elim; iMod "Hwp" as "(Hwp & $)"; iModIntro.
+      + iApply ("IH" with "Hwp Hdh").
+      + iApply ("IH" with "Hwp Hdh").
+      + by iPoseProof (invert_imp_Crash with "Hwp") as ">HFalse". }
+
     { (* [StepHandleCrash] *)
       by iPoseProof (invert_imp_Crash with "Hwp") as ">HFalse". }
 
     { (* [StepHandleLeft] *)
       eapply BaseS in H1 as Hstep.
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hpi Hti" as "Hsi".
       iPoseProof (basic_rules.ewp_step _ _ _ Hstep with "Hsi Hwp") as ">Hwp".
       iMod "Hwp". ewp_mask_elim. iMod "Hwp" as "(Hwp & $)". iModIntro.
       iApply ("IH" with "Hwp Hdh"). }

@@ -286,11 +286,12 @@ let[@inline] union (x : 'a elem) (y : 'a elem) : 'a option =
    Tarjan. *)
 
 let rec eq (x : 'a elem) (y : 'a elem) : bool =
+  let p = Proph.create () in
   (* Note: find [x] first. Order matters here. *)
   let x = findc x in
   let y = findc y in
   x == y ||
-  match x.content with (* atomic access *)
+  match (x.content [@resolve p ()]) with (* atomic access *)
   | Root _ ->
       (* This case is subtle. [x] and [y] are distinct vertices. At the time
          where each of these vertices was found by [findc], it was a root.
@@ -302,6 +303,7 @@ let rec eq (x : 'a elem) (y : 'a elem) : bool =
   | Link { parent = x } ->
       (* There has been interference. Continue. *)
       eq x y
+[@@warning "-26"] (* [p] is used only from the erased [@resolve] annotation *)
 
 let[@inline] eq (x : 'a elem) (y : 'a elem) : bool =
   x == y || eq x y

@@ -109,6 +109,9 @@ Inductive code : Type → Type → Type → Type :=
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
 | CJoin : code thread val exn
+| CNewProph : code unit loc exn
+| CResolve {X} (c : code X val exn) : code (X * loc * val) val exn
+| CReturn : code val val exn
 .
 
 Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
@@ -119,7 +122,7 @@ Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
 
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with
-  | CPerf | CJoin | CFork => True
+  | CPerf | CJoin | CFork | CResolve _ => True
   | _ => False
   end.
 
@@ -207,6 +210,27 @@ Definition cas (l : loc) (seen : val) (v : val) :=
 
 Definition faa (l : loc) (i : int) :=
   stop CFAA (l, i).
+
+(* ------------------------------------------------------------------------ *)
+
+(* [new_proph] allocates a fresh prophecy variable. *)
+
+Definition new_proph : micro loc exn :=
+  stop CNewProph ().
+
+(* [resolve c x p v] performs the system call [c x] and resolves the
+   prophecy [p] with the pair of its result and [v], at that very step. *)
+
+Definition resolve {X} (c : code X val exn) (x : X) (p : loc) (v : val)
+  : micro val exn :=
+  stop (CResolve c) (x, p, v).
+
+(* ------------------------------------------------------------------------ *)
+
+(* An observation records one prophecy resolution: the identifier that was
+   resolved, the result of the system call it was fused with, and the
+   annotation the program supplied.
+Definition observation : Type := loc * (val * val).
 
 (* ------------------------------------------------------------------------ *)
 

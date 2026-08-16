@@ -16,6 +16,7 @@ Require Export
   inline_rules
   ipattern_rules
   atomic_rules
+  proph_rules
 .
 
 From osiris.pure_logic Require Export pure.

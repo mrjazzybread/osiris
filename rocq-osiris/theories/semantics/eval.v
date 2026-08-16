@@ -1507,6 +1507,28 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EFAA e1 e2 =>
       '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
       faa l i
+  | ENewProph =>
+      p ← new_proph ;
+      ret (VLoc p)
+  | EResolve e ep ev =>
+      '(p, v) ← pair_op Strat.fun_app_order (as_loc (eval η ep)) (eval η ev) ;
+      match e with
+      | ELoad e1 =>
+          l ← as_loc (eval η e1) ;
+          resolve CLoad l p v
+      | EExchange e1 e2 =>
+          '(l, w) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
+          resolve CExchange (l, w) p v
+      | ECAS e1 e2 e3 =>
+          '(l, seen, w) ← par (par (as_loc (eval η e1)) (eval η e2)) (eval η e3) ;
+          resolve CCAS (l, seen, w) p v
+      | EFAA e1 e2 =>
+          '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
+          resolve CFAA (l, i) p v
+      | _ =>
+          w ← eval η e ;
+          resolve CReturn w p v
+      end
   | EIgnore e =>
       _ ← eval η e ;
       ok

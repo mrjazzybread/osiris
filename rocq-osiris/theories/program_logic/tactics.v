@@ -23,7 +23,12 @@ Module ewp_rules_tactics.
 
   (* [intro_state] introduces [σ], [π] and [state_interp (σ, π)]. *)
 
-  Ltac intro_state := iIntros (σ π) "(Hsi & Hti)".
+  Ltac intro_state := iIntros (σ κ κs π) "(Hsi & Hpi & Hti)".
+
+  (* The [WPJoin] case does not take a step, so its state interpretation
+     carries the whole remaining trace rather than a split. *)
+
+  Ltac intro_state_join := iIntros (σ κs π) "(Hsi & Hpi & Hti)".
 
   (* -------------------------------------------------------------------------- *)
   (** * Modality and mask (fupd) tactics *)
@@ -172,30 +177,108 @@ Module ewp_rules_tactics.
     ⌜P⌝ -∗ Q -∗ ⌜P⌝ ∗ Q.
   Proof. apply combine_seps. Qed.
 
+  (* The state interpretation now carries the trace of observations the
+     execution has yet to produce, split as [κ ++ κs]: [κ] for the step
+     about to be taken, [κs] for the rest. Almost every rule takes a step
+     that emits nothing, so [κ] is [[]] and the split is invisible; the
+     first clause below is for the callers — [ewp_step], and through it
+     adequacy — that need it to be arbitrary. *)
+
   Ltac spec_state :=
     lazymatch goal with
     | |- context
           [environments.Esnoc _ ?Hwp
              (bi_forall (fun σ1 : step.store =>
-              bi_forall (fun π1 : post_map _ => _)))] =>
+              bi_forall (fun κ1 : list observation =>
+              bi_forall (fun κs1 : list observation =>
+              bi_forall (fun π1 : post_map _ => _)))))] =>
         lazymatch goal with
-        (* When all state interps are in the same hypothesis. *)
-        | |- context [environments.Esnoc _ ?SI (bi_sep (osiris_state_interp ?σ) (osiris_thread_interp ?π))] =>
+        (* The trace is already presented as a split. *)
+        | |- context [environments.Esnoc _ ?SI
+              (bi_sep (osiris_state_interp ?σ)
+                 (bi_sep (osiris_proph_interp ?σp (?κ ++ ?κs))
+                    (osiris_thread_interp ?π)))] =>
             let Hstep := fresh "Hstep" in
-            iSpecialize (Hwp $! σ π with SI);
+            iSpecialize (Hwp $! σ κ κs π with SI);
             try (iMod Hwp;
                  iDestruct Hwp as (Hstep) Hwp)
-        (* When the state interps are in separate hypotheses *)
+        (* Otherwise the step emits nothing, so [κ := []]. *)
+        | |- context [environments.Esnoc _ ?SI
+              (bi_sep (osiris_state_interp ?σ)
+                 (bi_sep (osiris_proph_interp ?σp ?κs)
+                    (osiris_thread_interp ?π)))] =>
+            let Hstep := fresh "Hstep" in
+            iSpecialize (Hwp $! σ [] κs π with SI);
+            try (iMod Hwp;
+                 iDestruct Hwp as (Hstep) Hwp)
+        (* When the state interps are in separate hypotheses. As above,
+           an already-split trace is used as is; otherwise the step emits
+           nothing. *)
         | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
             lazymatch goal with
-            | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
-                let Hstep := fresh "Hstep" in
-                iPoseProof (combine_seps with SI) as SI;
-                iSpecialize (SI with TI);
-                iSpecialize (Hwp $! σ π with SI);
-                try (iMod Hwp;
-                     iDestruct Hwp as (Hstep) Hwp)
-            | |- _ => fail "Cannot find thread interp hypothesis"
+            | |- context [environments.Esnoc _ ?PI (osiris_proph_interp ?σp (?κ ++ ?κs))] =>
+                lazymatch goal with
+                | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
+                    let Hstep := fresh "Hstep" in
+                    (* [state_interp] is right-nested, so build the tail
+                       first: [SI ∗ (PI ∗ TI)]. *)
+                    iPoseProof (combine_seps with PI) as PI;
+                    iSpecialize (PI with TI);
+                    iPoseProof (combine_seps with SI) as SI;
+                    iSpecialize (SI with PI);
+                    iSpecialize (Hwp $! σ κ κs π with SI);
+                    try (iMod Hwp;
+                         iDestruct Hwp as (Hstep) Hwp)
+                | |- _ => fail "Cannot find thread interp hypothesis"
+                end
+            | |- context [environments.Esnoc _ ?PI (osiris_proph_interp ?σp ?κs)] =>
+                lazymatch goal with
+                | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
+                    let Hstep := fresh "Hstep" in
+                    iPoseProof (combine_seps with PI) as PI;
+                    iSpecialize (PI with TI);
+                    iPoseProof (combine_seps with SI) as SI;
+                    iSpecialize (SI with PI);
+                    iSpecialize (Hwp $! σ [] κs π with SI);
+                    try (iMod Hwp;
+                         iDestruct Hwp as (Hstep) Hwp)
+                | |- _ => fail "Cannot find thread interp hypothesis"
+                end
+            | |- _ => fail "Cannot find prophecy interp hypothesis"
+            end
+        | |- _ => fail "Cannot find state interp hypothesis"
+        end
+    end.
+
+  (* The [WPJoin] counterpart of [spec_state]: three binders, and the
+     whole remaining trace rather than a split. *)
+
+  Ltac spec_state_join :=
+    lazymatch goal with
+    | |- context
+          [environments.Esnoc _ ?Hwp
+             (bi_forall (fun σ1 : step.store =>
+              bi_forall (fun κs1 : list observation =>
+              bi_forall (fun π1 : post_map _ => _))))] =>
+        lazymatch goal with
+        | |- context [environments.Esnoc _ ?SI
+              (bi_sep (osiris_state_interp ?σ)
+                 (bi_sep (osiris_proph_interp ?σp ?κs)
+                    (osiris_thread_interp ?π)))] =>
+            iSpecialize (Hwp $! σ κs π with SI)
+        | |- context [environments.Esnoc _ ?SI (osiris_state_interp ?σ)] =>
+            lazymatch goal with
+            | |- context [environments.Esnoc _ ?PI (osiris_proph_interp ?σp ?κs)] =>
+                lazymatch goal with
+                | |- context [environments.Esnoc _ ?TI (osiris_thread_interp ?π)] =>
+                    iPoseProof (combine_seps with PI) as PI;
+                    iSpecialize (PI with TI);
+                    iPoseProof (combine_seps with SI) as SI;
+                    iSpecialize (SI with PI);
+                    iSpecialize (Hwp $! σ κs π with SI)
+                | |- _ => fail "Cannot find thread interp hypothesis"
+                end
+            | |- _ => fail "Cannot find prophecy interp hypothesis"
             end
         | |- _ => fail "Cannot find state interp hypothesis"
         end
@@ -210,9 +293,9 @@ Module ewp_rules_tactics.
              (bi_forall (fun σ'0 =>
               bi_forall (fun m' =>
               bi_forall (fun μ0 =>
-              bi_wand (bi_pure ((thread_step (pair (pair ?σ _) _) _))) _))))] =>
+              bi_wand (bi_pure ((thread_step (pair (pair ?σ _) _) _ _))) _))))] =>
         lazymatch goal with
-        | [ Hstep : thread_step (σ, _, _) _ |- _] =>
+        | [ Hstep : thread_step (σ, _, _) _ _ |- _] =>
             (* Specialize step relation *)
             iSpecialize (Hwp $! _ _ _ Hstep);
             (* Destruct the hypothesis *)

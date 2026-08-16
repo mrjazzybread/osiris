@@ -456,6 +456,14 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CEval (η, e) k)
         (σ, try2 (eval η e) k)
 
+  (* [Stop CReturn w k] does nothing and returns [w]. Its only purpose is
+     to give a resolution a step to happen at; see [CReturn] in code.v. *)
+  | StepReturn :
+      ∀ σ w k,
+      step
+        (σ, Stop CReturn w k)
+        (σ, continue k w)
+
   (* [stop (η, x, i1, i2, e)] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
       ∀ σ η x i1 i2 e k,
@@ -485,6 +493,17 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Stop CAllocBlock (t, ls) k)
         (<[ l := Block t ls ]> σ, continue k l)
+
+  (* [stop CNewProph ()] allocates a fresh prophecy identifier. The heap
+     cell it reserves is never read and never written; it exists only so
+     that the identifier is fresh, exactly as [StepAlloc] does for a ref
+     cell. All the meaning of a prophecy lives in the ghost state. *)
+  | StepNewProph :
+      ∀ σ x p k,
+      σ !! p = None →
+      step
+        (σ, Stop CNewProph x k)
+        (<[ p := Val VUnit ]> σ, continue k p)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -571,6 +590,15 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Handle (Stop CJoin ι k) h)
         (σ, Stop CJoin ι (λ o, Handle (k o) h))
+
+  (* A resolution floats out of [Handle] for the same reason a fork does:
+     the step that gives it meaning lives in [thread_step], so it must
+     reach the top of its thread. *)
+  | StepHandleResolve :
+    ∀ {X} σ (c : code X val exn) y k h,
+      step
+        (σ, Handle (Stop (CResolve c) y k) h)
+        (σ, Stop (CResolve c) y (λ o, Handle (k o) h))
 
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
@@ -740,18 +768,25 @@ Section threadpool.
     | None => Some (crash "join invalid thread")
     end.
 
-  Inductive threadpool_step : tconfig -> tconfig -> Prop :=
+  (* Threadpool steps are LABELLED by the observations they emit. Every
+     rule but the first [Resolve] one emits nothing: a resolution is the
+     only source of observations in the language, and it emits exactly the
+     pair it resolved with. This is the level at which the trace of an
+     execution is built, and [proph_map_interp] in the program logic reads
+     it in the same order. *)
+
+  Inductive threadpool_step : tconfig -> list observation -> tconfig -> Prop :=
   | BaseTS :
     ∀ ι π m σ m' σ',
       π !! ι = Some m ->
       step (σ, m) (σ', m') ->
-      threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
+      threadpool_step (σ, π) [] (σ', <[ ι := m' ]> π)
   | ForkTS :
     ∀ ι π ι' v1 v2 k σ,
       π !! ι = Some (Stop CFork (v1, v2) k) ->
       π !! ι' = None ->
       threadpool_step
-        (σ, π)
+        (σ, π) []
         (σ, @insert _ _ _ insert_thpool ι' (call v1 v2) (
                 @insert _ _ _ insert_thpool ι (continue k (VThread ι')) π))
   | JoinTS :
@@ -759,11 +794,46 @@ Section threadpool.
       π !! ι = Some (Stop CJoin ι' k) ->
       attempt_join ι' π k = Some m ->
       threadpool_step
-        (σ, π)
+        (σ, π) []
         (σ, <[ ι := m ]> π)
+
+  (* The three resolution rules mirror [thread_step]'s. The call [c x] runs
+     and the prophecy is resolved in the SAME step; only the successful one
+     has a result to resolve with, so only it emits. *)
+  | ResolveTS :
+    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v w k,
+      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
+      step (σ, stop c x) (σ', Ret w) ->
+      threadpool_step
+        (σ, π) [(p, (w, v))]
+        (σ', <[ ι := continue k w ]> π)
+  | ResolveThrowTS :
+    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v e k,
+      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
+      step (σ, stop c x) (σ', Throw e) ->
+      threadpool_step
+        (σ, π) []
+        (σ', <[ ι := discontinue k e ]> π)
+  | ResolveCrashTS :
+    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v k,
+      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
+      step (σ, stop c x) (σ', Crash) ->
+      threadpool_step
+        (σ, π) []
+        (σ', <[ ι := Crash ]> π)
   .
 
-  Definition threadpool_steps := @nsteps (tconfig) (threadpool_step).
+  (* [threadpool_steps n c1 κs c2]: [n] steps from [c1] to [c2] emitting the
+     concatenated trace [κs]. This replaces [nsteps], which cannot
+     accumulate a label. *)
+
+  Inductive threadpool_steps : nat -> tconfig -> list observation -> tconfig -> Prop :=
+  | TPSRefl : ∀ c, threadpool_steps 0 c [] c
+  | TPSStep : ∀ n c1 κ c2 κs c3,
+      threadpool_step c1 κ c2 ->
+      threadpool_steps n c2 κs c3 ->
+      threadpool_steps (S n) c1 (κ ++ κs) c3
+  .
 
 End threadpool.
 
@@ -969,6 +1039,15 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+(* A resolution has no sequential step either: the step that gives it
+   meaning lives in [thread_step], where it emits an observation. *)
+Lemma invert_can_step_resolve {A E X} σ (c : code X val exn) y (k : _ -> micro A E) :
+  can_step (σ, (Stop (CResolve c) y k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. inversion H.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
@@ -976,6 +1055,7 @@ Global Hint Resolve
   invert_can_step_perform
   invert_can_step_fork
   invert_can_step_join
+  invert_can_step_resolve
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -1108,7 +1188,7 @@ Qed.
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with | CPerf => False | _ => True end ∧ not (is_concurrent_code c)  ->
+  match c with | CPerf | CResolve _ => False | _ => True end ∧ not (is_concurrent_code c)  ->
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -1132,6 +1212,10 @@ Proof.
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
     destruct x;
       eauto using StepWrap, StepShallowWrap with step. }
+  (* Allocating a prophecy identifier is an allocation like any other. *)
+  { eexists. apply StepNewProph.
+    apply not_elem_of_dom.
+    apply is_fresh. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -1392,6 +1476,15 @@ Proof.
   unfold stuck. split; [ eauto | inversion 1 ].
 Qed.
 
+(* [Stop (CResolve c) y k] is stuck, for the same reason: the step that
+   gives it meaning belongs to [thread_step]. *)
+
+Lemma stuck_Resolve {A E X} σ (c : code X val exn) y k :
+  stuck ((σ, Stop (CResolve c) y k) : config A E).
+Proof.
+  unfold stuck. split; [ eauto | inversion 1 ].
+Qed.
+
 (* [Stop CJoin i k] is stuck. *)
 
 Lemma stuck_Join {A E} σ i k :
@@ -1429,7 +1522,8 @@ Qed.
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash | Throw _
-  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ =>
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _
+  | Stop (CResolve _) _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1493,7 +1587,7 @@ Proof.
   - (* Stop *)
     destruct_code;
     try contradiction; (* eliminate non-relevant codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Perform.
+    eauto using stuck_Fork, stuck_Join, stuck_Perform, stuck_Resolve.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1527,7 +1621,7 @@ Proof.
   destruct m; try destruct_code;
   try solve [left; eauto];  (* Ret case *)
   try solve [right; left; eauto with step];  (* can_step cases *)
-  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join].  (* stuck cases *)
+  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Resolve].  (* stuck cases *)
 Qed.
 
 Ltac triplicity σ m H :=

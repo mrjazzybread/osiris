@@ -96,6 +96,24 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
   may
     (Stop CJoin i k)
     (Crash)
+(* Prophecy variables are an impurity like any other: Horus reasons about
+   pure programs, and a prediction is only meaningful against the
+   observation trace that the impure semantics records. *)
+| MayNewProph x k :
+  may
+    (Stop CNewProph x k)
+    (Crash)
+| MayResolve {X} (c : code X C.val C.exn) y k :
+  may
+    (Stop (CResolve c) y k)
+    (Crash)
+(* [CReturn] is pure in itself, but it only ever occurs under a
+   [CResolve], and Horus does not reason about prophecies at all, so
+   there is nothing to gain by reducing it faithfully here. *)
+| MayReturn w k :
+  may
+    (Stop CReturn w k)
+    (Crash)
 | MayParCrashLeft {A1 A2 E'} m2 (k : outcome2 (A1 * A2) E' → _) :
   may
     (Par Crash m2 k)
@@ -280,6 +298,8 @@ Proof.
   inversion 1; subst; eq_dep_inj; subst; eauto 15.
 Qed.
 
+Require Import Stdlib.Program.Equality.
+
 Lemma invert_may_try2 {A B E E'} (m : micro A E') (f : outcome2 A E' → micro B E) (m1 : micro B E) :
   may (try2 m f) m1 →
   (∃ m', may m m' ∧ m1 = try2 m' f) ∨
@@ -291,19 +311,9 @@ Proof.
   - firstorder.
   - inversion 1.
   - inversion 1; subst; now repeat econstructor.
-  - intros M.
-    destruct c; try solve [inversion M; subst; eq_dep_inj; subst; eauto with may].
-    + (* Stop CEval *)
-      left. simpl in M.
-      apply invert_may_eval in M. subst.
-      destruct x as (η, e).
-      repeat econstructor.
-      by rewrite try2_try2.
-    + (* Stop CLoop *)
-      left. simpl in M; apply invert_may_loop in M; subst.
-      destruct x as [[[[]]]].
-      repeat econstructor. subst.
-      by rewrite try2_try2.
+  - (* [Resolve] is impure, so it only ever reduces to [Crash]. *)
+    intros Hmay.
+    dependent destruction Hmay; try by (constructor; eexists; split; [ econstructor | try by eauto using try2_try2]).
   - (* Par: all [may] shortcuts commute with [bind] *)
     simpl; intros M. left.
     apply invert_may_par in M.

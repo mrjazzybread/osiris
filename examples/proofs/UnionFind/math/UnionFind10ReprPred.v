@@ -122,6 +122,40 @@ Definition cell_own (γ : uf_names) (R : elem → elem) (V : elem → val)
   | CtLink rc => ⌜R x ≠ x⌝ ∗ linked γ x rc ∗ link_field γ rc x i
   end.
 
+(* Root-ness is ANTI-monotone, and this is where that is recorded.
+
+   Every CAS in the implementation swings a [Root] value OUT of a cell, so
+   a vertex that has been linked away never becomes a root again. [linked]
+   is the persistent witness of having been linked; a root's cell owns the
+   [x ↪[γ.(uf_link)] None] that contradicts it. So a [linked] obtained at
+   ONE instant refutes root-ness at EVERY LATER one — the fact holds
+   against whatever [cell_own] the invariant happens to hold now, not just
+   against the one it was minted from.
+
+   This is what the [false] case of [eq] turns on. That case has to know,
+   while it is still inside [findc y], how a LATER read of [x.content]
+   will turn out; being able to rule out [Root] from a [linked] observed
+   earlier is exactly the half of that argument which is about the
+   structure rather than about prophecy.
+
+   Note the shape: [linked]'s negation is a RESOURCE living in the
+   invariant, not a proposition a reader can carry away, so the refutation
+   has to be stated against a [cell_own] and cannot be a fact about
+   [content_info] alone. *)
+
+Lemma cell_own_linked γ R V x i c rc :
+  linked γ x rc -∗ cell_own γ R V x i c -∗
+  ⌜c = CtLink rc⌝ ∗ cell_own γ R V x i c.
+Proof.
+  iIntros "#Hlk Hcell". destruct c as [rc'|rc'].
+  - (* A root's cell owns the token [linked] refutes. *)
+    iDestruct "Hcell" as "(%Hr & Htok & Hval)".
+    iDestruct (linked_not_root with "Hlk Htok") as "[]".
+  - iDestruct "Hcell" as "(%Hr & #Hlk' & Hlf)".
+    iDestruct (linked_agree with "Hlk' Hlk") as %->.
+    iSplitR; first done. by iFrame "Hlk' Hlf".
+Qed.
+
 (* [vertex_own γ R V x i] is the invariant-owned footprint of the
    vertex [x]: its content cell, together with whatever that cell's
    current content owns.

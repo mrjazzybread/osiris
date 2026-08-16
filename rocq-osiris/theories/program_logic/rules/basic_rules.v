@@ -25,15 +25,15 @@ Section ewp.
 
   (* ------------------------------------------------------------------------ *)
 
-  Lemma ewp_step {E Ψ Q} {σ π σ'} m m' μ :
-    thread_step (σ, m, dom π) (σ', m', μ) →
-    state_interp (σ, π) -∗
+  Lemma ewp_step {E Ψ Q} {σ π σ' κ κs} m m' μ :
+    thread_step (σ, m, dom π) κ (σ', m', μ) →
+    state_interp (σ, κ ++ κs, π) -∗
     ewp_def E m Ψ Q ==∗
     |={E}[∅]▷=>
         ewp_def E m' Ψ Q ∗
           (match μ with
-           | None => state_interp (σ', π)
-           | Some (ι', m') => ∃ φ' γ, state_interp (σ', <[ι':= γ]>π) ∗
+           | None => state_interp (σ', κs, π)
+           | Some (ι', m') => ∃ φ' γ, state_interp (σ', κs, <[ι':= γ]>π) ∗
                                         saved_prop.saved_pred_own γ DfracDiscarded φ' ∗
                                         ewp_def ⊤ m' ⊥ (λ o, □ φ' o)
           end).
@@ -88,8 +88,8 @@ Section ewp.
       iApply ("IH" with "Hwp Hmono"). }
 
     { (* Case: [m] is a [WPJoin]. *)
-      intro_state. iMod (fupd_mask_subseteq E1) as "Hmod". set_solver.
-      spec_state.
+      intro_state_join. iMod (fupd_mask_subseteq E1) as "Hmod". set_solver.
+      spec_state_join.
       iMod "Hwp". iModIntro.
       destruct (π !! t) eqn:Hlookup.
       - iDestruct "Hwp" as "(%φ'0 & $ & Hwp)".
@@ -178,7 +178,7 @@ Section ewp.
     iIntros (Hcase HE) "HR H".
     apply TCEq_eq in Hcase.
     ewp_unfold_all. rewrite Hcase.
-    iIntros (σ π) "Hsi". iMod "HR".
+    iIntros (σ κ κs π) "Hsi". iMod "HR".
     iMod ("H" with "Hsi") as "[$ H]".
     iIntros "!>" (σ' m' μ Hstep).
     iMod ("H" $! σ' m' μ with "[//]") as "H".
@@ -264,7 +264,7 @@ Section ewp_pure.
       ewp_cleanup_mod. ewp_mask_elim.
       specialize (H σ).
       apply invert_can_step_thread_step in Hstep; last assumption.
-      destruct Hstep as (Hstep & ->).
+      destruct Hstep as (Hstep & -> & ->).
       destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
       iFrame.
       by iApply "IH".

@@ -245,6 +245,68 @@ let translate_exp_constant loc (c : constant) : expr =
   | Const_nativeint _ ->
       eunsupported loc "native integer literal"
 
+(* -------------------------------------------------------------------------- *)
+
+(* The [@resolve p v] annotation, which resolves the prophecy [p] with the
+   pair of the annotated expression's result and [v]. *)
+let resolve_attribute = "resolve"
+
+(* [translate_payload_expr loc e] translates one argument of a [@resolve]
+   annotation. *)
+
+let translate_payload_expr loc (e : Parsetree.expression) : expr =
+  let open Parsetree in
+  match e.pexp_desc with
+  | Pexp_ident id ->
+      EPath (translate_longident (txt id))
+  | Pexp_construct (id, None) ->
+      (* [()], [true], [false], and any other constant data constructor. *)
+      EData (Longident.last (txt id), [])
+  | Pexp_constant { pconst_desc = Pconst_integer (s, None); _ } ->
+      EInt (int_of_string s)
+  | _ ->
+      eunsupported loc
+        "this argument of [@resolve]: it must be an identifier or a constant"
+
+(* [names_value m f path] tests whether [path] designates the value [f] of a
+   module named [m]. Dune wraps a library's modules, so [m] may be reached
+   through a generated prefix, as in [RocqOsirisExamples__Proph]; we accept
+   that, and we accept a qualifying prefix such as [Stdlib]. *)
+
+let names_value m f path =
+  match List.rev path with
+  | f' :: m' :: _ ->
+      f' = f && (m' = m || Filename.check_suffix m' ("__" ^ m))
+  | _ ->
+      false
+
+(* [recognize_resolve attrs] returns the prophecy and the tag of the
+   [@resolve] annotation carried by [attrs], if there is one. *)
+
+let recognize_resolve (attrs : Parsetree.attributes) : (expr * expr) option =
+  let open Parsetree in
+  match
+    List.find_opt (fun a -> txt a.attr_name = resolve_attribute) attrs
+  with
+  | None ->
+      None
+  | Some attr ->
+      let loc = attr.attr_loc in
+      begin match attr.attr_payload with
+      | PStr [ { pstr_desc = Pstr_eval (
+            { pexp_desc = Pexp_apply (p, [ (Nolabel, v) ]); _ }, _
+          ); _ } ] ->
+          Some (translate_payload_expr loc p, translate_payload_expr loc v)
+      | _ ->
+          let e =
+            eunsupported loc
+              "this [@resolve] annotation: it must be written [@resolve p v]"
+          in
+          Some (e, e)
+      end
+
+(* -------------------------------------------------------------------------- *)
+
 let translate_pat_constant loc (c : constant) : pat =
   match c with
   | Const_int i ->
@@ -392,6 +454,18 @@ let apply e1 e2s =
 let rec translate_expr (e: expression) : expr =
   let loc = e.exp_loc in
   decorate loc @@
+  match recognize_resolve e.exp_attributes with
+  | Some (p, v) ->
+      (* [e [@resolve p v]]. The resolution is fused with [e]: it happens at
+         the very step at which [e] produces its result, which is why only an
+         atomic operation may carry one. That restriction is enforced by the
+         semantics, in [eval], rather than here. *)
+      EResolve (translate_expr_desc e, p, v)
+  | None ->
+      translate_expr_desc e
+
+and translate_expr_desc (e: expression) : expr =
+  let loc = e.exp_loc in
   match e.exp_desc with
 
   | Texp_ident (path, id, _) ->
@@ -611,6 +685,11 @@ and translate_stdlib_application loc path args =
       EStore (e1, e2)
   | ["Stdlib"; "Atomic"; "compare_and_set"], [e1; e2; e3] ->
       ECAS (e1, e2, e3)
+  (* [Proph.create ()] allocates a prophecy variable. The module's own
+     definition is never the one that is verified: it exists so that an
+     annotated program still compiles and runs. *)
+  | _, [_] when names_value "Proph" "create" path ->
+      ENewProph
   | _, _ ->
       raise Unrecognized
 

@@ -312,6 +312,18 @@ type expr =
   (* Fetch-and-add: [Atomic.fetch_and_and e1 e2]. *)
   | EFAA of expr * expr
 
+  (* Allocating a prophecy variable: [Proph.create ()]. *)
+  | ENewProph
+  (* Resolving a prophecy variable: [EResolve (e, p, v)] resolves the
+     prophecy denoted by [p] with the pair of [e]'s result and [v], at the
+     very step at which [e] produces that result.
+
+     In OCaml this is written as an ATTRIBUTE on the resolved expression,
+     [e [@resolve p v]], rather than as a function call: the resolution is
+     a ghost annotation with no runtime meaning, and an attribute is
+     erased by the OCaml compiler, so the program still runs unchanged. *)
+  | EResolve of expr * expr * expr
+
   | EIgnore of expr
 
   (* Forking a new thread: [Domain.spawn f x] *)

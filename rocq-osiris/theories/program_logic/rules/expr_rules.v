@@ -1,9 +1,10 @@
 From iris Require Import gen_heap proofmode.proofmode.
+From iris.base_logic.lib Require Import proph_map.
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
 Require Import ewp tactics fun_spec escrows.
 Require Import
-  basic_rules impure_rules stop_rules
+  basic_rules impure_rules stop_rules proph_rules
   handler_rules auxiliary_rules atomic_rules.
 
 (** This file contains [EWP] rules for OCaml expression forms. *)
@@ -1326,6 +1327,170 @@ Section imp_rules_expr.
     iIntros "Hl H1 H2".
     iApply (imp_EFAA' with "Hl H1 H2").
     iIntros (?) "-> !> !> $ //".
+  Qed.
+
+  (** * ENewProph : expr *)
+
+  Lemma imp_ENewProph {Φ : loc → iProp Σ} {ζ} η :
+    ▷ (∀ (p : loc) (pvs : list (val * val)), proph p pvs -∗ Φ p) -∗
+    EWP eval η ENewProph @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "H". simpl_eval.
+    rewrite /new_proph bind_stop_gen.
+    iApply ewp_new_proph. iIntros "!>" (p pvs) "Hp".
+    rewrite /continue /= bind_ret.
+    iApply imp_ret; [ encode | by iApply "H" ].
+  Qed.
+
+  (** * EResolve : expr → expr → expr → expr *)
+
+  (* The general case: the annotated expression is not one of the four
+     single-step operations, so the resolution happens one step after it
+     returns. See [CReturn] in code.v. *)
+
+  Lemma imp_EResolve {A} `{Encode A} {Φ : A → iProp Σ} {ζ}
+      η e ep ev (p : loc) (v : val) pvs (Φe : A → iProp Σ) :
+    match e with
+    | ELoad _ | EExchange _ _ | ECAS _ _ _ | EFAA _ _ => False
+    | _ => True
+    end →
+    EWP eval η ep @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ p', ⌜p' = p⌝ }} -∗
+    EWP eval η ev @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v', ⌜v' = v⌝ }} -∗
+    proph p pvs -∗
+    EWP eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φe }} -∗
+    (∀ (a : A) pvs', ⌜pvs = (♯a, v) :: pvs'⌝ -∗ proph p pvs' -∗ Φe a -∗ Φ a) -∗
+    EWP eval η (EResolve e ep ev) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros (Hne) "Hp Hv Hproph He Hcont". simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->".
+    (* [eval] dispatches on the annotated expression's syntax, so the
+       side condition has to be discharged one constructor at a time; the
+       four single-step operations are the ones it rules out. *)
+    destruct e; try contradiction Hne.
+    all: iNext; iApply (imp_bind with "He"); iIntros (res) "HΦe";
+         iApply (ewp_resolve_return with "Hproph");
+         iIntros (pvs2) "%Heq2 Hp2";
+         rewrite /continue /=;
+         iApply imp_ret; [ encode | by iApply ("Hcont" with "[//] Hp2 HΦe") ].
+  Qed.
+
+  (* The four fused cases. Here the resolution happens AT the operation's
+     own step, so the prediction's head is available at the linearization
+     point rather than one step after it. Each mirrors the corresponding
+     unannotated rule, with the operation's postcondition extended by the
+     prophecy's head. *)
+
+  Lemma imp_EResolve_ELoad {A} `{Encode A} {Φ : A → iProp Σ} {ζ}
+      η e1 ep ev (l : loc) (p : loc) (v : val) q (a : A) pvs :
+    ▷ l ↦{q} #a -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l', ⌜l' = l⌝ }} -∗
+    EWP eval η ep @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ p', ⌜p' = p⌝ }} -∗
+    EWP eval η ev @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v', ⌜v' = v⌝ }} -∗
+    proph p pvs -∗
+    (∀ pvs', ⌜pvs = (♯a, v) :: pvs'⌝ -∗ proph p pvs' -∗ l ↦{q} #a -∗ Φ a) -∗
+    EWP eval η (EResolve (ELoad e1) ep ev) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 Hp Hv Hproph Hcont". simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind with "[H1]").
+    { iApply (imp_as_loc with "H1"). }
+    iIntros (l0) "->".
+    rewrite /resolve.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_load.
+    iApply (imp_stop_load with "Hl"). iIntros "!> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    by iApply ("Hcont" with "[//] Hp2 Hl").
+  Qed.
+
+  Lemma imp_EResolve_EFAA {Φ : Z → iProp Σ} {ζ}
+      η e1 e2 ep ev (l : loc) (p : loc) (v : val) (i j : Z) pvs :
+    ▷ l ↦ #j -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l', ⌜l' = l⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i', ⌜i' = i⌝ }} -∗
+    EWP eval η ep @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ p', ⌜p' = p⌝ }} -∗
+    EWP eval η ev @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v', ⌜v' = v⌝ }} -∗
+    proph p pvs -∗
+    (∀ pvs', ⌜pvs = (♯j, v) :: pvs'⌝ -∗ proph p pvs' -∗ l ↦ #(j + i) -∗ Φ j) -∗
+    EWP eval η (EResolve (EFAA e1 e2) ep ev) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 H2 Hp Hv Hproph Hcont". simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind_par with "[H1] [H2]").
+    { iApply (imp_as_loc with "H1"). }
+    { iApply (imp_as_int with "H2"). }
+    iIntros (l0 i0) "-> ->".
+    rewrite /resolve.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_faa.
+    iApply (imp_stop_faa with "Hl"). iIntros "!> !> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iApply ("Hcont" with "[//] Hp2"). rewrite add_repr_repr. iApply "Hl".
+  Qed.
+
+  Lemma imp_EResolve_EExchange {A} `{Encode A} {Φ : A → iProp Σ} {ζ}
+      η e1 e2 ep ev (l : loc) (p : loc) (v : val) (a b : A) pvs :
+    ▷ l ↦ #a -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l', ⌜l' = l⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ b', ⌜b' = b⌝ }} -∗
+    EWP eval η ep @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ p', ⌜p' = p⌝ }} -∗
+    EWP eval η ev @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v', ⌜v' = v⌝ }} -∗
+    proph p pvs -∗
+    (∀ pvs', ⌜pvs = (♯a, v) :: pvs'⌝ -∗ proph p pvs' -∗ l ↦ #b -∗ Φ a) -∗
+    EWP eval η (EResolve (EExchange e1 e2) ep ev) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 H2 Hp Hv Hproph Hcont". simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind_par with "[H1] H2").
+    { iApply (imp_as_loc with "H1"). }
+    iIntros (l0 b0) "-> ->".
+    rewrite /resolve.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_exchange.
+    iApply (imp_stop_exchange with "Hl"). iIntros "!> !> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    by iApply ("Hcont" with "[//] Hp2 Hl").
+  Qed.
+
+  Lemma imp_EResolve_ECAS {A} `{PhysEqDec A} {Φ : bool → iProp Σ} {ζ}
+      η e1 e2 e3 ep ev (l : loc) (p : loc) (v : val) (seen a v1 : A) pvs :
+    ▷ l ↦ #v1 -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ l', ⌜l' = l⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ s', ⌜s' = seen⌝ }} -∗
+    EWP eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a' = a⌝ }} -∗
+    EWP eval η ep @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ p', ⌜p' = p⌝ }} -∗
+    EWP eval η ev @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v', ⌜v' = v⌝ }} -∗
+    proph p pvs -∗
+    (∀ pvs', ⌜pvs = (♯(phys_eq_val_ v1 seen), v) :: pvs'⌝ -∗ proph p pvs' -∗
+       l ↦ (if phys_eq_val_ v1 seen then #a else #v1) -∗
+       Φ (phys_eq_val_ v1 seen)) -∗
+    EWP eval η (EResolve (ECAS e1 e2 e3) ep ev) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hl H1 H2 H3 Hp Hv Hproph Hcont". simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind_par (A1:=loc*A) with "[H1 H2] H3").
+    { iApply (imp_par with "[H1] H2"). { iApply (imp_as_loc with "H1"). } }
+    iIntros ((l0 & s0) a0) "(-> & ->) ->".
+    rewrite /resolve.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_cas.
+    iApply (imp_stop_cas with "Hl"). iIntros "!> !> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    by iApply ("Hcont" with "[//] Hp2 Hl").
   Qed.
 
   (** * EPerform : expr -> expr *)

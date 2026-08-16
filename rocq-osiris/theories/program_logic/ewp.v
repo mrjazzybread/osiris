@@ -1,12 +1,7 @@
-From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token.
+From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token proph_map.
 From iris.base_logic Require Import ghost_map.
 From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
-(* [weakestpre] is imported, not exported: Osiris does not use Iris' [wp], and
-   re-exporting it would put Iris' Texan triple notations in scope everywhere,
-   where they clash with ours (see [triples.v]). We do re-export [fancy_updates],
-   the one part of its export chain that the rest of the development relies on. *)
 From iris.base_logic.lib Require Export fancy_updates.
-From iris.program_logic Require Import weakestpre.
 From iris.proofmode Require Import proofmode.
 
 From osiris.lang Require Import thread_ids syntax locations encode.
@@ -104,6 +99,7 @@ Section ghost_instances.
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
       osiris_tokenG :: tokenG Σ;
       #[global] osiris_array_ghostG :: ghost_mapG Σ locations.loc (list locations.loc);
+      #[global] osiris_prophGpreS :: proph_mapGpreS locations.loc (val * val) Σ;
     }.
 
   (* The [osirisGS] typeclass is what we use in our proofs.
@@ -126,6 +122,9 @@ Section ghost_instances.
       (* This gives us a ghost map tracking array locations (persistent per array). *)
       osiris_array_ghostGS :: ghost_mapG Σ locations.loc (list locations.loc);
       osiris_array_name : gname;
+      (* This gives us the prophecy map, relating [proph] assertions to
+         the observations the execution has yet to produce. *)
+      osiris_prophGS :: proph_mapGS locations.loc (val * val) Σ;
     }.
 
 End ghost_instances.
@@ -137,14 +136,15 @@ Definition osirisΣ : gFunctors :=
      gen_heapΣ thread gname;
      savedPredΣ (outcome2 val exn);
      tokenΣ;
-     ghost_mapΣ locations.loc (list locations.loc)
+     ghost_mapΣ locations.loc (list locations.loc);
+     proph_mapΣ locations.loc (val * val)
     ].
 
 (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
 Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _ _} : assert.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -247,8 +247,38 @@ Section state_interp.
   Definition osiris_state_interp (σ : store) : iProp Σ :=
     @gen_heap_interp locations.loc _ _ mem_block Σ _ σ ∗ array_interp σ.
 
-  Definition state_interp : (store * post_map Σ) -> iProp Σ :=
-    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
+  (* The prophecy interpretation. Unlike every other component of the
+     state interpretation, [proph_map_interp] does not describe the
+     PRESENT: [κs] is the list of observations the execution has yet to
+     produce, and [proph_map_interp κs ps] ties the [proph p vs]
+     assertions to it. That is what makes a prediction meaningful, and it
+     is why the trace must reach adequacy — see [ewp_adequacy.v].
+
+     [ps] is the set of prophecy identifiers allocated so far; it is
+     existentially quantified here because no rule needs to name it. *)
+
+  (* [ps] is the set of prophecy identifiers allocated so far. It is
+     pinned to the store's domain, and that is not bookkeeping: allocating
+     a prophecy needs an identifier fresh for [ps], while the operational
+     rule [StepNewProph] only offers one fresh for the store. Tying the
+     two is what lets the two freshness conditions meet. Nothing ever
+     removes a location from the store, so the inclusion is easy to
+     maintain — see [osiris_proph_interp_mono]. *)
+
+  Definition osiris_proph_interp (σ : store) (κs : list observation) : iProp Σ :=
+    ∃ ps, ⌜ps ⊆ dom σ⌝ ∗ proph_map_interp κs ps.
+
+  Lemma osiris_proph_interp_mono σ σ' κs :
+    dom σ ⊆ dom σ' →
+    osiris_proph_interp σ κs -∗ osiris_proph_interp σ' κs.
+  Proof.
+    iIntros (Hsub) "(%ps & %Hps & H)".
+    iExists ps. iFrame. iPureIntro. set_solver.
+  Qed.
+
+  Definition state_interp : (store * list observation * post_map Σ) -> iProp Σ :=
+    (λ '(σ, κs, π),
+       osiris_state_interp σ ∗ osiris_proph_interp σ κs ∗ osiris_thread_interp π)%I.
 
   (* [isBlockLocs a ls] is the persistent ghost knowledge that array [a] has locations [ls]. *)
   Definition isBlockLocs (a : loc) (ls : list locations.loc) : iProp Σ :=
@@ -460,8 +490,8 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => WPStep
   end.
 
-Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ :
-  thread_step (σ, m, π) (σ', m', μ) ->
+Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ κ :
+  thread_step (σ, m, π) κ (σ', m', μ) ->
   is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
@@ -504,30 +534,37 @@ Section ewp_def.
        | WPPerform e k =>
            |={E}=> Ψ allows perform e << λ o, ▷ ewp E (k o) Ψ φ >>
        (* [EWP4]: [m] is a computation that can take a step. *)
+       (* [EWP4]: [m] is a computation that can take a step.
+
+          The trace is split as [κ ++ κs]: [κ] is what THIS step emits and
+          [κs] is the rest of the future. Every step but a prophecy
+          resolution has [κ = []], so in practice the split is trivial —
+          but it is what lets the resolution rule learn that the head of
+          its [proph] assertion is the value it just observed. *)
        | WPStep =>
-           ∀ σ π,
-             state_interp (σ, π) ={E, ∅}=∗
+           ∀ σ κ κs π,
+             state_interp (σ, κ ++ κs, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
-               ⌜thread_step (σ, m, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ⌜thread_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                ewp E m' Ψ φ ∗
                match μ with
-               | None => state_interp (σ', π)
+               | None => state_interp (σ', κs, π)
                | Some (ι', mforked) =>
-                   ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
+                   ∃ φ' γ, state_interp (σ', κs, <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
                            ewp ⊤ mforked ⊥ (λ o, □ φ' o)
                end
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
-           ∀ σ π,
-             state_interp (σ, π) ={E, ∅}=∗
+           ∀ σ κs π,
+             state_interp (σ, κs, π) ={E, ∅}=∗
              match π !! ι' with
              | None => |={∅, E}=> ▷ False
              | Some γ =>
                  ∃ φ', saved_pred_own γ DfracDiscarded φ' ∗
                        ▷ (∀ o, □ φ' o ={∅}=∗ |={∅,E}=>
-                          ewp E (k o) Ψ φ ∗ state_interp (σ, π))
+                          ewp E (k o) Ψ φ ∗ state_interp (σ, κs, π))
              end
        end)%I.
 
@@ -583,12 +620,13 @@ Proof.
   - repeat f_equiv. intro o. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
-  - do 18 (f_contractive || f_equiv).
+  - do 20 (f_contractive || f_equiv).
+    do 2 f_equiv.
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
-  - do 17 (f_contractive || f_equiv).
-    + apply IH; eauto. f_equiv. eapply dist_lt; eauto.
+  - do 18 (f_contractive || f_equiv).
+    + f_equiv. apply IH; eauto. f_equiv. eapply dist_lt; eauto.
 Qed.
 
 Global Instance ewp_proper E m Ψ:
