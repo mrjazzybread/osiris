@@ -145,6 +145,68 @@ Section imp_atomic_rules.
     iApply "Hstore".
   Qed.
 
+  (* [ELoad e]. The evaluation of [e] is not part of the atomic step, so
+     the mask-changing update is only entered once the location is known
+     — unlike [imp_store_atomic], where the two subexpressions are
+     evaluated in parallel and a [▷] is available before the update. *)
+  Lemma imp_load_atomic `{Encode A} (E2 E1 : coPset) η e (Φ1 : loc → _) (Φ : A → _) :
+    impure E1 (eval η e) Ψ ζ Φ1 -∗
+    (∀ l, Φ1 l -∗
+          |={E1,E2}=> ∃ dq a, ▷ l ↦{dq} #a ∗
+                              ▷ (l ↦{dq} #a -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (ELoad e)) Ψ ζ Φ.
+  Proof.
+    iIntros "He Hload". simpl_eval.
+    iApply (imp_bind with "[He]").
+    { iApply (imp_as_loc with "He"). }
+    iIntros (l) "HΦ1".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hload" with "HΦ1") as "(%dq & %a & Hl & Hload)".
+    iApply (imp_load' with "Hl Hload").
+  Qed.
+
+  (* [EExchange e1 e2] — the mirror image of [imp_store_atomic], with the
+     exchanged-out value handed to the closing wand. *)
+  Lemma imp_exchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
+      (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l x, Φ1 l -∗ Φ2 x -∗
+                ∃ a : A, ▷ l ↦ #a ∗
+                         ▷ (l ↦ #x -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (EExchange e1 e2)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 Hex". simpl_eval.
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iIntros (l x) "HΦ1 HΦ2 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hex" with "HΦ1 HΦ2") as "(%a & Hl & Hex)".
+    iApply (imp_exchange' with "Hl Hex").
+  Qed.
+
+  (* [EFAA e1 e2]. *)
+  Lemma imp_faa_atomic (E2 E1 : coPset) η e1 e2
+      (Φ1 : loc → _) (Φ2 : Z → _) (Φ : Z → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l i, Φ1 l -∗ Φ2 i -∗
+                ∃ j : Z, ▷ l ↦ #j ∗
+                         ▷ (l ↦ #(j + i) -∗ |={E2,E1}=> Φ j)) -∗
+    impure E1 (eval η (EFAA e1 e2)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 Hfaa". simpl_eval.
+    iApply (imp_bind_par with "[He1] [He2]").
+    { iApply (imp_as_loc with "He1"). }
+    { iApply (imp_as_int with "He2"). }
+    iIntros (l i) "HΦ1 HΦ2 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hfaa" with "HΦ1 HΦ2") as "(%j & Hl & Hfaa)".
+    iApply (imp_faa with "Hl Hfaa").
+  Qed.
+
   Lemma imp_cas_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3 (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) :
     impure E1 (eval η e1) Ψ ζ Φ1 -∗
     impure E1 (eval η e2) Ψ ζ Φ2 -∗
@@ -216,6 +278,47 @@ Section imp_atomic_rules.
     iIntros (pvs2) "%Heq2 Hp2".
     rewrite /continue /=. iApply imp_ret; [ encode | ].
     iApply ("Hcas" with "[//] Hp2 Hl").
+  Qed.
+
+  (* A RESOLVING exchange, with the prophecy taken from inside the
+     mask-changing update rather than from the caller's context. That is
+     the shape a SHARED prophecy needs: when several threads resolve the
+     same prophecy, [proph p pvs] lives in the invariant that governs
+     them, so it only becomes available once the invariant is open —
+     unlike [imp_EResolve_ECAS_atomic], where the prophecy is the
+     caller's own. *)
+  Lemma imp_EResolve_EExchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 ep ev
+      (p : loc) (v : val) (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    impure E1 (eval η ep) Ψ ζ (λ p', ⌜p' = p⌝)%I -∗
+    impure E1 (eval η ev) Ψ ζ (λ v', ⌜v' = v⌝)%I -∗
+    ▷ (|={E1,E2}=>
+         ∀ l x, Φ1 l -∗ Φ2 x -∗
+                ∃ (a : A) (pvs : list (val * val)),
+                  ▷ l ↦ #a ∗ proph p pvs ∗
+                  ▷ (∀ pvs', ⌜pvs = (#a, v) :: pvs'⌝ -∗ proph p pvs' -∗
+                       l ↦ #x -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (EResolve (EExchange e1 e2) ep ev)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 Hp Hv Hex".
+    simpl_eval.
+    iApply (imp_bind_par with "[Hp] Hv").
+    { iApply (imp_as_loc with "Hp"). }
+    iIntros (p0 v0) "-> ->". iNext.
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iIntros (l x) "HΦ1 HΦ2 !>".
+    rewrite /resolve.
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hex" with "HΦ1 HΦ2") as "(%a & %pvs & Hl & Hproph & Hex)".
+    iModIntro.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_exchange.
+    iApply (imp_stop_exchange with "Hl"). iIntros "!> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iApply ("Hex" with "[//] Hp2 Hl").
   Qed.
 
   (* The [VInline] variant of [imp_cas_atomic]; see [imp_stop_cas_inline].

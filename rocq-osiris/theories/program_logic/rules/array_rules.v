@@ -60,6 +60,26 @@ Section array_resources.
     ownArray a dq xs -∗ isSlice a dq 0 xs.
   Proof. iIntros "(%ls & #Ha & _ & $ & %Hlen)". Qed.
 
+  (* Making a slice read-only. An array that is written once, at
+     creation, and then only read — the [items] array of a concurrent
+     data structure, say — can have its points-to discarded here and
+     shared freely afterwards, so that a reader needs no invariant. *)
+  Lemma isSlice_persist `{Encode A} (E : coPset) a i (xs : list A) :
+    isSlice a (DfracOwn 1) i xs ={E}=∗ isSlice a DfracDiscarded i xs.
+  Proof.
+    iIntros "(%ls & #Hblock & %Hbound & Hpts)".
+    iMod (big_opLZ.big_sepLZ2_fupd E
+            (λ (_ : Z) (l : locations.loc) (x : A), (l ↦□ #x)%I)
+            with "[Hpts]") as "Hpts".
+    { iApply (big_opLZ.big_sepLZ2_impl with "Hpts").
+      iIntros "!>" (k l x _ _) "Hl".
+      by iMod (gen_heap.pointsto_persist with "Hl"). }
+    iModIntro. iExists ls.
+    iSplitR; [ iExact "Hblock" | ].
+    iSplitR; [ iPureIntro; exact Hbound | ].
+    iExact "Hpts".
+  Qed.
+
   Lemma isSlice_ownArray `{Encode A} a dq ls (xs : list A) :
     isBlockLocs a ls -∗
     isBlock a dq Mut -∗
