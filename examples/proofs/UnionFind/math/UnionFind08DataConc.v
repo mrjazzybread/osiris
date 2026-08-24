@@ -93,6 +93,11 @@ Section content.
   Global Instance Inline_content_Link : Inline "Link" content :=
     {| inline_apply := CtLink; inline_encode := λ _, eq_refl |}.
 
+  Global Instance InlineEncode_content : InlineEncode content :=
+    {| inline_tag := content_tag;
+       inline_blk := content_loc;
+       inline_encode_eq := content_encode_inline |}.
+
 End content.
 
 (* The stored shape of a [content] value, for the rules (notably the

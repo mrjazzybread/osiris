@@ -18,44 +18,29 @@ Section atomic_proofs.
   Context `{!osirisGS Σ}.
 
   (* The logically-atomic specification of [Atomic.Loc.compare_and_set]
-     at inline-record values.
+     at inline-record values. *)
 
-     The caller provides, in a mask-changing fupd (typically opening an
-     invariant), the points-to of the atomic location — which must hold
-     an inline record — together with [isBlock] fractions for the
-     current and expected blocks; the latter resolve the physical
-     comparison performed by the CAS ([expected] must be a *mutable*
-     block for the comparison to be defined). The caller learns the
-     comparison's outcome when closing.
-
-     Both the "expected" snapshot [seen] and the "new value" [v'] are
-     generic over any [A] with an [Encode A] instance (not hardcoded to
-     [val]): a client that already holds the *record* underlying its
-     snapshot (e.g. from an earlier atomic read) or that just allocated
-     a fresh record for the new value can instantiate [A := record]
-     under the local [encode_record c] instance and pass records
-     directly — no val/elem bridging needed, since [imp_EInline] and
-     the atomic record-read rules already produce elem-domain
-     postconditions. *)
-
-  Definition compare_and_set_spec `{Encode A} (l : loc) (seen v' : A)
+  Definition compare_and_set_spec `{InlineEncode A} (l : loc) (seen v' : A)
       (m : microvx) : iProp Σ :=
     ∀ (E2 : coPset) (Φ : bool → iProp Σ),
       ▷ (|={⊤,E2}=>
-           ∃ c cs (r rs : record) dq1 dq2 t,
-             ⌜#seen = VInline cs rs⌝ ∗
-             ▷ l ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
-             ▷ (l ↦ (if locations.eqb r rs then #v' else VInline c r) -∗
-                isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
-                |={E2,⊤}=> Φ (locations.eqb r rs))) -∗
+           ∃ (a : A) dq1 dq2 t,
+             ▷ l ↦ #a ∗ ▷ isBlock (inline_blk a) dq1 t ∗
+             ▷ isBlock (inline_blk seen) dq2 Mut ∗
+             ▷ (l ↦ #(if locations.eqb (inline_blk a) (inline_blk seen)
+                      then v' else a) -∗
+                isBlock (inline_blk a) dq1 t -∗
+                isBlock (inline_blk seen) dq2 Mut -∗
+                |={E2,⊤}=>
+                  Φ (locations.eqb (inline_blk a) (inline_blk seen)))) -∗
       EWP m {{ Φ }}.
 
   Lemma imp_Loc_compare_and_set η :
     ⊢ EWP (eval η (EAnonFun __Loc_fun5))
-        {{ c, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] c compare_and_set_spec }}.
+        {{ c, □ ∀ A `(InlineEncode A), iSpec τ[loc; A; A] c compare_and_set_spec }}.
   Proof.
-    iApply imp_EAnon_poly_pers.
-    iIntros "!>" (A HencA). simpl.
+    iApply (imp_EAnon_poly_str_pers (λ A HA, @InlineEncode A HA)).
+    iIntros "!>" (A HencA HinlA). simpl.
     iIntros (l seen v').
     unfold compare_and_set_spec.
     iIntros (E2 Φ) "Hfupd".
@@ -71,9 +56,17 @@ Section atomic_proofs.
     iMod "Hfupd".
     iModIntro.
     iIntros (l0 s w) "-> -> ->".
-    iDestruct "Hfupd" as (c cs r rs dq1 dq2 t) "(-> & Hl & Hr & Hrs & Hk)".
-    iExists c, cs, r, rs, dq1, dq2, t.
-    iFrame. done.
+    iDestruct "Hfupd" as (a dq1 dq2 t) "(Hl & Hr & Hrs & Hk)".
+    iExists (inline_tag a), (inline_tag seen),
+            (inline_blk a), (inline_blk seen), dq1, dq2, t.
+    iSplitR; first by rewrite (inline_encode_eq seen).
+    rewrite -(inline_encode_eq a).
+    iFrame "Hl Hr Hrs".
+    iNext. iIntros "Hl Hr Hrs".
+    (* The two shapes of the written value differ only by where the [if]
+       sits, inside or outside the encoding. *)
+    destruct (locations.eqb (inline_blk a) (inline_blk seen));
+      iApply ("Hk" with "Hl Hr Hrs").
   Qed.
 
   (* ------------------------------------------------------------------------ *)
@@ -86,7 +79,8 @@ Section atomic_proofs.
   Definition atomic_loc_module_spec : env → iProp Σ :=
     (context [
          var_spec "compare_and_set"
-           (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)
+           (λ cas, □ ∀ A `(InlineEncode A),
+                     iSpec τ[loc; A; A] cas compare_and_set_spec)
       ] atomic_loc_module_dom)%I.
 
   Definition atomic_module_dom : gset var :=
@@ -116,7 +110,8 @@ Section atomic_proofs.
       { admit. }
       iIntros (exchange) "_".
       iApply (imp_sitems_external
-                (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)%I).
+                (λ cas, □ ∀ A `(InlineEncode A),
+                          iSpec τ[loc; A; A] cas compare_and_set_spec)%I).
       { iApply imp_Loc_compare_and_set. }
       iIntros (cas) "#Hcas".
       iApply (imp_sitems_external (λ _, True)%I).
@@ -169,7 +164,8 @@ Section atomic_proofs.
   Lemma atomic_cas_path_spec η :
     in_env "Atomic" atomic_module_spec η -∗
     path_spec ["Atomic"; "Loc"; "compare_and_set"]
-      (λ cas, □ ∀ A `{Encode A}, iSpec τ[loc; A; A] cas compare_and_set_spec)%I η.
+      (λ cas, □ ∀ A `(InlineEncode A),
+                iSpec τ[loc; A; A] cas compare_and_set_spec)%I η.
   Proof.
     iIntros "(%δA & %HA & #HAspec)".
     rewrite /atomic_module_spec /atomic_loc_module_spec /context /=.

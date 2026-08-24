@@ -34,14 +34,7 @@ Global Instance Data_Cons `{Encode A} : Data "::" τ[A; list A] (list A) :=
 
 (* [Inline c A] is the analogue of [Data] for constructors whose payload
    is an *inline record*: it ties the constructor [c] to the function
-   building the corresponding logical value from the record.
-
-   Its purpose is to let automation go the other way round. Given a
-   stored value [VInline c r] and a target type [A], recovering the
-   logical value means inverting [#?a = VInline c r] — which unification
-   cannot do, since [A]'s encoding is a [match] on its constructors.
-   Looking up [Inline c A] instead reads the answer off the constructor
-   name, which is available syntactically. *)
+   building the corresponding logical value from the record. *)
 
 Class Inline (c : data) (A : Type) `{Encode A} : Type :=
   { inline_apply  : record → A;
@@ -57,6 +50,26 @@ Global Hint Mode Inline ! - - : typeclass_instances.
    it matches every constructor name. *)
 Definition Inline_val (c : data) : Inline c val :=
   {| inline_apply := VInline c; inline_encode := λ _, eq_refl |}.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [InlineEncode A] is [Inline]'s converse: it says that every value
+   of [A] encodes to an inline record, and names the constructor and
+   the block it encodes to.
+
+   Note this is related to, but distinct from [RecordRepr] (see
+   [record_rules.v]), which sits on the other side of the pointer:
+   [RecordRepr A τ t] models the contents of a block as a tuple of
+   values, and the block's address is a parameter, not a function of
+   the model value. *)
+
+Class InlineEncode (A : Type) `{Encode A} := {
+  inline_tag : A → data;
+  inline_blk : A → record;
+  inline_encode_eq : ∀ a : A, #a = VInline (inline_tag a) (inline_blk a);
+}.
+
+Global Hint Mode InlineEncode ! - : typeclass_instances.
 
 (* -------------------------------------------------------------------------- *)
 

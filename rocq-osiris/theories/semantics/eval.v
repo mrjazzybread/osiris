@@ -1511,6 +1511,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       p ← new_proph ;
       ret (VLoc p)
   | EResolve e ep ev =>
+      (* The prophecy [ep] and the annotation [ev] are evaluated to
+         values first. The resolved expression [e]'s own arguments are
+         then evaluated, and the resolution is attached to the single
+         system call that remains. *)
       '(p, v) ← pair_op Strat.fun_app_order (as_loc (eval η ep)) (eval η ev) ;
       match e with
       | ELoad e1 =>
@@ -1526,6 +1530,10 @@ Fixpoint pre_eval η e {struct e} : microvx :=
           '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
           resolve CFAA (l, i) p v
       | _ =>
+          (* A non-atomic expression cannot be resolved at its own step:
+             its evaluation is many steps, and only a single system call
+             can carry a resolution. So we run it and resolve on the value
+             it produced afterwards. *)
           w ← eval η e ;
           resolve CReturn w p v
       end

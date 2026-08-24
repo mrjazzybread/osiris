@@ -92,6 +92,18 @@ Definition eff := val.
 (* [CFork (f, a) is a request to create a new thread, and to evaluate the
    application [f a] inside of it. *)
 
+(* [CNewProph ()] allocates a fresh prophecy variable and returns its
+   identifier. A prophecy variable has no computational content and is
+   never read or written: it is a name, to which the program logic can
+   attach a prediction about the future. *)
+
+(* [CResolve c (x, p, v)] performs the system call [c x] and, in the
+   same step, resolves the prophecy [p] with the pair of the call's
+   result and [v]. *)
+
+(* [CReturn w] is the system call that does nothing and returns [w]. It
+   exists so that a resolution has a step to happen at. *)
+
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
@@ -119,6 +131,11 @@ Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
   | CFork | CJoin => True
   | _ => False
   end.
+
+(* The codes that [step] cannot reduce on their own, and which therefore
+   float out of [Handle] and [Par] until they reach the top of a thread.
+   [CResolve] joins them for the same reason [CFork] and [CJoin] are here:
+   its step belongs to [thread_step]. *)
 
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with

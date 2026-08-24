@@ -10,14 +10,15 @@ Local Notation elem := record.
 
 Definition ufN : namespace := nroot .@ "concurrent_uf".
 
-(* The abstract state of the structure, as the client sees it: a domain, a
-   representative function, and a value function — the sequential
-   development's [D], [R] and [V] (see [UnionFind.v]). *)
+(* The abstract state of the structure, as the client sees it:
+   - a domain [D],
+   - a representative function [R],
+   - a value function [V]. *)
 
 Definition uf_state : Type := gset elem * (elem → elem) * (elem → val).
 
 (* ------------------------------------------------------------------------ *)
-(* What it means for [R] to be a representative function. *)
+(* The representative function [R]. *)
 
 (* The sequential development says this by exhibiting a disjoint set forest
    [F] and asking that [R] pick out the root of each tree
@@ -26,31 +27,18 @@ Definition uf_state : Type := gset elem * (elem → elem) * (elem → val).
 
    It cannot, because there is no single graph to point at: path
    compression rewrites parent pointers concurrently with everything else,
-   so the pointers do not form a stable forest, and the "abstract graph"
-   the previous version of this invariant existentially quantified over
-   was a fiction maintained alongside them, tied to the pointers by
-   nothing at all.
+   so the pointers do not form a stable forest. It does not need to,
+   because we only need four properties of [R]:
 
-   It does not need to, because a forest is a *witness* for four
-   elementary properties of [R], and those four properties are all any
-   proof here ever used:
-
-   - [repr_idem]: a representative is its own representative. This is what
-     makes the fibres of [R] a partition, i.e. what makes "same class"
-     mean anything.
+   - [repr_idem]: a representative is its own representative.
    - [repr_dom] / [repr_out]: [R] maps the structure into itself, and is
-     the identity on everything else — so a vertex that has never been
-     registered is trivially its own class.
+     the identity on everything else.
    - [repr_id_le]: a representative's identifier is at most its own
-     vertex's. This is the acyclicity argument, in the only form the code
-     uses it: it is what shows that the vertex a linking CAS points into
-     cannot already be represented by the vertex being linked away, i.e.
-     that [union] cannot create a cycle. In the forest formulation this
-     was [path_id_decrease] over [id_bounded].
+     vertex's. This is the argument we use for acyclicity: it shows
+     that the vertex a linking CAS points into cannot already be
+     represented by the vertex being linked away.
 
-   [uf_inv] pairs these with [vertex_own]'s tag conjunct — a cell holds a
-   [Root] iff [R x = x] — and that is the entire coupling between the
-   structure and its abstract state. *)
+   [uf_inv] pairs these with [vertex_own]. *)
 
 Record uf_repr (M : gmap elem Z) (R : elem → elem) : Prop := {
   repr_idem : ∀ x, R (R x) = R x;
@@ -62,34 +50,22 @@ Record uf_repr (M : gmap elem Z) (R : elem → elem) : Prop := {
 (* ------------------------------------------------------------------------ *)
 (* The abstract state transitions. *)
 
-(* There is only one, [update_class] (UnionFind00Update.v), shared with the
-   sequential development: an update to a whole equivalence class. It has
-   to be a whole class rather than a point, because the abstract state is
-   constrained by [V u = V (R u)] and has no notion of "where the value is
-   stored". Every transition either operation makes is an instance:
+(* We reuse [update_class] (UnionFind00Update.v) from the sequential
+   development to do updates on whole equivalence classes.
+   Every transition either operation makes is an instance:
 
-     make    [V.[x -/R/> v]]                     (the class of [x] is [x])
+     make    [V.[x -/R/> v]]
      set     [V.[x -/R/> v]]
      union   [R.[x -/R/> R y]] and [V.[x -/R/> V y]]
 
-   [union] is the only one that moves [R] at all — [make] extends the
-   domain, [set] and [update] move [V] alone, and compression moves
-   nothing. Linking absorbs [x]'s whole class into [y]'s: every vertex
-   that [R x] represented now has [R y] as its representative, and takes
-   [y]'s value.
-
-   The section below collects what that transition preserves, for the one
-   shape the implementation produces it in: a root [a] linked into a
-   vertex whose representative is [z], with [z]'s identifier strictly
-   below [a]'s. *)
+   The section below collects what [update_class] preserves when it is
+   used in [union]: a root [a] linked into a vertex whose
+   representative is [z], with [z]'s identifier strictly below [a]'s. *)
 
 Section link_state.
 
-(* [a] is a root about to be linked away; [z] is the representative of the
-   class it is joining. The identifier ordering is the whole reason the
-   two are distinct classes — [z]'s identifier is below [a]'s, so [z]
-   cannot be represented by [a] — and it is what makes the result a
-   representative function again rather than a cycle. *)
+(* In the following, [a] is a root about to be linked away and [z] is
+   the representative of the class it is joining. *)
 
 Context (M : gmap elem Z) (R : elem → elem) (a z : elem) (ia iz : Z).
 Context (HR : uf_repr M R) (Hroot : R a = a) (Hz : R z = z).
@@ -109,7 +85,7 @@ Local Lemma link_unfold {B : Type} (f : elem → B) (b : B) u :
   f.[a -/R/> b] u = if decide (R u = a) then b else f u.
 Proof. rewrite /update_class /fcupdate Hroot //. Qed.
 
-(* Nobody's root-status changes except [a]'s. *)
+(* Rootness is preserved outside of [a]. *)
 Lemma uf_link_root_iff w : w ≠ a → (R.[a -/R/> z] w = w ↔ R w = w).
 Proof.
   intros Hw. rewrite link_unfold. case_decide as Hcase; last done.
@@ -135,9 +111,6 @@ Proof.
     + by eapply Hle.
 Qed.
 
-(* Values are still read through representatives afterwards — with the NEW
-   representative function, which is what distinguishes this from
-   [lookup_class_root] (the [set]/[make] case, where [R] does not move). *)
 Lemma uf_link_value_coherent (V : elem → val) :
   (∀ u, V u = V (R u)) →
   ∀ u, V.[a -/R/> V z] u = V.[a -/R/> V z] (R.[a -/R/> z] u).
@@ -152,6 +125,24 @@ Proof.
 Qed.
 
 End link_state.
+
+(* Acyclicity, in the form every step that links actually uses it: a
+   vertex whose identifier is strictly below [z]'s cannot be represented
+   by [z]. This is [repr_id_le] read backwards, and it is the reason
+   [union] compares identifiers before it links. *)
+
+Lemma uf_repr_ne M R (z y : elem) j k :
+  uf_repr M R →
+  M !! z = Some j → M !! y = Some k → (k < j)%Z →
+  R y ≠ z.
+Proof.
+  intros HR HMz HMy Hk Hcontra.
+  assert (Hy : y ∈ dom M) by (apply elem_of_dom; by eexists).
+  pose proof (repr_dom _ _ HR y Hy) as Hry.
+  apply elem_of_dom in Hry as [iy HMry].
+  assert (Hle : (iy ≤ k)%Z) by (eapply (repr_id_le _ _ HR y); done).
+  rewrite Hcontra HMz in HMry. simplify_eq. lia.
+Qed.
 
 Section uf_inv.
 
@@ -169,55 +160,23 @@ Implicit Types γ : uf_names.
 (* ------------------------------------------------------------------------ *)
 (* The abstract state. *)
 
-(* A client of the structure sees exactly what a client of the SEQUENTIAL
-   union-find sees (see [UnionFind.v]): a domain [Dp], a representative
-   function [Rp] mapping every vertex to the root of its tree (and every
-   non-vertex to itself), and a value function [Vp]. The concurrent
-   [UF γ Dp Rp Vp] plays the role of the sequential [UF Dp Rp Vp]: it is
-   the client's exclusive handle on the state, and it is what a logically
-   atomic specification quantifies over.
+(* The concurrent [UF γ D R V] plays the role of the sequential
+   [UF D R V]: it is the client's exclusive handle on the state, and it
+   is what the logically atomic specifications quantify over.
 
-   It is half of a ghost variable whose other half lives in the invariant,
-   so the two are forced to agree and neither side can move the state
-   alone. At its linearization point an operation opens the invariant,
-   takes [UF] out of the client's atomic update, and either reads it (a
-   pure observer like [find]) or updates both halves at once.
+   We defined [UF γ D R V] as half of a ghost variable whose other half
+   lives in the invariant. At its linearization point an operation
+   opens the invariant, takes [UF] out of the client's atomic update,
+   and either reads it or updates both halves at once.
 
-   Note what is NOT in the abstract state: the parent pointers. Path
-   compression rewrites them constantly, and it is exactly the point of
-   this abstraction that this is invisible — compression changes no [Rp].
-   The [same_class] ghost state is likewise invisible to the client.
-
-   [UF] does, however, carry HALF the authority over the recorded class
-   pairs, alongside the soundness of what is recorded against this very
-   [Rp]. That is not information for the client — the set is existentially
-   hidden — it is a CAPABILITY: whoever holds a [UF] can turn a
-   [same_class] fact into the equation [R u = R w] on the spot
-   ([UF_same_class_eq]), with no fupd and no invariant open, and therefore
-   at ANY mask. That is what lets an operation reason about classes inside
-   an atomic update's access, where nothing can be opened.
-
-   The other half lives in the invariant's own [UF], so the two are forced
-   to agree. And since changing the recorded set needs both halves at
-   once, it can only happen where they meet — which is exactly a
-   linearization point, and exactly where a new equivalence is born.
-
-   [UF] also carries [uf_val_congr], the one well-formedness fact about
-   the state that is not derivable from the two functions alone: the value
-   function is constant on classes. Like the class authority this is a
-   capability rather than information — it is what lets a holder of [UF]
-   re-state a transition in terms of ANY member of a class instead of the
-   one it happens to be holding a name for. [union]'s retry is the reason
-   it is here: after a lost CAS the call restarts on the vertices its
-   traversals reached, and its client's hook, which speaks of the original
-   arguments, has to be re-based onto them — [same_class] gives the
-   representatives are equal, and this gives the values are too. *)
+   [UF] also carries [uf_val_congr] to enforce well-formedness of the
+   state: the value function is constant on classes. *)
 
 Definition uf_val_congr (Rp : elem → elem) (Vp : elem → val) : Prop :=
   ∀ u w, Rp u = Rp w → Vp u = Vp w.
 
-(* It survives both shapes of transition the structure ever makes: giving
-   one class a new value ([make], [set]), and merging two ([union]). *)
+(* [uf_val_congr] is preserved by the update to [V] and update to [R]
+   and [V] that [set] and [union] produce. *)
 
 Lemma uf_val_congr_set R V x v :
   uf_val_congr R V → uf_val_congr R V.[x -/R/> v].
@@ -233,31 +192,12 @@ Proof.
   repeat case_decide; [done | by intros <-%HV | by intros ->%HV | by apply HV].
 Qed.
 
-(* [dethroned γ Rp]: every vertex that is not its own representative has
-   been linked away, and here is the persistent witness.
+(* [dethroned γ R]: every vertex that is not its own representative is
+   a link, persistently. *)
 
-   This is the bridge from the ABSTRACT state to the link registry, and it
-   is what makes anti-monotone root-ness usable by a client. [cell_own]
-   already correlates a cell's tag with [Rp] — a [Root] cell iff [Rp x = x]
-   — but only INSIDE an invariant open, and a client standing at a
-   linearization point holds [UF], not the invariant. [dethroned] is that
-   correlation in the one direction a client can carry away: from the pure
-   [Rp w ≠ w] it holds, to a [linked] it can transport forward in time.
-
-   Why in [UF] rather than in some operation's postcondition: [Rp] is only
-   named where [UF] is, so this is the only place the fact can be stated,
-   and putting it here means every atomic specification hands it out
-   already — no operation has to be re-specified to expose it.
-
-   [eq]'s [false] case is the consumer. At [findc y]'s linearization point
-   it holds [UF γ D R V] for the state at that instant, and must decide
-   whether the vertex [a] its first traversal reached is still a root. If
-   [R a ≠ a] this yields [linked γ a rc], which — root-ness being
-   anti-monotone ([cell_own_linked]) — settles the LATER [a.content] read
-   as a [Link]. *)
-
-Definition dethroned (γ : uf_names) (Rp : elem → elem) : iProp Σ :=
-  □ (∀ (w : elem) (j : Z), vertex γ w j -∗ ⌜Rp w ≠ w⌝ -∗ ∃ rc, linked γ w rc).
+Definition dethroned (γ : uf_names) (R : elem → elem) : iProp Σ :=
+  □ (∀ (w : elem) (j : Z),
+       vertex γ w j -∗ ⌜R w ≠ w⌝ -∗ ∃ rc lp, linked γ w rc lp).
 
 Global Instance dethroned_persistent γ Rp : Persistent (dethroned γ Rp).
 Proof. apply _. Qed.
@@ -268,13 +208,12 @@ Proof. apply _. Qed.
 Lemma dethroned_id γ : ⊢ dethroned γ (λ x, x).
 Proof. iIntros "!>" (w j) "_ %Hne". done. Qed.
 
-(* The only transition that dethrones anyone: [union] links the root [b]
-   into [c]'s tree. Every other vertex keeps its representative, and [b]'s
-   own witness is the [linked] the linking CAS just minted. *)
+(* Witnessing more dethroned roots when [union] links the root [b] into
+   [c]'s tree. *)
 
-Lemma dethroned_link γ R b c rc :
+Lemma dethroned_link γ R b c rc lp :
   R b = b →
-  dethroned γ R -∗ linked γ b rc -∗ dethroned γ R.[b -/R/> R c].
+  dethroned γ R -∗ linked γ b rc lp -∗ dethroned γ R.[b -/R/> R c].
 Proof.
   iIntros (Hb) "#Hdeth #Hlk".
   iIntros "!>" (w j) "#Hw %Hne".
@@ -282,35 +221,32 @@ Proof.
   case_decide as Hcase.
   - (* [w] is in [b]'s old class. If it was a root it IS [b]. *)
     destruct (decide (R w = w)) as [Hrw | Hrw].
-    + rewrite -Hrw Hcase Hb. iExists rc. iExact "Hlk".
+    + rewrite -Hrw Hcase Hb. iExists rc, lp. iExact "Hlk".
     + iApply ("Hdeth" with "Hw"). iPureIntro. exact Hrw.
   - iApply ("Hdeth" with "Hw"). iPureIntro. exact Hne.
 Qed.
 
-Definition UF (γ : uf_names) (Dp : gset elem) (Rp : elem → elem)
-    (Vp : elem → val) : iProp Σ :=
-  ⌜uf_val_congr Rp Vp⌝ ∗
-  ghost_var γ.(uf_abs) (1/2) (Dp, Rp, Vp) ∗
-  dethroned γ Rp ∗
-  ∃ S, ⌜same_class_sound S Rp⌝ ∗ own γ.(uf_class) (●{#1/2} S).
+Definition UF (γ : uf_names) (D : gset elem) (R : elem → elem)
+    (V : elem → val) : iProp Σ :=
+  ⌜uf_val_congr R V⌝ ∗
+  ghost_var γ.(uf_abs) (1/2) (D, R, V) ∗
+  dethroned γ R ∗
+  ∃ S, ⌜same_class_sound S R⌝ ∗ own γ.(uf_class) (●{#1/2} S).
 
-(* Reading the bridge out of a handle, with no fupd and at any mask —
-   like [UF_same_class_eq], this is a capability the client already has. *)
-
-Lemma UF_dethroned γ Dp Rp Vp : UF γ Dp Rp Vp -∗ dethroned γ Rp.
+Lemma UF_dethroned γ D R V : UF γ D R V -∗ dethroned γ R.
 Proof. by iIntros "(_ & _ & #$ & _)". Qed.
 
-Global Instance UF_timeless γ Dp Rp Vp : Timeless (UF γ Dp Rp Vp).
+Global Instance UF_timeless γ D R V : Timeless (UF γ D R V).
 Proof. apply _. Qed.
 
-Lemma UF_agree γ Dp Rp Vp Dp' Rp' Vp' :
-  UF γ Dp Rp Vp -∗ UF γ Dp' Rp' Vp' -∗ ⌜Dp = Dp' ∧ Rp = Rp' ∧ Vp = Vp'⌝.
+Lemma UF_agree γ D R V D' R' V' :
+  UF γ D R V -∗ UF γ D' R' V' -∗ ⌜D = D' ∧ R = R' ∧ V = V'⌝.
 Proof.
   iIntros "(_ & H1 & _) (_ & H2 & _)".
   by iDestruct (ghost_var_agree with "H1 H2") as %[= -> -> ->].
 Qed.
 
-Lemma UF_val_congr γ Dp Rp Vp : UF γ Dp Rp Vp -∗ ⌜uf_val_congr Rp Vp⌝.
+Lemma UF_val_congr γ D R V : UF γ D R V -∗ ⌜uf_val_congr R V⌝.
 Proof. by iIntros "($ & _)". Qed.
 
 (* Reading a class fact against the state, from a handle alone. *)
@@ -324,15 +260,7 @@ Proof.
   iExists S. by iFrame "HSauth".
 Qed.
 
-(* Moving the state. Both halves are needed, which is the point: the
-   recorded pairs are sound against [Rp], so the transition must carry
-   them along, and coarsening [Rp] is exactly what keeps them sound
-   ([same_class_sound_coarsen]). *)
-
-(* The transition also has to carry the abstract-to-registry bridge. For
-   every transition but [union]'s link, [R] does not move and the caller
-   passes back the one it already had; [union] rebuilds it with
-   [dethroned_link], out of the [linked] its CAS has just minted. *)
+(* Moving the state, we need both halves (aka two copies of [UF]). *)
 
 Lemma UF_update_2 γ D R V D' R' V' :
   (∀ u w, R u = R w → R' u = R' w) →
@@ -353,8 +281,7 @@ Proof.
     iPureIntro. by eapply same_class_sound_coarsen.
 Qed.
 
-(* Recording a new pair — the only operation that mints a class fact, and
-   the only one that needs the full authority. *)
+(* Recording a new pair. *)
 
 Lemma UF_same_class_update γ D R V u w :
   R u = R w →
@@ -372,13 +299,10 @@ Proof.
   iSplitL "Ha1"; iExists S'; by iFrame.
 Qed.
 
-(* [in_uf γ x]: [x] is a vertex of the structure. This is the persistent
-   right to name [x] in a specification — the counterpart of the
-   sequential development's [⌜e ∈ D⌝] precondition, which cannot be stated
+(* [in_uf γ x]: [x] is a vertex of the structure.
+   This is the equivalent of stating [⌜x ∈ D⌝], which cannot be stated
    as a pure side condition here because [D] is only known at the
-   linearization point. Membership never expires, so this is persistent,
-   and at the linearization point the invariant turns it back into the
-   pure [x ∈ Dp] the sequential proofs use. *)
+   linearization point. *)
 
 Definition in_uf (γ : uf_names) (x : elem) : iProp Σ := ∃ i, vertex γ x i.
 
@@ -386,63 +310,40 @@ Global Instance in_uf_persistent γ x : Persistent (in_uf γ x).
 Proof. apply _. Qed.
 (* ------------------------------------------------------------------------ *)
 
-(* The global invariant: the authoritative map of vertices with their
-   physical footprints, the two registries (identifiers, and which
-   vertices have been linked away), and the invariant's half of the
-   abstract state.
+(* The global invariant holds:
+   - [γ.(uf_vert) 1 M]: the authoritative map of vertices with their
+     physical footprints,
+   - [γ.(uf_link) 1 L]: the registry of which vertices have been linked away,
+   - [γ.(uf_ids) 1 N]: the identifier registry,
+   - [UF γ (dom M) R V]: half of the abstract state.
 
-   The conjuncts that tie the two levels together are [uf_repr M Rp] — the
-   four properties above, standing in for the sequential development's
-   [DSF F Dp ∧ rel_incl Rp (Repr F)] — and [Vp x = Vp (Rp x)], which is
-   [Inv]'s third component verbatim. Everything an atomically specified
-   operation reports about the abstract state is read off them, together
-   with [cell_own]'s [Root]-tag conjunct.
+   We require that [R] is a representative function via [uf_repr M R],
+   and that [V] is conserved by [R] [V x = V (R x)].
 
-   [S] is the set of pairs ever recorded as equivalent, coupled to the
-   abstract state by [same_class_sound S Rp]: what a traversal needs to
-   carry across invariant opens is that two vertices are in the same
-   class, and it is the partition — not any pointer structure — that only
-   ever coarsens.
+   [id_tokens γ M] keeps a global view on the identifiers and ensures
+   that they are injective.
 
-   [id_tokens γ M] is what makes identifiers injective. It sits here
-   rather than inside [vertex_own] because no step on a vertex's cell ever
-   reads or moves it: only [make] touches it, to extend it. Keeping it
-   per-vertex meant carrying it in and out of every accessor for nothing.
-
-   Note that content records are no longer tracked here. A [Root] record's
-   payload is persistent, so nobody has to own it; a [Link] record's
-   parent field is owned by the vertex holding it, inside that vertex's
-   own [vertex_own]. The registry that used to map every content value
-   ever installed to a description has shrunk to [L], which records which
-   vertices have been linked away and with what record — and is never even
-   read, since the fragments carry everything (see [linked]).
-
-   [L]'s domain is nevertheless pinned to [M]'s. That is not needed to
-   USE the registry — a vertex's own entry always comes out of its
-   [cell_own] — but it is what lets [make] put a fresh vertex INTO it:
-   inserting into a [ghost_map] needs the key to be absent, and "absent
-   from [L]" is exactly what being a fresh vertex has to mean. *)
+   [L]'s domain is pinned to [M]'s to allow [make] to put a fresh
+   vertex into it (we need to prove the key is absent). *)
 
 Definition uf_inv (γ : uf_names) : iProp Σ :=
   ∃ (M : gmap elem Z) (L : gmap elem (option record)) (N : gmap Z unit)
-    (Rp : elem → elem) (Vp : elem → val),
+    (R : elem → elem) (V : elem → val),
     ghost_map_auth γ.(uf_vert) 1 M ∗
     ghost_map_auth γ.(uf_link) 1 L ∗
     ghost_map_auth γ.(uf_ids) 1 N ∗
-    UF γ (dom M) Rp Vp ∗
+    UF γ (dom M) R V ∗
     ⌜dom L = dom M⌝ ∗
     ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
-    ⌜uf_repr M Rp⌝ ∗
-    ⌜∀ x, Vp x = Vp (Rp x)⌝ ∗
+    ⌜uf_repr M R⌝ ∗
+    ⌜∀ x, V x = V (R x)⌝ ∗
     id_tokens γ M ∗
-    ([∗ map] x ↦ i ∈ M, vertex_own γ Rp Vp x i).
+    ([∗ map] x ↦ i ∈ M, vertex_own γ R V x i).
 
 Definition is_uf (γ : uf_names) : iProp Σ :=
   inv ufN (uf_inv γ).
 
-(* An empty structure can always be created; over the empty domain every
-   vertex is trivially its own representative. The client receives the
-   abstract state it starts in. *)
+(* Allocating an empty structure. *)
 
 Lemma uf_alloc E (V0 : elem → val) :
   ⊢ |={E}=> ∃ γ, is_uf γ ∗ UF γ ∅ (λ x, x) V0.
@@ -480,83 +381,39 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* Accessing the invariant.
+(* Accessing the invariant. *)
 
-   [uf_inv] is never destructured outside this file, and inside it only by
-   the two accessors below. Each hands out exactly the resources its
-   callers consume — and a wand to give them back — rather than the whole
-   pile of components; the ones a caller does not need it never sees,
-   which is what keeps the function proofs free of invariant bookkeeping.
-
-   The first accessor is the purely ghost one. [vertex_representable] reads
-   the identifier map [M] and nothing else — no physical footprint, no
-   abstract state — so that is all this exposes. It used to also hand out
-   the class authority, for [same_class_trans]; with class facts closed
-   under composition by construction there is no such caller left. *)
-
-Lemma uf_inv_ghost_acc γ :
-  ▷ uf_inv γ -∗
-  ◇ ∃ M : gmap elem Z,
-      ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
-      ghost_map_auth γ.(uf_vert) 1 M ∗
-      (ghost_map_auth γ.(uf_vert) 1 M -∗ ▷ uf_inv γ).
-Proof.
-  iIntros "H".
-  iDestruct "H" as (M L N Rp Vp)
-    "(>Hauth & >Hlauth & >Hnauth & >Hcont &
-      >%HdomL & >%Hrep & >%HRp & >%HVp & Htoks & HM)".
-  iModIntro. iExists M.
-  iSplitR; first done.
-  iFrame "Hauth".
-  iIntros "Hauth". iNext.
-  iExists M, L, N, Rp, Vp. by iFrame.
-Qed.
-
-(* [uf_frame γ z j D Rp Vp] is everything [uf_inv] owns that a
-   step on vertex [z]'s content cell never inspects: the identifier map,
-   the two registries, the identifier tokens, and every OTHER vertex's
-   footprint. Packaging it under one name is what lets the single accessor
-   below expose one vertex's cell and nothing else.
-
-   What it does NOT hold is the abstract state and the recorded pairs:
-   those are handed out alongside the cell, because a step on a content
-   cell is exactly where they get read (a linearization point) or moved (a
-   successful CAS). *)
+(* [uf_frame γ z j D R V] lets the single accessor below expose one
+   vertex's cell and nothing else. *)
 
 Definition uf_frame (γ : uf_names) z j
-    (D : gset elem) (Rp : elem → elem) (Vp : elem → val) : iProp Σ :=
+    (D : gset elem) (R : elem → elem) (V : elem → val) : iProp Σ :=
   ∃ (M : gmap elem Z) (L : gmap elem (option record)) (N : gmap Z unit),
     ⌜M !! z = Some j⌝ ∗ ⌜dom M = D⌝ ∗ ⌜dom L = dom M⌝ ∗
     ⌜∀ x i, M !! x = Some i → representable i⌝ ∗
-    ⌜uf_repr M Rp⌝ ∗ ⌜∀ x, Vp x = Vp (Rp x)⌝ ∗
+    ⌜uf_repr M R⌝ ∗ ⌜∀ x, V x = V (R x)⌝ ∗
     ghost_map_auth γ.(uf_vert) 1 M ∗ ghost_map_auth γ.(uf_link) 1 L ∗
     ghost_map_auth γ.(uf_ids) 1 N ∗
     id_tokens γ M ∗
-    ([∗ map] x ↦ i ∈ delete z M, vertex_own γ Rp Vp x i).
+    ([∗ map] x ↦ i ∈ delete z M, vertex_own γ R V x i).
 
-(* [uf_inv_split] singles out one vertex's footprint: given [z]'s
-   persistent [vertex] components, it hands back the content cell
-   [lzc ↦ #c] of [z] and whatever that content owns ([cell_own]), together
-   with the abstract state, the recorded pairs, and the frame.
-   [uf_inv_reassemble] is the converse — for a possibly DIFFERENT content
-   value, which is what a successful CAS installs, and for a possibly
-   larger set of recorded pairs. *)
+(* [uf_inv_split] singles out one vertex's footprint *)
 
 Lemma uf_inv_split γ z j lzi lzc :
   z ↪[γ.(uf_vert)]□ j -∗
   isBlockLocs z [lzi; lzc] -∗
   ▷ uf_inv γ -∗
-  ◇ ∃ (c : content) (D : gset elem) (Rp : elem → elem) (Vp : elem → val),
-      ⌜z ∈ D⌝ ∗
-      UF γ D Rp Vp ∗
-      ▷ (lzc ↦ #c) ∗
-      ▷ cell_own γ Rp Vp z j c ∗
-      ▷ uf_frame γ z j D Rp Vp.
+  ◇ ∃ (c : content) (D : gset elem) (R : elem → elem) (V : elem → val),
+    ⌜z ∈ D⌝ ∗
+    UF γ D R V ∗
+    ▷ (lzc ↦ #c) ∗
+    ▷ cell_own γ R V z j c ∗
+    ▷ uf_frame γ z j D R V.
 Proof.
   iIntros "#Hzfrag #Hzlocs H".
-  iDestruct "H" as (M L N Rp Vp)
+  iDestruct "H" as (M L N R V)
     "(>Hauth & >Hlauth & >Hnauth & >Hcont &
-      >%HdomL & >%Hrep & >%HRp & >%HVp & Htoks & HM)".
+      >%HdomL & >%Hrep & >%HR & >%HV & Htoks & HM)".
   iDestruct (ghost_map_lookup with "Hauth Hzfrag") as %HMz.
   rewrite (big_sepM_delete _ M z j); last exact HMz.
   iDestruct "HM" as "[Hvo HM]".
@@ -564,7 +421,7 @@ Proof.
   iAssert (▷ ⌜[lzi; lzc] = [li'; lc']⌝)%I with "[]" as ">%Heql".
   { iNext. iApply (isBlockLocs_valid with "Hzlocs' Hzlocs"). }
   simplify_eq.
-  iExists c, (dom M), Rp, Vp.
+  iExists c, (dom M), R, V.
   iModIntro.
   iSplitR; first by iPureIntro; eapply elem_of_dom_2.
   iFrame "Hcont Hlc Hcell".
@@ -573,12 +430,12 @@ Proof.
   iFrame "Hauth Hlauth Hnauth Htoks HM".
 Qed.
 
-Lemma uf_inv_reassemble γ z j lzi lzc c' D Rp Vp :
-  UF γ D Rp Vp -∗
+Lemma uf_inv_reassemble γ z j lzi lzc c' D R V :
+  UF γ D R V -∗
   isBlockLocs z [lzi; lzc] -∗
   lzc ↦ #c' -∗
-  cell_own γ Rp Vp z j c' -∗
-  uf_frame γ z j D Rp Vp -∗
+  cell_own γ R V z j c' -∗
+  uf_frame γ z j D R V -∗
   uf_inv γ.
 Proof.
   iIntros "Hcont #Hzlocs Hlc Hcell Hframe".
@@ -586,7 +443,7 @@ Proof.
     "(%HMz & %HdomM & %HdomL & %Hrep & %HRp & %HVp &
       Hauth & Hlauth & Hnauth & Htoks & HM)".
   subst D.
-  iExists M, L, N, Rp, Vp.
+  iExists M, L, N, R, V.
   iFrame "Hauth Hlauth Hnauth Hcont Htoks".
   do 4 (iSplitR; first done).
   rewrite (big_sepM_delete _ M z j); last exact HMz.
@@ -594,36 +451,256 @@ Proof.
   iExists lzi, lzc, c'. iFrame "Hzlocs Hlc Hcell".
 Qed.
 
-(* Note that the two state-CHANGING steps do NOT go through
-   [uf_inv_reassemble]: they have to put the frame back under a different
-   abstract state, and the reassembly of each is spelled out inside its
-   own lemma below ([uf_cas_link_fupd], [uf_cas_set_fupd]). *)
+(* Restate [uf_inv_split] but without an explicit [uf_frame]. *)
+
+Lemma uf_inv_acc γ z j lzi lzc :
+  z ↪[γ.(uf_vert)]□ j -∗
+  isBlockLocs z [lzi;lzc] -∗
+  ▷ uf_inv γ -∗
+  ◇ ∃ c D R V,
+    ⌜z ∈ D⌝ ∗
+    UF γ D R V ∗
+    ▷ (lzc ↦ #c) ∗
+    ▷ cell_own γ R V z j c ∗
+    ▷ (UF γ D R V -∗ lzc ↦ #c -∗ cell_own γ R V z j c -∗ uf_inv γ).
+Proof.
+  iIntros "#Hzfrag #Hzlocs Hinv".
+  iPoseProof (uf_inv_split with "Hzfrag Hzlocs Hinv") as (c D R V)
+    ">(%Hin & Hcont & Hlc & Hcell & Hframe)".
+  iModIntro.
+  iExists c, D, R, V.
+  iFrame. iFrame "%". iModIntro.
+  iIntros "HUF Hlzc Hcell".
+  iApply (uf_inv_reassemble with "HUF Hzlocs Hlzc Hcell Hframe").
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Accessing the invariant with the right to MOVE the abstract state. *)
+
+(* [uf_inv_acc] hands the cell back exactly as it took it. The linking
+   CAS does not: it writes a new content, it turns a root into a link in
+   the registry, and it moves [R] and [V]. [uf_close] is the closing half
+   that admits all of that, and it is where the whole burden of
+   re-establishing [uf_inv] is discharged — the caller is left with pure
+   side conditions and nothing else.
+
+   The vertex registry [M] itself never moves here: no step that writes a
+   content cell registers or unregisters a vertex (that is [make]'s job,
+   [register_vertex]). So [M] is a parameter of the closer, and the two
+   facts about the new state are stated against it. The two conditions
+   after them are exactly [vertex_own_reindex]'s: no vertex OTHER than
+   [z] changes root-status, and no surviving root changes value. *)
+
+Definition uf_close (γ : uf_names) (z : elem) (j : Z) (lzc : locations.loc)
+    (M : gmap elem Z) (R : elem → elem) (V : elem → val) : iProp Σ :=
+  ∀ (c' : content) (R' : elem → elem) (V' : elem → val),
+    ⌜uf_repr M R'⌝ -∗
+    ⌜∀ x, V' x = V' (R' x)⌝ -∗
+    ⌜∀ w, w ∈ dom M → w ≠ z → (R' w = w ↔ R w = w)⌝ -∗
+    ⌜∀ w, w ∈ dom M → w ≠ z → R w = w → V' w = V w⌝ -∗
+    UF γ (dom M) R' V' -∗
+    lzc ↦ #c' -∗
+    cell_own γ R' V' z j c' -∗
+    uf_inv γ.
+
+Lemma uf_close_intro γ z j lzi lzc M L N R V :
+  M !! z = Some j →
+  dom L = dom M →
+  (∀ x i, M !! x = Some i → representable i) →
+  isBlockLocs z [lzi; lzc] -∗
+  ghost_map_auth γ.(uf_vert) 1 M -∗
+  ghost_map_auth γ.(uf_link) 1 L -∗
+  ghost_map_auth γ.(uf_ids) 1 N -∗
+  id_tokens γ M -∗
+  ([∗ map] x ↦ i ∈ delete z M, vertex_own γ R V x i) -∗
+  uf_close γ z j lzc M R V.
+Proof.
+  iIntros (HMz HdomL Hrepr) "#Hzlocs Hauth Hlauth Hnauth Htoks HM".
+  iIntros (c' R' V') "%HR' %HV' %Hroot %Hval HUF Hlc Hcell".
+  iExists M, L, N, R', V'.
+  iFrame "Hauth Hlauth Hnauth HUF Htoks".
+  do 4 (iSplitR; first done).
+  rewrite (big_sepM_delete _ M z j); last exact HMz.
+  iSplitR "HM".
+  { iExists lzi, lzc, c'. iFrame "Hzlocs Hlc Hcell". }
+  iApply (vertex_own_reindex with "HM").
+  - intros w i Hw. apply Hroot.
+    + apply elem_of_dom. exists i.
+      eapply lookup_weaken; [exact Hw | apply delete_subseteq].
+    + intros ->. by rewrite lookup_delete_eq in Hw.
+  - intros w i Hw Hrw. apply Hval; [| | exact Hrw].
+    + apply elem_of_dom. exists i.
+      eapply lookup_weaken; [exact Hw | apply delete_subseteq].
+    + intros ->. by rewrite lookup_delete_eq in Hw.
+Qed.
+
+(* [uf_inv_acc_update] is [uf_inv_acc] with a closer that may move the
+   state. Three things beyond [uf_inv_acc] come out of it, and each is a
+   piece of ghost bookkeeping the caller would otherwise have to do with
+   the invariant's authorities in hand:
+
+   - the registry [M] itself, with [z]'s entry AND the entry of one other
+     vertex [y] the caller names up front. The linking CAS has to compare
+     the two identifiers, so it needs [y]'s; and it cannot look it up
+     itself, since the authority stays inside the closer.
+
+   - the state facts [uf_repr M R] and the value coherence.
+
+   - the right to link [z] away: the second branch consumes [z]'s
+     root token, registers a fresh link record, and hands back the
+     persistent [linked] witness — the ghost step that dethrones [z].
+     A caller that only reads, or whose CAS failed, takes the first
+     branch and closes unchanged. *)
+
+Lemma uf_inv_acc_update γ z j lzi lzc (y : elem) (k : Z) :
+  z ↪[γ.(uf_vert)]□ j -∗
+  y ↪[γ.(uf_vert)]□ k -∗
+  isBlockLocs z [lzi; lzc] -∗
+  ▷ uf_inv γ -∗
+  ◇ ∃ (c : content) (M : gmap elem Z) (R : elem → elem) (V : elem → val),
+    ⌜M !! z = Some j⌝ ∗ ⌜M !! y = Some k⌝ ∗
+    ⌜uf_repr M R⌝ ∗ ⌜∀ x, V x = V (R x)⌝ ∗
+    UF γ (dom M) R V ∗
+    ▷ (lzc ↦ #c) ∗
+    ▷ cell_own γ R V z j c ∗
+    ▷ (uf_close γ z j lzc M R V
+       ∧ (∀ (rc : record) (lp : locations.loc),
+            isBlockLocs rc [lp] -∗ z ↪[γ.(uf_link)] None ==∗
+            linked γ z rc lp ∗ uf_close γ z j lzc M R V)).
+Proof.
+  iIntros "#Hzfrag #Hyfrag #Hzlocs H".
+  iDestruct "H" as (M L N R V)
+    "(>Hauth & >Hlauth & >Hnauth & >Hcont &
+      >%HdomL & >%Hrepr & >%HR & >%HV & Htoks & HM)".
+  iDestruct (ghost_map_lookup with "Hauth Hzfrag") as %HMz.
+  iDestruct (ghost_map_lookup with "Hauth Hyfrag") as %HMy.
+  rewrite (big_sepM_delete _ M z j); last exact HMz.
+  iDestruct "HM" as "[Hvo HM]".
+  iDestruct "Hvo" as (li' lc' c) "(#Hzlocs' & Hlc & Hcell)".
+  iAssert (▷ ⌜[lzi; lzc] = [li'; lc']⌝)%I with "[]" as ">%Heql".
+  { iNext. iApply (isBlockLocs_valid with "Hzlocs' Hzlocs"). }
+  simplify_eq.
+  iExists c, M, R, V.
+  iModIntro.
+  iFrame "Hcont Hlc Hcell".
+  do 4 (iSplitR; first done).
+  iNext. iSplit.
+  - iApply (uf_close_intro with "Hzlocs Hauth Hlauth Hnauth Htoks HM"); done.
+  - iIntros (rc lp) "#Hlocs Htok".
+    iDestruct (ghost_map_lookup with "Hlauth Htok") as %HLz.
+    iMod (ghost_map_update (Some rc) with "Hlauth Htok") as "[Hlauth Htok]".
+    iMod (ghost_map_elem_persist with "Htok") as "#Htok".
+    assert (Hdom' : dom (<[z := Some rc]> L) = dom M).
+    { rewrite dom_insert_lookup_L; [exact HdomL | by eexists]. }
+    iModIntro. iSplitR; first by iFrame "Htok Hlocs".
+    iApply (uf_close_intro with "Hzlocs Hauth Hlauth Hnauth Htoks HM"); done.
+Qed.
+
+(* Closing on the state one took: the two reindexing conditions are
+   vacuous. *)
+
+Lemma uf_close_id γ z j lzc M R V c :
+  uf_repr M R →
+  (∀ x, V x = V (R x)) →
+  uf_close γ z j lzc M R V -∗
+  UF γ (dom M) R V -∗ lzc ↦ #c -∗ cell_own γ R V z j c -∗ uf_inv γ.
+Proof.
+  iIntros (HR HV) "Hclose HUF Hlc Hcell".
+  iApply ("Hclose" with "[%] [%] [%] [%] HUF Hlc Hcell"); [done | done | | ].
+  - intros w _ _. reflexivity.
+  - intros w _ _ _. reflexivity.
+Qed.
+
+(* Closing on the LINKING transition: [z], a root, is linked into [y],
+   whose identifier is strictly below [z]'s, and its cell now holds the
+   fresh link record [rc].
+
+   This is where [union]'s state argument lives, and the whole of it is
+   the [link_state] section above: the identifier ordering makes [R y]
+   different from [z] ([uf_repr_ne]), which is what turns the update into
+   a representative function again ([uf_repr_link]) rather than a cycle,
+   keeps the value function coherent ([uf_link_value_coherent]), and
+   leaves every other vertex's root-status alone ([uf_link_root_iff]). *)
+
+Lemma uf_close_link γ z j lzc M R V (y : elem) k rc lp :
+  M !! z = Some j →
+  M !! y = Some k →
+  (k < j)%Z →
+  uf_repr M R →
+  (∀ x, V x = V (R x)) →
+  R z = z →
+  uf_close γ z j lzc M R V -∗
+  UF γ (dom M) R.[z -/R/> R y] V.[z -/R/> V y] -∗
+  lzc ↦ #(CtLink rc) -∗
+  linked γ z rc lp -∗
+  link_field γ rc lp z j -∗
+  uf_inv γ.
+Proof.
+  intros HMz HMy Hk HR HV Hroot.
+  (* [y]'s representative: the vertex the class is re-hung under. *)
+  assert (Hy : y ∈ dom M) by (apply elem_of_dom; by eexists).
+  pose proof (repr_dom _ _ HR y Hy) as Hry.
+  apply elem_of_dom in Hry as [iy HMry].
+  assert (Hiy : (iy ≤ k)%Z) by (eapply (repr_id_le _ _ HR y); done).
+  assert (Hlt : (iy < j)%Z) by lia.
+  assert (Hne : R y ≠ z) by (eapply uf_repr_ne; done).
+  pose proof (repr_idem _ _ HR y) as Hidem.
+  (* Naming the class by [y] or by its representative is the same. *)
+  assert (HeqV : V.[z -/R/> V y] = V.[z -/R/> V (R y)]) by (by rewrite (HV y)).
+  rewrite HeqV.
+  iIntros "Hclose HUF Hlc #Hlk Hlf".
+  iApply ("Hclose" $! (CtLink rc) with "[%] [%] [%] [%] HUF Hlc [Hlf]").
+  - eapply (uf_repr_link M R z (R y) j iy); done.
+  - eapply (uf_link_value_coherent M R z (R y) j iy); done.
+  - intros w _ Hwz. eapply (uf_link_root_iff M R z (R y) j iy); done.
+  - intros w _ Hwz Hrw.
+    rewrite lookup_update_class_ne //. by rewrite Hroot Hrw.
+  - iExists lp. iFrame "Hlk Hlf". iPureIntro.
+    rewrite lookup_update_class. exact Hne.
+Qed.
+
+(* Closing on the VALUE transition: [z], a root, keeps its root-status
+   and its class, and its cell swings to a freshly allocated [Root]
+   record carrying [v].
+
+   [R] does not move at all, so no vertex changes root-status and the two
+   reindexing conditions are almost vacuous: the only one with content is
+   that no OTHER root's value moved, which holds because [z] is the sole
+   root of the class the update touches ([lookup_update_class_ne], read
+   at a root [w ≠ z]). Value coherence is [lookup_class_root]: assigning
+   a whole class at once is exactly what keeps [V u = V (R u)]. *)
+
+Lemma uf_close_set γ z j lzc M R V rc (v : val) :
+  M !! z = Some j →
+  uf_repr M R →
+  (∀ x, V x = V (R x)) →
+  R z = z →
+  uf_close γ z j lzc M R V -∗
+  UF γ (dom M) R V.[z -/R/> v] -∗
+  lzc ↦ #(CtRoot rc) -∗
+  z ↪[γ.(uf_link)] None -∗
+  root_val rc v -∗
+  uf_inv γ.
+Proof.
+  intros HMz HR HV Hroot.
+  assert (Idempotent R) by (constructor; apply (repr_idem _ _ HR)).
+  iIntros "Hclose HUF Hlc Htok Hrv".
+  iApply ("Hclose" $! (CtRoot rc) with "[%] [%] [%] [%] HUF Hlc [Htok Hrv]").
+  - exact HR.
+  - intros u. apply lookup_class_root, HV.
+  - intros w _ _. reflexivity.
+  - intros w _ Hwz Hrw.
+    rewrite lookup_update_class_ne //. by rewrite Hroot Hrw.
+  - iSplitR; first done. iFrame "Htok".
+    rewrite lookup_update_class. iFrame "Hrv".
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* The linearization point of [make]: registering a fresh vertex. *)
 
-(* [make] allocates a vertex record and a [Root] content record, and then,
-   in one ghost step, declares the result a vertex of the structure. That
-   step is the whole of [make]'s dealings with the abstract state, and it
-   is its linearization point.
-
-   The state moves in the only way it can here: the domain gains [x], and
-   [x]'s class — which is [x] alone — takes the value [v], which is again
-   [update_class]. [R] does not move at all: [repr_out] already forced
-   [R x = x] for every vertex outside the domain, so the fresh vertex was
-   its own representative before it was registered and stays so
-   afterwards. That is also why the caller can be handed [⌜R x = x⌝] for
-   free — without it the postcondition would not say where [v] went.
-
-   That the allocated record is not ALREADY a registered vertex is read
-   off the heap rather than the ghost state: a registered vertex owns its
-   content cell exclusively, and the caller is still holding this one
-   ([vertex_own_fresh_ne]).
-
-   Nothing here touches [same_class] — a fresh vertex is equivalent to
-   nothing but itself, and [same_class] is reflexive by definition — nor
-   the identifier authority: the token spent comes from [G.fresh], and
-   that is precisely what makes the identifier globally unused. *)
+(* [make] allocates a vertex record and a [Root] content record, and
+   then, in one ghost step, declares the result a vertex of the
+   structure: the domain gains [x], and [x] takes the value [v]. *)
 
 Lemma register_vertex  (Q : iProp Σ) γ (x : elem) i (rc : record)
     (v : val) :
@@ -740,38 +817,12 @@ Context `{!osirisGS Σ,
 (* ------------------------------------------------------------------------ *)
 (* The [same_class] API. *)
 
-(* Reflexivity, symmetry and transitivity all hold by definition — see
-   [UnionFind09SameClass.v], where a class fact is a CHAIN of recorded
-   pairs rather than a single one. None of them is a ghost step, and none
-   of them needs an invariant open. What used to live here
-   ([same_class_trans], [same_class_sibling]) is now [same_class_trans]
-   and [same_class_sym] composed. *)
-
-(* Two vertices in a common class are in each other's. This is what path
-   compression needs to hand its recursive call: it holds [x ~ y] (the hop
-   it just read) and [x ~ z] (its own precondition), and must produce
-   [y ~ z] to reroute [y] as well.
-
-   It is worth pausing on how little there is to prove. Under the previous
-   formulation, where the recorded facts were PATHS in an abstract graph,
-   the same step needed the two paths out of [x] to be linearly ordered
-   ([path_confluent], from a disjoint-set forest being [Functional]) and
-   the wrong order to be ruled out by the identifier ordering
-   ([path_id_decrease]) — for which [compress]'s [y.id > z.id] guard had
-   to be threaded in. Recording class membership instead, the whole thing
-   is [Rp y = Rp x = Rp z], and the guard justifies nothing about the
-   rerouting: it is only what keeps identifiers decreasing. *)
-
 (* Observing that two vertices are in one class, against the abstract
    state, at a ghost instant.
 
    [union] needs this for the case where it has nothing to do: it has
-   chased both arguments to a common vertex, so they are equivalent —
-   permanently, since classes only merge — and it returns [None]. There is
-   no physical step left at which to say so (the [==] test is a register
-   comparison), and there does not need to be one: nothing about the
-   structure changes, so any instant will do, and an invariant open with
-   no step in it is exactly such an instant. *)
+   chased both arguments to a common vertex, so they are equivalent
+   and it returns [None]. *)
 
 Lemma uf_same_class_commit γ (u w c : elem) (Q : iProp Σ) :
   is_uf γ -∗
@@ -806,9 +857,7 @@ Qed.
 End same_class.
 
 (* ------------------------------------------------------------------------ *)
-(* The vertex-level API: the only interface the function proofs use. It
-   speaks of [vertex], [is_uf], [content_info] and [linked] — never of the
-   invariant's components. *)
+(* The vertex-level API used in the proof. *)
 
 Section uf_api.
 
@@ -824,55 +873,45 @@ Implicit Types rc : record.
 Implicit Types i j : Z.
 Implicit Types γ : uf_names.
 
-(* Reading a vertex's content cell, in the shape the atomic record-access
-   rule wants. The reader learns [content_info] — for a [Root], a
-   persistent points-to for its payload; for a [Link], that the record is
-   [z]'s own and stays so — and gives the cell straight back, unchanged. *)
+(* Reading a vertex's content cell, and gives the cell straight back. *)
 
-Lemma uf_vertex_content_acc γ z j lzi lzc (Φ : content → iProp Σ) :
+Lemma uf_vertex_content_acc γ z i lzi lzc (Φ : content → iProp Σ) :
   is_uf γ -∗
-  z ↪[γ.(uf_vert)]□ j -∗
+  vertex γ z i -∗
   isBlockLocs z [lzi; lzc] -∗
   ▷ (∀ c : content, content_info γ z c -∗ Φ c) -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
     ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
 Proof.
-  iIntros "#Hinv #Hzfrag #Hzlocs HΦ".
+  iIntros "#Hinv #Hz #Hzlocs HΦ".
+  iDestruct (vertex_frag with "Hz") as "#Hzfrag".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (c D Rp Vp)
+  iMod (uf_inv_acc with "Hzfrag Hzlocs H") as (c D Rp Vp)
     "(_ & Hcont & Hlc & Hcell & Hframe)".
   iModIntro. iExists c. iFrame "Hlc".
   iIntros "!> Hlc".
   iDestruct (cell_own_info with "Hcell") as "(_ & #Hinfo & _ & Hcell)".
   iMod ("Hclose" with "[Hcont Hlc Hcell Hframe]") as "_".
   { iNext.
-    iApply (uf_inv_reassemble with "Hcont Hzlocs Hlc Hcell Hframe"). }
+    iApply ("Hframe" with "Hcont Hlc Hcell"). }
   iModIntro. iApply ("HΦ" with "Hinfo").
 Qed.
 
-(* The same read, for a vertex already known to have been linked away.
-   Root-ness is anti-monotone ([cell_own_linked]), so the load cannot
-   report a [Root]: whatever instant it happens at, the answer is the very
-   record [linked] names.
+(* The same read, for a vertex already known to have been linked away. *)
 
-   The equation is what a caller wants: it turns a [linked] observed at
-   SOME EARLIER instant into knowledge about a read that has not happened
-   yet. That is one of the two halves of [eq]'s [false] case — the other
-   is the prophecy, which says which way the read will go when [linked]
-   does NOT hold. *)
-
-Lemma uf_vertex_content_acc_linked γ z j lzi lzc rc (Φ : content → iProp Σ) :
+Lemma uf_vertex_content_acc_linked γ z j lzi lzc rc lp (Φ : content → iProp Σ) :
   is_uf γ -∗
-  z ↪[γ.(uf_vert)]□ j -∗
+  vertex γ z j -∗
   isBlockLocs z [lzi; lzc] -∗
-  linked γ z rc -∗
+  linked γ z rc lp -∗
   ▷ (∀ c : content, ⌜c = CtLink rc⌝ -∗ content_info γ z c -∗ Φ c) -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
     ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
 Proof.
-  iIntros "#Hinv #Hzfrag #Hzlocs #Hlk HΦ".
+  iIntros "#Hinv #Hz #Hzlocs #Hlk HΦ".
+  iDestruct (vertex_frag with "Hz") as "#Hzfrag".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (c D Rp Vp)
+  iMod (uf_inv_acc with "Hzfrag Hzlocs H") as (c D Rp Vp)
     "(_ & Hcont & Hlc & Hcell & Hframe)".
   iModIntro. iExists c. iFrame "Hlc".
   iIntros "!> Hlc".
@@ -880,42 +919,28 @@ Proof.
   iDestruct (cell_own_info with "Hcell") as "(_ & #Hinfo & _ & Hcell)".
   iMod ("Hclose" with "[Hcont Hlc Hcell Hframe]") as "_".
   { iNext.
-    iApply (uf_inv_reassemble with "Hcont Hzlocs Hlc Hcell Hframe"). }
+    iApply ("Hframe" with "Hcont Hlc Hcell"). }
   iModIntro. iApply ("HΦ" with "[//] Hinfo").
 Qed.
 
 (* The same read once more, this time with the [linked] witness held by
-   the caller inside a DISJUNCTION whose right branch the load's own
-   result refutes.
-
-   A caller that observed [z] linked at some earlier instant cannot see a
-   [Root] here; but it may not know which branch it is in, and splitting
-   the case before the read would mean proving the whole continuation
-   twice. So it hands both alternatives over and gets back the same
-   disjunction with the right branch weakened to a PURE fact about the
-   value just loaded.
-
-   This is what keeps [eq]'s [false] case a single proof. Its two reasons
-   for expecting a [Link] — a [linked] minted at [findc y]'s linearization
-   point, and a prophecy predicting the read — are of quite different
-   kinds; this accessor reduces the first to the same pure shape the
-   second already has, and the continuation then handles one disjunction
-   rather than two proofs. *)
+   the caller inside a disjunction. *)
 
 Lemma uf_vertex_content_acc_or_linked γ z j lzi lzc (P Q : iProp Σ)
     (Φ : content → iProp Σ) :
   is_uf γ -∗
-  z ↪[γ.(uf_vert)]□ j -∗
+  vertex γ z j -∗
   isBlockLocs z [lzi; lzc] -∗
-  (P ∨ (∃ rc, linked γ z rc) ∗ Q) -∗
+  (P ∨ (∃ rc lp, linked γ z rc lp) ∗ Q) -∗
   ▷ (∀ c : content, content_info γ z c -∗
        (P ∨ ⌜content_root c = false⌝ ∗ Q) -∗ Φ c) -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ c : content,
     ▷ (lzc ↦ #c) ∗ ▷ (lzc ↦ #c -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ c).
 Proof.
-  iIntros "#Hinv #Hzfrag #Hzlocs HPQ HΦ".
+  iIntros "#Hinv #Hz #Hzlocs HPQ HΦ".
+  iDestruct (vertex_frag with "Hz") as "#Hzfrag".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hzfrag Hzlocs H") as (c D Rp Vp)
+  iMod (uf_inv_acc with "Hzfrag Hzlocs H") as (c D Rp Vp)
     "(_ & Hcont & Hlc & Hcell & Hframe)".
   iModIntro. iExists c. iFrame "Hlc".
   iIntros "!> Hlc".
@@ -923,46 +948,24 @@ Proof.
      the cell the invariant currently holds. *)
   iAssert (cell_own γ Rp Vp z j c ∗ (P ∨ ⌜content_root c = false⌝ ∗ Q))%I
     with "[Hcell HPQ]" as "[Hcell HPQ]".
-  { iDestruct "HPQ" as "[HP | [(%rc & #Hlk) HQ]]".
+  { iDestruct "HPQ" as "[HP | [(%rc & %lp & #Hlk) HQ]]".
     - by iFrame "Hcell HP".
     - iDestruct (cell_own_linked with "Hlk Hcell") as "(%Hc & Hcell)".
       iFrame "Hcell". iRight. iFrame "HQ". by subst c. }
   iDestruct (cell_own_info with "Hcell") as "(_ & #Hinfo & _ & Hcell)".
   iMod ("Hclose" with "[Hcont Hlc Hcell Hframe]") as "_".
-  { iNext.
-    iApply (uf_inv_reassemble with "Hcont Hzlocs Hlc Hcell Hframe"). }
+  { iApply ("Hframe" with "Hcont Hlc Hcell"). }
   iModIntro. iApply ("HΦ" with "Hinfo HPQ").
 Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* The linearization point of [find]. *)
 
-(* This is [uf_vertex_content_acc] with the abstract state added: the same
-   single atomic read of [z]'s content cell, but the continuation also
-   receives the invariant's half of [UF] — so that it can meet the
-   client's half, held inside an atomic update, and commit — together with
-   the one fact that makes the read a linearization point:
+(* This is [uf_vertex_content_acc] with the abstract state added: the
+   continuation receives the invariant's half of [UF] with the fact
+   that if the cell holds a root, then [z] IS its own representative.
 
-     if the cell holds a [Root], then [z] IS its own representative.
-
-   That fact is read against the open this accessor performs, and does not
-   survive it: a moment later [z] may have been linked away and [Rp z]
-   moved on. That is exactly why it has to be cashed in at the read, and
-   exactly what a logically atomic specification is for. A caller standing
-   at some other vertex of the class transports the claim afterwards, with
-   the [same_class] fact its traversal accumulated — see [find_proof].
-
-   The continuation also gets [content_val], which pins the loaded [Root]
-   record's payload to [V z] in that same state. This is what makes the
-   read [get]'s linearization point rather than the field access that
-   follows it: [get] commits here, and the payload it reads a step later
-   is fixed by a persistent points-to, so the race it looks like it is
-   running is not one.
-
-   The state is handed over read-only — the continuation must give back
-   the very same [UF] — because neither [find] nor [get] changes it. The
-   state-CHANGING operations will want the same accessor with a hook that
-   may give back a different one. *)
+   The state is handed over read-only. *)
 
 Lemma uf_find_content_acc γ (z : elem) j lzi lzc
     (Φ : content → iProp Σ) :
@@ -993,12 +996,7 @@ Proof.
   by iModIntro.
 Qed.
 
-(* What [union]'s [assert (x.id <> y.id)] needs: distinct vertices have
-   distinct — and, from [uf_inv]'s own [representable] conjunct, machine-
-   comparable — identifiers. Now that the identifier tokens are factored
-   out of the per-vertex footprints, this reads both facts straight off
-   the invariant and gives everything back untouched: no vertex has to be
-   split out at all. *)
+(* Distinct vertices have distinct identifiers. *)
 
 Lemma vertex_ids_ne γ (a w : elem) ia iw :
   a ≠ w →
@@ -1022,40 +1020,27 @@ Proof.
   split; [exact Hij | split; [exact (Hrep a ia HMa) | exact (Hrep w iw HMw)]].
 Qed.
 
-(* A single vertex's identifier is machine-comparable. [vertex_ids_ne]
-   yields this too, but only for a pair of vertices already known to be
-   distinct; [compress] compares identifiers of vertices it has no
-   distinctness fact about. *)
+(* A single vertex's identifier is representable. *)
 
 Lemma vertex_representable γ x i :
   is_uf γ -∗ vertex γ x i ={⊤}=∗ ⌜representable i⌝.
 Proof.
   iIntros "#Hinv #Hx".
   iDestruct (vertex_frag with "Hx") as "#Hxfrag".
-  iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_ghost_acc with "H") as (M) "(%Hrep & Hauth & Hback)".
+  iInv "Hinv" as (M L N Rp Vp)
+    "(>Hauth & >Hlauth & >Hnauth & >Hcont &
+      >%HdomL & >%Hrep & >%HRp & >%HVp & Htoks & HM)" "Hclose".
   iDestruct (ghost_map_lookup with "Hauth Hxfrag") as %HMx.
-  iMod ("Hclose" with "[Hback Hauth]") as "_";
-    first by iApply ("Hback" with "Hauth").
+  iMod ("Hclose" with "[Hauth Hlauth Hnauth Hcont Htoks HM]") as "_".
+  { iNext. iExists M, L, N, Rp, Vp. by iFrame. }
   iModIntro. iPureIntro. exact (Hrep _ _ HMx).
 Qed.
 
 End uf_api.
 
 (* ------------------------------------------------------------------------ *)
-(* Re-reading (and, for [compress], rewriting) the [parent] field of the
-   link record a vertex holds.
-
-   A [Root] record needs no counterpart to these: its payload comes with a
-   persistent points-to ([root_val], carried by [content_info]), so
-   reading it is an ordinary field read that opens nothing.
-
-   These are what produce the mask-changing fupd that the atomic rules
-   ([ipat_PRecord_atomic], [imp_ERecordAccess_atomic],
-   [imp_ERecordSet_atomic]) consume, and they expose that one field and
-   nothing else: the caller learns that the parent it loaded is a
-   registered vertex of a strictly smaller identifier, inside the holder's
-   class, and may store back any vertex it can establish the same of. *)
+(* Re-reading and rewriting the [parent] field of the link record a
+   a vertex holds. *)
 
 Section uf_acc.
 
@@ -1071,36 +1056,22 @@ Implicit Types rc : record.
 Implicit Types i j : Z.
 Implicit Types γ : uf_names.
 
-(* The single primitive the three accessors below are built from. Note how
-   the holder is identified: not by a registration recording which vertex
-   a record belongs to, but by splitting the invariant at that very vertex
-   — [linked γ h rc] says [h]'s cell holds [rc], and the [h ↪[γ.(uf_link)] None]
-   that a root's cell owns is what rules out [h] having become one again.
-
-   The reported parent comes with a class fact tying it to the holder [h].
-   That is all this needs to say: a traversal that arrived here from
-   somewhere else composes the hop with what it already holds afterwards,
-   outside the open, since a class fact is now a chain and composing is
-   definitional. This accessor used to take an extra [x0] and do that
-   composition itself, back when it was a ghost update needing the
-   authority. *)
 
 Lemma uf_link_field_acc γ h ih rc lp :
   is_uf γ -∗
   vertex γ h ih -∗
-  linked γ h rc -∗
-  isBlockLocs rc [lp] -∗
+  linked γ h rc lp -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ (y : elem) jy,
     ▷ (lp ↦ #y) ∗
     ▷ (vertex γ y jy ∗ same_class γ h y ∗ ⌜(jy < ih)%Z⌝) ∗
     (∀ (z : elem) k, ⌜(k < ih)%Z⌝ -∗ vertex γ z k -∗ same_class γ h z -∗
        lp ↦ #z -∗ |={⊤ ∖ ↑ufN,⊤}=> True).
 Proof.
-  iIntros "#Hinv #Hh #Hlk #Hlocs".
+  iIntros "#Hinv #Hh #Hlk".
   iDestruct (vertex_frag with "Hh") as "#Hhfrag".
   iDestruct "Hh" as (lhi lhc) "(_ & #Hhlocs & _ & _)".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hhfrag Hhlocs H") as (c D Rp Vp)
+  iMod (uf_inv_acc with "Hhfrag Hhlocs H") as (c D Rp Vp)
     "(_ & Hcont & Hlc & Hcell & Hframe)".
   (* [h] is linked, so its cell holds a [Link] — and the record is [rc],
      since a vertex's link record is fixed once and for all. *)
@@ -1109,63 +1080,31 @@ Proof.
     iAssert (▷ False)%I with "[Hcell]" as ">[]".
     iNext. iDestruct "Hcell" as "(_ & Htok & _)".
     iApply (linked_not_root with "Hlk Htok"). }
-  iDestruct "Hcell" as "(>%Hnr & >#Hlk' & Hlf)".
-  iDestruct (linked_agree with "Hlk' Hlk") as %->.
-  iDestruct "Hlf" as (lp' y jy) "(#Hlocs' & #HP & Hlp & #Hy & >%Hjy & >#Hsc)".
-  iAssert (▷ ⌜[lp] = [lp']⌝)%I with "[]" as ">%Heql".
-  { iNext. iApply (isBlockLocs_valid with "Hlocs' Hlocs"). }
-  simplify_eq.
+  iDestruct "Hcell" as "(%lp' & >%Hnr & >#Hlk' & Hlf)".
+  (* [linked] settles the record AND its field's location in one step. *)
+  iDestruct (linked_agree with "Hlk' Hlk") as %[-> ->].
+  iDestruct "Hlf" as (y jy) "(#HP & Hlp & #Hy & >%Hjy & >#Hsc)".
   iModIntro. iExists y, jy.
   iFrame "Hlp".
   iSplitR; first by iNext; iFrame "Hy Hsc".
   iIntros (z k) "%Hk #Hz #Hhz Hlp".
   iMod ("Hclose" with "[Hcont Hlc Hlp Hframe]") as "_".
   { iNext.
-    iApply (uf_inv_reassemble _ _ _ _ _ (CtLink rc)
-              with "Hcont [] Hlc [Hlp] Hframe").
-    { iExact "Hhlocs". }
-    iSplitR; first done. iFrame "Hlk".
-    iExists _, z, k. by iFrame "Hlocs' HP Hlp Hz Hhz". }
+    iApply ("Hframe" with "Hcont Hlc [Hlp]").
+    iExists lp. iSplitR; first done. iFrame "Hlk".
+    iExists z, k. by iFrame "HP Hlp Hz Hhz". }
   by iModIntro.
 Qed.
 
-Lemma uf_link_parent_acc γ h ih rc lp (Φ : val → iProp Σ) :
+Lemma uf_link_parent_acc γ h ih rc lp (Φ : elem → iProp Σ) :
   is_uf γ -∗
   vertex γ h ih -∗
-  linked γ h rc -∗
-  isBlockLocs rc [lp] -∗
-  ▷ (∀ (y : elem) j, ⌜(j < ih)%Z⌝ -∗ same_class γ h y -∗ vertex γ y j -∗ Φ #y) -∗
-  |={⊤,⊤ ∖ ↑ufN}=> ∃ w, ▷ lp ↦ w ∗ ▷ (lp ↦ w -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ w).
-Proof.
-  iIntros "#Hinv #Hh #Hlk #Hlocs HΦ".
-  iMod (uf_link_field_acc with "Hinv Hh Hlk Hlocs")
-    as (y jy) "(Hlp & Hy & Hback)".
-  iModIntro. iExists #y.
-  iSplitL "Hlp"; first by iFrame.
-  iIntros "!> Hlp".
-  iDestruct "Hy" as "(#Hyv & #Hhy & %Hjy)".
-  iMod ("Hback" $! y jy with "[//] Hyv Hhy Hlp") as "_".
-  iModIntro. iApply ("HΦ" with "[//] Hhy Hyv").
-Qed.
-
-(* The same accessor, with the loaded parent existentially quantified at
-   [elem] rather than at [val]. [ipat_PRecord_atomic] — the rule behind
-   [find]'s [Link { parent = y }] pattern — is [val]-shaped, but
-   [compress] reads the field through an ordinary [let y = link.parent],
-   i.e. [imp_ERecordAccess_atomic], whose loaded value is at the
-   postcondition's own type. Only the witness of the existential
-   differs. *)
-
-Lemma uf_link_parent_acc_elem γ h ih rc lp (Φ : elem → iProp Σ) :
-  is_uf γ -∗
-  vertex γ h ih -∗
-  linked γ h rc -∗
-  isBlockLocs rc [lp] -∗
+  linked γ h rc lp -∗
   ▷ (∀ (y : elem) j, ⌜(j < ih)%Z⌝ -∗ same_class γ h y -∗ vertex γ y j -∗ Φ y) -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ y : elem, ▷ lp ↦ #y ∗ ▷ (lp ↦ #y -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ y).
 Proof.
-  iIntros "#Hinv #Hh #Hlk #Hlocs HΦ".
-  iMod (uf_link_field_acc with "Hinv Hh Hlk Hlocs")
+  iIntros "#Hinv #Hh #Hlk HΦ".
+  iMod (uf_link_field_acc with "Hinv Hh Hlk")
     as (y jy) "(Hlp & Hy & Hback)".
   iModIntro. iExists y.
   iSplitL "Hlp"; first by iFrame.
@@ -1175,27 +1114,22 @@ Proof.
   iModIntro. iApply ("HΦ" with "[//] Hhy Hyv").
 Qed.
 
-(* Rerouting a link's [parent] field, which is what path compression does.
-   Unlike the CAS this is an ordinary (racy, non-atomic in the source,
-   single-store in the semantics) write, so it is a plain accessor: borrow
-   the field, hand back a new one. The obligation it levies is the link
-   field's own: the caller must show the vertex it is rerouting to is
-   registered, sits below the holder's identifier, and is already in the
-   holder's class. *)
+(* Rerouting a link's [parent] field: the caller must show the vertex
+   it is rerouting to is registered, sits below the holder's identifier,
+   and is already in the holder's class. *)
 
 Lemma uf_link_parent_set γ h ih rc lp (z : elem) k (Φ : iProp Σ) :
   (k < ih)%Z →
   is_uf γ -∗
   vertex γ h ih -∗
-  linked γ h rc -∗
-  isBlockLocs rc [lp] -∗
+  linked γ h rc lp -∗
   vertex γ z k -∗
   same_class γ h z -∗
   ▷ Φ -∗
   |={⊤,⊤ ∖ ↑ufN}=> ∃ w, ▷ lp ↦ w ∗ ▷ (lp ↦ #z -∗ |={⊤ ∖ ↑ufN,⊤}=> Φ).
 Proof.
-  iIntros (Hk) "#Hinv #Hh #Hlk #Hlocs #Hz #Hhz HΦ".
-  iMod (uf_link_field_acc with "Hinv Hh Hlk Hlocs")
+  iIntros (Hk) "#Hinv #Hh #Hlk #Hz #Hhz HΦ".
+  iMod (uf_link_field_acc with "Hinv Hh Hlk")
     as (y jy) "(Hlp & _ & Hback)".
   iModIntro. iExists #y.
   iSplitL "Hlp"; first by iFrame.
@@ -1205,45 +1139,23 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* The linearization point of [union]: the linking CAS. *)
+(* The linearization point of [union]. *)
 
-(* Everything the [compare_and_set_spec] premise needs when the CASed cell
-   is vertex [a]'s content cell and the value going in is a fresh [Link]
-   record pointing at [b], packaged once.
+(* The only things that [compare_and_set_spec]'s premise needs is a
+   vertex [a]'s content cell and the value going in is a fresh [Link]
+   record pointing at [b].
 
-   This is the only step in the whole development that MOVES the abstract
-   state, so it is the only one whose hook may hand a different [UF] back:
-   [a]'s class is absorbed into [b]'s, which is [update_class] on [R] and
-   on [V] at once. The hook is run only if the CAS succeeds, and it is run
-   with the three facts that make the transition meaningful, all of them
-   read off the state at that instant: [a] is a root, the two classes are
-   distinct, and the value the caller read out of [a]'s [Root] record
-   really is the value of [a]'s class.
+   Two things carry the proof:
+   - The identifier ordering [ib < ia] guarantees that the result is a
+     representative function again rather than a cycle: [b]'s
+     representative has an identifier at most [b]'s, hence below [a]'s,
+     so it cannot be [a] itself.
 
-   Everything is reported at [a] and [b] themselves — the vertices the CAS
-   links. A caller whose client named other members of the same two
-   classes re-bases afterwards ([union_hook_rebase]); that used to happen
-   here, through an extra [x0]/[y0] pair, and it does not need an open.
-
-   Note that the transition is nevertheless NOT stated at [R b]: writing
-   the update at a representative would leave an [R (R b)] a client has no
-   way to collapse. The bridge to the root, which the invariant does need,
-   is one [update_class_congr_class] inside the proof.
-
-   Two things carry the proof.
-
-   The identifier ordering [ib < ia] is what makes the result a
-   representative function again rather than a cycle: [b]'s representative
-   has an identifier at most [b]'s ([repr_id_le]), hence below [a]'s, so
-   it cannot be [a] itself.
-
-   And the ABA argument — if the cell's current content sits at the same
-   record as the [Root] the caller expects, it must BE that [Root], not a
-   [Link] that reused the block — is now one line: the caller holds
-   [root_val rce vexp], a PERSISTENT points-to for that record's single
-   field, while a link record's field is owned exclusively by its holder's
-   [cell_own], and one location cannot carry both
-   ([link_field_root_val_excl]). *)
+   - If the cell's current content sits at the same record as the root
+     the caller expects, it must be that [Root] is now one line: the
+     caller holds [root_val], while a link record's field is owned
+     exclusively by its holder's [cell_own], and one location cannot
+     carry both ([link_field_root_val_excl]). *)
 
 Lemma uf_cas_link_fupd γ (a b : elem) ia ib lac
     (rce rcn : record) (vexp : val) (P Ψ : iProp Σ) (Φ : bool → iProp Σ) :
@@ -1255,27 +1167,17 @@ Lemma uf_cas_link_fupd γ (a b : elem) ia ib lac
   vertex γ b ib -∗
   rcn ⤇ {| link_parent := b |} -∗
   (* The caller's linearization resources. They are spent only if the CAS
-     succeeds; a failed CAS hands them straight back, which is what lets
-     [union] retry. *)
+     succeeds. *)
   P -∗
-  (* The hook also YIELDS the class fact born at this instant. Recording a
-     new equivalence needs the full authority over the recorded set, and
-     the two halves — the invariant's and the client's — meet only here,
-     inside the hook, where the client's atomic update is opened. So this
-     is the one place it can be minted, and the transition is exactly what
-     mints it: [UF_same_class_update] does both at once. *)
+  (* The hook also yeilds the class fact at this instant. The two
+     halves of the ownership of the set (the invariant's and the
+     client's) meet here, inside the hook, where the client's atomic
+     update is opened. *)
   (* The hook also receives [dethroned] for the state it is asked to move
-     TO. Moving the abstract state has to re-establish that bridge, and
-     [a] is exactly the vertex this step dethrones: the accessor is the
-     only party holding both the [linked] its registry update just minted
-     and the [dethroned] of the old state, so it is the only one that can
-     build it ([dethroned_link]).
-
-     It is handed over already built, rather than as the [linked] witness,
-     because the hook travels: [union_hook_rebase] re-bases a hook from one
-     pair of vertices onto another, and [R b = b] does NOT survive that
-     — but this proposition does, being invariant under exactly the
-     [update_class_congr_class] rewrites the rebase performs. *)
+     to. It is handed over already built, rather than as the [linked]
+     witness, because the hook travels: [union_hook_rebase] re-bases a
+     hook from one pair of vertices onto another, which [dethroned]
+     survives (by [update_class_congr_class]). *)
   ▷ (∀ D (R : elem → elem) (V : elem → val),
        ⌜R a = a⌝ -∗ ⌜R a ≠ R b⌝ -∗ ⌜V a = vexp⌝ -∗
        dethroned γ R.[a -/R/> R b] -∗
@@ -1284,28 +1186,25 @@ Lemma uf_cas_link_fupd γ (a b : elem) ia ib lac
   ▷ (∀ res : bool,
        (if res then Ψ else P ∗ rcn ⤇ {| link_parent := b |}) -∗ Φ res) -∗
   |={⊤,⊤ ∖ ↑ufN}=>
-    ∃ c cs (r rs : record) dq1 dq2 t,
-      ⌜#(CtRoot rce) = VInline cs rs⌝ ∗
-      ▷ lac ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
-      ▷ (lac ↦ (if locations.eqb r rs then #(CtLink rcn) else VInline c r) -∗
-         isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
-         |={⊤ ∖ ↑ufN,⊤}=> Φ (locations.eqb r rs)).
+    ∃ (c : content) dq1 dq2 t,
+      ▷ lac ↦ #c ∗ ▷ isBlock (content_loc c) dq1 t ∗ ▷ isBlock rce dq2 Mut ∗
+      ▷ (lac ↦ #(if locations.eqb (content_loc c) rce then CtLink rcn else c) -∗
+         isBlock (content_loc c) dq1 t -∗ isBlock rce dq2 Mut -∗
+         |={⊤ ∖ ↑ufN,⊤}=> Φ (locations.eqb (content_loc c) rce)).
 Proof.
   intros Hab.
   iIntros "#Hinv #Ha (%lai & #Halocs) #Hrv #Hb Hrcn HP Hhook HΦ".
   iDestruct (vertex_frag with "Ha") as "#Hafrag".
+  iDestruct (vertex_frag with "Hb") as "#Hbfrag".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hafrag Halocs H") as (c D Rp Vp)
-    "(%HaD & Hcont & Hlc & Hcell & Hframe)".
+  iMod (uf_inv_acc_update with "Hafrag Hbfrag Halocs H") as (c M Rp Vp)
+    "(%HMa & %HMb & %HRp & %HVp & Hcont & Hlc & Hcell & Hframe)".
   iAssert (▷ (isBlock (content_loc c) DfracDiscarded Mut ∗
               cell_own γ Rp Vp a ia c))%I with "[Hcell]" as "[#HcP Hcell]".
   { iNext. iDestruct (cell_own_info with "Hcell") as "(_ & [#Hb1 _] & _ & $)".
     iExact "Hb1". }
   iModIntro.
-  iExists (content_tag c), (content_tag (CtRoot rce)), (content_loc c), rce,
-          DfracDiscarded, DfracDiscarded, Mut.
-  iSplitR; first by rewrite content_encode_inline.
-  rewrite -{1}(content_encode_inline c).
+  iExists c, DfracDiscarded, DfracDiscarded, Mut.
   iFrame "Hlc HcP".
   iSplitR; first by iDestruct "Hrv" as (lv) "(_ & $ & _)".
   iNext. iIntros "Hlc' _ _".
@@ -1313,18 +1212,17 @@ Proof.
 
   { (* CAS failure: the cell still holds [c]; close untouched and hand the
        fresh record back for the next attempt. *)
-    iEval (rewrite -content_encode_inline) in "Hlc'".
+    iDestruct "Hframe" as "[Hframe _]".
     iMod ("Hclose" with "[Hcont Hlc' Hcell Hframe]") as "_".
-    { iNext.
-      iApply (uf_inv_reassemble with "Hcont Halocs Hlc' Hcell Hframe"). }
+    { iNext. iApply (uf_close_id with "Hframe Hcont Hlc' Hcell"); done. }
     iModIntro. iApply ("HΦ" $! false with "[$HP $Hrcn]"). }
 
-  (* CAS success. The cell's content sits at the very record the expected
-     [Root] describes, so it IS that [Root]: a [Link] there would own the
-     record's field exclusively, and the caller holds it persistently. *)
+  (* CAS success. The cell's content sits at the record the root
+     describes, so it is that root. *)
   destruct c as [rc0|rc0]; simpl in Heq; subst rc0; last first.
-  { iDestruct "Hcell" as "(_ & _ & Hlf)".
-    iDestruct (link_field_root_val_excl with "Hlf Hrv") as "[]". }
+  { iDestruct "Hcell" as "(%lp0 & _ & Hlk0 & Hlf)".
+    iDestruct (linked_locs with "Hlk0") as "#Hlocs0".
+    iDestruct (link_field_root_val_excl with "Hlocs0 Hlf Hrv") as "[]". }
   iDestruct "Hcell" as "(%Hroot & Htokl & #Hrv0)".
   iAssert ⌜Vp a = vexp⌝%I as %Hval.
   { iDestruct "Hrv" as (lv) "(#Hl1 & _ & #Hp1)".
@@ -1332,100 +1230,47 @@ Proof.
     iDestruct (isBlockLocs_valid with "Hl1 Hl2") as %[= ->].
     by iDestruct (gen_heap.pointsto_agree with "Hp2 Hp1") as %[= ->]. }
 
-  (* Take the frame apart: the identifiers of [b] and of its
-     representative are what the transition rests on. *)
-  iDestruct "Hframe" as (M L N)
-    "(%HMa & %HdomM & %HdomL & %Hrep & %HRp & %HVp &
-      Hauth & Hlauth & Hnauth & Htoks & HM)".
-  iDestruct (vertex_frag with "Hb") as "#Hbfrag".
-  iDestruct (ghost_map_lookup with "Hauth Hbfrag") as %HMb.
-  assert (Hbdom : b ∈ dom M) by (apply elem_of_dom; by eexists).
-  pose proof (repr_dom _ _ HRp b Hbdom) as Hzdom.
-  apply elem_of_dom in Hzdom as [iz HMz].
-  assert (Hizb : (iz ≤ ib)%Z) by (eapply (repr_id_le _ _ HRp b); done).
-  assert (Hlt : (iz < ia)%Z) by lia.
-  pose proof (repr_idem _ _ HRp b) as Hidemb.
+  (* The two classes are distinct: [b]'s representative sits at or below
+     [b]'s identifier, hence strictly below [a]'s. *)
+  assert (Hne' : Rp b ≠ a) by (eapply uf_repr_ne; done).
 
-  (* The two classes are distinct. *)
-  assert (Hne' : Rp b ≠ a).
-  { intros Hcontra. rewrite Hcontra HMa in HMz. simplify_eq. lia. }
+  (* [a] is linked from now on: its record is fixed, and the registry
+     records it.
+
+     The fresh record is taken apart up front: [linked] needs its field's
+     location here, [link_field] needs the field itself further down. *)
+  iDestruct (link_record_split with "Hrcn") as (lpn) "(#Hlocsn & #HPn & Hlpn)".
+  iDestruct "Hframe" as "[_ Hlink]".
+  iMod ("Hlink" with "Hlocsn Htokl") as "[#Hlk Hframe]".
 
   (* The linearization point proper. The hook reports the transition at
      [b]; the invariant is re-closed at [b]'s root, and the two namings of
      the same class agree. *)
-  assert (HeqV : Vp.[a -/Rp/> Vp b] = Vp.[a -/Rp/> Vp (Rp b)]).
-  { by rewrite (HVp b). }
-  (* [a] is linked from now on: its record is fixed. The registry's domain
-     does not move — [a] was already in it. This happens BEFORE the hook
-     runs, because the hook needs the witness: dethroning [a] is what the
-     transition has to re-establish [dethroned] for. *)
-  iDestruct (ghost_map_lookup with "Hlauth Htokl") as %HLa.
-  iMod (ghost_map_update (Some rcn) with "Hlauth Htokl") as "[Hlauth Htokl]".
-  iMod (ghost_map_elem_persist with "Htokl") as "#Hlk".
-
   iDestruct (UF_dethroned with "Hcont") as "#Hdeth".
-  iDestruct (dethroned_link _ _ a b rcn Hroot with "Hdeth Hlk")
+  iDestruct (dethroned_link _ _ a b rcn lpn Hroot with "Hdeth Hlk")
     as "#Hdeth'".
-  iMod ("Hhook" $! D Rp Vp with "[%] [%] [%] Hdeth' HP Hcont")
+  iMod ("Hhook" $! (dom M) Rp Vp with "[%//] [%] [%//] Hdeth' HP Hcont")
     as "(Hcont & #Hsab & HΨ)".
-  { exact Hroot. }
   { rewrite Hroot. by intros ->. }
-  { exact Hval. }
-  rewrite HeqV.
 
-  (* Re-close under the merged state. *)
+  (* Re-close under the merged state: [uf_close_link] carries the whole of
+     the state argument. *)
+  iDestruct (link_field_intro _ _ _ a b ia ib with "HPn Hlpn Hb Hsab")
+    as "Hlf"; first lia.
   iMod ("Hclose" with "[- HΨ HΦ]") as "_".
   { iNext.
-    iExists M, (<[a := Some rcn]> L), N,
-            Rp.[a -/Rp/> Rp b], Vp.[a -/Rp/> Vp (Rp b)].
-    iFrame "Hauth Hlauth Hnauth Htoks".
-    rewrite HdomM. iFrame "Hcont".
-    iSplitR.
-    { iPureIntro.
-      rewrite dom_insert_lookup_L; [by rewrite HdomL | by eexists]. }
-    iSplitR; first done.
-    iSplitR.
-    { iPureIntro. eapply (uf_repr_link M Rp a (Rp b) ia iz); done. }
-    iSplitR.
-    { iPureIntro. by eapply (uf_link_value_coherent M Rp a (Rp b) ia iz). }
-    rewrite (big_sepM_delete _ M a ia); last exact HMa.
-    iSplitR "HM".
-    { iExists lai, lac, (CtLink rcn).
-      iSplitR; first iExact "Halocs".
-      iSplitL "Hlc'"; first iExact "Hlc'".
-      iSplitR.
-      { iPureIntro. rewrite lookup_update_class. exact Hne'. }
-      iSplitR; first iExact "Hlk".
-      iApply (link_field_intro with "Hrcn Hb Hsab"). lia. }
-    iApply (vertex_own_reindex with "HM").
-    { intros w i Hw. eapply (uf_link_root_iff M Rp a (Rp b) ia iz); [done..|].
-      intros ->. by rewrite lookup_delete_eq in Hw. }
-    { intros w i Hw Hw'. rewrite lookup_update_class_ne //.
-      rewrite Hroot Hw'. intros ->. by rewrite lookup_delete_eq in Hw. } }
+    iApply (uf_close_link with "Hframe Hcont Hlc' Hlk Hlf"); done. }
   iModIntro. iApply ("HΦ" $! true with "HΨ").
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* The linearization point of [set]: the value CAS. *)
+(* The linearization point of [set]. *)
 
-(* [set] never writes a payload field. It swings the whole content cell to
-   a freshly allocated [Root] record, and that is precisely what lets a
-   payload be immutable, hence persistent, hence readable with no open at
-   all — which is what [get] lives on.
+(* [set] swings the whole content cell to a freshly allocated [Root].
 
    Abstractly the step moves [V] and nothing else, by [update_class]: the
    whole of [x]'s class takes the new value at once, which is what keeps
-   the invariant's [V u = V (R u)] true ([lookup_class_root]). Since [R]
-   does not move, no vertex changes root-status and the recorded pairs are
-   untouched; the only vertex whose footprint changes at all is [x].
-
-   As in [uf_cas_link_fupd], everything is reported at the vertex the CAS
-   acts on; a caller whose client named another member of the class
-   re-bases afterwards ([set_hook_rebase]).
-
-   The ABA argument is [uf_cas_link_fupd]'s in mirror image: the expected
-   [Root]'s payload points-to is persistent, a [Link]'s field is owned
-   exclusively by its holder, and one location cannot be both. *)
+   the invariant's [V u = V (R u)] true ([lookup_class_root]). *)
 
 Lemma uf_cas_set_fupd γ (x : elem) i lxc
     (rce rcn : record) (vexp v : val) (P Ψ : iProp Σ) (Φ : bool → iProp Σ) :
@@ -1446,27 +1291,25 @@ Lemma uf_cas_set_fupd γ (x : elem) i lxc
   ▷ (∀ res : bool,
        (if res then Ψ else P ∗ rcn ⤇ {| root_value := v |}) -∗ Φ res) -∗
   |={⊤,⊤ ∖ ↑ufN}=>
-    ∃ c cs (r rs : record) dq1 dq2 t,
-      ⌜#(CtRoot rce) = VInline cs rs⌝ ∗
-      ▷ lxc ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
-      ▷ (lxc ↦ (if locations.eqb r rs then #(CtRoot rcn) else VInline c r) -∗
-         isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
-         |={⊤ ∖ ↑ufN,⊤}=> Φ (locations.eqb r rs)).
+    ∃ c dq1 dq2 t,
+      ▷ lxc ↦ #c ∗ ▷ isBlock (content_loc c) dq1 t ∗ ▷ isBlock rce dq2 Mut ∗
+      ▷ (lxc ↦ #(if locations.eqb (content_loc c) rce then CtRoot rcn else c) -∗
+         isBlock (content_loc c) dq1 t -∗ isBlock rce dq2 Mut -∗
+         |={⊤ ∖ ↑ufN,⊤}=> Φ (locations.eqb (content_loc c) rce)).
 Proof.
   iIntros "#Hinv #Hx (%lxi & #Hxlocs) #Hrv Hrcn HP Hhook HΦ".
   iDestruct (vertex_frag with "Hx") as "#Hxfrag".
   iInv "Hinv" as "H" "Hclose".
-  iMod (uf_inv_split with "Hxfrag Hxlocs H") as (c D Rp Vp)
-    "(%HxD & Hcont & Hlc & Hcell & Hframe)".
+  (* [set] touches no vertex but [x], so there is no second registry entry
+     to ask the accessor for: [x] plays the part of both. *)
+  iMod (uf_inv_acc_update with "Hxfrag Hxfrag Hxlocs H") as (c M Rp Vp)
+    "(%HMx & %_ & %HRp & %HVp & Hcont & Hlc & Hcell & Hframe)".
   iAssert (▷ (isBlock (content_loc c) DfracDiscarded Mut ∗
               cell_own γ Rp Vp x i c))%I with "[Hcell]" as "[#HcP Hcell]".
   { iNext. iDestruct (cell_own_info with "Hcell") as "(_ & [#Hb1 _] & _ & $)".
     iExact "Hb1". }
   iModIntro.
-  iExists (content_tag c), (content_tag (CtRoot rce)), (content_loc c), rce,
-          DfracDiscarded, DfracDiscarded, Mut.
-  iSplitR; first by rewrite content_encode_inline.
-  rewrite -{1}(content_encode_inline c).
+  iExists c, DfracDiscarded, DfracDiscarded, Mut.
   iFrame "Hlc HcP".
   iSplitR; first by iDestruct "Hrv" as (lv) "(_ & $ & _)".
   iNext. iIntros "Hlc' _ _".
@@ -1474,17 +1317,17 @@ Proof.
 
   { (* CAS failure: the cell still holds [c]; close untouched and hand the
        fresh record back for the next attempt. *)
-    iEval (rewrite -content_encode_inline) in "Hlc'".
+    iDestruct "Hframe" as "[Hframe _]".
     iMod ("Hclose" with "[Hcont Hlc' Hcell Hframe]") as "_".
-    { iNext.
-      iApply (uf_inv_reassemble with "Hcont Hxlocs Hlc' Hcell Hframe"). }
+    { iNext. iApply (uf_close_id with "Hframe Hcont Hlc' Hcell"); done. }
     iModIntro. iApply ("HΦ" $! false with "[$HP $Hrcn]"). }
 
   (* CAS success. As in the linking case, the cell's content sits at the
      very record the expected [Root] describes, so it IS that [Root]. *)
   destruct c as [rc0|rc0]; simpl in Heq; subst rc0; last first.
-  { iDestruct "Hcell" as "(_ & _ & Hlf)".
-    iDestruct (link_field_root_val_excl with "Hlf Hrv") as "[]". }
+  { iDestruct "Hcell" as "(%lp0 & _ & Hlk0 & Hlf)".
+    iDestruct (linked_locs with "Hlk0") as "#Hlocs0".
+    iDestruct (link_field_root_val_excl with "Hlocs0 Hlf Hrv") as "[]". }
   iDestruct "Hcell" as "(%Hroot & Htokl & #Hrv0)".
   iAssert ⌜Vp x = vexp⌝%I as %Hval.
   { iDestruct "Hrv" as (lv) "(#Hl1 & _ & #Hp1)".
@@ -1494,42 +1337,17 @@ Proof.
 
   (* The linearization point proper: [x] is a root, and its class is what
      moves. *)
-  iMod ("Hhook" $! D Rp Vp with "[%] [%] HP Hcont") as "[Hcont HΨ]".
-  { exact Hroot. }
-  { exact Hval. }
+  iMod ("Hhook" $! (dom M) Rp Vp with "[%//] [%//] HP Hcont") as "[Hcont HΨ]".
 
   (* The new record's payload is fixed from now on. *)
   iMod (root_val_alloc with "Hrcn") as "#Hrvn".
 
-  (* Re-close under the new value function. Only [x]'s own footprint
-     changes; every other vertex is re-closed by [vertex_own_reindex],
-     whose obligation here is that no OTHER root's value moved — which
-     holds because [x] is the only root of its class. *)
-  iDestruct "Hframe" as (M L N)
-    "(%HMx & %HdomM & %HdomL & %Hrep & %HRp & %HVp &
-      Hauth & Hlauth & Hnauth & Htoks & HM)".
+  (* Re-close under the new value function: [uf_close_set] carries the
+     state argument. [x] keeps its root token — it was a root and stays
+     one. *)
+  iDestruct "Hframe" as "[Hframe _]".
   iMod ("Hclose" with "[- HΨ HΦ]") as "_".
-  { iNext.
-    iExists M, L, N, Rp, Vp.[x -/Rp/> v].
-    iFrame "Hauth Hlauth Hnauth Htoks".
-    rewrite HdomM. iFrame "Hcont".
-    iSplitR; first (iPureIntro; by rewrite HdomL).
-    do 2 (iSplitR; first done).
-    iSplitR.
-    { iPureIntro.
-      assert (Idempotent Rp) by (constructor; apply (repr_idem _ _ HRp)).
-      intros u. apply lookup_class_root, HVp. }
-    rewrite (big_sepM_delete _ M x i); last exact HMx.
-    iSplitR "HM".
-    { iExists lxi, lxc, (CtRoot rcn).
-      iFrame "Hxlocs Hlc'".
-      iSplitR; first done.
-      iFrame "Htokl".
-      rewrite lookup_update_class //. }
-    iApply (vertex_own_reindex with "HM").
-    { by intros w k Hw. }
-    { intros w k Hw Hw'. rewrite lookup_update_class_ne //.
-      rewrite Hroot Hw'. intros ->. by rewrite lookup_delete_eq in Hw. } }
+  { iNext. iApply (uf_close_set with "Hframe Hcont Hlc' Htokl Hrvn"); done. }
   iModIntro. iApply ("HΦ" $! true with "HΨ").
 Qed.
 

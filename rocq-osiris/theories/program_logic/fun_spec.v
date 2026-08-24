@@ -201,6 +201,29 @@ Section imp_spec.
     by iApply prove_iSpec_pers.
   Qed.
 
+  (* [imp_EAnon_poly_pers], for a specification that depends on further
+     structure on [A] beyond its encoding (e.g. a decomposition of its
+     values into inline records [InlineEncode]). *)
+
+  Lemma imp_EAnon_poly_str_pers
+    (C : ∀ A, Encode A → Type)
+    (τ : ∀ A `{Encode A}, types)
+    (P : ∀ A (HA : Encode A), C A HA → τ A -#> microvx -> iProp Σ)
+    η
+    (x : var)
+    e E Ψ :
+    (□ ∀ A (HA : Encode A) (HC : C A HA),
+        predicate_over_function_body (τ A) (P A HA HC) η (EAnonFun (AnonFun x e))) -∗
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |>
+      {{ c, □ ∀ A (HA : Encode A) (HC : C A HA), iSpec (τ A) c (P A HA HC) }}.
+  Proof.
+    iIntros "HP".
+    simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
+    iIntros (A HA HC).
+    iSpecialize ("HP" $! A HA HC).
+    by iApply prove_iSpec_pers.
+  Qed.
+
   Lemma imp_EAnon_poly_inh_pers
     (τ : ∀ A `{Encode A}, types)
     (P : ∀ A `{Encode A}, τ A -#> microvx -> iProp Σ)

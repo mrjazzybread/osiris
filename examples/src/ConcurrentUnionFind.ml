@@ -285,6 +285,17 @@ let[@inline] union (x : 'a elem) (y : 'a elem) : 'a option =
 (* We follow Anderson and Woll's algorithm, as presented by Jayanti and
    Tarjan. *)
 
+(* Notice that the linearization point of a [false] answer is the
+   linearization point of [findc y]. But we can only determine if we
+   wanted to commit to this point when we read [x.content] *in the
+   future*.
+
+   In order to reason about this future-dependent linearization point,
+   we instrument the code with a prophecy variable [p].
+   When reading [x.content], we resolve this prophecy with a pair of
+   the value the read returns and unit (we don't any more information
+   than the value). *)
+
 let rec eq (x : 'a elem) (y : 'a elem) : bool =
   let p = Proph.create () in
   (* Note: find [x] first. Order matters here. *)

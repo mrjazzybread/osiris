@@ -70,39 +70,53 @@ Qed.
    edge of anything: compression reroutes it freely, and this is exactly
    the property compression preserves. *)
 
-Definition link_field (γ : uf_names) (rc : record) (h : elem) (i : Z) : iProp Σ :=
-  ∃ (lp : locations.loc) (y : elem) jy,
-    isBlockLocs rc [lp] ∗ isBlock rc DfracDiscarded Mut ∗ lp ↦ #y ∗
+Definition link_field (γ : uf_names) (rc : record) (lp : locations.loc)
+    (h : elem) (i : Z) : iProp Σ :=
+  ∃ (y : elem) jy,
+    isBlock rc DfracDiscarded Mut ∗ lp ↦ #y ∗
     vertex γ y jy ∗ ⌜(jy < i)%Z⌝ ∗ same_class γ h y.
 
-(* [linked γ x rc]: [x] holds the link record [rc] — permanently. A link
-   value is installed by [union]'s CAS into the cell of the vertex it
-   links away, and that cell is never written again (every CAS in the code
-   swings a [Root] value out), so [x]'s record is fixed from that moment
-   on. This is the whole of what used to be the content registry: the fact
-   a reader of a content cell has to be able to carry away with it.
+(* [linked γ x rc lp]: [x] holds the link record [rc], whose [parent] field
+   lives at [lp]. *)
 
-   Its negation is a resource rather than a proposition: a vertex that is
-   still a root owns [x ↪[γ.(uf_link)] None] exclusively, which is what a
-   linking CAS consumes, and what contradicts [linked] outright. *)
+Definition linked (γ : uf_names) (x : elem) (rc : record)
+    (lp : locations.loc) : iProp Σ :=
+  x ↪[γ.(uf_link)]□ Some rc ∗ isBlockLocs rc [lp].
 
-Definition linked (γ : uf_names) (x : elem) (rc : record) : iProp Σ :=
-  x ↪[γ.(uf_link)]□ Some rc.
-
-Global Instance linked_persistent γ x rc : Persistent (linked γ x rc).
+Global Instance linked_persistent γ x rc lp : Persistent (linked γ x rc lp).
 Proof. apply _. Qed.
 
-Lemma linked_not_root γ x rc : linked γ x rc -∗ x ↪[γ.(uf_link)] None -∗ False.
+(* [linked]'s negation is a resource: a vertex that is still a root
+   owns [x ↪[γ.(uf_link)] None] exclusively. *)
+
+Lemma linked_not_root γ x rc lp :
+  linked γ x rc lp -∗ x ↪[γ.(uf_link)] None -∗ False.
 Proof.
-  iIntros "H1 H2".
+  iIntros "[H1 _] H2".
   by iDestruct (ghost_map_elem_valid_2 with "H1 H2") as %[Hbad _].
 Qed.
 
-Lemma linked_agree γ x rc rc' :
-  linked γ x rc -∗ linked γ x rc' -∗ ⌜rc = rc'⌝.
+(* Both halves are timeless, but the [record = loc] identification puts
+   several [ghost_mapG]s in scope at the same key type, and resolution
+   picks the wrong one for the array map. Hence the explicit instance. *)
+
+Global Instance linked_timeless γ x rc lp : Timeless (linked γ x rc lp).
 Proof.
-  iIntros "H1 H2".
-  by iDestruct (ghost_map_elem_agree with "H1 H2") as %[= ->].
+  rewrite /linked /isBlockLocs. apply bi.sep_timeless; first apply _.
+  apply bi.sep_timeless; last apply _.
+  apply (ghost_map_elem_timeless (V := list loc)).
+Qed.
+
+Lemma linked_locs γ x rc lp : linked γ x rc lp -∗ isBlockLocs rc [lp].
+Proof. by iIntros "[_ $]". Qed.
+
+Lemma linked_agree γ x rc rc' lp lp' :
+  linked γ x rc lp -∗ linked γ x rc' lp' -∗ ⌜rc = rc' ∧ lp = lp'⌝.
+Proof.
+  iIntros "[H1 #Hl1] [H2 #Hl2]".
+  iDestruct (ghost_map_elem_agree with "H1 H2") as %[= ->].
+  iDestruct (isBlockLocs_valid with "Hl1 Hl2") as %[= ->].
+  done.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -119,7 +133,8 @@ Definition cell_own (γ : uf_names) (R : elem → elem) (V : elem → val)
     (x : elem) (i : Z) (c : content) : iProp Σ :=
   match c with
   | CtRoot rc => ⌜R x = x⌝ ∗ x ↪[γ.(uf_link)] None ∗ root_val rc (V x)
-  | CtLink rc => ⌜R x ≠ x⌝ ∗ linked γ x rc ∗ link_field γ rc x i
+  | CtLink rc =>
+      ∃ lp, ⌜R x ≠ x⌝ ∗ linked γ x rc lp ∗ link_field γ rc lp x i
   end.
 
 (* Root-ness is ANTI-monotone, and this is where that is recorded.
@@ -143,17 +158,17 @@ Definition cell_own (γ : uf_names) (R : elem → elem) (V : elem → val)
    has to be stated against a [cell_own] and cannot be a fact about
    [content_info] alone. *)
 
-Lemma cell_own_linked γ R V x i c rc :
-  linked γ x rc -∗ cell_own γ R V x i c -∗
+Lemma cell_own_linked γ R V x i c rc lp :
+  linked γ x rc lp -∗ cell_own γ R V x i c -∗
   ⌜c = CtLink rc⌝ ∗ cell_own γ R V x i c.
 Proof.
   iIntros "#Hlk Hcell". destruct c as [rc'|rc'].
   - (* A root's cell owns the token [linked] refutes. *)
     iDestruct "Hcell" as "(%Hr & Htok & Hval)".
     iDestruct (linked_not_root with "Hlk Htok") as "[]".
-  - iDestruct "Hcell" as "(%Hr & #Hlk' & Hlf)".
-    iDestruct (linked_agree with "Hlk' Hlk") as %->.
-    iSplitR; first done. by iFrame "Hlk' Hlf".
+  - iDestruct "Hcell" as "(%lp' & %Hr & #Hlk' & Hlf)".
+    iDestruct (linked_agree with "Hlk' Hlk") as %[-> ->].
+    iSplitR; first done. iExists lp. by iFrame "Hlk' Hlf".
 Qed.
 
 (* [vertex_own γ R V x i] is the invariant-owned footprint of the
@@ -198,7 +213,7 @@ Definition content_info (γ : uf_names) (x : elem) (c : content) : iProp Σ :=
   isBlock (content_loc c) DfracDiscarded Mut ∗
   match c with
   | CtRoot rc => ∃ v, root_val rc v
-  | CtLink rc => (∃ lp : locations.loc, isBlockLocs rc [lp]) ∗ linked γ x rc
+  | CtLink rc => ∃ lp : locations.loc, linked γ x rc lp
   end.
 
 Global Instance content_info_persistent γ x c : Persistent (content_info γ x c).
@@ -244,14 +259,14 @@ Proof.
     iSplitR; [iSplitR; [iExact "HP" | by iExists (V x)] | ].
     iSplitR; first iExact "Hrv".
     by iFrame "Htok Hrv".
-  - iIntros "(%Hroot & #Hlk & Hlf)".
-    iDestruct "Hlf" as (lp y jy) "(#Hlocs & #HP & Hlp & #Hy & %Hjy & #Hsc)".
+  - iIntros "(%lp & %Hroot & #Hlk & Hlf)".
+    iDestruct "Hlf" as (y jy) "(#HP & Hlp & #Hy & %Hjy & #Hsc)".
     iSplitR; first by iPureIntro; split; [discriminate | done].
     iSplitR.
-    { iFrame "HP Hlk". by iExists lp. }
+    { iFrame "HP". by iExists lp. }
     iSplitR; first done.
-    iFrame "Hlk". iSplit; first done.
-    iExists lp, y, jy. by iFrame "Hlocs HP Hlp Hy Hsc".
+    iExists lp. iSplit; first done. iFrame "Hlk".
+    iExists y, jy. by iFrame "HP Hlp Hy Hsc".
 Qed.
 
 (* Building a link field out of a freshly allocated record: this is what a
@@ -259,19 +274,34 @@ Qed.
    the new parent is a registered vertex, of a strictly smaller
    identifier, inside the holder's class. *)
 
-Lemma link_field_intro γ rc (h y : elem) i j :
-  (j < i)%Z →
+(* A freshly allocated link record, taken apart into the pieces its two
+   consumers need: [linked] wants the field's location, [link_field] wants
+   the field itself. The CAS that installs the record mints the first
+   before its hook runs and builds the second after, so the split has to
+   happen once, up front. *)
+
+Lemma link_record_split rc (y : elem) :
   rc ⤇ {| link_parent := y |} -∗
-  vertex γ y j -∗
-  same_class γ h y -∗
-  link_field γ rc h i.
+  ∃ lp, isBlockLocs rc [lp] ∗ isBlock rc DfracDiscarded Mut ∗ lp ↦ #y.
 Proof.
-  iIntros (Hj) "Hrec #Hy #Hsc".
+  iIntros "Hrec".
   rewrite /ownRecord /ownBlock /=.
   iDestruct "Hrec" as (ls) "(#Hlocs & #HP & Hxs)".
   iDestruct (big_opLZ.big_sepLZ2_singleton_inv_r with "Hxs") as (lp) "[-> Hlp]".
   iEval (rewrite list_z.singleton_unfold) in "Hlocs".
-  iExists lp, y, j. by iFrame "Hlocs HP Hlp Hy Hsc".
+  iExists lp. by iFrame "Hlocs HP Hlp".
+Qed.
+
+Lemma link_field_intro γ rc lp (h y : elem) i j :
+  (j < i)%Z →
+  isBlock rc DfracDiscarded Mut -∗
+  lp ↦ #y -∗
+  vertex γ y j -∗
+  same_class γ h y -∗
+  link_field γ rc lp h i.
+Proof.
+  iIntros (Hj) "#HP Hlp #Hy #Hsc".
+  iExists y, j. by iFrame "HP Hlp Hy Hsc".
 Qed.
 
 (* Its dual, for the ABA argument at the CAS: a link record's field is
@@ -280,11 +310,11 @@ Qed.
    is what rules out a [Link] value having reused the block of the [Root]
    value a CAS is comparing against. *)
 
-Lemma link_field_root_val_excl γ rc h i v :
-  link_field γ rc h i -∗ root_val rc v -∗ False.
+Lemma link_field_root_val_excl γ rc lp h i v :
+  isBlockLocs rc [lp] -∗ link_field γ rc lp h i -∗ root_val rc v -∗ False.
 Proof.
-  iIntros "Hlf (%lv & #Hlocs' & _ & #Hlv)".
-  iDestruct "Hlf" as (lp y jy) "(#Hlocs & _ & Hlp & _)".
+  iIntros "#Hlocs Hlf (%lv & #Hlocs' & _ & #Hlv)".
+  iDestruct "Hlf" as (y jy) "(_ & Hlp & _)".
   iDestruct (isBlockLocs_valid with "Hlocs' Hlocs") as %[= ->].
   by iCombine "Hlp Hlv" gives %[Hbad _].
 Qed.
@@ -364,7 +394,8 @@ Proof.
   destruct c as [rc|rc]; simpl.
   - iDestruct "Hcell" as "(%Hroot & $ & Hrv)".
     rewrite (HV w i Hw Hroot). iFrame "Hrv". iPureIntro. by apply Hbwd.
-  - iDestruct "Hcell" as "(%Hroot & $ & $)". iPureIntro. by intros ?%Hfwd.
+  - iDestruct "Hcell" as "(%lp & %Hroot & Hlk & Hlf)".
+    iExists lp. iFrame "Hlk Hlf". iPureIntro. by intros ?%Hfwd.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -377,5 +408,10 @@ Proof. iIntros "(% & % & $ & _)". Qed.
 
 Lemma vertex_mut γ x i : vertex γ x i -∗ isBlock x DfracDiscarded Mut.
 Proof. iIntros "(% & % & _ & _ & $ & _)". Qed.
+
+Lemma vertex_locs γ x i : vertex γ x i -∗ ∃ li lc, isBlockLocs x [li; lc].
+Proof.
+  iIntros "(%li & %lc & _ & Hlocs & _ & _)". iExists li, lc. iExact "Hlocs".
+Qed.
 
 End repr_api.

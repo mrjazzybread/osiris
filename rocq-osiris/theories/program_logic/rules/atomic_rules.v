@@ -447,19 +447,16 @@ Section imp_atomic_rules.
   (* Atomically matching a record pattern [{ f = x }] that binds one
      field to a variable. Since a record pattern reads only the fields
      it mentions, matching this one is a single [load] followed by pure
-     code — an atomic step — so the field's points-to need not be held
-     by the caller at all: it may come from an invariant, which the
-     caller opens for the duration of that step.
+     code so the field's points-to need not be held by the caller: it
+     may come from an invariant, which the caller opens for the
+     duration of that step. *)
 
-     This is how a racy record field (one subject to concurrent writes
-     governed by an invariant) is read by a pattern. Nothing is asked of
-     the record's other fields: they are not read. *)
-  Lemma ipat_PRecord_atomic (E2 E1 : coPset) η δ x (f : field) (r : record)
+  Lemma ipat_PRecord_atomic `{Encode A} (E2 E1 : coPset) η δ x (f : field) (r : record)
       (ls : list loc) (dq : dfrac) (Φ : env → iProp Σ) (ψ : iProp Σ) :
     valid f ls →
     ▷ isBlockLocs r ls -∗
-    ▷ (|={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦{dq} v ∗
-         ▷ ((ls !!! f) ↦{dq} v -∗ |={E2,E1}=> Φ ((x, v) :: δ))) -∗
+    ▷ (|={E1,E2}=> ∃ (v : A), ▷ (ls !!! f) ↦{dq} #v ∗
+         ▷ ((ls !!! f) ↦{dq} #v -∗ |={E2,E1}=> Φ ((x, #v) :: δ))) -∗
     ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
   Proof.
     iIntros (Hvalid) "#Hlocs Hload".
@@ -483,22 +480,19 @@ Section imp_atomic_rules.
     iApply ("Hload" with "Hl").
   Qed.
 
-  (* The same single-field pattern read, when the field is not racy but
-     immutable: its points-to is held by the caller at some fraction —
-     [DfracDiscarded] for a field whose fraction has been discarded once
-     and for all — so there is no invariant to open and no atomicity
-     obligation to discharge. This is the pattern-level counterpart of
-     [imp_ERecordAccess_pers]. *)
-  Lemma ipat_PRecord_pers (E1 : coPset) η δ x (f : field) (r : record)
-      (ls : list loc) (dq : dfrac) (v : val) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+  (* The same single-field pattern read, when the field's points-to is
+     held by the caller at some fraction. *)
+
+  Lemma ipat_PRecord_pers `{Encode A} (E1 : coPset) η δ x (f : field) (r : record)
+      (ls : list loc) (dq : dfrac) (v : A) (Φ : env → iProp Σ) (ψ : iProp Σ) :
     valid f ls →
     ▷ isBlockLocs r ls -∗
-    ▷ (ls !!! f) ↦{dq} v -∗
-    ▷ ((ls !!! f) ↦{dq} v -∗ Φ ((x, v) :: δ)) -∗
+    ▷ (ls !!! f) ↦{dq} #v -∗
+    ▷ ((ls !!! f) ↦{dq} #v -∗ Φ ((x, #v) :: δ)) -∗
     ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
   Proof.
     iIntros (Hvalid) "#Hlocs Hl HΦ".
-    iApply (ipat_PRecord_atomic E1 E1 with "Hlocs [Hl HΦ]"); first done.
+    iApply (ipat_PRecord_atomic (A:=A) E1 E1 with "Hlocs [Hl HΦ]"); first done.
     iNext. iModIntro. iExists v. iFrame "Hl".
     iIntros "!> Hl". iModIntro. by iApply "HΦ".
   Qed.

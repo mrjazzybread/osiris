@@ -50,12 +50,12 @@ Lemma read_vertex {ζ : exn → iProp Σ} {Ψ η} γ z j e :
     {{ (c : content), content_info γ z c }}.
 Proof.
   iIntros "#Hinv #Hz He".
-  iDestruct "Hz" as (lzi lzc) "(#Hzfrag & #Hzlocs & #HzP & #Hzli)".
+  iDestruct (vertex_locs with "Hz") as (lzi lzc) "#Hzlocs".
   iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lzi; lzc] z
             with "Hzlocs He []").
   { list_z.length; lia. }
   iNext.
-  iApply (uf_vertex_content_acc with "Hinv Hzfrag Hzlocs").
+  iApply (uf_vertex_content_acc with "Hinv Hz Hzlocs").
   iIntros "!>" (c) "$".
 Qed.
 
@@ -69,21 +69,21 @@ Qed.
    settles it outright, and only otherwise does the prophecy have to
    speak. *)
 
-Lemma read_vertex_linked {ζ : exn → iProp Σ} {Ψ η} γ z j rc e :
+Lemma read_vertex_linked {ζ : exn → iProp Σ} {Ψ η} γ z j rc lp e :
   is_uf γ -∗
   vertex γ z j -∗
-  linked γ z rc -∗
+  linked γ z rc lp -∗
   EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = z⌝ }} -∗
   EWP (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
     {{ (c : content), ⌜c = CtLink rc⌝ ∗ content_info γ z c }}.
 Proof.
   iIntros "#Hinv #Hz #Hlk He".
-  iDestruct "Hz" as (lzi lzc) "(#Hzfrag & #Hzlocs & #HzP & #Hzli)".
+  iDestruct (vertex_locs with "Hz") as (lzi lzc) "#Hzlocs".
   iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lzi; lzc] z
             with "Hzlocs He []").
   { list_z.length; lia. }
   iNext.
-  iApply (uf_vertex_content_acc_linked with "Hinv Hzfrag Hzlocs Hlk").
+  iApply (uf_vertex_content_acc_linked with "Hinv Hz Hzlocs Hlk").
   iIntros "!>" (c) "%Hc #Hinfo". by iFrame "Hinfo".
 Qed.
 
@@ -95,19 +95,19 @@ Qed.
 Lemma read_vertex_or_linked {ζ : exn → iProp Σ} {Ψ η} γ z j (P Q : iProp Σ) e :
   is_uf γ -∗
   vertex γ z j -∗
-  (P ∨ (∃ rc, linked γ z rc) ∗ Q) -∗
+  (P ∨ (∃ rc lp, linked γ z rc lp) ∗ Q) -∗
   EWP (eval η e) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (z' : elem), ⌜z' = z⌝ }} -∗
   EWP (eval η (ERecordAccess e content_field)) @ ⊤ <|Ψ|> ⟨⟨ ζ ⟩⟩
     {{ (c : content),
          content_info γ z c ∗ (P ∨ ⌜content_root c = false⌝ ∗ Q) }}.
 Proof.
   iIntros "#Hinv #Hz HPQ He".
-  iDestruct "Hz" as (lzi lzc) "(#Hzfrag & #Hzlocs & #HzP & #Hzli)".
+  iDestruct (vertex_locs with "Hz") as (lzi lzc) "#Hzlocs".
   iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lzi; lzc] z
             with "Hzlocs He [HPQ]").
   { list_z.length; lia. }
   iNext.
-  iApply (uf_vertex_content_acc_or_linked with "Hinv Hzfrag Hzlocs HPQ").
+  iApply (uf_vertex_content_acc_or_linked with "Hinv Hz Hzlocs HPQ").
   iIntros "!>" (c) "#Hinfo HPQ". by iFrame "Hinfo HPQ".
 Qed.
 
@@ -150,7 +150,7 @@ Qed.
 Lemma cas_proof η :
   in_env "Atomic" atomic_module_spec η -∗
   EWP (eval η (EPath ["Atomic"; "Loc"; "compare_and_set"]))
-    {{ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec }}.
+    {{ cas, □ ∀ `(InlineEncode A), iSpec τ[loc; A; A] cas compare_and_set_spec }}.
 Proof.
   iIntros "HAtomic".
   iDestruct (atomic_cas_path_spec with "HAtomic") as (cas Hcas) "#Hspec".
@@ -418,11 +418,12 @@ Proof.
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iDestruct "Hc" as "[(_ & (%lp & #Hlocs) & #Hlk) Hhook]".
-  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp]
+  iDestruct "Hc" as "[(_ & (%lp & #Hlk)) Hhook]".
+  iDestruct (linked_locs with "Hlk") as "#Hlocs".
+  iApply (ipat_PRecord_atomic (A:=elem) (⊤ ∖ ↑ufN) ⊤
             with "Hlocs [Hhook]"); first done.
   iNext.
-  iApply (uf_link_parent_acc with "Hinv Hxv Hlk Hlocs [Hhook]").
+  iApply (uf_link_parent_acc with "Hinv Hxv Hlk [Hhook]").
   iNext.
   iIntros (y j Hj) "#Hxy #Hy".
 
@@ -489,12 +490,13 @@ Proof.
   (* [let y = link.parent in ...]. *)
   iApply (imp_ELet_var (B:=elem)
     (λ y : elem, ∃ jy, ⌜(jy < i)%Z⌝ ∗ same_class γ x y ∗ vertex γ y jy)%I).
-  { iDestruct "Hc" as "(_ & (%lp & #Hlocs) & #Hlk)".
-    iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ [lp] rc with "Hlocs [] []").
+  { iDestruct "Hc" as "(_ & (%lp & #Hlk))".
+    iDestruct (linked_locs with "Hlk") as "#Hlocs".
+    iApply (imp_ERecordAccess_atomic (⊤ ∖ ↑ufN) with "Hlocs [] []").
     { list_z.length; lia. }
     { imp_path. }
     iNext.
-    iApply (uf_link_parent_acc_elem with "Hinv Hx Hlk Hlocs []").
+    iApply (uf_link_parent_acc with "Hinv Hx Hlk []").
     iNext.
     iIntros (y jy Hjy) "$ $ //". }
   iIntros (y) "(%jy & %Hjy & #Hsxy & #Hy)".
@@ -538,7 +540,8 @@ Proof.
        conjuncts are re-established from [vertex γ z k], the bound
        [k < jy < i], and the caller's [same_class γ x z]. *)
     iApply (imp_ESeq (λ _ : unit, True)%I).
-    { iDestruct "Hc" as "(_ & (%lp & #Hlocs) & #Hlk)".
+    { iDestruct "Hc" as "(_ & (%lp & #Hlk))".
+      iDestruct (linked_locs with "Hlk") as "#Hlocs".
       iApply (imp_ERecordSet_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ _ [lp] rc (λ w : elem, ⌜w = z⌝)%I
                 with "Hlocs [] [] []").
       { list_z.length; lia. }
@@ -546,7 +549,7 @@ Proof.
       { imp_path. }
       iNext.
       iIntros (a) "->".
-      iApply (uf_link_parent_set with "Hinv Hx Hlk Hlocs Hz Hxz []").
+      iApply (uf_link_parent_set with "Hinv Hx Hlk Hz Hxz []").
       { lia. }
       done. }
     iIntros "_".
@@ -603,14 +606,15 @@ Proof.
     imp_path. }
 
   (* [Link { parent = y } -> let z = find y in compress x z]. *)
-  iDestruct "Hc" as "[(_ & (%lp & #Hlocs) & #Hlk) Hhook]".
+  iDestruct "Hc" as "[(_ & (%lp & #Hlk)) Hhook]".
+  iDestruct (linked_locs with "Hlk") as "#Hlocs".
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp]
+  iApply (ipat_PRecord_atomic (A:=elem) (⊤ ∖ ↑ufN) ⊤
             with "Hlocs [Hhook]"); first done.
   iNext.
-  iApply (uf_link_parent_acc with "Hinv Hxv Hlk Hlocs [Hhook]").
+  iApply (uf_link_parent_acc with "Hinv Hxv Hlk [Hhook]").
   iNext.
   iIntros (y jy Hjy) "#Hxy #Hy".
 
@@ -829,7 +833,7 @@ Lemma set_proof γ η :
       (λ set, □ iSpec τ[elem; content] set (set_content_spec γ)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_aux_spec γ)) η -∗
   in_env "cas"
-    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
+    (λ cas, □ ∀ `(InlineEncode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
   □ fun_spec.predicate_over_function_body τ[elem; content] (set_content_spec γ) η
       (EAnonFun (AnonFun "x" (EAnonFun __set_fun))).
 Proof.
@@ -1003,7 +1007,7 @@ Lemma update_proof γ η :
       (λ update, □ iSpec τ[elem; val] update (update_aux_spec γ)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_aux_spec γ)) η -∗
   in_env "cas"
-    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
+    (λ cas, □ ∀ `(InlineEncode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
   □ fun_spec.predicate_over_function_body τ[elem; val] (update_aux_spec γ) η
       (EAnonFun (AnonFun "x" (EAnonFun __update_fun))).
 Proof.
@@ -1227,7 +1231,7 @@ Lemma union_proof γ η :
       (λ union, □ iSpec τ[elem; elem] union (union_aux_spec γ)) η -∗
   ▷ in_env "findc" (λ findc, □ iSpec τ[elem] findc (find_aux_spec γ)) η -∗
   in_env "cas"
-    (λ cas, □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
+    (λ cas, □ ∀ `(InlineEncode A), iSpec τ[loc; A; A] cas compare_and_set_spec) η -∗
   □ fun_spec.predicate_over_function_body τ[elem; elem] (union_aux_spec γ) η
       (EAnonFun (AnonFun "x" (EAnonFun __union_fun))).
 Proof.
@@ -1526,7 +1530,7 @@ Qed.
    - the prediction says [Root], so the run will indeed answer [false]
      here rather than loop.
    - [R a = a], so that [R x = R a = a ≠ z = R y]. If instead [R a ≠ a],
-     the state's own [dethroned] hands over a [linked γ a rc], and the
+     the state's own [dethroned] hands over a [linked γ a rc lp], and the
      run will loop and the update is kept.
 
    In the other case, where [x = findc y], we just commit [true] after
@@ -1564,7 +1568,7 @@ Definition eq_spec (γ : uf_names) (x y : elem) (m : microvx) : iProp Σ :=
 Definition eq_kont (γ : uf_names) (a z : elem) (pvs : list (val * val))
     (P : iProp Σ) (Φ : bool → iProp Σ) : iProp Σ :=
   (⌜a ≠ z⌝ ∗ ⌜proph_root pvs = true⌝ ∗ Φ false)
-  ∨ ((⌜a = z⌝ ∨ ⌜proph_root pvs = false⌝ ∨ ∃ rc, linked γ a rc) ∗ P).
+  ∨ ((⌜a = z⌝ ∨ ⌜proph_root pvs = false⌝ ∨ ∃ rc lp, linked γ a rc lp) ∗ P).
 
 (*
    Proof outline:
@@ -1698,7 +1702,7 @@ Proof.
   (* Re-shape what the linearization point left behind. *)
   iAssert (((⌜proph_root pvs = true⌝ ∗ Φ false)
             ∨ (⌜proph_root pvs = false⌝ ∗ eq_au γ x y Φ))
-           ∨ (∃ rc, linked γ a rc) ∗ eq_au γ x y Φ)%I
+           ∨ (∃ rc lp, linked γ a rc lp) ∗ eq_au γ x y Φ)%I
     with "[Hkont]" as "Hkont".
   { iDestruct "Hkont" as "[(_ & %Hpr & HΦ) | [Hwhy AU]]".
     - iLeft. iLeft. by iFrame "HΦ".
@@ -1713,8 +1717,7 @@ Proof.
                        (if content_root c then Φ false else eq_au γ x y Φ))%I
     with "[Hp Hkont]".
   { (* [x.content [@resolve p ()]] *)
-    iApply (imp_EResolve with "[] [] Hp [Hkont] []").
-    { done. }
+    iApply (imp_EResolve with "[] [] Hp [Hkont] []"); first trivial.
     { imp_path. } { imp_constant. }
     { iApply (read_vertex_or_linked with "Hinv Hav Hkont"). imp_path. }
     iIntros (c pvs') "%Heqp _ [$ Hres]".
@@ -1739,11 +1742,12 @@ Proof.
   rewrite (@encode_encode' content).
   next_branch.
   next_branch.
-  iDestruct "Hc" as "[(_ & (%lp & #Hlocs) & #Hlk) AU]".
-  iApply (ipat_PRecord_atomic (⊤ ∖ ↑ufN) ⊤ _ _ _ 0%Z rc [lp]
+  iDestruct "Hc" as "[(_ & (%lp & #Hlk)) AU]".
+  iDestruct (linked_locs with "Hlk") as "#Hlocs".
+  iApply (ipat_PRecord_atomic (A:=elem) (⊤ ∖ ↑ufN)
             with "Hlocs [AU]"); first done.
   iNext.
-  iApply (uf_link_parent_acc with "Hinv Hav Hlk Hlocs [AU]").
+  iApply (uf_link_parent_acc with "Hinv Hav Hlk [AU]").
   iNext.
   iIntros (x' jx' Hjx') "#Hax' #Hx'v".
   iDestruct (same_class_trans with "Hxa Hax'") as "#Hxx'".
@@ -1898,7 +1902,7 @@ Proof.
   (* [let cas = Atomic.Loc.compare_and_set] *)
   iApply (imp_sitems_let
             (λ cas : val,
-               □ ∀ `(Encode A), iSpec τ[loc; A; A] cas compare_and_set_spec)%I).
+               □ ∀ `(InlineEncode A), iSpec τ[loc; A; A] cas compare_and_set_spec)%I).
   { iApply cas_proof. iFrame "#". }
   iIntros (cas) "#Hcas".
 
