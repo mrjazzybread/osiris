@@ -332,8 +332,7 @@ Inductive expr :=
   (* Allocating a prophecy variable: [Proph.create ()]. *)
   | ENewProph
   (* Resolving a prophecy variable: [EResolve e p v] resolves the prophecy
-     denoted by [p] with the pair of [e]'s result and [v], at the very step
-     at which [e] produces that result.
+     denoted by [p] with the pair of [e]'s result and [v]. *)
   | EResolve (e p v : expr)
 
   | EIgnore (e : expr)

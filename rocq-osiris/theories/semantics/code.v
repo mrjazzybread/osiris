@@ -246,7 +246,8 @@ Definition resolve {X} (c : code X val exn) (x : X) (p : loc) (v : val)
 
 (* An observation records one prophecy resolution: the identifier that was
    resolved, the result of the system call it was fused with, and the
-   annotation the program supplied.
+   annotation the program supplied. *)
+
 Definition observation : Type := loc * (val * val).
 
 (* ------------------------------------------------------------------------ *)
