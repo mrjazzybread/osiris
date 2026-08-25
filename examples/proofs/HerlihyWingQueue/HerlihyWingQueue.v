@@ -1331,14 +1331,17 @@ Proof.
       end)%I with "[AU]".
   { iApply (imp_EResolve_EExchange_atomic (⊤ ∖ ↑hwqN) ⊤ _ _ _ _ _ p #i
               (λ l' : loc, ⌜l' = l⌝)%I (λ o : option val, ⌜o = None⌝)%I
-              with "[] [] [] [] [AU]").
+              with "[] [] [AU]").
+    (* The prophecy [p] and the index [i] are read off the environment: no
+       step, no effect, so these are side conditions rather than goals about
+       their evaluation. *)
+    { reflexivity. }
+    { reflexivity. }
     { iApply (imp_EAtomicLoc v_field (ss !!! i) [l] with "Hcell [] []").
       { list_z.length; lia. }
       { imp_path. }
       { iNext. iPureIntro. by vm_compute. } }
     { imp_step. }
-    { imp_path. }
-    { imp_path. }
     iNext.
     iInv "Hinv" as "(%back & %pvs & %pref & %rest & %cont & %slots & %deqs &
                      >Hbl & Hslots & Hbk & Hcpa & Hcpf & >Hi2 & >Hel & >Hsl● &

@@ -251,22 +251,38 @@ let translate_exp_constant loc (c : constant) : expr =
    pair of the annotated expression's result and [v]. *)
 let resolve_attribute = "resolve"
 
-(* [translate_payload_expr loc e] translates one argument of a [@resolve]
-   annotation. *)
+(* [translate_proph loc e] translates the first argument of a [@resolve]
+   annotation, which names the prophecy. It must be an identifier: a
+   prophecy is looked up in the environment, and nothing else may be
+   evaluated at a resolution. *)
 
-let translate_payload_expr loc (e : Parsetree.expression) : expr =
+let translate_proph loc (e : Parsetree.expression) : path =
   let open Parsetree in
   match e.pexp_desc with
   | Pexp_ident id ->
-      EPath (translate_longident (txt id))
+      translate_longident (txt id)
+  | _ ->
+      unsupported loc
+        "this prophecy in [@resolve]: it must be an identifier" []
+
+(* [translate_proph_arg loc e] translates the second argument of a
+   [@resolve] annotation, the auxiliary value the prophecy is resolved
+   with. It must be an identifier or a constant, for the same reason. *)
+
+let translate_proph_arg loc (e : Parsetree.expression) : proph_arg =
+  let open Parsetree in
+  match e.pexp_desc with
+  | Pexp_ident id ->
+      PArgPath (translate_longident (txt id))
   | Pexp_construct (id, None) ->
       (* [()], [true], [false], and any other constant data constructor. *)
-      EData (Longident.last (txt id), [])
+      PArgData (Longident.last (txt id))
   | Pexp_constant { pconst_desc = Pconst_integer (s, None); _ } ->
-      EInt (int_of_string s)
+      PArgInt (int_of_string s)
   | _ ->
-      eunsupported loc
+      unsupported loc
         "this argument of [@resolve]: it must be an identifier or a constant"
+        (PArgData "()")
 
 (* [names_value m f path] tests whether [path] designates the value [f] of a
    module named [m]. Dune wraps a library's modules, so [m] may be reached
@@ -283,7 +299,7 @@ let names_value m f path =
 (* [recognize_resolve attrs] returns the prophecy and the tag of the
    [@resolve] annotation carried by [attrs], if there is one. *)
 
-let recognize_resolve (attrs : Parsetree.attributes) : (expr * expr) option =
+let recognize_resolve (attrs : Parsetree.attributes) : (path * proph_arg) option =
   let open Parsetree in
   match
     List.find_opt (fun a -> txt a.attr_name = resolve_attribute) attrs
@@ -296,13 +312,11 @@ let recognize_resolve (attrs : Parsetree.attributes) : (expr * expr) option =
       | PStr [ { pstr_desc = Pstr_eval (
             { pexp_desc = Pexp_apply (p, [ (Nolabel, v) ]); _ }, _
           ); _ } ] ->
-          Some (translate_payload_expr loc p, translate_payload_expr loc v)
+          Some (translate_proph loc p, translate_proph_arg loc v)
       | _ ->
-          let e =
-            eunsupported loc
-              "this [@resolve] annotation: it must be written [@resolve p v]"
-          in
-          Some (e, e)
+          unsupported loc
+            "this [@resolve] annotation: it must be written [@resolve p v]"
+            (Some ([], PArgData "()"))
       end
 
 (* -------------------------------------------------------------------------- *)

@@ -152,6 +152,26 @@ and fcoercions =
 
 (* -------------------------------------------------------------------------- *)
 
+(* The auxiliary argument of a prophecy resolution. *)
+
+(* A resolution [e [@resolve p v]] is a ghost annotation: it must not change
+   what the program does. So neither [p] nor [v] is an arbitrary expression.
+   Evaluating one could take a step, allocate, or perform an effect, and the
+   erasure of [EResolve (e, p, v)] down to [e] would no longer be sound. The
+   prophecy [p] is a path, and the auxiliary argument [v] is drawn from the
+   grammar below. *)
+
+type proph_arg =
+  (* A path [x] or [π.x], looked up in the environment. *)
+  | PArgPath of path
+  (* A constant data constructor: [()], [true], [false], [None], ... *)
+  | PArgData of data
+  (* An integer literal. *)
+  | PArgInt of int
+    [@@ deriving show]
+
+(* -------------------------------------------------------------------------- *)
+
 (* Expressions. *)
 
 type expr =
@@ -314,15 +334,18 @@ type expr =
 
   (* Allocating a prophecy variable: [Proph.create ()]. *)
   | ENewProph
-  (* Resolving a prophecy variable: [EResolve (e, p, v)] resolves the
-     prophecy denoted by [p] with the pair of [e]'s result and [v], at the
-     very step at which [e] produces that result.
+  (* Resolving a prophecy variable: [EResolve (e, π, a)] resolves the
+     prophecy denoted by the path [π] with the pair of [e]'s result and the
+     value of the auxiliary argument [a], at the very step at which [e]
+     produces that result.
 
      In OCaml this is written as an ATTRIBUTE on the resolved expression,
      [e [@resolve p v]], rather than as a function call: the resolution is
      a ghost annotation with no runtime meaning, and an attribute is
-     erased by the OCaml compiler, so the program still runs unchanged. *)
-  | EResolve of expr * expr * expr
+     erased by the OCaml compiler, so the program still runs unchanged.
+     Neither argument of the attribute is an arbitrary expression; see
+     [proph_arg] above. *)
+  | EResolve of expr * path * proph_arg
 
   | EIgnore of expr
 

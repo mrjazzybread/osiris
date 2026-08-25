@@ -1717,8 +1717,9 @@ Proof.
                        (if content_root c then Φ false else eq_au γ x y Φ))%I
     with "[Hp Hkont]".
   { (* [x.content [@resolve p ()]] *)
-    iApply (imp_EResolve with "[] [] Hp [Hkont] []"); first trivial.
-    { imp_path. } { imp_constant. }
+    iApply (imp_EResolve with "Hp [Hkont] []"); first trivial.
+    (* [p] and [()] are read off the environment, in no step. *)
+    { reflexivity. } { reflexivity. }
     { iApply (read_vertex_or_linked with "Hinv Hav Hkont"). imp_path. }
     iIntros (c pvs') "%Heqp _ [$ Hres]".
     assert (content_root c = proph_root pvs) as ->

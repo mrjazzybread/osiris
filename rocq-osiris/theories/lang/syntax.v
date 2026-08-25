@@ -174,6 +174,23 @@ Definition fcoercions :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* The auxiliary argument of a prophecy resolution. *)
+
+(* A resolution [e [@resolve p v]] is a ghost annotation: it must not change
+   what the program does. So neither [p] nor [v] is an arbitrary expression.
+   [p] is a path to a pre-existing prophecy variable, and [v] is drawn from
+   the type [proph_arg]. *)
+
+Inductive proph_arg :=
+  (* A path [x] or [π.x], looked up in the environment. *)
+  | PArgPath (π : path)
+  (* A constant data constructor: [()], [true], [false], [None], ... *)
+  | PArgData (c : data)
+  (* An integer literal. *)
+  | PArgInt (i : Z).
+
+(* ------------------------------------------------------------------------ *)
+
 (* Expressions. *)
 
 Inductive expr :=
@@ -331,9 +348,8 @@ Inductive expr :=
 
   (* Allocating a prophecy variable: [Proph.create ()]. *)
   | ENewProph
-  (* Resolving a prophecy variable: [EResolve e p v] resolves the prophecy
-     denoted by [p] with the pair of [e]'s result and [v]. *)
-  | EResolve (e p v : expr)
+  (* Resolving a prophecy variable: [e [@resolve π a]]. *)
+  | EResolve (e : expr) (π : path) (a : proph_arg)
 
   | EIgnore (e : expr)
 

@@ -324,7 +324,36 @@ Fixpoint lookup_path η π : option val :=
       lookup_path xvs π
   end.
 
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_proph_arg η a] is the value of the auxiliary argument [a] of a
+   prophecy resolution. It is a function of [η], not a computation: reading
+   [a] takes no step and has no effect. *)
+
+Definition eval_proph_arg η (a : proph_arg) : option val :=
+  match a with
+  | PArgPath π =>
+      lookup_path η π
+  | PArgData c =>
+      Some (VData c [])
+  | PArgInt i =>
+      Some (VInt (int.repr i))
+  end.
+
 End LookupEnv.
+
+(* ------------------------------------------------------------------------ *)
+
+Lemma bind_proph_args {B E} {η} {π : path} {a : proph_arg} {p : loc} {v : val}
+    {k : loc → val → micro B E} :
+  lookup_path η π = Some (VLoc p) →
+  eval_proph_arg η a = Some v →
+  (p' ← as_loc (of_option (lookup_path η π)) ;
+   v' ← of_option (eval_proph_arg η a) ;
+   k p' v') = k p v.
+Proof.
+  intros Hp Hv. rewrite Hp, Hv. reflexivity.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -1510,12 +1539,13 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | ENewProph =>
       p ← new_proph ;
       ret (VLoc p)
-  | EResolve e ep ev =>
-      (* The prophecy [ep] and the annotation [ev] are evaluated to
-         values first. The resolved expression [e]'s own arguments are
-         then evaluated, and the resolution is attached to the single
-         system call that remains. *)
-      '(p, v) ← pair_op Strat.fun_app_order (as_loc (eval η ep)) (eval η ev) ;
+  | EResolve e π a =>
+      (* The prophecy [π] and the annotation [a] are looked up in the
+         environment. The resolved expression [e]'s own arguments are
+         then evaluated, and the resolution is attached to the system
+         call performing [e]'s effect (if there is one). *)
+      p ← as_loc (of_option (lookup_path η π)) ;
+      v ← of_option (eval_proph_arg η a) ;
       match e with
       | ELoad e1 =>
           l ← as_loc (eval η e1) ;

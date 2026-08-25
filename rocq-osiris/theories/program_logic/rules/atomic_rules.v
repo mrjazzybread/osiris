@@ -238,14 +238,15 @@ Section imp_atomic_rules.
 
      Compare [imp_cas_atomic]: the only difference is that the closing wand
      also hands over the prediction. *)
-  Lemma imp_EResolve_ECAS_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3 ep ev
+  Lemma imp_EResolve_ECAS_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3
+      (ep : path) (ev : proph_arg)
       (p : loc) (v : val) (pvs : list (val * val))
       (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) :
+    lookup_path η ep = Some #p →
+    eval_proph_arg η ev = Some v →
     impure E1 (eval η e1) Ψ ζ Φ1 -∗
     impure E1 (eval η e2) Ψ ζ Φ2 -∗
     impure E1 (eval η e3) Ψ ζ Φ3 -∗
-    impure E1 (eval η ep) Ψ ζ (λ p', ⌜p' = p⌝)%I -∗
-    impure E1 (eval η ev) Ψ ζ (λ v', ⌜v' = v⌝)%I -∗
     proph p pvs -∗
     ▷ (|={E1,E2}=>
          ∀ l seen v',
@@ -257,11 +258,9 @@ Section imp_atomic_rules.
                    |={E2,E1}=> Φ (phys_eq_val_ w seen))) -∗
     impure E1 (eval η (EResolve (ECAS e1 e2 e3) ep ev)) Ψ ζ Φ.
   Proof.
-    iIntros "He1 He2 He3 Hp Hv Hproph Hcas".
+    iIntros (Hp Hv) "He1 He2 He3 Hproph Hcas".
     simpl_eval.
-    iApply (imp_bind_par with "[Hp] Hv").
-    { iApply (imp_as_loc with "Hp"). }
-    iIntros (p0 v0) "-> ->". iNext.
+    rewrite (bind_proph_args Hp Hv).
     iApply (imp_bind_par (A1:=loc * A) with "[He1 He2] He3").
     { iApply (imp_par with "[He1] He2").
       iApply (imp_as_loc with "He1"). }
@@ -287,12 +286,13 @@ Section imp_atomic_rules.
      them, so it only becomes available once the invariant is open —
      unlike [imp_EResolve_ECAS_atomic], where the prophecy is the
      caller's own. *)
-  Lemma imp_EResolve_EExchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 ep ev
+  Lemma imp_EResolve_EExchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
+      (ep : path) (ev : proph_arg)
       (p : loc) (v : val) (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
+    lookup_path η ep = Some #p →
+    eval_proph_arg η ev = Some v →
     impure E1 (eval η e1) Ψ ζ Φ1 -∗
     impure E1 (eval η e2) Ψ ζ Φ2 -∗
-    impure E1 (eval η ep) Ψ ζ (λ p', ⌜p' = p⌝)%I -∗
-    impure E1 (eval η ev) Ψ ζ (λ v', ⌜v' = v⌝)%I -∗
     ▷ (|={E1,E2}=>
          ∀ l x, Φ1 l -∗ Φ2 x -∗
                 ∃ (a : A) (pvs : list (val * val)),
@@ -301,11 +301,9 @@ Section imp_atomic_rules.
                        l ↦ #x -∗ |={E2,E1}=> Φ a)) -∗
     impure E1 (eval η (EResolve (EExchange e1 e2) ep ev)) Ψ ζ Φ.
   Proof.
-    iIntros "He1 He2 Hp Hv Hex".
+    iIntros (Hp Hv) "He1 He2 Hex".
     simpl_eval.
-    iApply (imp_bind_par with "[Hp] Hv").
-    { iApply (imp_as_loc with "Hp"). }
-    iIntros (p0 v0) "-> ->". iNext.
+    rewrite (bind_proph_args Hp Hv).
     iApply (imp_bind_par with "[He1] He2").
     { iApply (imp_as_loc with "He1"). }
     iIntros (l x) "HΦ1 HΦ2 !>".

@@ -85,6 +85,19 @@ let int i =
 
 (* -------------------------------------------------------------------------- *)
 
+(* The auxiliary argument of a prophecy resolution. *)
+
+let proph_arg (a : proph_arg) : expression =
+  match a with
+  | PArgPath pi ->
+      c "PArgPath" [ path pi ]
+  | PArgData d ->
+      c "PArgData" [ data d ]
+  | PArgInt i ->
+      c "PArgInt" [ int i ]
+
+(* -------------------------------------------------------------------------- *)
+
 (* String literals. *)
 
 (* A Rocq string literal can contain any character below ASCII 128,
@@ -428,8 +441,8 @@ let rec expr (e : expr) =
   | ENewProph ->
       c "ENewProph" []
 
-  | EResolve (e, p, v) ->
-      c "EResolve" [ expr e; expr p; expr v ]
+  | EResolve (e, pi, a) ->
+      c "EResolve" [ expr e; path pi; proph_arg a ]
 
   | EIgnore e ->
       c "EIgnore" [ expr e ]
