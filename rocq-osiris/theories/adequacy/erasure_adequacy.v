@@ -2,6 +2,7 @@ From Stdlib Require Import Program.Equality.
 From stdpp Require Import gmap.
 From iris.proofmode Require Import base ltac_tactics classes.
 From osiris.lang Require Import lang.
+From osiris.utils.logic Require Import lsteps.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import ewp.
 Require Import ewp_adequacy erasure erasure_eval.
@@ -32,52 +33,35 @@ Require Import ewp_adequacy erasure erasure_eval.
 
 (** ** Reachability. *)
 
-(* Two general facts about [threadpool_steps] that the argument needs and
-   that step.v does not provide. They belong there rather than here. *)
+Notation threadpool_steps_one := (lsteps_once threadpool_step).
+Notation threadpool_steps_trans := (lsteps_trans threadpool_step).
 
-Lemma threadpool_steps_one c1 κ c2 :
-  threadpool_step c1 κ c2 →
-  threadpool_steps 1 c1 κ c2.
-Proof. intros. rewrite <- (app_nil_r κ). econstructor; [ done | constructor ]. Qed.
-
-Lemma threadpool_steps_trans n1 n2 c1 c2 c3 κs1 κs2 :
-  threadpool_steps n1 c1 κs1 c2 →
-  threadpool_steps n2 c2 κs2 c3 →
-  threadpool_steps (n1 + n2) c1 (κs1 ++ κs2) c3.
-Proof.
-  induction 1 as [ | n d1 κ d2 κs d3 Hstep Hsteps IH ]; simpl; first done.
-  intros Hsteps2. rewrite -app_assoc.
-  econstructor; [ done | by apply IH ].
-Qed.
-
-(* [safe σ π]: every thread of every reachable configuration can progress.
-   Named because an erased thread may correspond to a *later* annotated
-   configuration — the [CReturn] step erasure removes — so its progress is
-   not readable from the current one. Iris's [pure_step_tp_safe] is stated
-   against [adequate] for the same reason. *)
+(* [safe σ π]: every thread of every reachable configuration can progress. *)
 
 Definition safe (σ : store) (π : thpool) : Prop :=
-  ∀ k κs σ' π',
-    threadpool_steps k (σ, π) κs (σ', π') →
+  ∀ σ' π',
+    rtc erased_step (σ, π) (σ', π') →
     ∀ ι m, π' !! ι = Some m → not_stuck m σ' (dom π').
+
+Lemma safe_rtc σ π σ' π' :
+  safe σ π →
+  rtc erased_step (σ, π) (σ', π') →
+  safe σ' π'.
+Proof.
+  intros Hsafe Hrtc σ'' π'' Hrtc' ι m Hm.
+  eapply Hsafe; last done. by etrans.
+Qed.
 
 Lemma safe_steps σ π n κs σ' π' :
   safe σ π →
   threadpool_steps n (σ, π) κs (σ', π') →
   safe σ' π'.
 Proof.
-  intros Hsafe Hsteps k κs' σ'' π'' Hsteps' ι m Hm.
-  eapply Hsafe; last done. by eapply threadpool_steps_trans.
+  intros Hsafe Hsteps. eapply safe_rtc; [ exact Hsafe | ].
+  apply erased_steps_threadpool_steps. by eauto.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-
-(** ** The side lemmas. *)
-
-
-(* [1] The erasure commutes with the interpreter — [erase_eval], proved in
-   erasure_eval.v. *)
-
 
 Lemma erase_thpool_singleton ι m m' :
   erase_comp m m' →
@@ -108,7 +92,7 @@ Lemma safe_not_crash σ π ι :
   safe σ π → π !! ι = Some Crash → False.
 Proof.
   intros Hsafe Hι.
-  destruct (Hsafe 0 [] σ π (TPSRefl _) ι Crash Hι) as [ [] | [ Hcp | [] ] ].
+  destruct (Hsafe σ π (rtc_refl _ _) ι Crash Hι) as [ [] | [ Hcp | [] ] ].
   destruct (subjective_step.invert_can_progress _ _ _ Hcp) as [ H | [ H | [ H | H ] ] ];
     try by destruct H as (?&?&?&?).
   - by destruct H as (?&?&?&?&?).
@@ -159,10 +143,7 @@ Local Ltac erase_not_stuck_finish :=
 
 (** ** Thread-level steps. *)
 
-(* Everything one thread can do alone: a [step], or a resolution — whose
-   rules sit at the pool level only because they emit an observation, not
-   because they read the pool. [Fork] and [Join] do read it, and are
-   deliberately absent: the simulation matches those at the pool level. *)
+(* The steps a thread can take alone (without concurrency): a [step], or a resolution. *)
 
 Inductive tstep {A E} : store * micro A E → list observation → store * micro A E → Prop :=
   | TBase σ m σ' m' :
@@ -179,26 +160,12 @@ Inductive tstep {A E} : store * micro A E → list observation → store * micro
       tstep (σ, Stop (CResolve c) (x, p, v) k) [] (σ', Crash)
 .
 
-Inductive tsteps {A E} : nat → store * micro A E → list observation → store * micro A E → Prop :=
-  | TSRefl c : tsteps 0 c [] c
-  | TSStep n c1 κ c2 κs c3 :
-      tstep c1 κ c2 →
-      tsteps n c2 κs c3 →
-      tsteps (S n) c1 (κ ++ κs) c3
-.
+(* Runs of [tstep], sharing the generic labelled-steps machinery with
+   [threadpool_steps] (utils/logic/lsteps.v). *)
 
-Lemma tsteps_one {A E} (c1 c2 : store * micro A E) κ :
-  tstep c1 κ c2 → tsteps 1 c1 κ c2.
-Proof. intros. rewrite <- (app_nil_r κ). econstructor; [ done | constructor ]. Qed.
-
-Lemma tsteps_trans {A E} n1 n2 (c1 c2 c3 : store * micro A E) κs1 κs2 :
-  tsteps n1 c1 κs1 c2 →
-  tsteps n2 c2 κs2 c3 →
-  tsteps (n1 + n2) c1 (κs1 ++ κs2) c3.
-Proof.
-  induction 1 as [ | n d1 κ d2 κs d3 Hstep Hsteps IH ]; simpl; first done.
-  intros Hsteps2. rewrite -app_assoc. econstructor; [ done | by apply IH ].
-Qed.
+Notation tsteps := (lsteps tstep).
+Notation tsteps_one := (lsteps_once tstep).
+Notation tsteps_trans := (lsteps_trans tstep).
 
 
 Lemma tstep_threadpool ι π (c1 c2 : store * microvx) κ :
@@ -219,7 +186,7 @@ Lemma tsteps_threadpool ι n (c1 c2 : store * microvx) κ π :
   threadpool_steps n (c1.1, π) κ (c2.1, <[ ι := c2.2 ]> π).
 Proof.
   intros Hι Hsteps. revert π Hι.
-  induction Hsteps as [ c | n c1 κ c2 κs c3 Hstep Hsteps IH ]; intros π Hι.
+  induction Hsteps as [ c | n c1 c2 c3 κ κs Hstep Hsteps IH ]; intros π Hι.
   - unfold thpool in *. rewrite insert_id; [ constructor | done ].
   - econstructor; [ by eapply tstep_threadpool | ].
     unfold thpool, insert_thpool in *.
@@ -231,25 +198,18 @@ Qed.
 
 (** ** Stuck threads. *)
 
-(* The two shapes a stuck annotated thread can have: a crash, or a resolution
-   whose wrapped call does not reduce to an outcome — it either takes no step
-   ([perform], [fork], [join]) or steps to a computation. [safe] excludes
-   both, which is how the simulation discharges them. *)
-
 Definition is_result {A E} (m : micro A E) : Prop :=
   match m with
   | Ret _ | Throw _ | Crash => True
   | _ => False
   end.
 
-(* Whether a call is stuck depends only on its code, not on its argument,
-   continuation, store or pool: [perform] is stuck; a resolution steps at the
-   pool level only if its wrapped call reduces to an outcome; a [join] is
-   waiting, which is [not_stuck]'s third disjunct; everything else steps.
-   This is what lets the simulation transfer progress. *)
-
 Definition steppable_code {X Y E} (c : code X Y E) : Prop :=
   match c with CPerf | CResolve _ => False | _ => True end.
+
+Lemma not_steppable_step_through_par {X Y E} (c : code X Y E) :
+  ¬ steppable_code c → step_through_par_code c.
+Proof. destruct c; simpl; tauto. Qed.
 
 Lemma not_stuck_call {A E X Y} σ (π : gset thread) (c : code X Y exn) x
     (k : outcome2 Y exn → micro A E) :
@@ -697,15 +657,15 @@ Proof.
   intros Hbase Hthrough Hstep. dependent destruction Hstep.
   - left. exists 1. apply tsteps_one, TBase. by apply Hbase.
   - left. exists 2.
-    eapply (TSStep 1 _ [] _ _); [ apply TBase, Hthrough | ].
+    eapply (lsteps_l _ 1 _ _ _ []); [ apply TBase, Hthrough | ].
     apply tsteps_one.
     exact (TResolve σ σ' c x p v w (λ o, C (k o)) H).
   - left. exists 2.
-    eapply (TSStep 1 _ [] _ _); [ apply TBase, Hthrough | ].
+    eapply (lsteps_l _ 1 _ _ _ []); [ apply TBase, Hthrough | ].
     apply tsteps_one.
     exact (TResolveThrow σ σ' c x p v e (λ o, C (k o)) H).
   - right. exists 2. split; [ | by left ].
-    eapply (TSStep 1 _ [] _ _); [ apply TBase, Hthrough | ].
+    eapply (lsteps_l _ 1 _ _ _ []); [ apply TBase, Hthrough | ].
     apply tsteps_one.
     exact (TResolveCrash σ σ' c x p v (λ o, C (k o)) H).
 Qed.
@@ -735,7 +695,7 @@ Proof.
   intros HC.
   remember (σ, m) as c1 eqn:Hc1. remember (σ', m') as c2 eqn:Hc2.
   intros Hsteps. revert σ m σ' m' Hc1 Hc2.
-  induction Hsteps as [ c | n c1 κ1 c2 κs c3 Hstep Hsteps IH ];
+  induction Hsteps as [ c | n c1 c2 c3 κ1 κs Hstep Hsteps IH ];
     intros σ m σ' m' -> Hc2.
   - injection Hc2 as -> ->. left. exists 0. constructor.
   - destruct c2 as (σ1, m1).
@@ -1357,7 +1317,8 @@ Proof.
   intros Hsafe Hι Hs Hst.
   eapply mstuck_not_not_stuck; [ exact Hst | ].
   eapply Hsafe.
-  - exact (tsteps_threadpool ι n (σ, m) (σ', m') κ π Hι Hs).
+  - apply erased_steps_threadpool_steps. eexists _, _.
+    exact (tsteps_threadpool ι n (σ, m) (σ', m') κ π Hι Hs).
   - simpl. unfold thpool, insert_thpool, lookup_thpool. apply lookup_insert_eq.
 Qed.
 
@@ -1567,13 +1528,13 @@ Proof.
     by apply subjective_step.can_step_can_progress, can_step_handle.
   - dependent destruction Hm.
     + apply not_stuck_call. eapply not_stuck_call_code; [ done | ].
-      by eapply (Hsafe 0 [] σ π (TPSRefl _)).
+      by eapply (Hsafe σ π (rtc_refl _ _)).
     + right; left. apply subjective_step.can_step_can_progress, can_step_stop;
         split; [ done | by intros [] ].
     + (* A fused resolution erases to the call it wraps, and safety says
          that call reduces to an outcome — so it steps. *)
       apply not_stuck_call. eapply not_stuck_resolve_code; [ done | ].
-      by eapply (Hsafe 0 [] σ π (TPSRefl _)).
+      by eapply (Hsafe σ π (rtc_refl _ _)).
     + (* the two calls erasure removes: the annotated program steps first *)
       erase_result_step; erase_not_stuck_finish.
     + erase_result_step; erase_not_stuck_finish.
@@ -1678,7 +1639,7 @@ Lemma erase_sim k ce κs ce' :
       threadpool_steps n (σ, π) κ (σ', π') ∧
       safe σ' π' ∧ erase_store σ' ce'.1 ∧ erase_thpool π' ce'.2.
 Proof.
-  induction 1 as [ c | n c1 κ c2 κs c3 Hstep Hsteps IH ];
+  induction 1 as [ c | n c1 c2 c3 κ κs Hstep Hsteps IH ];
     intros σ π Hsafe Hσ Hπ.
   - split; first done.
     exists 0, [], σ, π. split_and!; try done. constructor.
@@ -1717,7 +1678,9 @@ Proof.
                             {[ ι := eval [] (erase_expr e) ]}).
   { apply erase_thpool_singleton, erase_eval. }
   assert (Hsafe : safe σ {[ ι := eval [] e ]}).
-  { intros k' κs' σ' π' Hsteps' ι' m Hm. by eapply Hann. }
+  { intros σ' π' Hrtc ι' m Hm.
+    apply erased_steps_threadpool_steps in Hrtc as (k' & κs' & Hsteps').
+    by eapply Hann. }
   (* So the configuration the erased program has reached is the erasure of
      one the annotated program reaches. *)
   destruct (erase_sim _ _ _ _ Hsteps _ _ Hsafe Hσ Hπ)

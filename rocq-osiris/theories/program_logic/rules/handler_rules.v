@@ -326,7 +326,7 @@ Section handle_rules.
       iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
       iIntros (σ'' m'' μ) "%Hstep2".
       dependent destruction Hstep2.
-      { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+      { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
       all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H) as Hs
            | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H) as Hs
            | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H) as Hs ];
@@ -540,7 +540,7 @@ Section handler_proof.
       iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
       iIntros (σ'' m'' μ) "%Hstep2".
       dependent destruction Hstep2.
-      { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+      { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
       all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H1) as Hs
            | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H1) as Hs
            | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H1) as Hs ];

@@ -187,7 +187,7 @@ Section ewp_rules.
         simpl try2. cbn match.
         iIntros (σ' m' μ) "%Hstep2".
         dependent destruction Hstep2.
-        { exfalso. eapply (proj2 (stuck_Resolve _ c _ (pftry2 k f))); exact H. }
+        { exfalso. eapply (no_step_Resolve _ c _ (pftry2 k f)); exact H. }
         - eassert (subjective_step
                      (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
           { eapply ResolveS. eassumption. }
@@ -354,7 +354,7 @@ Section ewp_rules.
         iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
         iIntros (σ'' m'' μ) "%Hstep2".
         dependent destruction Hstep2.
-        { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+        { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
         all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0) as Hs
              | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H0) as Hs
              | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H0) as Hs ];
@@ -408,7 +408,7 @@ Section ewp_rules.
         iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
         iIntros (σ'' m'' μ) "%Hstep2".
         dependent destruction Hstep2.
-        { exfalso. eapply (proj2 (stuck_Resolve _ _ _ _)); eassumption. }
+        { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
         all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0) as Hs
              | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H0) as Hs
              | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H0) as Hs ];

@@ -501,7 +501,7 @@ Section satisfiability_weakest_pre.
       iExists []. iFrame.
       iPureIntro; simpl; intros ? HF.
       by apply not_elem_of_nil in HF.
-    - inversion_clear Hsteps as [| ? ? ? [σ1' π1'] ? ? Hstep1 Hsteps1].
+    - inversion_clear Hsteps as [| ? ? [σ1' π1'] ? ? ? Hstep1 Hsteps1].
       simpl.
       rewrite -assoc_L.
       iPoseProof (wptp_step $! Hstep1 with "Hwps") as "Hwps".

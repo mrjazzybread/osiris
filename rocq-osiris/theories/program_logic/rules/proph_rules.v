@@ -138,7 +138,7 @@ Section proph.
       (* [dependent destruction] wants the payload to be a variable. *)
       remember (x, p, v) as y eqn:Hy.
       dependent destruction Hstep.
-      { exfalso. eapply (proj2 (stuck_Resolve _ c _ k)); eassumption. }
+      { exfalso. eapply (no_step_Resolve _ c _ k); eassumption. }
       + (* [ResolveThrowS] *)
         iMod ("Hwp" $! σ' (throw e) None with "[%]") as "Hwp";
           first by apply BaseS.
@@ -229,7 +229,7 @@ Section proph.
     rewrite /resolve in Hstep.
     remember (x, p, v) as y eqn:Hy.
     dependent destruction Hstep.
-    - exfalso. eapply (proj2 (stuck_Resolve _ c _ inject2)); eassumption.
+    - exfalso. eapply (no_step_Resolve _ c _ inject2); eassumption.
     - by eapply subjective_step.is_ret.
     - by eapply subjective_step.is_throw.
     - by eapply subjective_step.is_crash.

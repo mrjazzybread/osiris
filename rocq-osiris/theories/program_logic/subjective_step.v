@@ -215,7 +215,7 @@ Section can_progress.
     unfold can_progress.
     intros (κ & σ' & m' & μ & Hcp).
     dependent destruction Hcp.
-    - exfalso. eapply (proj2 (stuck_Resolve _ c y k)); exact H.
+    - exfalso. eapply (no_step_Resolve _ c y k); exact H.
     - do 4 eexists. by eapply ResolveS.
     - do 4 eexists. by eapply ResolveThrowS.
     - do 4 eexists. by eapply ResolveCrashS.

@@ -1,6 +1,7 @@
 From Stdlib Require Import Logic.FunctionalExtensionality Program.Equality.
 From stdpp Require Import gmap relations.
 From osiris Require Import base.
+From osiris.utils.logic Require Import lsteps.
 From osiris.lang Require Import lang.
 Require Import code eval.
 
@@ -768,12 +769,8 @@ Section threadpool.
     | None => Some (crash "join invalid thread")
     end.
 
-  (* Threadpool steps are LABELLED by the observations they emit. Every
-     rule but the first [Resolve] one emits nothing: a resolution is the
-     only source of observations in the language, and it emits exactly the
-     pair it resolved with. This is the level at which the trace of an
-     execution is built, and [proph_map_interp] in the program logic reads
-     it in the same order. *)
+  (* Threadpool steps are labbeled by the observations they emit when
+     resolving a prophecy. *)
 
   Inductive threadpool_step : tconfig -> list observation -> tconfig -> Prop :=
   | BaseTS :
@@ -797,9 +794,6 @@ Section threadpool.
         (σ, π) []
         (σ, <[ ι := m ]> π)
 
-  (* The three resolution rules mirror [subjective_step]'s. The call [c x] runs
-     and the prophecy is resolved in the SAME step; only the successful one
-     has a result to resolve with, so only it emits. *)
   | ResolveTS :
     ∀ ι π σ σ' {Y} (c : code Y val exn) x p v w k,
       π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
@@ -824,18 +818,23 @@ Section threadpool.
   .
 
   (* [threadpool_steps n c1 κs c2]: [n] steps from [c1] to [c2] emitting the
-     concatenated trace [κs]. This replaces [nsteps], which cannot
-     accumulate a label. *)
+     concatenated trace [κs], and [erased_step], the same relation with the
+     label forgotten. *)
 
-  Inductive threadpool_steps : nat -> tconfig -> list observation -> tconfig -> Prop :=
-  | TPSRefl : ∀ c, threadpool_steps 0 c [] c
-  | TPSStep : ∀ n c1 κ c2 κs c3,
-      threadpool_step c1 κ c2 ->
-      threadpool_steps n c2 κs c3 ->
-      threadpool_steps (S n) c1 (κ ++ κs) c3
-  .
+  Notation threadpool_steps := (lsteps threadpool_step).
+  Notation erased_step := (erased_lstep threadpool_step).
+
+  Lemma erased_steps_threadpool_steps c1 c2 :
+    rtc erased_step c1 c2 ↔ ∃ n κs, threadpool_steps n c1 κs c2.
+  Proof. apply erased_lsteps_lsteps. Qed.
 
 End threadpool.
+
+(* The notations must be repeated outside the section: a [Notation] inside a
+   section does not survive it. *)
+
+Notation threadpool_steps := (lsteps threadpool_step).
+Notation erased_step := (erased_lstep threadpool_step).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -974,16 +973,6 @@ Ltac destruct_can_step :=
   | h: can_step _ |- _ =>
       destruct h as ((? & ?) & ?)
   end.
-
-(* -------------------------------------------------------------------------- *)
-
-(* A configuration that is not [ret _] and that is unable to step is stuck.
-   This includes unhandled exceptions and unhandled effects. *)
-
-Definition stuck {A E} (c : config A E) :=
-  let '(σ, m) := c in
-  is_not_ret m ∧
-  ∀ σ' m', ¬ step (σ, m) (σ', m').
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1419,106 +1408,19 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic lemmas about [stuck]. *)
+(* A resolution never steps on its own: the step that gives it meaning
+   belongs to [subjective_step]. The program-logic rules use this to discharge
+   an impossible [step] hypothesis. *)
 
-(* [ret _] is not stuck. *)
+Lemma no_step_Resolve {A E X} σ (c : code X val exn) y k σ' m' :
+  ¬ step ((σ, Stop (CResolve c) y k) : config A E) (σ', m').
+Proof. inversion 1. Qed.
 
-Lemma invert_stuck_ret {A E} a σ :
-  stuck ((σ, ret a) : config A E) →
-  False.
-Proof.
-  unfold stuck. intuition eauto using is_not_ret_ret.
-Qed.
+(* -------------------------------------------------------------------------- *)
 
-(* A configuration that can step is not stuck. *)
+(* Every computation is either a result, one of the four codes whose step
+   belongs to the pool, or able to step on its own. *)
 
-Lemma can_step_not_stuck {A E} (c : config A E) :
-  stuck c →
-  can_step c →
-  False.
-Proof.
-  destruct c as (σ, m).
-  unfold can_step, stuck.
-  intros (_ & Hnostep).
-  intros ([σ' m'] & Hstep).
-  eapply Hnostep. exact Hstep.
-Qed.
-
-(* [Crash] is stuck. *)
-
-Lemma stuck_Crash {A E} σ :
-  stuck ((σ, Crash) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Throw e] is stuck. *)
-
-Lemma stuck_Throw {A E} σ e :
-  stuck ((σ, Throw e) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CPerf e k] is stuck. *)
-
-Lemma stuck_Perform {A E} σ e k :
-  stuck ((σ, Stop CPerf e k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CFork x k] is stuck. *)
-
-Lemma stuck_Fork {A E} σ x k :
-  stuck ((σ, Stop CFork x k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop (CResolve c) y k] is stuck, for the same reason: the step that
-   gives it meaning belongs to [subjective_step]. *)
-
-Lemma stuck_Resolve {A E X} σ (c : code X val exn) y k :
-  stuck ((σ, Stop (CResolve c) y k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CJoin i k] is stuck. *)
-
-Lemma stuck_Join {A E} σ i k :
-  stuck ((σ, Stop CJoin i k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* The only stuck terms are
-   [Crash], [Throw _], [perform _], and [fork _ _]. *)
-
-Lemma invert_stuck {A E} σ m :
-  stuck ((σ, m) : config A E) →
-  (m = Crash) ∨
-    (∃ e, m = Throw e) ∨
-    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ step_through_par_code c).
-Proof.
-  intros.
-  destruct m; try solve [
-    eauto
-  | exfalso; eauto using invert_stuck_ret
-  | exfalso; eauto using can_step_not_stuck with step
-  ].
-  (* [Stop] *)
-  destruct_code; try solve [
-      eauto 9
-    | exfalso; eauto using can_step_not_stuck with step
-    | do 2 right; repeat eexists
-  ].
-Qed.
-
-(* TODO could we use this lemma
-   and avoid reasoning with [stuck],
-   which introduces painful negations? *)
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash | Throw _
@@ -1531,63 +1433,6 @@ Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : m
 Proof.
   destruct m; eauto with step.
   destruct_code; eauto with step.
-Qed.
-
-(* [destruct_stuck_cases] destructs the nested disjunction resulting from
-   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
-   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
-   (covering Fork, Join, Die). For the concurrent case, the code must
-   be further destructed to determine which specific concurrent operation it is. *)
-
-From Ltac2 Require Import Ltac2.
-Set Default Proof Mode "Classic".
-
-(* Recursively destruct all existential quantifiers and a final conjunction *)
-Local Ltac2 rec destruct_existentials_and_conjunction (h : ident) :=
-  let hyp := Control.hyp h in
-  lazy_match! Constr.type hyp with
-  | ex _ =>
-      let x := Fresh.in_goal @_x in
-      destruct $hyp as [$x $h];
-      destruct_existentials_and_conjunction h
-  | _ /\ _ =>
-      let x := Fresh.in_goal @_x in
-      let y := Fresh.in_goal @_y in
-      destruct $hyp as [$x $y]
-  | _ => ()
-  end.
-
-(* Recursively destruct nested disjunctions, then handle existentials *)
-Local Ltac2 rec destruct_nested_disjunction (h : ident) :=
-  let hyp := Control.hyp h in
-  lazy_match! Constr.type hyp with
-  | _ \/ _ =>
-      destruct $hyp as [$h | $h];
-      Control.enter (fun () => destruct_nested_disjunction h)
-  | _ =>
-      destruct_existentials_and_conjunction h
-  end.
-
-(* Main tactic notation *)
-Tactic Notation "destruct_stuck_cases" ident(h) :=
-  let f := ltac2:(h |- destruct_nested_disjunction (Option.get (Ltac1.to_ident h))) in
-  f h.
-
-(* If [m] is stuck then [bind m f] is also stuck. *)
-
-Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
-  stuck (σ, m) →
-  stuck (σ, bind m f).
-Proof.
-  intros Hstuck.
-  apply invert_stuck in Hstuck.
-  destruct_stuck_cases Hstuck; subst m; simpl bind.
-  - (* Crash *) apply stuck_Crash.
-  - (* Throw *) apply stuck_Throw.
-  - (* Stop *)
-    destruct_code;
-    try contradiction; (* eliminate non-relevant codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Perform, stuck_Resolve.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1608,25 +1453,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A triplicity principle. *)
-
-(* This principle allows case analyses with three cases, as follows:
-   either [m] is a result, or [m] can step, or [m] is stuck. *)
-
-Lemma triplicity {A E} σ (m : micro A E) :
-  (∃ a, m = ret a) ∨
-  can_step (σ, m) ∨
-  stuck (σ, m).
-Proof.
-  destruct m; try destruct_code;
-  try solve [left; eauto];  (* Ret case *)
-  try solve [right; left; eauto with step];  (* can_step cases *)
-  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join, stuck_Resolve].  (* stuck cases *)
-Qed.
-
-Ltac triplicity σ m H :=
-  let a := fresh "a" in
-  destruct (triplicity σ m) as [ (a & ->) | [ H | H ]].
 
 (* -------------------------------------------------------------------------- *)
 
