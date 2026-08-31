@@ -1,6 +1,6 @@
 From iris.proofmode Require Import ltac_tactics.
 From osiris.semantics Require Import step code.
-Require Import thread_step ewp.
+Require Import subjective_step ewp.
 
 From Ltac2 Require Import Ltac2.
 
@@ -131,7 +131,7 @@ Module ewp_rules_tactics.
         intros ?; intros_until_ewp_case hm
     end.
 
-  Ltac2 destruct_thread_step () := ltac1:(destruct_thread_step).
+  Ltac2 destruct_subjective_step () := ltac1:(destruct_subjective_step).
 
   Ltac2 ewp_case (m : constr)  :=
     ltac1:(m |- case_eq (is_ewp_case m)) (Ltac1.of_constr m);
@@ -154,12 +154,12 @@ Module ewp_rules_tactics.
                   try (complete (fun () =>
                                    destruct $o;
                                    try discriminate;
-                                   Control.enter destruct_thread_step))
+                                   Control.enter destruct_subjective_step))
               | [ |- _ ] =>
                   destruct $m; try0 destruct_stop_code; try discriminate;
                   Control.enter
                     (fun _ =>
-                       try (complete destruct_thread_step))
+                       try (complete destruct_subjective_step))
               end))
       [ ].
 
@@ -293,9 +293,9 @@ Module ewp_rules_tactics.
              (bi_forall (fun σ'0 =>
               bi_forall (fun m' =>
               bi_forall (fun μ0 =>
-              bi_wand (bi_pure ((thread_step (pair (pair ?σ _) _) _ _))) _))))] =>
+              bi_wand (bi_pure ((subjective_step (pair (pair ?σ _) _) _ _))) _))))] =>
         lazymatch goal with
-        | [ Hstep : thread_step (σ, _, _) _ _ |- _] =>
+        | [ Hstep : subjective_step (σ, _, _) _ _ |- _] =>
             (* Specialize step relation *)
             iSpecialize (Hwp $! _ _ _ Hstep);
             (* Destruct the hypothesis *)

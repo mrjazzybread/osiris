@@ -53,6 +53,12 @@ Osiris reasons about arbitrary OCaml programs with Iris.
 - `adequacy/`: metatheory:
   - `adequacy.v`: adequacy theorem for Horus
   - `ewp_adequacy.v`: adequacy theorem for Osiris
+  - `erasure.v`: erasure of prophecies from expressions, values, computations
+    and stores (`erase_expr`, `erase_val`, `erase_micro`, `erase_store`)
+  - `erasure_eval.v`: the erasure commutes with the interpreter (`erase_eval`)
+  - `erasure_adequacy.v`: safety of an annotated program implies safety of
+    the program with the annotations removed, and the erased
+    program emits no observation (`erasure`, `erasure_adequacy`)
 - `program_logic.v`: umbrella re-export (also re-exports Horus)
 
 ### Proofmode (`rocq-osiris/theories/proofmode/`)

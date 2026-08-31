@@ -6,7 +6,7 @@ From iris.proofmode Require Import proofmode.
 
 From osiris.lang Require Import thread_ids syntax locations encode.
 From osiris.semantics Require Import semantics.
-Require Import thread_step.
+Require Import subjective_step.
 Require Export protocols.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
@@ -490,12 +490,12 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => WPStep
   end.
 
-Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ κ :
-  thread_step (σ, m, π) κ (σ', m', μ) ->
+Lemma subjective_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ κ :
+  subjective_step (σ, m, π) κ (σ', m', μ) ->
   is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
-  destruct_thread_step; reflexivity.
+  destruct_subjective_step; reflexivity.
 Qed.
 
 Lemma inv_is_ewp_case_outcome {A X} (m : micro A X) o :
@@ -533,7 +533,6 @@ Section ewp_def.
           satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
            |={E}=> Ψ allows perform e << λ o, ▷ ewp E (k o) Ψ φ >>
-       (* [EWP4]: [m] is a computation that can take a step. *)
        (* [EWP4]: [m] is a computation that can take a step.
 
           The trace is split as [κ ++ κs]: [κ] is what THIS step emits and
@@ -546,7 +545,7 @@ Section ewp_def.
              state_interp (σ, κ ++ κs, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
-               ⌜thread_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ⌜subjective_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                ewp E m' Ψ φ ∗
                match μ with
                | None => state_interp (σ', κs, π)

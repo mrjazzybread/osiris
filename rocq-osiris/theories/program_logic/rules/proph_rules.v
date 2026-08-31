@@ -5,7 +5,7 @@ From iris.base_logic.lib Require Import gen_heap proph_map.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 
 Require Import basic_rules.
 
@@ -60,7 +60,7 @@ Section proph.
     intro_state.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    destruct_thread_step.
+    destruct_subjective_step.
     (* [StepNewProph] picked a location [p] fresh for the store. *)
     iDestruct "Hpi" as (ps Hps) "Hpm".
     iMod (proph_map_new_proph p ps with "Hpm") as "[Hpm Hp]".
@@ -92,7 +92,7 @@ Section proph.
      compare-and-set, fetch-and-add. *)
 
   (* The call must be able to step at all — which rules out the codes whose
-     rule lives in [thread_step], and [CPerf], whose does not exist — AND
+     rule lives in [subjective_step], and [CPerf], whose does not exist — AND
      every step it can take must land on an outcome. *)
 
   Definition call_is_atomic {Y} (c : code Y val exn) (x : Y) : Prop :=
@@ -216,7 +216,7 @@ Section proph.
   Proof. solve_call_is_atomic. Qed.
 
   (* A resolution written by [resolve] is ATOMIC in the sense of
-     [thread_step.Atomic], whatever it wraps: its continuation is
+     [subjective_step.Atomic], whatever it wraps: its continuation is
      [inject2], so each of the three rules lands on an outcome. This is
      what lets an invariant be opened across a resolving operation — and
      hence what puts a prophecy's head in hand at a linearization
@@ -230,9 +230,9 @@ Section proph.
     remember (x, p, v) as y eqn:Hy.
     dependent destruction Hstep.
     - exfalso. eapply (proj2 (stuck_Resolve _ c _ inject2)); eassumption.
-    - by eapply thread_step.is_ret.
-    - by eapply thread_step.is_throw.
-    - by eapply thread_step.is_crash.
+    - by eapply subjective_step.is_ret.
+    - by eapply subjective_step.is_throw.
+    - by eapply subjective_step.is_crash.
   Qed.
 
   (* The rule a client uses for a non-atomic resolution. There is no
@@ -257,7 +257,7 @@ Section proph.
     intro_state.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    destruct_thread_step.
+    destruct_subjective_step.
     ewp_mask_elim. iFrame.
     ewp_unfold_head. iModIntro. iExists w. by iSplit.
   Qed.

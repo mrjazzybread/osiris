@@ -592,7 +592,7 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CJoin ι (λ o, Handle (k o) h))
 
   (* A resolution floats out of [Handle] for the same reason a fork does:
-     the step that gives it meaning lives in [thread_step], so it must
+     the step that gives it meaning lives in [subjective_step], so it must
      reach the top of its thread. *)
   | StepHandleResolve :
     ∀ {X} σ (c : code X val exn) y k h,
@@ -797,7 +797,7 @@ Section threadpool.
         (σ, π) []
         (σ, <[ ι := m ]> π)
 
-  (* The three resolution rules mirror [thread_step]'s. The call [c x] runs
+  (* The three resolution rules mirror [subjective_step]'s. The call [c x] runs
      and the prophecy is resolved in the SAME step; only the successful one
      has a result to resolve with, so only it emits. *)
   | ResolveTS :
@@ -1040,7 +1040,7 @@ Proof.
 Qed.
 
 (* A resolution has no sequential step either: the step that gives it
-   meaning lives in [thread_step], where it emits an observation. *)
+   meaning lives in [subjective_step], where it emits an observation. *)
 Lemma invert_can_step_resolve {A E X} σ (c : code X val exn) y (k : _ -> micro A E) :
   can_step (σ, (Stop (CResolve c) y k)) ->
   False.
@@ -1477,7 +1477,7 @@ Proof.
 Qed.
 
 (* [Stop (CResolve c) y k] is stuck, for the same reason: the step that
-   gives it meaning belongs to [thread_step]. *)
+   gives it meaning belongs to [subjective_step]. *)
 
 Lemma stuck_Resolve {A E X} σ (c : code X val exn) y k :
   stuck ((σ, Stop (CResolve c) y k) : config A E).

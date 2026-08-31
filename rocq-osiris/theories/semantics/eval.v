@@ -1672,92 +1672,102 @@ Proof. unfold eval_sitems; by rewrite seal_eq. Qed.
 
 (* Unfolding and simplifying definitions. *)
 
+(* [simpl_X] unseals [X], reduces one layer of its [pre_] body, and then puts
+   back behind its sealed name every [pre_] name that the reduction exposed,
+   so that a goal is never left mentioning one. *)
+
+Ltac fold_evaluators :=
+  rewrite ?fold_pre_eval,
+    ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats,
+    ?fold_pre_evals, ?fold_pre_evalfs,
+    ?fold_pre_eval_branches, ?fold_pre_shallow_eval_branches,
+    ?fold_pre_eval_bindings,
+    ?fold_pre_wrap_eval_branches,
+    ?fold_pre_eval_mexpr,
+    ?fold_pre_eval_sitem, ?fold_pre_eval_sitems.
+
 Ltac simpl_eval :=
   (unfold eval;
    rewrite seal_eq;
    (progress simpl pre_eval);
-   rewrite ?fold_pre_eval,
-     ?fold_pre_evals,
-     ?fold_pre_evalfs,
-     ?fold_pre_eval_branches,
-     ?fold_pre_eval_bindings,
-     ?fold_pre_eval_mexpr,
-     ?fold_pre_wrap_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of eval".
 
 Ltac simpl_evals :=
   (unfold evals;
    rewrite seal_eq;
    (progress simpl pre_evals);
-   rewrite ?fold_pre_eval, ?fold_pre_evals)
-  || idtac "Unable to simplify application of evals".
+   fold_evaluators)
+  || fail "Unable to simplify application of evals".
 
 Ltac simpl_evalfs :=
   (unfold evalfs;
    rewrite seal_eq;
-   (progress simpl pre_evalfs))
+   (progress simpl pre_evalfs);
+   fold_evaluators)
   || fail "Unable to simplify application of evalfs".
 
 Ltac simpl_shallow_eval_branches :=
   (unfold shallow_eval_branches;
    rewrite seal_eq;
    (progress simpl pre_shallow_eval_branches);
-  rewrite ?fold_pre_shallow_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of shallow_eval_branches".
 
 Ltac simpl_eval_branches :=
   (unfold eval_branches;
    rewrite seal_eq;
    (progress simpl pre_eval_branches);
-   rewrite ?fold_pre_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_branches".
+
+(* [pre_wrap_eval_branches] is a plain definition whose unfolding exposes no
+   [match], and both [simpl] and [cbn] decline to unfold such a constant — so
+   here the unfolding has to be asked for by name. What is then worth
+   reducing is [wrap_outcome], which does match on the outcome; the tactic
+   used to run a bare [simpl] over the whole goal to get at it. *)
 
 Ltac simpl_wrap_eval_branches :=
   (unfold wrap_eval_branches;
    rewrite seal_eq;
-   (progress unfold pre_wrap_eval_branches; simpl);
-   rewrite ?fold_pre_wrap_eval_branches)
+   (progress (unfold pre_wrap_eval_branches;
+              cbn beta iota delta [ wrap_outcome ]));
+   fold_evaluators)
   || fail "Unable to simplify application of wrap_eval_branches".
 
 Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
    rewrite seal_eq;
    (progress simpl pre_eval_bindings);
-   rewrite ?fold_pre_eval_bindings;
-   fold eval)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_bindings".
 
 Ltac simpl_eval_sitem :=
   (unfold eval_sitem;
    rewrite seal_eq;
    (progress simpl pre_eval_sitem);
-   rewrite ?fold_pre_eval_sitem;
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_sitem".
 
 Ltac simpl_eval_sitems :=
   (unfold eval_sitems;
    rewrite seal_eq;
    (progress simpl pre_eval_sitems);
-   rewrite ?fold_pre_eval_sitem, ?fold_pre_eval_sitems;
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_sitems".
 
 Ltac simpl_eval_mexpr :=
   (unfold eval_mexpr;
    rewrite seal_eq;
    (progress simpl pre_eval_mexpr);
-   (rewrite ?fold_pre_eval_mexpr,
-     ?fold_pre_eval_sitems,
-     ?fold_pre_eval_sitem);
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_mexpr".
 
 Ltac simpl_eval_pats :=
   (unfold eval_pats;
    rewrite seal_eq;
    (progress simpl pre_eval_pats);
-   rewrite ?fold_pre_eval_pats)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_pats".
 
 Ltac simpl_eval_pat :=
@@ -1765,14 +1775,14 @@ Ltac simpl_eval_pat :=
    unfold eval_pat;
    rewrite seal_eq;
    (progress simpl pre_eval_pat);
-   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_pat".
 
 Ltac simpl_eval_fpats :=
   (unfold eval_fpats;
    rewrite seal_eq;
    (progress simpl pre_eval_fpats);
-   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_fpats".
 
 Ltac unfold_all :=
@@ -1782,20 +1792,6 @@ Ltac unfold_all :=
     eval_pats, irrefutably_extend, eval_pat;
   rewrite ?seal_eq.
 
-Ltac fold_all :=
-  repeat first [ rewrite fold_pre_eval
-               | rewrite fold_pre_evals
-               | rewrite fold_pre_evalfs
-               | rewrite fold_pre_eval_branches
-               | rewrite fold_pre_wrap_eval_branches
-               | rewrite fold_pre_shallow_eval_branches
-               | rewrite fold_pre_eval_bindings
-               | rewrite fold_pre_eval_mexpr
-               | rewrite fold_pre_eval_sitem
-               | rewrite fold_pre_eval_sitems
-               | rewrite fold_pre_eval_pat
-               | rewrite fold_pre_eval_pats
-    ].
 
 (* -------------------------------------------------------------------------- *)
 (* Auxiliary functions on [eval] *)

@@ -5,7 +5,7 @@ From iris.base_logic.lib Require Import gen_heap.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 
 Require Import basic_rules.
 
@@ -171,8 +171,8 @@ Section ewp_rules.
         destruct Hstep as (v1 & v2 & k & ->).
         simpl try2. construct_wp_nonret.
         remember (v1, v2) as p.
-        destruct_thread_step.
-        eassert (thread_step (σ', Stop CFork (v1, v2) k, dom π) _ _).
+        destruct_subjective_step.
+        eassert (subjective_step (σ', Stop CFork (v1, v2) k, dom π) _ _).
         { eapply ForkS. eassumption. }
         spec_step.
         ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
@@ -188,17 +188,20 @@ Section ewp_rules.
         iIntros (σ' m' μ) "%Hstep2".
         dependent destruction Hstep2.
         { exfalso. eapply (proj2 (stuck_Resolve _ c _ (pftry2 k f))); exact H. }
-        - eassert (thread_step (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
+        - eassert (subjective_step
+                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
           { eapply ResolveS. eassumption. }
           spec_step.
           ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
           iModIntro. iApply ("IH" with "Hwp").
-        - eassert (thread_step (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
+        - eassert (subjective_step
+                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
           { eapply ResolveThrowS. eassumption. }
           spec_step.
           ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
           iModIntro. iApply ("IH" with "Hwp").
-        - eassert (thread_step (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
+        - eassert (subjective_step
+                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
           { eapply ResolveCrashS. eassumption. }
           spec_step.
           ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
@@ -206,8 +209,8 @@ Section ewp_rules.
       (* Get more information out of [e2]; *)
       construct_wp_nonret.
       pose proof (can_step_try2 _ _ f Hstep) as Hstep2.
-      pose proof (invert_can_step_thread_step _ _ _ _ _ _ _ Hstep0 Hstep2) as (_ & -> & ->).
-      eapply invert_thread_step_try2 in Hstep0; last assumption.
+      pose proof (invert_can_step_subjective_step _ _ _ _ _ _ _ Hstep0 Hstep2) as (_ & -> & ->).
+      eapply invert_subjective_step_try2 in Hstep0; last assumption.
       destruct Hstep0 as (?&->&Hstep0).
       (* Can use information from above to get [wp] about stepped computation *)
       spec_step.
@@ -279,7 +282,7 @@ Section ewp_rules.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
+    construct_wp_nonret; destruct_subjective_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
 
     { (* Case: [StepParRetRet].. *)
       ewp_invert; iRename "HΦ" into "HΦ2"; ewp_invert; iFrame.
@@ -324,7 +327,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
         clear κs.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_thread_step.
+        construct_wp_nonret. destruct_subjective_step.
         epose proof (ForkS _ _ _ _ _ _ H0).
         iSpecialize ("H1" $! _ _ _ H1).
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
@@ -380,7 +383,7 @@ Section ewp_rules.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
         clear κs.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_thread_step.
+        construct_wp_nonret. destruct_subjective_step.
         epose proof (ForkS _ _ _ _ _ _ H0).
         iSpecialize ("H2" $! _ _ _ H1).
         ewp_mask_elim. iMod "H2" as "(H2 & $)".

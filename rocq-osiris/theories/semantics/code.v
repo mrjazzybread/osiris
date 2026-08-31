@@ -135,7 +135,7 @@ Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
 (* The codes that [step] cannot reduce on their own, and which therefore
    float out of [Handle] and [Par] until they reach the top of a thread.
    [CResolve] joins them for the same reason [CFork] and [CJoin] are here:
-   its step belongs to [thread_step]. *)
+   its step belongs to [subjective_step]. *)
 
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with

@@ -9,7 +9,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 
 From osiris.pure_logic Require Export pure.
 
@@ -26,7 +26,7 @@ Section ewp.
   (* ------------------------------------------------------------------------ *)
 
   Lemma ewp_step {E Ψ Q} {σ π σ' κ κs} m m' μ :
-    thread_step (σ, m, dom π) κ (σ', m', μ) →
+    subjective_step (σ, m, dom π) κ (σ', m', μ) →
     state_interp (σ, κ ++ κs, π) -∗
     ewp_def E m Ψ Q ==∗
     |={E}[∅]▷=>
@@ -135,7 +135,7 @@ Section ewp.
     | _ => None
     end.
 
-  Lemma ewp_atomic E E2 m Ψ Q `{!thread_step.Atomic m} :
+  Lemma ewp_atomic E E2 m Ψ Q `{!subjective_step.Atomic m} :
     TCEq (to_eff m) None →
     TCEq (to_join m) None →
     (|={E,E2}=> ewp_def E2 m Ψ (λ o, |={E2,E}=> Q o)) ⊢ ewp_def E m Ψ Q.
@@ -263,7 +263,7 @@ Section ewp_pure.
       (* and no step can change [σ] or escape [pure] *)
       ewp_cleanup_mod. ewp_mask_elim.
       specialize (H σ).
-      apply invert_can_step_thread_step in Hstep; last assumption.
+      apply invert_can_step_subjective_step in Hstep; last assumption.
       destruct Hstep as (Hstep & -> & ->).
       destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
       iFrame.

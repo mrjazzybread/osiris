@@ -8,7 +8,7 @@ From osiris.utils Require Import base big_opLZ.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
-Require Import thread_step ewp tactics basic_rules escrows.
+Require Import subjective_step ewp tactics basic_rules escrows.
 Require Import osiris_utils.
 Require Import impure_rules micro_rules.
 Import ewp_rules_tactics.
@@ -50,7 +50,7 @@ Section imp_stop.
     ewp_unfold_head.
     intro_state.
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn;
+    construct_wp_nonret; destruct_subjective_step; cbn; iMod "Hmod" as "_"; cbn;
       ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
     destruct b.
     { iApply (bi.and_elim_l with "H"). }
@@ -67,7 +67,7 @@ Section imp_stop.
     iIntros "H".
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    destruct_thread_step.
+    destruct_subjective_step.
     iMod (osiris_state_alloc σ l (Val v) H with "Hsi") as "(Hsi & Hl & Hmeta & _)".
     iIntros "!> !>". iSpecialize ("H" with "[$Hl $Hmeta]").
     ewp_mask_elim. iFrame.
@@ -96,7 +96,7 @@ Section imp_stop.
     ewp_unfold_head; intro_state. ewp_mask_intro "Hmod".
     construct_wp_nonret.
 
-    destruct_thread_step. subst.
+    destruct_subjective_step. subst.
 
     iMod (osiris_state_alloc σ l (Block t ls) H with "Hsi") as "(Hsi & Hl & _ & Hfrag)".
     iIntros "!> !>".
@@ -125,7 +125,7 @@ Section imp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
 
     rewrite /step_load_2 H0.
     ewp_mask_elim. iFrame.
@@ -149,7 +149,7 @@ Section imp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
 
     rewrite /step_load_block_2 H0.
     ewp_mask_elim. iFrame.
@@ -171,7 +171,7 @@ Section imp_stop.
     (* Use the ghost map and coherence to determine the physical heap contents. *)
     iDestruct (osiris_state_valid_array with "Hsi Hfrag") as "(%t & %Hσl)".
     (* Thus the reduction step must succeed. *)
-    destruct_thread_step.
+    destruct_subjective_step.
     rewrite /step_load_block_2 Hσl.
     ewp_mask_elim. iFrame.
     iApply ("Hwp" $! t).
@@ -192,7 +192,7 @@ Section imp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iIntros "!> !>".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
-    destruct_thread_step.
+    destruct_subjective_step.
     iMod (osiris_state_update (Val v') with "Hsi Hl") as "[Hsi Hl]".
     { intros; discriminate. }
     rewrite /step_exchange_1 /step_exchange_2 H0.
@@ -218,7 +218,7 @@ Section imp_stop.
     iIntros "!> !>".
     iDestruct "Hl" as "(%ls & Hl)".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
-    destruct_thread_step.
+    destruct_subjective_step.
     iMod (osiris_state_set_tag with "Hsi Hl") as "[Hsi Hl]".
     rewrite /step_set_tag_1 /step_set_tag_2 H0.
     ewp_mask_elim. iFrame.
@@ -287,7 +287,7 @@ Section imp_stop.
     construct_wp_nonret.
     iIntros "!> !>".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
-    destruct_thread_step.
+    destruct_subjective_step.
     destruct (phys_eq_val_ v seen) eqn:Hpeq.
     - iMod (osiris_state_update (Val #v') with "Hsi Hl") as "[Hsi Hl]".
       { intros; discriminate. }
@@ -328,7 +328,7 @@ Section imp_stop.
     iDestruct (osiris_state_valid with "Hsi Hr") as "%Hr".
     iDestruct "Hrs" as (ls2) "Hrs".
     iDestruct (osiris_state_valid with "Hsi Hrs") as "%Hrs".
-    destruct_thread_step.
+    destruct_subjective_step.
     assert (Hpeq : phys_eq_val_store (VInline c r) (VInline cs rs) σ
                      = Some (locations.eqb r rs)).
     { rewrite /phys_eq_val_store Hr Hrs. by destruct t. }
@@ -359,7 +359,7 @@ Section imp_stop.
     construct_wp_nonret.
     iIntros "!> !>".
     iDestruct (osiris_state_valid with "Hsi Hl") as "%Hvalid".
-    destruct_thread_step.
+    destruct_subjective_step.
     iMod (osiris_state_update (Val #(int.add j i)) with "Hsi Hl") as "[Hsi Hl]".
     { intros; discriminate. }
     rewrite /step_faa_1 /step_faa_2 Hvalid /=.
@@ -392,7 +392,7 @@ Section imp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%H0".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
 
     (* Update the ghost heap. *)
     iMod (osiris_state_update Shot with "Hsi Hl") as "[Hsi Hl]".
@@ -416,7 +416,7 @@ Section imp_stop.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%".
     (* Thus, the reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
 
     (* Update the ghost heap. *)
     ewp_mask_elim.
@@ -437,7 +437,7 @@ Section imp_stop.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     (* The reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
     (* Allocate a new location in the heap. *)
     iMod (osiris_state_alloc σ l' (Kont _) H with "Hsi") as "(Hsi & Hl' & _)".
     iSpecialize ("Hwp" with "Hl'").
@@ -455,7 +455,7 @@ Section imp_stop.
     ewp_unfold_head; intro_state; ewp_mask_intro "Hmod".
     construct_wp_nonret.
     (* The reduction step must be a successful step. *)
-    destruct_thread_step.
+    destruct_subjective_step.
     (* Allocate a new location in the heap. *)
     iMod (osiris_state_alloc σ l' (Kont _) H with "Hsi") as "(Hsi & Hl' & _)".
     iSpecialize ("Hwp" with "Hl'").
@@ -501,7 +501,7 @@ Section imp_stop_concurrent.
     ewp_unfold_head. intro_state.
     ewp_mask_intro "Hmod".
     construct_wp_nonret.
-    destruct_thread_step.
+    destruct_subjective_step.
     iMod (thread_alloc π ι _ (not_elem_of_dom_1 _ _ H0) with "Hti")
       as "(%γ & Hti & #Hvalid & #Hsaved)".
     ewp_mask_elim.
@@ -569,7 +569,7 @@ Section imp_combinators.
     rewrite /please_eval.
     ewp_unfold_head.
     intro_state. ewp_mask_intro "Hclose".
-    construct_wp_nonret. thread_step.destruct_thread_step.
+    construct_wp_nonret. subjective_step.destruct_subjective_step.
     iModIntro. ewp_mask_elim.
     rewrite try2_inject2_right. by iFrame.
   Qed.
@@ -587,7 +587,7 @@ Section imp_combinators.
     rewrite /impure /=.
     ewp_unfold_head.
     intro_state. ewp_mask_intro "Hmod". rewrite /code.loop.
-    construct_wp_nonret. thread_step.destruct_thread_step.
+    construct_wp_nonret. subjective_step.destruct_subjective_step.
     ewp_mask_elim. iFrame.
     rewrite try2_inject2_right.
     rewrite /E.loop.
@@ -614,7 +614,7 @@ Section imp_combinators.
     rewrite /impure.
     ewp_unfold_head.
     intro_state. ewp_mask_intro "Hmod". rewrite /code.loop.
-    construct_wp_nonret. thread_step.destruct_thread_step.
+    construct_wp_nonret. subjective_step.destruct_subjective_step.
     ewp_mask_elim. iFrame.
     rewrite try2_inject2_right.
     rewrite /E.loop.

@@ -7,7 +7,7 @@ From osiris.semantics Require Import code eval step.
 
 From iris.base_logic.lib Require Import iprop own.
 
-Section thread_step.
+Section subjective_step.
 
   Context {Σ : gFunctors}.
 
@@ -25,7 +25,7 @@ Section thread_step.
   Definition th_config A X : Type := store * (micro A X) * (gset thread).
   Definition th_config_step A X : Type := store * (micro A X) * option (thread * microvx).
 
-  (* [thread_step] is [step] plus the two things [step] cannot express: a
+  (* [subjective_step] is [step] plus the two things [step] cannot express: a
      fork, which produces a new thread, and a prophecy resolution, which
      produces an OBSERVATION. The label is what carries the latter.
 
@@ -33,14 +33,14 @@ Section thread_step.
      [[]] everywhere except at a resolution — which is exactly what makes
      the change to the existing rules a matter of threading [[]] through. *)
 
-  Inductive thread_step {A X} :
+  Inductive subjective_step {A X} :
     th_config A X -> list observation -> th_config_step A X -> Prop :=
   | BaseS : ∀ (m : micro A X) σ m' σ' π,
       step (σ, m) (σ', m') ->
-      thread_step (σ, m, π) [] (σ', m', None)
+      subjective_step (σ, m, π) [] (σ', m', None)
   | ForkS : ∀ σ ι (π : gset thread) v1 v2 (k : outcome2 val exn -> micro A X),
       ι ∉ π ->
-      thread_step
+      subjective_step
         (σ, Stop CFork (v1, v2) k, π) []
         (σ, continue k (VThread ι), Some (ι, call v1 v2))
 
@@ -57,7 +57,7 @@ Section thread_step.
   | ResolveS : ∀ {Y} σ σ' (c : code Y val exn) x p v w π
         (k : outcome2 val exn -> micro A X),
       step (σ, stop c x) (σ', Ret w) ->
-      thread_step
+      subjective_step
         (σ, Stop (CResolve c) (x, p, v) k, π) [(p, (w, v))]
         (σ', continue k w, None)
 
@@ -66,36 +66,36 @@ Section thread_step.
   | ResolveThrowS : ∀ {Y} σ σ' (c : code Y val exn) x p v e π
         (k : outcome2 val exn -> micro A X),
       step (σ, stop c x) (σ', Throw e) ->
-      thread_step
+      subjective_step
         (σ, Stop (CResolve c) (x, p, v) k, π) []
         (σ', discontinue k e, None)
 
   | ResolveCrashS : ∀ {Y} σ σ' (c : code Y val exn) x p v π
         (k : outcome2 val exn -> micro A X),
       step (σ, stop c x) (σ', Crash) ->
-      thread_step
+      subjective_step
         (σ, Stop (CResolve c) (x, p, v) k, π) []
         (σ', Crash, None)
   .
 
-  Global Arguments thread_step {A X}.
+  Global Arguments subjective_step {A X}.
 
-End thread_step.
+End subjective_step.
 
-Global Hint Constructors thread_step : thread_step.
+Global Hint Constructors subjective_step : subjective_step.
 
 From iris.bi Require Import bi.
 
-Ltac destruct_thread_step :=
+Ltac destruct_subjective_step :=
   (* For some reason, [dependent destruction] does not like it when
      the argument [x] of [Stop] is not a variable. *)
   try lazymatch goal with
-    | h: thread_step (?σ, Stop ?c ?x ?k, ?π) ?κ ?m' |- _ =>
+    | h: subjective_step (?σ, Stop ?c ?x ?k, ?π) ?κ ?m' |- _ =>
           remember x
-    | h: thread_step (?σ, stop ?c ?x, ?π) ?κ ?m' |- _ =>
+    | h: subjective_step (?σ, stop ?c ?x, ?π) ?κ ?m' |- _ =>
           remember x
     end;
-  match goal with h: thread_step ?m ?κ ?m' |- _ =>
+  match goal with h: subjective_step ?m ?κ ?m' |- _ =>
                     dependent destruction h
   end;
   try destruct_step;
@@ -113,7 +113,7 @@ Section can_progress.
     match m with
     | Stop CJoin ι' k => ι' ∈ π
     | _ => ∃ κ σ' m' (μ : option (thread * microvx)),
-      thread_step (σ, m, π) κ (σ', m', μ)
+      subjective_step (σ, m, π) κ (σ', m', μ)
     end.
 
   Lemma invert_can_progress {A E} σ π m :
@@ -221,7 +221,7 @@ Section can_progress.
     - do 4 eexists. by eapply ResolveCrashS.
   Qed.
 
-  (* [try2] pushes into continuations, and no rule of [thread_step] looks
+  (* [try2] pushes into continuations, and no rule of [subjective_step] looks
      at a continuation, so progress is preserved by it. *)
 
   Lemma can_progress_try2 {A B E E'} σ π (m : micro A E)
@@ -253,11 +253,11 @@ Section can_progress.
     apply Hprog.
   Qed.
 
-  Lemma invert_thread_step_resume {A E : Type} π (σ σ' : store) κ m' μ (l : loc) (o : outcome2 val exn)
+  Lemma invert_subjective_step_resume {A E : Type} π (σ σ' : store) κ m' μ (l : loc) (o : outcome2 val exn)
     (k : outcome2 val exn → micro A E)
     (sk : outcome2 val exn → microvx) :
     σ !! l = Some (Kont sk) →
-    thread_step (σ, Stop CResume (l, o) k, π) κ (σ', m', μ) →
+    subjective_step (σ, Stop CResume (l, o) k, π) κ (σ', m', μ) →
       σ' = <[l:=Shot]> σ ∧
       m' = try2 (sk o) k ∧
       μ = None.
@@ -270,14 +270,14 @@ Section can_progress.
     - unfold step_resume_2. rewrite Hlookup. reflexivity.
   Qed.
 
-  (* If [m] takes a [thread_step] to some [m'],
+  (* If [m] takes a [subjective_step] to some [m'],
      and [m] can take a sequential step,
      then it took that sequential step which resulted in [m']. *)
   (* A computation that can take a sequential step took one, and a
      sequential step emits nothing: only a [Resolve] does, and a [Resolve]
      has no sequential step. *)
-  Lemma invert_can_step_thread_step {A E} σ π (m : micro A E) m' μ σ' κ :
-    thread_step (σ, m, π) κ (σ', m', μ) ->
+  Lemma invert_can_step_subjective_step {A E} σ π (m : micro A E) m' μ σ' κ :
+    subjective_step (σ, m, π) κ (σ', m', μ) ->
     can_step (σ, m) ->
     step (σ, m) (σ', m') ∧
       μ = None ∧ κ = [].
@@ -295,10 +295,10 @@ Section can_progress.
     | h: step (_, try2 _ _) (_, _) |- _ => apply invert_step_try2 in h as (? & ? & ->)
     end.
 
-  Lemma invert_thread_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) σ' μ κ :
-    thread_step (σ, (try2 m k), π) κ (σ', m', μ) ->
+  Lemma invert_subjective_step_try2 {A B E' E} σ π m m' (k : outcome2 A E' -> micro B E) σ' μ κ :
+    subjective_step (σ, (try2 m k), π) κ (σ', m', μ) ->
     can_step (σ, m) ->
-    ∃ m'', m' = try2 m'' k ∧ thread_step (σ, m, π) [] (σ', m'', None).
+    ∃ m'', m' = try2 m'' k ∧ subjective_step (σ, m, π) [] (σ', m'', None).
   Proof.
     intros Hwp Hstep.
     dependent destruction Hwp;
@@ -336,7 +336,7 @@ Section Atomicity.
   Class Atomic m : Prop :=
     atomic :
       ∀ σ π σ' m' μ κ,
-      thread_step (σ, m, π) κ (σ', m', μ) →
+      subjective_step (σ, m, π) κ (σ', m', μ) →
       is_outcome3 m'.
 
 End Atomicity.

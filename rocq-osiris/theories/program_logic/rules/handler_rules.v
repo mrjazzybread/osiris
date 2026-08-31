@@ -4,7 +4,7 @@ From iris.base_logic.lib Require Import gen_heap.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import code eval.
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 Require Import basic_rules impure_rules stop_rules.
 Require Import ipattern_rules.
 
@@ -238,7 +238,7 @@ Section handle_rules.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π';
+    construct_wp_nonret; destruct_subjective_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π';
     try clear κs.
 
     { (* [StepHandleRet] *)
@@ -275,7 +275,7 @@ Section handle_rules.
         ewp_unfold_head. clear κs.
         intro_state. ewp_mask_intro "Hmod".
         construct_wp_nonret.
-        destruct_thread_step.
+        destruct_subjective_step.
         iPoseProof (osiris_state_valid with "Hsi HH") as "%Hv".
         iMod (osiris_state_update Shot with "Hsi HH") as "(Hsi & HH)".
         { intros; discriminate. }
@@ -295,10 +295,11 @@ Section handle_rules.
       destruct x. clear κs.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
       destruct Hstep as (? & ? & ? & ? & Htstep).
-      destruct_thread_step.
+      destruct_subjective_step.
       construct_wp_nonret.
-      destruct_thread_step.
-      eassert (thread_step (σ'0, Stop CFork (v, v0) k, dom π) _ _) as Htstep.
+      destruct_subjective_step.
+      eassert (subjective_step (σ'0, Stop CFork (v, v0) k, dom π) _ _)
+        as Htstep.
       { eapply ForkS. eassumption. }
       spec_step.
       ewp_mask_elim.
@@ -340,7 +341,7 @@ Section handle_rules.
       by iMod "He". }
 
     { (* [StepHandleLeft] *)
-      eassert (thread_step (σ, e, dom π') _ _) as Hstep.
+      eassert (subjective_step (σ, e, dom π') _ _) as Hstep.
       { apply BaseS. eassumption. }
       iCombine "Hsi Hpi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi He") as ">H".
@@ -362,7 +363,7 @@ Section handle_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%".
 
-    destruct_thread_step.
+    destruct_subjective_step.
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
     (* Thus, the reduction step must be a successful step. *)
 
@@ -392,7 +393,7 @@ Section handle_rules.
     (* Argue that [l] must be in the domain of the ghost heap. *)
     iDestruct (osiris_state_valid with "Hsi Hl") as "%".
 
-    destruct_thread_step.
+    destruct_subjective_step.
     (* Thus, the reduction step must be a successful step. *)
     eapply invert_step_resume in H; [ destruct H | eauto ]; subst.
 
@@ -461,7 +462,7 @@ Section handler_proof.
 
     (* Case analysis on the steps from [deep_handler η e bs]. *)
     rename π into π'.
-    construct_wp_nonret; destruct_thread_step;
+    construct_wp_nonret; destruct_subjective_step;
       iMod "Hmod" as "_"; try rewrite -x.
 
     { (* [StepHandleRet] *)
@@ -511,7 +512,7 @@ Section handler_proof.
       rewrite /impure (ewp_unfold (Stop CFork (v, v0) k)) /ewp_pre /=.
       ewp_unfold_head. clear κs.
       intro_state. spec_state. iModIntro.
-      construct_wp_nonret. destruct_thread_step.
+      construct_wp_nonret. destruct_subjective_step.
       epose proof (ForkS _ _ _ _ _ _ H1) as Hstep0.
       iSpecialize ("Hwp" $! _ _ _ Hstep0).
       ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".

@@ -205,7 +205,7 @@ Section updates.
 
   Import ewp_rules_tactics.
 
-  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!thread_step.Atomic m}
+  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!subjective_step.Atomic m}
     `{TCEq (option val) (to_eff m) None}
     `{TCEq (option thread) (to_join m) None}
     :
@@ -219,7 +219,7 @@ Section updates.
     - by iMod "H" as "$".
   Qed.
 
-  Lemma imp_atomic E E2 m Ψ Φ `{!thread_step.Atomic m}
+  Lemma imp_atomic E E2 m Ψ Φ `{!subjective_step.Atomic m}
     `{TCEq (option val) (to_eff m) None}
     `{TCEq (option thread) (to_join m) None}
       :
@@ -303,7 +303,7 @@ Section proofmode_classes.
   Proof. intros []. Qed.
 
   Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -315,7 +315,7 @@ Section proofmode_classes.
       fupd_frame_r bi.wand_elim_r imp_atomic.
   Qed.
   Global Instance elim_modal_fupd_imp_atomic' p E1 E2 m Ψ ζ P Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -341,7 +341,7 @@ Section proofmode_classes.
 
 
   Global Instance elim_acc_imp_atomic {Y} E1 E2 α β γ m Ψ Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -356,7 +356,7 @@ Section proofmode_classes.
     iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
   Qed.
   Global Instance elim_acc_imp_atomic' {Y} E1 E2 α β γ m Ψ ζ Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :

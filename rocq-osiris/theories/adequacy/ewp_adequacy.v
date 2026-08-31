@@ -4,7 +4,7 @@ From iris.base_logic.lib Require Import iprop wsat gen_heap saved_prop token.
 From osiris.lang Require Import thread_ids.
 From osiris.semantics Require Import eval.
 From osiris.program_logic Require Import
-  thread_step ewp basic_rules micro_rules tactics.
+  subjective_step ewp basic_rules micro_rules tactics.
 Require Import satisfiable.base_logic_extension satisfiable.
 
 From Stdlib Require Import Program.Equality.
@@ -256,7 +256,7 @@ Section satisfiability_weakest_pre.
     - (* Case: [e] is a [crash]. *) by iMod "Hwp".
     - (* Case: [e] is a [perform]. *)
       iMod "Hwp" as "(% & [] & Hwp)".
-    - (* Case: [e] takes a thread_step. Being able to progress is exactly
+    - (* Case: [e] takes a subjective_step. Being able to progress is exactly
          the first conjunct of the weakest precondition, so we read it out
          and never take the step — which is what lets a RESOLUTION, whose
          step carries a label we do not know here, go through like any
@@ -306,7 +306,7 @@ Section satisfiability_weakest_pre.
 
   (* Relating a "real" threadpool step (from the definition of the semantics),
      to a "local" thread step (from the definition of our weakest pre). *)
-  Lemma threadpool_thread_step (σ1 σ2 : store) (π1 π2 : thpool) κ :
+  Lemma threadpool_subjective_step (σ1 σ2 : store) (π1 π2 : thpool) κ :
     (* If the threadpool can take a step *)
     threadpool_step (σ1, π1) κ (σ2, π2) →
     (* Then either that step was a join, which emits nothing *)
@@ -317,12 +317,12 @@ Section satisfiability_weakest_pre.
         κ = [] ∧
           π2 = <[ι:=m]>π1)
     ∨
-    (* Or that step can be emulated by a [thread_step] with the same
+    (* Or that step can be emulated by a [subjective_step] with the same
        label — which is where a resolution's observation comes from. *)
     ∃ (ι : thread) (m m' : microvx) μ,
       π1 !! ι = Some m ∧
       π2 !! ι = Some m' ∧
-      thread_step (σ1, m, dom π1) κ (σ2, m', μ) ∧
+      subjective_step (σ1, m, dom π1) κ (σ2, m', μ) ∧
       (* With different descriptions of [π2] depending on
          whether a new thread was forked or not. *)
       match μ with
@@ -371,7 +371,7 @@ Section satisfiability_weakest_pre.
 
   Lemma wptp_tstep (π1 : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))) σ1 σ2 m m' ι μ κ κs :
     ⌜π1 !! ι = Some m⌝ -∗
-    ⌜thread_step (σ1, m, dom πp) κ (σ2, m', μ)⌝ -∗
+    ⌜subjective_step (σ1, m, dom πp) κ (σ2, m', μ)⌝ -∗
     (state_interp (σ1, κ ++ κs, fst <$> πp) ∗ WPTP π1 πp) ={⊤}[∅]▷=∗
      match μ with
      | None => state_interp (σ2, κs, fst <$> πp) ∗ WPTP (<[ι:=m']>π1) πp
@@ -389,7 +389,7 @@ Section satisfiability_weakest_pre.
       (* [BaseS] and the three [Resolve] rules all leave the threadpool
          with a single entry updated. *)
       try iApply (WPTP_insert_delete $! Hlookup_p with "Hwps [$]").
-    - (* Case: thread_step is a [ForkS]. *)
+    - (* Case: subjective_step is a [ForkS]. *)
       iDestruct "Hμ" as "(%φ' & %γ' & Hsi & #Hsaved' & Hcall)".
       iFrame. iExists φ'.
       iPoseProof (WPTP_insert_delete $! Hlookup_p with "Hwps [$]") as "Hwps".
@@ -407,7 +407,7 @@ Section satisfiability_weakest_pre.
     lazymatch goal with
     | h: threadpool_step (?σ1, ?π1) ?κ (?σ2, ?π2) |- _ =>
         let Hsteps := fresh "Hsteps" in
-        (have Hsteps := threadpool_thread_step σ1 σ2 π1 π2 κ h);
+        (have Hsteps := threadpool_subjective_step σ1 σ2 π1 π2 κ h);
         destruct Hsteps as
           [ (ι & ι' & k & e & Hlookup & Hattempt & Heq_σ & Heq_κ & Heq_π2)
           | (ι & e & e' & μ & Hlookup & Hlookup' & Htstep & Hμ)
@@ -427,7 +427,7 @@ Section satisfiability_weakest_pre.
     iPoseProof (WPTP_dom with "Hwps") as "%Hdomeq".
     iCombine "Hsi Hwps" as "Hwps".
     invert_threadpool_step.
-    - (* Case: [threadpool_step] is immitated by a [thread_step]. *)
+    - (* Case: [threadpool_step] is immitated by a [subjective_step]. *)
       rewrite <- Hdomeq in Htstep.
       iPoseProof (wptp_tstep $! Hlookup Htstep with "Hwps") as "Hwps". (* Use [wptp_tstep]. *)
       iModFL "Hwps".

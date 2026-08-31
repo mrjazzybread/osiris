@@ -290,7 +290,7 @@ Section lemmas.
 
   (* Sequential triples with the empty mask for a physically atomic [e] are atomic. *)
   Lemma atomic_seq_ewp_atomic {X} (e : micro V X) E α β POST f
-      `{!thread_step.Atomic e}
+      `{!subjective_step.Atomic e}
       `{!TCEq (to_eff e) None}
       `{!TCEq (to_join e) None} :
     (∀ Φ, ∀.. x, α x -∗ (∀.. y, β x y -∗ ∀.. z, POST x y z -∗? Φ (f x y z)) -∗ EWP e @ ∅ {{ Φ }}) -∗

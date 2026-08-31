@@ -6,7 +6,7 @@ creates a dependency cycle, we can move the pure adequacy results to
 program_logic/adequacy.v or move the language instance to e.g.
 lang/iris_instance.v *)
 From osiris.program_logic Require Import ewp.
-From osiris.program_logic Require Import thread_step.
+From osiris.program_logic Require Import subjective_step.
 
 Lemma pure_wp_steps {A E} (c c' : config A E) φ ψ :
   rtc step c c' → pure_wp c.2 φ ψ → c'.1 = c.1 ∧ pure_wp c'.2 φ ψ.

@@ -8,7 +8,7 @@ From osiris.utils Require Import big_opLZ.
 
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 Require Import basic_rules impure_rules stop_rules record_rules ipattern_rules proph_rules.
 From osiris.utils Require Import list_z.
 
@@ -17,21 +17,21 @@ Import ewp_rules_tactics.
 (** This file provides atomicity instances for memory operations and derived [EWP] rules for atomic access. *)
 
 Instance crash_atomic {V X} :
-  thread_step.Atomic (@Crash V X).
+  subjective_step.Atomic (@Crash V X).
 Proof. constructor. inversion H; subst. inversion H4. Qed.
 
 Global Instance load_atomic {E} l :
-  thread_step.Atomic (load (E:=E) l).
+  subjective_step.Atomic (load (E:=E) l).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_load_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance eload_atomic η p :
-  thread_step.Atomic (eval η (ELoad (EPath p))).
+  subjective_step.Atomic (eval η (ELoad (EPath p))).
 Proof.
   simpl_eval.
   destruct (lookup_path η p); last apply _.
@@ -40,42 +40,42 @@ Proof.
 Qed.
 
 Global Instance exchange_atomic l v' :
-  thread_step.Atomic (exchange l v').
+  subjective_step.Atomic (exchange l v').
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_exchange_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance store_atomic l v :
-  thread_step.Atomic (code.store l v).
+  subjective_step.Atomic (code.store l v).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_exchange_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance cas_atomic l seen v' :
-  thread_step.Atomic (cas l seen v').
+  subjective_step.Atomic (cas l seen v').
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_cas_2.
   case_location_lookup; try by econstructor.
   destruct (phys_eq_val_store _ _ _) as [ [|] | ]; by econstructor.
 Qed.
 
 Global Instance faa_atomic l i :
-  thread_step.Atomic (faa l i).
+  subjective_step.Atomic (faa l i).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_faa_2.
   case_location_lookup; try by econstructor.
   rewrite /continue /=.
@@ -420,10 +420,10 @@ Section imp_atomic_rules.
   (* A [CLoad] instruction followed by a pure continuation is atomic. *)
   Lemma stop_load_atomic_outcome {A X} (l : loc) (k : outcome2 val exn → micro A X) :
     (∀ o, is_outcome3 (k o)) →
-    thread_step.Atomic (Stop CLoad l k).
+    subjective_step.Atomic (Stop CLoad l k).
   Proof.
-    intros Hk. unfold thread_step.Atomic. intros.
-    destruct_thread_step.
+    intros Hk. unfold subjective_step.Atomic. intros.
+    destruct_subjective_step.
     unfold step_load_2.
     case_location_lookup; try apply Hk; by econstructor.
   Qed.
@@ -469,7 +469,8 @@ Section imp_atomic_rules.
         pose proof (stop_load_atomic_outcome l k) as Hat
     end.
     specialize (Hat ltac:(intros [?|?];
-      [eapply thread_step.is_ret | eapply thread_step.is_crash]; reflexivity)).
+      [ eapply subjective_step.is_ret
+      | eapply subjective_step.is_crash ]; reflexivity)).
     iApply (imp_atomic' E1 E2).
     iMod "Hload" as "(%v & Hl & Hload)".
     iApply (imp_stop_load with "Hl").
