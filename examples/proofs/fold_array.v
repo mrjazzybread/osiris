@@ -53,14 +53,14 @@ Section verification.
   Definition sum_spec : Z → microvx → iProp Σ :=
     λ n m,
       (⌜0 ≤ n ≤ max_array_length⌝ -∗
-       imp m {{ λ i, ⌜i = gauss_summation n⌝ }})%I.
+       EWP m {{ i, ⌜i = gauss_summation n⌝ }})%I.
 
-  Definition esum := EAnonFun __fun2.
+  Definition esum := EAnonFun __sum.
 
   Lemma imp_sum η :
     in_env "Array" array_module_spec η -∗
-    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
-    imp (eval η esum) {{ λ sum, □ iSpec τ[Z] sum sum_spec }}.
+    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, EWP m {{ n, ⌜(n = i + j)%Z⌝ }})) η -∗
+    EWP (eval η esum) {{ sum, □ iSpec τ[Z] sum sum_spec }}.
   Proof.
     iIntros "#Hmodule_spec #Hadd".
     iApply imp_EAnon_pers.
@@ -72,7 +72,7 @@ Section verification.
     { (* [Array.init n (fun i -> i +)] *)
       imp_app τ[Z;val].
       { (* (fun i -> i + 1) *)
-        iApply (imp_EAnon_pers τ[Z] (λ i m, imp m {{ λ j, ⌜(j = i + 1)%Z⌝ }})%I).
+        iApply (imp_EAnon_pers τ[Z] (λ i m, EWP m {{ j, ⌜(j = i + 1)%Z⌝ }})%I).
         iIntros (i) "!>". iApply imp_please; iNext. imp_arith. }
       iIntros "#Hf Hm".
       (* We weaken the spec of [Array.init] to one where the function is known to be pure. *)
@@ -101,8 +101,8 @@ Section verification.
 
   Lemma module_proof η :
     in_env "Array" array_module_spec η -∗
-    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})) η -∗
-    imp (eval_mexpr η __main) {{ context [ var_spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
+    in_env "+" (λ add, □ iSpec τ[Z;Z] add (λ i j m, EWP m {{ n, ⌜(n = i + j)%Z⌝ }})) η -∗
+    EWP (eval_mexpr η __main) {{ context [ var_spec "sum" (λ sum, iSpec τ[Z] sum sum_spec) ] {[ "sum" ]} }}.
   Proof.
     iIntros "#Hlookup #Hlookup'".
     iApply imp_module.

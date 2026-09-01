@@ -540,6 +540,15 @@ Proof.
   intros. f_equal; eauto using functional_extensionality.
 Qed.
 
+(* The same congruence, as a [Proper] instance.
+   Enables [setoid_rewrite] under the continuation of a bind. *)
+
+Global Instance bind_proper {A B E} :
+  Proper (eq ==> pointwise_relation A eq ==> eq) (@bind A B E).
+Proof.
+  intros m ? <- f g Hfg. f_equal; eauto using functional_extensionality.
+Qed.
+
 Local Hint Resolve
   eq_handle_handle eq_stop_stop eq_par_par
 : eq.

@@ -1,6 +1,4 @@
 From stdpp Require Import telescopes.
-
-From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
@@ -122,20 +120,20 @@ Section verification.
   Definition main_spec `{Encode A} (spec : A → iProp Σ) (t : unit) (m : microvx) :=
     (∀ (init : state) rl wl St,
         St init -∗
-        imp m <| STATE rl wl St |> {{ spec }} )%I.
+        EWP m <| STATE rl wl St |> {{ spec }} )%I.
 
   Definition run_spec (init : state) (main : val) (m : microvx) :=
     (∀ (A : Type) (_ : Encode A) (spec : A → iProp Σ),
        iSpec τ[unit] main (main_spec spec) -∗
-       imp m {{ λ (v : state * A), spec (snd v) }})%I.
+       EWP m {{ (v : state * A), spec (snd v) }})%I.
 
   Lemma localstate_run_spec :
     ∀ η,
       ⌜ lookup_name η "Get" = Some #rl ⌝ -∗
       ⌜ lookup_name η "Set" = Some #wl ⌝ -∗
       ⌜ address rl ≠ address wl ⌝ -∗
-      imp eval η (EAnonFun __fun7)
-        {{ λ run,  □ iSpec τ[ state;val] run run_spec }}.
+      EWP eval η (EAnonFun __run)
+        {{ run,  □ iSpec τ[ state;val] run run_spec }}.
   Proof.
     cbn zeta.
     iIntros (env HGet HSet Haddr).
@@ -239,8 +237,8 @@ Section verification.
     { xctor_apply := λ i, Write i; xctor_encode := λ i, eq_refl }.
 
   Lemma module_proof (Q : val -> iProp Σ) :
-    ⊢ imp (eval_mexpr dummy_env __main)
-      {{ λ η, ∃ run, ⌜lookup_name η "run" = Some run⌝ ∗
+    ⊢ EWP (eval_mexpr dummy_env __main)
+      {{ η, ∃ run, ⌜lookup_name η "run" = Some run⌝ ∗
                      □ iSpec τ[state; val] run run_spec }}.
   Proof.
     iApply imp_module.
@@ -280,11 +278,11 @@ Section verification.
     iApply (imp_sitems_let (λ v, □ iSpec τ[unit] v (λ _ m,
                                                       ∀ St x,
                                                       St x -∗
-                                                      imp m <|STATE rl wl St|> {{ λ X, ⌜X = x⌝ }}))%I ).
+                                                      EWP m <|STATE rl wl St|> {{ X, ⌜X = x⌝ }}))%I ).
     { iApply (imp_EAnon_pers τ[unit]).
       iIntros "!>" ([] St x) "HSt".
       iApply imp_please. iNext.
-      imp_match unit.
+      imp_match.
       iApply (imp_EPerform (B:=effects) with "[] [HSt]").
       { set_postcondition (λ e, ⌜e = Read⌝)%I.
         admit. (* iApply (imp_EXData (l:=rl)). *) }
@@ -300,7 +298,7 @@ Section verification.
     iApply (imp_sitems_let (λ v, □ iSpec τ[Z] v (λ y m,
                                                    ∀ St x,
                                                    St x -∗
-                                                   imp m <|STATE rl wl St|> {{ λ (_ : unit), St y }}))%I).
+                                                   EWP m <|STATE rl wl St|> {{ (_ : unit), St y }}))%I).
     { iApply (imp_EAnon_pers τ[Z]).
       iIntros "!>" (y St x) "HSt".
       iApply imp_please; iNext.

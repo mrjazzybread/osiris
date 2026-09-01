@@ -1,10 +1,11 @@
+From Stdlib Require Import Program.Equality.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import gen_heap.
 
 From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 
 Require Import basic_rules.
 
@@ -160,7 +161,7 @@ Section ewp_rules.
       ewp_unfold_all. rewrite Hhm. rewrite Hhm2.
       (* Process a step of computation. *)
       intro_state. spec_state.
-      iModIntro. apply invert_can_progress in Hstep.
+      iModIntro. pose proof Hstep as Hcp. apply invert_can_progress in Hstep.
       destruct Hstep as [ Hstep | Hstep ].
       { (* Case: [m1] is [Join _]. *)
         destruct Hstep as (ι' & k & -> & Hdom).
@@ -170,18 +171,38 @@ Section ewp_rules.
         destruct Hstep as (v1 & v2 & k & ->).
         simpl try2. construct_wp_nonret.
         remember (v1, v2) as p.
-        destruct_thread_step.
-        eassert (thread_step (σ', Stop CFork (v1, v2) k, dom π) _).
+        destruct_subjective_step.
+        eassert (subjective_step (σ', Stop CFork (v1, v2) k, dom π) _ _).
         { eapply ForkS. eassumption. }
         spec_step.
         ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
         iModIntro.
         iApply ("IH" with "Hwp"). }
+      destruct Hstep as [ Hstep | Hstep ].
+      { (* Case: [m1] is a resolution. [try2] pushes into its
+           continuation, which none of the three rules inspects, so each
+           of them transfers — observation and all. *)
+        destruct Hstep as (Y & c & y & k & ->).
+        iSplitR; [ iPureIntro; by apply can_progress_try2 | ].
+        simpl try2. cbn match.
+        iIntros (σ' m' μ) "%Hstep2".
+        dependent destruction Hstep2.
+        { exfalso. eapply (no_step_Resolve _ c _ (pftry2 k f)); exact H. }
+        (* [ResolveS] leaves the outcome abstract; recover its shape, which
+           is what reduces [try2] here. *)
+        destruct_is_result o;
+          rewrite ?try2_inject2;
+          eassert (subjective_step
+                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _)
+            by (by eapply ResolveS);
+          spec_step;
+          ewp_mask_elim; iMod "Hwp" as "(Hwp & $)";
+          iModIntro; rewrite ?try2_inject2; iApply ("IH" with "Hwp"). }
       (* Get more information out of [e2]; *)
       construct_wp_nonret.
       pose proof (can_step_try2 _ _ f Hstep) as Hstep2.
-      pose proof (invert_can_step_thread_step _ _ _ _ _ _ Hstep0 Hstep2) as (_ & ->).
-      eapply invert_thread_step_try2 in Hstep0; last assumption.
+      pose proof (invert_can_step_subjective_step _ _ _ _ _ _ _ Hstep0 Hstep2) as (_ & -> & ->).
+      eapply invert_subjective_step_try2 in Hstep0; last assumption.
       destruct Hstep0 as (?&->&Hstep0).
       (* Can use information from above to get [wp] about stepped computation *)
       spec_step.
@@ -191,7 +212,7 @@ Section ewp_rules.
       by iApply ("IH" with "Hwp"). }
     (* Case: [WPJoin] *)
     { simpl. ewp_unfold_all.
-      intro_state. spec_state. iMod "Hwp".
+      intro_state_join. spec_state_join. iMod "Hwp".
       destruct (π !! x); last done.
       iDestruct "Hwp" as "(%φ' & $ & Hwp)".
       iIntros "!> !> %o Ho". iSpecialize ("Hwp" with "Ho").
@@ -253,7 +274,7 @@ Section ewp_rules.
     intro_state.
 
     ewp_mask_intro "Hmod".
-    construct_wp_nonret; destruct_thread_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
+    construct_wp_nonret; destruct_subjective_step; cbn; iMod "Hmod" as "_"; cbn; rename π into π'.
 
     { (* Case: [StepParRetRet].. *)
       ewp_invert; iRename "HΦ" into "HΦ2"; ewp_invert; iFrame.
@@ -296,8 +317,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         destruct x.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
+        clear κs.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_thread_step.
+        construct_wp_nonret. destruct_subjective_step.
         epose proof (ForkS _ _ _ _ _ _ H0).
         iSpecialize ("H1" $! _ _ _ H1).
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
@@ -306,12 +328,33 @@ Section ewp_rules.
       - (* Step then [JoinS]. *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
-        ewp_unfold_head. intro_state. spec_state. iMod "H1".
+        clear κs.
+        ewp_unfold_head. intro_state_join. spec_state_join. iMod "H1".
         destruct (π !! x); last done.
         iDestruct "H1" as "(%φ' & $ & H1)".
         iIntros "!> !> %o Ho". iSpecialize ("H1" with "Ho").
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
-        iApply ("IH" with "H1 H2 Hjoin"). }
+        iApply ("IH" with "H1 H2 Hjoin").
+
+      - (* Step then one of the three [Resolve] rules. Floating out of the
+           [Par] changed only the continuation, which none of them looks
+           at, so each transfers — observation and all. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop (CResolve c) x _)) /ewp_pre /=.
+        clear κs.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
+        iIntros (σ'' m'' μ) "%Hstep2".
+        dependent destruction Hstep2.
+        { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
+        (* An outcome is handed to the continuation; a crash aborts. *)
+        destruct_is_result o;
+          epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0 ltac:(eassumption)) as Hs;
+          rewrite ?try2_inject2 in Hs;
+          iSpecialize ("H1" $! _ _ _ Hs);
+          ewp_mask_elim; iMod "H1" as "(H1 & $)".
+        + rewrite try2_inject2. iApply ("IH" with "H1 H2 Hjoin").
+        + iApply fupd_ewp; iMod (ewp_crash_inv with "H1") as "[]". }
 
     { (* [StepThroughParRight]. *)
       destruct_code.
@@ -330,8 +373,9 @@ Section ewp_rules.
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         destruct x.
         rewrite (ewp_unfold (Stop CFork (v, v0) _)) /ewp_pre /=.
+        clear κs.
         ewp_unfold_head. intro_state. spec_state. iModIntro.
-        construct_wp_nonret. destruct_thread_step.
+        construct_wp_nonret. destruct_subjective_step.
         epose proof (ForkS _ _ _ _ _ _ H0).
         iSpecialize ("H2" $! _ _ _ H1).
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
@@ -340,23 +384,41 @@ Section ewp_rules.
       - (* [StepParJoinRight] *)
         ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop CJoin x _)) /ewp_pre /=.
-        ewp_unfold_head. intro_state. spec_state. iMod "H2".
+        clear κs.
+        ewp_unfold_head. intro_state_join. spec_state_join. iMod "H2".
         destruct (π !! x); last done.
         iDestruct "H2" as "(%φ' & $ & H2)".
         iIntros "!> !> %o Ho". iSpecialize ("H2" with "Ho").
         ewp_mask_elim. iMod "H2" as "(H2 & $)".
-        iApply ("IH" with "H1 H2 Hjoin"). }
+        iApply ("IH" with "H1 H2 Hjoin").
+
+      - (* [StepParResolveRight]: the mirror image of the left case. *)
+        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+        rewrite (ewp_unfold (Stop (CResolve c) x _)) /ewp_pre /=.
+        clear κs.
+        ewp_unfold_head. intro_state. spec_state. iModIntro.
+        iSplitR; [ iPureIntro; by eapply can_progress_resolve_cont | ].
+        iIntros (σ'' m'' μ) "%Hstep2".
+        dependent destruction Hstep2.
+        { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
+        destruct_is_result o;
+          epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0 ltac:(eassumption)) as Hs;
+          rewrite ?try2_inject2 in Hs;
+          iSpecialize ("H2" $! _ _ _ Hs);
+          ewp_mask_elim; iMod "H2" as "(H2 & $)".
+        + rewrite try2_inject2. iApply ("IH" with "H1 H2 Hjoin").
+        + iApply fupd_ewp; iMod (ewp_crash_inv with "H2") as "[]". }
 
     { (* [ParLeft] *)
       eapply BaseS in H as Hstep.
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hpi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H1") as ">H1".
       iMod "H1". ewp_mask_elim. iMod "H1" as "(H1 & $)".
       iApply ("IH" with "H1 H2 Hjoin"). }
 
     { (* [ParRight] *)
       eapply BaseS in H as Hstep.
-      iCombine "Hsi Hti" as "Hsi".
+      iCombine "Hsi Hpi Hti" as "Hsi".
       iPoseProof (ewp_step _ _ _ Hstep with "Hsi H2") as ">H2".
       iMod "H2". ewp_mask_elim. iMod "H2" as "(H2 & $)".
       iApply ("IH" with "H1 H2 Hjoin"). }

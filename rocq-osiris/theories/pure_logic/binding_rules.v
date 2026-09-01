@@ -98,7 +98,7 @@ Section eval_pat_app.
     apply (pat_ind
              (λ p, ∀ v δ, eval_pat η δ p v = bind (eval_pat η [] p v) (λ δ', ret (δ' ++ δ)))
              (λ ps, ∀ vs δ, eval_pats η δ ps vs = bind (eval_pats η [] ps vs) (λ δ', ret (δ' ++ δ)))
-             (λ fps, ∀ vs δ, pre_eval_fpats eval_pat η δ fps vs = bind (pre_eval_fpats eval_pat η [] fps vs) (λ δ', ret (δ' ++ δ)))
+             (λ fps, ∀ vs δ, eval_fpats η δ fps vs = bind (eval_fpats η [] fps vs) (λ δ', ret (δ' ++ δ)))
           ); intros ? ?; intros; simpl_eval_pat || simpl_eval_pats || idtac; simpl; auto.
     - rewrite IHp. rewrite !bind_bind. reflexivity.
     - rewrite IHp1, IHp2. rew. ext δ'.
@@ -109,6 +109,7 @@ Section eval_pat_app.
       rew. f_equal. ext o. simpl; unfold continue; simpl.
       destruct o. rew. f_equal. ext o. rewrite IHfps.
       rewrite bind_as_try2. auto.
+    - destruct v; auto. destruct (_ =? _)%string; auto.
     - destruct v; auto.
       rew. f_equal. ext o. rew.
       destruct o. rew. f_equal. ext o. rewrite IHps.
@@ -120,11 +121,13 @@ Section eval_pat_app.
     - destruct vs; auto. rewrite IHp. rew. ext δ1. rew.
       rewrite (IHps _ δ1), (IHps _ (δ1 ++ _)).
       rew. ext δ2. rewrite app_assoc. auto.
-    - rew. ext v.
-      rewrite IHp. rew. ext δ1.
-      rewrite IHfps. rew.
-      rewrite (IHfps _ (δ1 ++ _)). rew.
-      ext δ2. rewrite app_assoc. auto.
+    - simpl_eval_fpats. by rew.
+    - destruct vs; simpl_eval_fpats.
+      + by rew.
+      + rewrite IHp. rewrite !bind_bind. f_equal. extensionality δ'.
+        rewrite bind_ret. rewrite !bind_ret_right. rewrite IHfps.
+        rewrite (IHfps vs δ'). rewrite bind_bind. f_equal. extensionality δ''.
+        rew. by rewrite app_assoc.
   Qed.
 End eval_pat_app.
 

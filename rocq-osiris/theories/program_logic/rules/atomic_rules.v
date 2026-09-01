@@ -1,31 +1,37 @@
 From iris.proofmode Require Import proofmode.
-From iris.base_logic.lib Require Import gen_heap invariants.
+From iris.base_logic.lib Require Import gen_heap invariants proph_map.
+
+(* [big_opLZ] is imported here, ahead of the osiris modules: it
+   re-exports stdpp's [x ← _ ; _] notation, which would otherwise
+   shadow the [micro] one that this file's statements are written in. *)
+From osiris.utils Require Import big_opLZ.
 
 From osiris.lang Require Import lang.
 Require Import osiris_utils.
-Require Import thread_step ewp tactics.
-Require Import basic_rules impure_rules stop_rules.
+Require Import subjective_step ewp tactics.
+Require Import basic_rules impure_rules stop_rules record_rules ipattern_rules proph_rules.
+From osiris.utils Require Import list_z.
 
 Import ewp_rules_tactics.
 
-(** This file provides atomicity instances for memory operations and derived [imp] rules for atomic access. *)
+(** This file provides atomicity instances for memory operations and derived [EWP] rules for atomic access. *)
 
 Instance crash_atomic {V X} :
-  thread_step.Atomic (@Crash V X).
-Proof. constructor. inversion H; subst. inversion H1. Qed.
+  subjective_step.Atomic (@Crash V X).
+Proof. constructor. inversion H; subst. inversion H4. Qed.
 
 Global Instance load_atomic {E} l :
-  thread_step.Atomic (load (E:=E) l).
+  subjective_step.Atomic (load (E:=E) l).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_load_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance eload_atomic η p :
-  thread_step.Atomic (eval η (ELoad (EPath p))).
+  subjective_step.Atomic (eval η (ELoad (EPath p))).
 Proof.
   simpl_eval.
   destruct (lookup_path η p); last apply _.
@@ -34,42 +40,42 @@ Proof.
 Qed.
 
 Global Instance exchange_atomic l v' :
-  thread_step.Atomic (exchange l v').
+  subjective_step.Atomic (exchange l v').
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_exchange_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance store_atomic l v :
-  thread_step.Atomic (code.store l v).
+  subjective_step.Atomic (code.store l v).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_exchange_2.
   case_location_lookup; by econstructor.
 Qed.
 
 Global Instance cas_atomic l seen v' :
-  thread_step.Atomic (cas l seen v').
+  subjective_step.Atomic (cas l seen v').
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_cas_2.
   case_location_lookup; try by econstructor.
   destruct (phys_eq_val_store _ _ _) as [ [|] | ]; by econstructor.
 Qed.
 
 Global Instance faa_atomic l i :
-  thread_step.Atomic (faa l i).
+  subjective_step.Atomic (faa l i).
 Proof.
-  unfold thread_step.Atomic. intros.
+  unfold subjective_step.Atomic. intros.
 
-  destruct_thread_step.
+  destruct_subjective_step.
   unfold step_faa_2.
   case_location_lookup; try by econstructor.
   rewrite /continue /=.
@@ -115,6 +121,10 @@ Section imp_atomic_rules.
   Context `{!osirisGS Σ}.
   Context {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
 
+  (* [imp_loadn] and the record rules are stated at this instance;
+     without it, [list val] postconditions do not typecheck here. *)
+  Local Instance notval_listval : NotVal (list val) := {}.
+
   Lemma imp_store_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 (Φ1 : loc → _) (Φ2 : A → _) (Φ : () → _) :
     impure E1 (eval η e1) Ψ ζ Φ1 -∗
     impure E1 (eval η e2) Ψ ζ Φ2 -∗
@@ -133,6 +143,68 @@ Section imp_atomic_rules.
     iMod ("Hstore" with "HΦ1 HΦ2") as "(%v & Hl & Hstore)".
     iApply (imp_store' with "Hl").
     iApply "Hstore".
+  Qed.
+
+  (* [ELoad e]. The evaluation of [e] is not part of the atomic step, so
+     the mask-changing update is only entered once the location is known
+     — unlike [imp_store_atomic], where the two subexpressions are
+     evaluated in parallel and a [▷] is available before the update. *)
+  Lemma imp_load_atomic `{Encode A} (E2 E1 : coPset) η e (Φ1 : loc → _) (Φ : A → _) :
+    impure E1 (eval η e) Ψ ζ Φ1 -∗
+    (∀ l, Φ1 l -∗
+          |={E1,E2}=> ∃ dq a, ▷ l ↦{dq} #a ∗
+                              ▷ (l ↦{dq} #a -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (ELoad e)) Ψ ζ Φ.
+  Proof.
+    iIntros "He Hload". simpl_eval.
+    iApply (imp_bind with "[He]").
+    { iApply (imp_as_loc with "He"). }
+    iIntros (l) "HΦ1".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hload" with "HΦ1") as "(%dq & %a & Hl & Hload)".
+    iApply (imp_load' with "Hl Hload").
+  Qed.
+
+  (* [EExchange e1 e2] — the mirror image of [imp_store_atomic], with the
+     exchanged-out value handed to the closing wand. *)
+  Lemma imp_exchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
+      (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l x, Φ1 l -∗ Φ2 x -∗
+                ∃ a : A, ▷ l ↦ #a ∗
+                         ▷ (l ↦ #x -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (EExchange e1 e2)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 Hex". simpl_eval.
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iIntros (l x) "HΦ1 HΦ2 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hex" with "HΦ1 HΦ2") as "(%a & Hl & Hex)".
+    iApply (imp_exchange' with "Hl Hex").
+  Qed.
+
+  (* [EFAA e1 e2]. *)
+  Lemma imp_faa_atomic (E2 E1 : coPset) η e1 e2
+      (Φ1 : loc → _) (Φ2 : Z → _) (Φ : Z → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l i, Φ1 l -∗ Φ2 i -∗
+                ∃ j : Z, ▷ l ↦ #j ∗
+                         ▷ (l ↦ #(j + i) -∗ |={E2,E1}=> Φ j)) -∗
+    impure E1 (eval η (EFAA e1 e2)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 Hfaa". simpl_eval.
+    iApply (imp_bind_par with "[He1] [He2]").
+    { iApply (imp_as_loc with "He1"). }
+    { iApply (imp_as_int with "He2"). }
+    iIntros (l i) "HΦ1 HΦ2 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hfaa" with "HΦ1 HΦ2") as "(%j & Hl & Hfaa)".
+    iApply (imp_faa with "Hl Hfaa").
   Qed.
 
   Lemma imp_cas_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3 (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) :
@@ -156,6 +228,272 @@ Section imp_atomic_rules.
     iApply (imp_atomic' E1 E2).
     iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%v & Hl & Hcas)".
     iApply (imp_cas with "Hl Hcas").
+  Qed.
+
+  (* A RESOLVING compare-and-set. The resolution happens at the CAS's own
+     step, so the whole thing is still one thread step and an invariant may
+     be opened across it — which is the point: at the linearization point
+     the proof holds both the state the invariant describes AND the head of
+     the prophecy, i.e. a value the execution has not produced yet.
+
+     Compare [imp_cas_atomic]: the only difference is that the closing wand
+     also hands over the prediction. *)
+  Lemma imp_EResolve_ECAS_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3
+      (ep : path) (ev : proph_arg)
+      (p : loc) (v : val) (pvs : list (val * val))
+      (Φ1 : loc → _) (Φ2 Φ3 : A → _) (Φ : bool → _) :
+    lookup_path η ep = Some #p →
+    eval_proph_arg η ev = Some v →
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    impure E1 (eval η e3) Ψ ζ Φ3 -∗
+    proph p pvs -∗
+    ▷ (|={E1,E2}=>
+         ∀ l seen v',
+         Φ1 l -∗ Φ2 seen -∗ Φ3 v' -∗
+         ∃ w, ▷ l ↦ #w ∗
+              ▷ (∀ pvs', ⌜pvs = (♯(phys_eq_val_ w seen), v) :: pvs'⌝ -∗
+                   proph p pvs' -∗
+                   l ↦ (if phys_eq_val_ w seen then #v' else #w) -∗
+                   |={E2,E1}=> Φ (phys_eq_val_ w seen))) -∗
+    impure E1 (eval η (EResolve (ECAS e1 e2 e3) ep ev)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hp Hv) "He1 He2 He3 Hproph Hcas".
+    simpl_eval.
+    rewrite (bind_proph_args Hp Hv).
+    iApply (imp_bind_par (A1:=loc * A) with "[He1 He2] He3").
+    { iApply (imp_par with "[He1] He2").
+      iApply (imp_as_loc with "He1"). }
+    iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3 !>".
+    rewrite /resolve.
+    (* [resolve_atomic]: the resolution is still a single thread step, so
+       the invariant may stay open across it. *)
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hcas" with "HΦ1 HΦ2 HΦ3") as "(%w & Hl & Hcas)".
+    iModIntro.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_cas.
+    iApply (imp_stop_cas with "Hl"). iIntros "!> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iApply ("Hcas" with "[//] Hp2 Hl").
+  Qed.
+
+  (* A RESOLVING exchange, with the prophecy taken from inside the
+     mask-changing update rather than from the caller's context. That is
+     the shape a SHARED prophecy needs: when several threads resolve the
+     same prophecy, [proph p pvs] lives in the invariant that governs
+     them, so it only becomes available once the invariant is open —
+     unlike [imp_EResolve_ECAS_atomic], where the prophecy is the
+     caller's own. *)
+  Lemma imp_EResolve_EExchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
+      (ep : path) (ev : proph_arg)
+      (p : loc) (v : val) (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
+    lookup_path η ep = Some #p →
+    eval_proph_arg η ev = Some v →
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l x, Φ1 l -∗ Φ2 x -∗
+                ∃ (a : A) (pvs : list (val * val)),
+                  ▷ l ↦ #a ∗ proph p pvs ∗
+                  ▷ (∀ pvs', ⌜pvs = (#a, v) :: pvs'⌝ -∗ proph p pvs' -∗
+                       l ↦ #x -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (EResolve (EExchange e1 e2) ep ev)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hp Hv) "He1 He2 Hex".
+    simpl_eval.
+    rewrite (bind_proph_args Hp Hv).
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_loc with "He1"). }
+    iIntros (l x) "HΦ1 HΦ2 !>".
+    rewrite /resolve.
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hex" with "HΦ1 HΦ2") as "(%a & %pvs & Hl & Hproph & Hex)".
+    iModIntro.
+    iApply (ewp_resolve with "Hproph"); first apply call_is_atomic_exchange.
+    iApply (imp_stop_exchange with "Hl"). iIntros "!> Hl".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iIntros (pvs2) "%Heq2 Hp2".
+    rewrite /continue /=. iApply imp_ret; [ encode | ].
+    iApply ("Hex" with "[//] Hp2 Hl").
+  Qed.
+
+  (* The [VInline] variant of [imp_cas_atomic]; see [imp_stop_cas_inline].
+     The expected value [seen] must be an inline record, and the physical
+     comparison is resolved by the [isBlock] fractions provided for the
+     current and expected blocks. *)
+  Lemma imp_cas_inline_atomic (E2 E1 : coPset) η e1 e2 e3
+      (Φ1 : loc → _) (Φ2 Φ3 : val → _) (Φ : bool → _) :
+    impure E1 (eval η e1) Ψ ζ Φ1 -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    impure E1 (eval η e3) Ψ ζ Φ3 -∗
+    ▷ (|={E1,E2}=>
+         ∀ l seen v',
+         Φ1 l -∗ Φ2 seen -∗ Φ3 v' -∗
+         ∃ c cs (r rs : record) dq1 dq2 t,
+           ⌜seen = VInline cs rs⌝ ∗
+           ▷ l ↦ VInline c r ∗ ▷ isBlock r dq1 t ∗ ▷ isBlock rs dq2 Mut ∗
+           ▷ (l ↦ (if locations.eqb r rs then v' else VInline c r) -∗
+              isBlock r dq1 t -∗ isBlock rs dq2 Mut -∗
+              |={E2,E1}=> Φ (locations.eqb r rs))) -∗
+    impure E1 (eval η (ECAS e1 e2 e3)) Ψ ζ Φ.
+  Proof.
+    iIntros "He1 He2 He3 Hcas".
+    simpl_eval.
+    iApply (imp_bind_par (A1:=loc * val) with "[He1 He2] He3").
+    { iApply (imp_par with "[He1] He2").
+      iApply (imp_as_loc with "He1"). }
+    iIntros ((l & seen) x) "(HΦ1 & HΦ2) HΦ3 !>".
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hcas" with "HΦ1 HΦ2 HΦ3")
+      as "(%c & %cs & %r & %rs & %dq1 & %dq2 & %t & -> & Hl & Hr & Hrs & Hcas)".
+    iApply (imp_cas_inline with "Hl Hr Hrs Hcas").
+  Qed.
+
+  (* Atomically reading a record field. The evaluation of [ERecordAccess]
+     performs a ghost block lookup (via the persistent [isBlockLocs]
+     knowledge) followed by a single atomic load of the field's location.
+     Ownership of that location is only required inside the atomic step,
+     which allows it to come from an invariant. *)
+  Lemma imp_ERecordAccess_atomic `{Encode A} (E2 E1 : coPset) η e f ls (r : record)
+      (Φ : A → _) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    impure E1 (eval η e) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
+    ▷ (|={E1,E2}=>
+         ∃ a, ▷ (ls !!! f) ↦ #a ∗
+              ▷ ((ls !!! f) ↦ #a -∗ |={E2,E1}=> Φ a)) -∗
+    impure E1 (eval η (ERecordAccess e f)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvalid) "#Hblock He Hload".
+    simpl_eval.
+    iApply (imp_bind with "[He]").
+    { iApply (imp_as_record with "He"). }
+    iIntros (?) "->".
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hload]").
+    { iApply (imp_load_block_ghost' with "Hblock Hload"). }
+    iIntros ((? & ?)) "(-> & Hload) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    iApply (imp_atomic' E1 E2).
+    iMod "Hload" as "(%v & Hl & Hload)".
+    iApply (imp_load' with "Hl Hload").
+  Qed.
+
+  (* Atomically writing a record field — the mirror image of
+     [imp_ERecordAccess_atomic]. As there, the evaluation performs a ghost
+     block lookup (through the persistent [isBlockLocs]) and then a single
+     atomic store, so ownership of the field's location is only needed
+     inside the atomic step and may come from an invariant. This is what
+     [imp_ERecordSet]/[imp_ERecordSet2] cannot do: both demand a full
+     [ownBlock], which a record shared through an invariant never has. *)
+  Lemma imp_ERecordSet_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 f ls (r : record)
+      (Φ2 : A → _) (Φ : unit → _) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    impure E1 (eval η e1) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
+    impure E1 (eval η e2) Ψ ζ Φ2 -∗
+    (* The value's postcondition is consumed *outside* the mask-changing
+       update, so a client can introduce the stored value first and only
+       then open its invariant — which is what an accessor phrased as
+       "here is the field, give it back holding [#a]" needs. *)
+    ▷ (∀ a, Φ2 a -∗
+            |={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦ v ∗
+                             ▷ ((ls !!! f) ↦ #a -∗ |={E2,E1}=> Φ ())) -∗
+    impure E1 (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvalid) "#Hblock He1 He2 Hstore".
+    simpl_eval.
+    iApply (imp_bind_par with "[He1] He2").
+    { iApply (imp_as_record with "He1"). }
+    iIntros (r' a) "-> HΦ2".
+    iNext.
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hstore]").
+    { iApply (imp_load_block_ghost' with "Hblock Hstore"). }
+    iIntros ((? & ?)) "(-> & Hstore) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    iApply (imp_atomic' E1 E2).
+    iMod ("Hstore" with "HΦ2") as (v) "[Hl Hstore]".
+    iApply (imp_store' with "Hl Hstore").
+  Qed.
+
+  (* A [CLoad] instruction followed by a pure continuation is atomic. *)
+  Lemma stop_load_atomic_outcome {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    (∀ o, is_outcome3 (k o)) →
+    subjective_step.Atomic (Stop CLoad l k).
+  Proof.
+    intros Hk. unfold subjective_step.Atomic. intros.
+    destruct_subjective_step.
+    unfold step_load_2.
+    case_location_lookup; try apply Hk; by econstructor.
+  Qed.
+
+  Global Instance to_eff_stop_load {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    TCEq (to_eff (Stop CLoad l k)) None.
+  Proof. constructor. Qed.
+  Global Instance to_join_stop_load {A X} (l : loc) (k : outcome2 val exn → micro A X) :
+    TCEq (to_join (Stop CLoad l k)) None.
+  Proof. constructor. Qed.
+
+  (* [bind_stop], generalized to a [Stop] whose code error type differs
+     from the monad's error type. Holds by definitional unfolding. *)
+  Lemma bind_stop_gen {A B E X Y E'} (c : C.code X Y E') (x : X)
+      (k : outcome2 Y E' → micro A E) (f : A → micro B E) :
+    ('a ← Stop c x k; f a) = Stop c x (λ o, 'a ← k o; f a).
+  Proof. reflexivity. Qed.
+
+  (* Atomically matching a record pattern [{ f = x }] that binds one
+     field to a variable. Since a record pattern reads only the fields
+     it mentions, matching this one is a single [load] followed by pure
+     code so the field's points-to need not be held by the caller: it
+     may come from an invariant, which the caller opens for the
+     duration of that step. *)
+
+  Lemma ipat_PRecord_atomic `{Encode A} (E2 E1 : coPset) η δ x (f : field) (r : record)
+      (ls : list loc) (dq : dfrac) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    ▷ (|={E1,E2}=> ∃ (v : A), ▷ (ls !!! f) ↦{dq} #v ∗
+         ▷ ((ls !!! f) ↦{dq} #v -∗ |={E2,E1}=> Φ ((x, #v) :: δ))) -∗
+    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
+  Proof.
+    iIntros (Hvalid) "#Hlocs Hload".
+    rewrite /ipattern. simpl_eval_pat.
+    iApply (imp_bind (A1:=(mut_tag * list loc)) with "[Hload]").
+    { iApply (imp_load_block_ghost' with "Hlocs Hload"). }
+    iIntros ((t & ls')) "(-> & Hload) /=".
+    rewrite (list_lookup_lookup_total_valid ls f Hvalid).
+    rewrite bind_bind {1}/load bind_stop_gen.
+    match goal with
+    | |- context [ Stop CLoad ?l ?k ] =>
+        pose proof (stop_load_atomic_outcome l k) as Hat
+    end.
+    specialize (Hat ltac:(intros [?|?];
+      [ eapply subjective_step.is_ret
+      | eapply subjective_step.is_crash ]; reflexivity)).
+    iApply (imp_atomic' E1 E2).
+    iMod "Hload" as "(%v & Hl & Hload)".
+    iApply (imp_stop_load with "Hl").
+    iModIntro. iIntros "!> Hl".
+    iApply imp_ret; first done.
+    iApply ("Hload" with "Hl").
+  Qed.
+
+  (* The same single-field pattern read, when the field's points-to is
+     held by the caller at some fraction. *)
+
+  Lemma ipat_PRecord_pers `{Encode A} (E1 : coPset) η δ x (f : field) (r : record)
+      (ls : list loc) (dq : dfrac) (v : A) (Φ : env → iProp Σ) (ψ : iProp Σ) :
+    valid f ls →
+    ▷ isBlockLocs r ls -∗
+    ▷ (ls !!! f) ↦{dq} #v -∗
+    ▷ ((ls !!! f) ↦{dq} #v -∗ Φ ((x, #v) :: δ)) -∗
+    ipattern (E:=E1) (Ψ:=Ψ) η δ (PRecord [(f, PVar x)]) (VRecord r) Φ ψ.
+  Proof.
+    iIntros (Hvalid) "#Hlocs Hl HΦ".
+    iApply (ipat_PRecord_atomic (A:=A) E1 E1 with "Hlocs [Hl HΦ]"); first done.
+    iNext. iModIntro. iExists v. iFrame "Hl".
+    iIntros "!> Hl". iModIntro. by iApply "HΦ".
   Qed.
 
 End imp_atomic_rules.

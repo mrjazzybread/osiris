@@ -1,5 +1,4 @@
 From stdpp Require Import telescopes.
-From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
@@ -29,9 +28,9 @@ Section iteration_methods.
             ∀ (Xs : list A),
               ⌜permitted (Xs ++ [X])⌝ -∗
               I Xs -∗
-              imp m @ E <| Ψ |> {{ λ (_ : unit), I (Xs ++ [X]) }}) -∗
+              EWP m @ E <| Ψ |> {{ (_ : unit), I (Xs ++ [X]) }}) -∗
         I [] -∗
-        imp m @ E <|Ψ|> {{ λ (_ : unit), ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
+        EWP m @ E <|Ψ|> {{ (_ : unit), ∃ Xs, I Xs ∗ ⌜complete Xs⌝ }})%I.
 
 End iteration_methods.
 
@@ -54,6 +53,9 @@ Section lazy_sequences.
     end.
 
   Global Instance : Encode seq := { encode' := encode_seq }.
+
+  Global Instance : Constant "Nil" seq :=
+    { constant_value := Nil; constant_encode := eq_refl }.
 
   (* ------------------------------------------------------------------------ *)
   (** Specification of Heads. *)
@@ -82,7 +84,7 @@ Section lazy_sequences.
            : (iEff Σ -d> val -d> list A -d> iPropO Σ) :=
     λ Ψ k Xs,
       iSpec τ[unit] k (λ _ m,
-          imp m <| Ψ |> {{ λ h, isHead_pre isSeq Ψ h Xs }})%I.
+          EWP m <| Ψ |> {{ h, isHead_pre isSeq Ψ h Xs }})%I.
 
   (* [isSeq_pre] is contractive, therefore it admits a fixpoint. *)
   Local Instance isHead_pre_contractive : Contractive isSeq_pre.
@@ -184,7 +186,7 @@ Section verification.
     Definition invert_spec : val → microvx → iProp Σ :=
       λ (iter : val) m,
       (iSpec τ[val] iter (Iter_spec) -∗
-       imp m {{ λ k, isSeq ⊥ k [] }})%I.
+       EWP m {{ k, isSeq ⊥ k [] }})%I.
 
   End specification.
 
@@ -235,7 +237,7 @@ Section verification.
       handlerView γ Ys -∗
       (deep_handler_spec ⊤ (ψ_yield (iterView γ)) ⊥
          (λ (_ : unit), ∃ Xs : list A, iterView γ Xs ∗ ⌜complete Xs⌝)
-         η __branches3
+         η __invert_branches1
         ⊥ ⊥ (λ h, isHead ⊥ h Ys)).
     Proof.
       intros Hlookup.
@@ -248,7 +250,7 @@ Section verification.
         iPoseProof (confront_views with "HhandlerView HiterView") as "->".
         iModIntro.
         imp_branches.
-        imp_constant (@Nil A) with "[]".
+        imp_constant with "[]".
         iPureIntro; apply Hcomplete. }
 
       (* Exceptional case: *)
@@ -274,12 +276,12 @@ Section verification.
         { (* [fun () -> continue k ()] *)
           iApply imp_evals_singleton.
           iApply (imp_EAnon τ[unit]
-                    (λ _ m, imp m {{ λ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
+                    (λ _ m, EWP m {{ k, isHead ⊥ k (Ys ++ [X]) }})%I); simpl.
           iIntros ([]).
           iApply imp_please; iNext.
           (* [fun () -> ...] is a pattern match on the argument,
              it gets desugared to [fun x -> match x with | () -> ...]. *)
-          imp_match unit.
+          imp_match.
 
           (* [continue k ()] *)
           iApply (imp_EContinue (B:=unit)); try imp_step.
@@ -295,18 +297,17 @@ Section verification.
 
     End inversion_protocol.
 
-    Definition invert := (EAnonFun __fun9).
+    Definition invert := (EAnonFun __invert).
 
     Local Instance xdata_yield yl `{Encode A} : @XData yl τ[A] effect (encode_effect A yl) :=
       { xctor_apply := λ a, Yield a;
         xctor_encode := λ a, eq_refl }.
 
     Lemma ewp_invert η :
-      ⊢ imp (eval η invert) {{ λ c, □ iSpec τ[val] c invert_spec }}.
+      ⊢ EWP (eval η invert) {{ c, □ iSpec τ[val] c invert_spec }}.
     Proof.
       iApply (imp_EAnon_pers τ[val]); simpl.
       iIntros "!>" (iter) "Hiter". iApply imp_please; iNext.
-      imp_match val.
 
       (* Initialise handler view and iterator view. *)
       iApply fupd_imp.
@@ -326,8 +327,8 @@ Section verification.
                                         ∀ (Xs : list A),
                                           ⌜permitted (Xs ++ [X])⌝ -∗
                                           iterView γ Xs -∗
-                                          imp m <| ψ_yield yl (iterView γ) |>
-                                          {{ λ (_ : unit), iterView γ (Xs ++ [X]) }}))%I).
+                                          EWP m <| ψ_yield yl (iterView γ) |>
+                                          {{ (_ : unit), iterView γ (Xs ++ [X]) }}))%I).
       { iApply (imp_EAnon_pers τ[A]). simpl.
         iIntros "!>" (X Xs) "Hiter Hpermitted".
         iApply imp_please; iNext.
@@ -352,7 +353,7 @@ Section verification.
       iApply imp_please; iNext.
       (* [fun () -> ... ] has been translated as
          [fun x -> match x with | () -> ... ]. *)
-      imp_match unit.
+      imp_match.
       change (encode' ()) with (#()).
       change (encode' iter) with (#iter).
       simpl.

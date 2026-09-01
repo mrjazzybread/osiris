@@ -276,13 +276,13 @@ Global Instance: Params (@iEff_sum) 3 := {}.
 
 (* Notation for send/recv protocols. *)
 
-Notation "'!' v {{ P }} ; Q" := (iEffPre_base v P Q)
+Notation "'!' v {{ P } } ; Q" := (iEffPre_base v P Q)
   (at level 200, v at level 20, right associativity,
-     format "'!' v {{  P  '}}' ; Q") : ieff_scope.
+     format "'!' v {{  P  } } ; Q") : ieff_scope.
 
-Notation "'?' w {{ Q }}" := (iEffPost_base w Q)
+Notation "'?' w {{ Q } }" := (iEffPost_base w Q)
   (at level 200, w at level 20, right associativity,
-   format "'?' w  {{  Q  '}}'") : ieff_scope.
+   format "'?' w  {{  Q  } }") : ieff_scope.
 
 Notation ">> x .. y >> e" :=
   (iEffPre_exist (λ x, .. (iEffPre_exist (λ y, e)) .. )%ieff)

@@ -8,7 +8,7 @@ Require Import basic_rules micro_rules.
 
 From iris.proofmode Require Import proofmode.
 
-(** This file contains structural rules for [imp]. *)
+(** This file contains structural rules for [EWP]. *)
 
 Section monotonicity.
 
@@ -39,8 +39,8 @@ Section monotonicity.
   Lemma imp_mono E m Ψ ζ' ζ (Φ' : A → iProp Σ) Φ :
     (∀ a, Φ' a ⊢ Φ a) →
     (∀ e, ζ' e ⊢ ζ e) →
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} ⊢
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} ⊢
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hmonor Hmonot) "H"; iApply (ewp_mono with "H").
     iIntros ([|]); last apply Hmonot.
@@ -51,23 +51,23 @@ Section monotonicity.
 
   Lemma imp_mono_val E m Ψ ζ (Φ' : A → iProp Σ) Φ :
     (∀ a, Φ' a ⊢ Φ a) →
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} ⊢
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} ⊢
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hmonor) "H"; iApply (imp_mono with "H"); auto.
   Qed.
 
   Lemma imp_mono_exn E m Ψ ζ' ζ Φ :
     (∀ e, ζ' e ⊢ ζ e) →
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ }} ⊢
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ }} ⊢
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hmonot) "H"; iApply (imp_mono with "H"); auto.
   Qed.
 
   Lemma imp_mask_mono E1 E2 m Ψ ζ Φ :
     E1 ⊆ E2 →
-    imp m @ E1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ⊢ imp m @ E2 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} ⊢ EWP m @ E2 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof. apply ewp_mask_mono. Qed.
 
   Global Instance imp_mono' E m Ψ ζ :
@@ -98,6 +98,32 @@ Section monotonicity.
     - iIntros (?) "?". by iApply "H".
     - iIntros (?) "?". by iApply "H".
   Qed.
+  (* [imp_wand], but crossing [Observe] instances: unlike [imp_wand] (which
+     keeps the postcondition's logical type [A] fixed throughout the whole
+     section), this lets the continuation reinterpret the computation's
+     result at a *different* [Encode]/[Observe]-typed view [A2], as long as
+     the underlying [val]-level ([V]) observation agrees. This is what
+     makes it possible, e.g., to view a freshly-allocated [record] (via one
+     [Encode record] instance, such as a tag-specific wrapper like
+     [link_enc]) as a plain [val] (via the generic [Encode val] identity
+     instance), which no same-type combinator ([imp_wand], [imp_mono], ...)
+     can do since they all fix a single [A] for the whole section. *)
+
+  Lemma imp_wand_observe {A2} `{Observe A2 V} E m Ψ ζ (Q' : A → iProp Σ) (Q2 : A2 → iProp Σ) :
+    impure E m Ψ ζ Q' -∗
+    (∀ v, Q' v -∗ ∃ w : A2, ⌜(♯v : V) = ♯w⌝ ∗ Q2 w) -∗
+    impure E m Ψ ζ Q2.
+  Proof.
+    iIntros "Hwp H". unfold impure.
+    iApply (ewp_strong_mono with "Hwp"); first done.
+    { iApply iEff_le_refl. }
+    iIntros ([v|e]).
+    - iIntros "(%a & -> & HQ')".
+      iDestruct ("H" with "HQ'") as (w) "[-> HQ2]".
+      iModIntro. iExists w. auto.
+    - iIntros "Hζ". auto.
+  Qed.
+
   Lemma imp_wand_exn E m Ψ ζ' ζ Q :
     impure E m Ψ ζ' Q -∗ (∀ e, ζ' e -∗ ζ e) -∗ impure E m Ψ ζ Q.
   Proof.
@@ -119,18 +145,18 @@ Section monotonicity.
   Qed.
 
   Lemma imp_mono_prot E m Ψ' Ψ ζ Φ :
-    imp m @ E <|Ψ'|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP m @ E <|Ψ'|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     (Ψ' ⊑ Ψ)%ieff -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp Hmono".
     iApply (ewp_prot_mono with "Hmono Himp").
   Qed.
 
   Lemma imp_mono_pers E m Ψ ζ Φ' Φ :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
     □ (∀ x, Φ' x ={E}=∗ Φ x) -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp #Hmono".
     iApply ewp_fupd.
@@ -152,13 +178,13 @@ Section updates.
   Implicit Type m : micro V X.
 
   Lemma fupd_imp E m Ψ ζ Φ :
-    (|={E}=> imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    (|={E}=> EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ⊢
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof. iApply fupd_ewp. Qed.
 
   Lemma imp_fupd E m Ψ ζ Φ :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, |={E}=> Φ x }} ⊢
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, |={E}=> Φ x }} ⊢
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
     iApply ewp_fupd.
@@ -168,8 +194,8 @@ Section updates.
   Qed.
 
   Lemma imp_fupd_exn E m Ψ ζ Φ :
-    imp m @ E <|Ψ|> ⟨⟨ λ e, |={E}=> ζ e ⟩⟩ {{ Φ }} -∗
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ e, |={E}=> ζ e ⟩⟩ {{ Φ }} -∗
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
     iApply ewp_fupd.
@@ -179,7 +205,7 @@ Section updates.
 
   Import ewp_rules_tactics.
 
-  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!thread_step.Atomic m}
+  Lemma imp_atomic' E E2 m Ψ ζ Φ `{!subjective_step.Atomic m}
     `{TCEq (option val) (to_eff m) None}
     `{TCEq (option thread) (to_join m) None}
     :
@@ -193,7 +219,7 @@ Section updates.
     - by iMod "H" as "$".
   Qed.
 
-  Lemma imp_atomic E E2 m Ψ Φ `{!thread_step.Atomic m}
+  Lemma imp_atomic E E2 m Ψ Φ `{!subjective_step.Atomic m}
     `{TCEq (option val) (to_eff m) None}
     `{TCEq (option thread) (to_join m) None}
       :
@@ -201,6 +227,34 @@ Section updates.
   Proof.
     iIntros "He".
     iApply (imp_atomic' E E2). iMod "He". iModIntro.
+    iApply (imp_wand_exn with "He").
+    iIntros (? []).
+  Qed.
+
+  Lemma imp_step_fupd' E1 E2 m Ψ ζ P Φ :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    impure E2 m Ψ (λ e, P ={E1}=∗ ζ e) (λ a, P ={E1}=∗ Φ a) -∗
+    impure E1 m Ψ ζ Φ.
+  Proof.
+    iIntros (??) "HR He".
+    iApply (ewp_step_fupd with "HR"); [ done.. | ].
+    iApply (ewp_wand with "He").
+    iIntros ([|]); [ iIntros "(%r & -> & HΦ) HP" | iIntros "Hζ HP" ].
+    - iMod ("HΦ" with "HP") as "HΦ". by iFrame.
+    - by iApply "Hζ".
+  Qed.
+
+  Lemma imp_step_fupd E1 E2 m Ψ P Φ :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    impure E2 m Ψ ⊥ (λ a, P ={E1}=∗ Φ a) -∗
+    impure E1 m Ψ ⊥ Φ.
+  Proof.
+    iIntros (??) "HR He".
+    iApply (imp_step_fupd' with "HR"); [ done.. | ].
     iApply (imp_wand_exn with "He").
     iIntros (? []).
   Qed.
@@ -249,7 +303,7 @@ Section proofmode_classes.
   Proof. intros []. Qed.
 
   Global Instance elim_modal_fupd_imp_atomic p E1 E2 m Ψ P Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -261,7 +315,7 @@ Section proofmode_classes.
       fupd_frame_r bi.wand_elim_r imp_atomic.
   Qed.
   Global Instance elim_modal_fupd_imp_atomic' p E1 E2 m Ψ ζ P Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -287,7 +341,7 @@ Section proofmode_classes.
 
 
   Global Instance elim_acc_imp_atomic {Y} E1 E2 α β γ m Ψ Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -302,7 +356,7 @@ Section proofmode_classes.
     iIntros (v) ">[Hβ HΦ]". iApply "HΦ". by iApply "Hclose".
   Qed.
   Global Instance elim_acc_imp_atomic' {Y} E1 E2 α β γ m Ψ ζ Φ
-      `{!thread_step.Atomic m}
+      `{!subjective_step.Atomic m}
       `{TCEq (option val) (to_eff m) None}
       `{TCEq (option thread) (to_join m) None}
     :
@@ -353,7 +407,7 @@ Section micro_constructors.
   Lemma imp_ret (v : V) a :
     v = ♯ a →
     Φ a -∗
-    imp (ret v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (ret v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hobserve) "HΦ".
     iApply ewp_ret.
@@ -361,7 +415,7 @@ Section micro_constructors.
   Qed.
 
   Lemma invert_imp_ret (v : V) :
-    imp (ret v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP (ret v) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     |={E}=> ∃ a, ⌜v = ♯a⌝ ∗ Φ a.
   Proof.
     iIntros "Himp".
@@ -371,7 +425,7 @@ Section micro_constructors.
 
   Lemma imp_throw e :
     ζ e -∗
-    imp (throw e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (throw e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hζ".
     iApply ewp_throw.
@@ -379,7 +433,7 @@ Section micro_constructors.
   Qed.
 
   Lemma invert_imp_throw e :
-    imp (throw e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP (throw e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     |={E}=> ζ e.
   Proof.
     iIntros "Himp".
@@ -388,7 +442,7 @@ Section micro_constructors.
   Qed.
 
   Lemma invert_imp_Crash :
-    imp Crash @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP Crash @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
     |={E}=> False.
   Proof.
     iIntros "Himp".
@@ -398,12 +452,12 @@ Section micro_constructors.
 
   Lemma imp_Par2 `{Observe A1 V1} `{Observe A2 V2} {X'}
     Φ1 ζ1 Φ2 ζ2 m1 m2 (k : outcome2 (V1 * V2) X' → micro V X) :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
-    (∀ e, ζ1 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ e, ζ2 e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m1 @ E <|Ψ|> ⟨⟨ ζ1 ⟩⟩ {{ Φ1 }} -∗
+    EWP m2 @ E <|Ψ|> ⟨⟨ ζ2 ⟩⟩ {{ Φ2 }} -∗
+    (∀ e, ζ1 e -∗ ▷ EWP discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ e, ζ2 e -∗ ▷ EWP discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ EWP continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin".
     iApply (ewp_Par with "H1 H2").
@@ -416,11 +470,11 @@ Section micro_constructors.
 
   Lemma imp_Par `{Observe A1 V1} `{Observe A2 V2}
     Φ1 Φ2 m1 m2 (k : outcome2 (V1 * V2) X → micro V X) :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-    (∀ e, ζ e -∗ ▷ imp discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ imp continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    EWP m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    (∀ e, ζ e -∗ ▷ EWP discontinue k e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ EWP continue k (♯x, ♯y) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (Par m1 m2 k) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin".
     iApply (ewp_Par with "H1 H2").
@@ -440,10 +494,10 @@ Section micro_combinators.
 
   Lemma imp_par' {ζ : exn → iProp Σ} `{Observe A1 V1} `{Observe A2 V2} {Φ : A1 * A2 → iProp Σ}
     Φ1 Φ2 m1 m2 :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    EWP m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    EWP m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ x y, Φ1 x -∗ Φ2 y -∗ ▷ Φ (x, y)) -∗
-    imp (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H1 H2 Hjoin".
     iApply (imp_Par with "H1 H2").
@@ -457,9 +511,9 @@ Section micro_combinators.
 
   Lemma imp_par {ζ : exn → iProp Σ} `{Observe A1 V1} `{Observe A2 V2}
     (Φ1 : A1 → iProp Σ) (Φ2 : A2 → iProp Σ) m1 m2 :
-    imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-    imp (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ '(x, y), Φ1 x ∗ Φ2 y }}.
+    EWP m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    EWP m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    EWP (par m1 m2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (x, y), Φ1 x ∗ Φ2 y }}.
   Proof.
     iIntros "H1 H2".
     iApply (imp_par' with "H1 H2").
@@ -475,10 +529,10 @@ Section micro_combinators.
   Lemma imp_try2 `{Observe A1 V1} {X1}
     (Φ' : A1 → iProp Σ) (ζ' : X1 → iProp Σ) (m : micro V1 X1)
     (h : outcome2 V1 X1 -> micro V X) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
-    (∀ a, Φ' a -∗ imp (continue h ♯a) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ e, ζ' e -∗ imp (discontinue h e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (try2 m h) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
+    (∀ a, Φ' a -∗ EWP (continue h ♯a) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ e, ζ' e -∗ EWP (discontinue h e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (try2 m h) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp Hresume".
     iApply ewp_try2.
@@ -491,10 +545,10 @@ Section micro_combinators.
   Lemma imp_try `{Observe A1 V1} {X1}
     (Φ' : A1 → iProp Σ) (ζ' : X1 → iProp Σ) (m : micro V1 X1)
     (k : V1 → micro V X) (z : X1 → micro V X) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
-    (∀ a, Φ' a -∗ imp (k ♯a) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
-    (∀ e, ζ' e -∗ imp (z e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (try m k z) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
+    (∀ a, Φ' a -∗ EWP (k ♯a) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    (∀ e, ζ' e -∗ EWP (z e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (try m k z) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp Hresume".
     iApply (imp_try2 with "Himp [Hresume]").
@@ -505,9 +559,9 @@ Section micro_combinators.
   Lemma imp_bind `{Observe A1 V1}
     (Φ' : A1 → iProp Σ) (m : micro V1 X)
     (f : V1 → micro V X) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
-    (∀ (x : A1), Φ' x -∗ imp (f ♯x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    imp (bind m f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ (x : A1), Φ' x -∗ EWP (f ♯x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP (bind m f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp Hconseq".
     rewrite bind_as_try.
@@ -519,10 +573,10 @@ Section micro_combinators.
   Lemma imp_bind2 `{Observe A1 V1}
     (Φ' : A1 → iProp Σ) (ζ' : X → iProp Σ) (m : micro V1 X)
     (f : V1 → micro V X) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
-    (∀ (x : A1), Φ' x -∗ imp (f ♯x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
+    EWP m @ E <|Ψ|> ⟨⟨ ζ' ⟩⟩ {{ Φ' }} -∗
+    (∀ (x : A1), Φ' x -∗ EWP (f ♯x) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) ∧
     (∀ (e : X), ζ' e -∗ ζ e) -∗
-    imp (bind m f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (bind m f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp Hconseq".
     rewrite bind_as_try.
@@ -535,8 +589,8 @@ Section micro_combinators.
   Qed.
 
   Lemma imp_widen (m : micro V void) :
-    imp m @ E <|Ψ|> {{ Φ }} -∗
-    imp (widen m) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> {{ Φ }} -∗
+    EWP (widen m) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
     unfold widen.
@@ -552,7 +606,7 @@ Section micro_combinators.
     | Some a => (ireturns Φ) a
     | None => False
     end -∗
-    imp (of_option o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP (of_option o) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Himp".
     unfold of_option. destruct o.
@@ -567,11 +621,11 @@ End micro_combinators.
 Lemma imp_bind_par `{!osirisGS Σ} {V : Type} {E Ψ ζ} `{Observe A V} `{Observe A1 V1} `{Observe A2 V2}
   {Φ : A → iProp Σ}
   (Φ1 : A1 → iProp Σ) (Φ2 : A2 → iProp Σ) m1 m2 (f : (V1 * V2) → micro V exn) :
-  imp m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-  imp m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+  EWP m1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+  EWP m2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
   (∀ a1 a2, Φ1 a1 -∗ Φ2 a2 -∗
-            ▷ imp (f (♯a1, ♯a2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-  imp (bind (par m1 m2) f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+            ▷ EWP (f (♯a1, ♯a2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+  EWP (bind (par m1 m2) f) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
 Proof.
   iIntros "H1 H2 P".
   iApply (imp_bind with "[-]").
@@ -609,7 +663,7 @@ Qed.
 
 Lemma impure_pure2 `{osirisGS Σ} {V} `{Observe A V} {X} `{NotVal X} {E Ψ} (m : micro V X) (ζ : X → Prop) (Φ : A → Prop) :
   pure m Φ ζ →
-  ⊢ imp m @ E <|Ψ|> ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
+  ⊢ EWP m @ E <|Ψ|> ⟨⟨ e, ⌜ζ e⌝ ⟩⟩ {{ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
@@ -622,7 +676,7 @@ Qed.
 
 Lemma impure_pure `{osirisGS Σ} {V} `{Observe A V} `{Encode B} {E Ψ ζ} (m : micro V exn) Φ :
   pure m Φ (⊥ : B → Prop) →
-  ⊢ imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, ⌜Φ x⌝ }}.
+  ⊢ EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, ⌜Φ x⌝ }}.
 Proof.
   iIntros (Hpure).
   iPoseProof (pure_ewp _ _ _ _ _ Hpure) as "Hewp".
@@ -642,8 +696,8 @@ Section dynamic_checks.
   Global Instance : Observe Z int := { observe := int.repr }.
 
   Lemma imp_as_int (m : microvx) (Φ : Z → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_int m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_int m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     rewrite /as_int.
@@ -653,8 +707,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_loc (m : microvx) (Φ : locations.loc → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_loc m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_loc m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -663,8 +717,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_array (m : microvx) (Φ : syntax.array → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_array m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_array m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -673,8 +727,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_record (m : microvx) (Φ : syntax.record → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_record m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_record m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -683,8 +737,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_bool (m : microvx) (Φ : bool → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_bool m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_bool m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -694,8 +748,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_cont (m : microvx) (Φ : cont → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_cont m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_cont m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -704,8 +758,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_thread (m : microvx) (Φ : thread → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_thread m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_thread m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -714,8 +768,8 @@ Section dynamic_checks.
   Qed.
 
   Lemma imp_as_struct (m : microvx) (Φ : env → iProp Σ) :
-    imp m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_struct m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_struct m @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").

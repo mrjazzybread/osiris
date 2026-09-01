@@ -3,14 +3,21 @@ From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 From osiris.program_logic Require Import program_logic.
 
+Require Import tactics.
+
 Local Ltac pat_PTuple :=
   first [
       eapply pat_PTuple; first solve [ encode ]
+    | (* [encode] cannot synthesise the [VTuple] value-list when the tuple
+         contains user-datatype values (e.g. [(Root .., Root ..)]); solving the
+         encoding side-goal by computation handles that case. *)
+      eapply pat_PTuple; first solve [ rewrite encode_encode'; reflexivity ]
     | rewrite 1 ?encode_encode'; simpl -[eval];
       eapply pat_PTuple_val ].
 
-From Ltac2 Require Ltac2.
-Import Ltac2.
+From Ltac2 Require Ltac2 Printf.
+Import Ltac2 Printf.
+From osiris.utils Require Import tactics.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -239,6 +246,7 @@ Local Ltac2 rec is_pattern (c : constr) :=
   lazy_match! c with
   | pattern _ _ _ _ _ _  => true
   | patterns _ _ _ _ _ _ => true
+  | fpatterns _ _ _ _ _ _ => true
   | _ => false
   end.
 
@@ -264,13 +272,116 @@ Local Ltac2 rec get_arity (c : constr) :=
   end.
 
 Local Ltac2 rec get_constructor (c : constr) :=
-  match! c with
+  match! (Std.eval_hnf c) with
   | ?a _ => get_constructor a
   | _ => match Constr.Unsafe.kind c with
         | Constr.Unsafe.Constructor _ _ => Some c
         | _ => None
         end
   end.
+
+(* Collect the distinct evars occurring (as heads) anywhere in [c]. *)
+Local Ltac2 collect_evars (c : constr) : constr list :=
+  let acc := Ref.ref [] in
+  let rec collect (c : constr) :=
+    match Constr.Unsafe.kind c with
+    | Constr.Unsafe.Evar _ _ =>
+      if List.exist (fun e => Constr.equal e c) (Ref.get acc)
+      then () else Ref.set acc (c :: Ref.get acc)
+    | _ => Constr.Unsafe.iter collect c
+    end
+  in
+  collect c;
+  Ref.get acc.
+
+(* When the current branch has just been shown impossible (a constructor
+   clash), every failure-postcondition evar that the pattern lemmas created for
+   it becomes irrelevant — but, since the goal is about to be discharged by
+   contradiction, those evars would otherwise be left dangling (shelved).
+   [pin_failure_postconds] pins each of them to [False].  Failure postconditions
+   have type [Prop] or [T -> Prop] over the *matched* value type [T]; the
+   success postcondition has type [env -> Prop] and is deliberately excluded
+   (it is discharged elsewhere, e.g. by [iIntros (? [])] in the Iris handler). *)
+Local Ltac2 pin_failure_postconds () :=
+  List.iter
+    (fun e =>
+       lazy_match! Constr.type e with
+       | Prop => Control.plus (fun () => unify $e False) (fun _ => ())
+       | ?t -> Prop =>
+           if Constr.equal t constr:(env) then ()
+           else Control.plus (fun () => unify $e (fun (_ : $t) => False)) (fun _ => ())
+       | _ => ()
+       end)
+    (collect_evars (Control.goal ())).
+
+(* [subst] eliminates, for an equation [x = y] between two variables, the
+   left-hand variable [x].  During pattern matching this can be exactly the
+   wrong direction: a constructor pattern's guard reads
+   [scrutinee = Ctor <binders>], so after the [inversion] in [destruct_hyp]
+   the component equations relate the scrutinee's *pre-existing* variables
+   (left) to the *just-introduced* pattern binders (right), and plain
+   [subst] then eliminates the pre-existing variable.  The ambient Iris
+   context still mentions that variable, but this pure subgoal can no
+   longer name it: [close_success] (handler_tactics.v) has to close the
+   branch environment over the surviving pattern binder existentially,
+   leaving the branch environment unconstrained — and the branch body
+   unprovable.  [subst_keeping_older] instead eliminates, for every
+   variable-variable equation, the variable bound *later* in the local
+   context — the pattern binder — and only then lets [subst] deal with the
+   remaining (variable-term) equations. *)
+
+Local Ltac2 ctx_index (id : ident) : int :=
+  let rec go i hs :=
+    match hs with
+    | [] => -1
+    | h :: tl =>
+        let (hid, _, _) := h in
+        if Ident.equal hid id then i else go (Int.add i 1) tl
+    end
+  in
+  go 0 (Control.hyps ()).
+
+Local Ltac2 rec subst_var_var_eqs () :=
+  let rec find hs :=
+    match hs with
+    | [] => None
+    | h :: tl =>
+        let (_, body, ty) := h in
+        match body with
+        | Some _ => find tl
+        | None =>
+            lazy_match! ty with
+            | ?l = ?r =>
+                match Constr.Unsafe.kind l, Constr.Unsafe.kind r with
+                | Constr.Unsafe.Var xl, Constr.Unsafe.Var xr =>
+                    if Ident.equal xl xr then find tl else Some (xl, xr)
+                | _, _ => find tl
+                end
+            | _ => find tl
+            end
+        end
+    end
+  in
+  match find (Control.hyps ()) with
+  | None => ()
+  | Some p =>
+      let (xl, xr) := p in
+      let (victim, keeper) :=
+        if Int.gt (ctx_index xl) (ctx_index xr) then (xl, xr) else (xr, xl) in
+      (* If the later-bound variable cannot be substituted (dependencies),
+         fall back to the other side; if neither works, leave the equation
+         to the trailing [subst]/[congruence]. *)
+      Control.plus
+        (fun _ => Std.subst [victim]; subst_var_var_eqs ())
+        (fun _ =>
+           Control.plus
+             (fun _ => Std.subst [keeper]; subst_var_var_eqs ())
+             (fun _ => ()))
+  end.
+
+Local Ltac2 subst_keeping_older () :=
+  subst_var_var_eqs ();
+  subst.
 
 Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   normalize_hyp h;
@@ -321,12 +432,22 @@ Local Ltac2 rec destruct_hyp (h : ident) : unit :=
   | ?a = ?b =>
       (* If the hypothesis is a tautology, remove it. *)
       if Constr.equal a b then clear h else
-        (* If the equality is of the form [c ... = ...] *)
-      (if (Int.gt (get_arity a) 0) then
-         let hyp := Control.hyp h in
-         inversion $hyp
-       else ());
-      subst;
+        ((* A clash of head constructors makes this branch impossible, and the
+            discharge below ([inversion] / [congruence]) closes the goal by
+            contradiction.  If the current goal is a [pattern] whose failure
+            postcondition is still an evar, that discharge would leave it
+            dangling (shelved) — so pin it to [False] first. *)
+         (match get_constructor a, get_constructor b with
+          | Some c1, Some c2 =>
+              if Bool.neg (Constr.equal c1 c2) then pin_failure_postconds ()
+              else ()
+          | _, _ => () end);
+         (* If the equality is of the form [c ... = ...] *)
+         (if (Int.gt (get_arity a) 0) then
+            let hyp := Control.hyp h in
+            inversion $hyp
+          else ()));
+      subst_keeping_older ();
       try ltac1:(congruence)
   | ?a <> ?b =>
       (* An inequality between two terms with different constructors
@@ -450,6 +571,33 @@ Local Ltac2 patterns () :=
   end.
 
 
+(* [fpats] expects a goal of the form [fpatterns ...] (record field
+   patterns) and either
+   - reduces to a [pattern ...] with [fpats_cons_unary] (the field
+     lookup is discharged by computation),
+   - solves the goal with [fpats_nil2] (instantiating an evar
+     postcondition [?φ] with an environment equality), or reduces it
+     to [φ δ] with [fpats_nil]. *)
+
+Local Ltac2 fpats () :=
+  lazy_match! goal with
+  | [ |- fpatterns _ _ (_ :: _) _ _ _ ] =>
+      (* [simpl] normalizes the looked-up field value (e.g. reducing a
+         projection [rank {| rank := k; … |}] to [k]) before it gets
+         pinned into the success postcondition. *)
+      eapply fpats_cons_unary > [ simpl; reflexivity | ]
+  | [ |- fpatterns _ _ nil _ ?φ _ ] =>
+      if (Constr.is_evar φ) then
+        eapply fpats_nil2
+      else
+        (eapply fpats_nil; try reflexivity)
+  | [ |- _ ] =>
+      Control.throw
+        (Tactic_failure
+           (Some
+              (Message.of_string "Expected goal of the form [fpatterns η δ fps vs φ ψ]")))
+  end.
+
 (* [pattern_match_aux] expects a goal of the form [patterns ...] or
    [pattern ...] and progresses by matching the pattern(s) to the
    variable(s). This is done by applying the appropriate lemma for
@@ -471,6 +619,7 @@ Local Ltac2 rec pattern_match_aux () :=
   in
   lazy_match! goal with
   | [ |- patterns _ _ _ _ _ _ ] => patterns (); continue_matching ()
+  | [ |- fpatterns _ _ _ _ _ _ ] => fpats (); Control.enter continue_matching
   | [ |- pattern _ _ ?p _ _ ?ψ ] =>
       (* [massage_term] is black magic to help Rocq's unification engine. *)
       massage_term ψ;
@@ -512,6 +661,12 @@ Local Ltac2 rec pattern_match_aux () :=
           Control.plus
             (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
             (fun _ => eapply pat_PXData_neq > [ solve_lookup_path () | auto ])
+      | PInline _ _ =>
+          Control.plus
+            (fun _ => eapply pat_PInline_eq > [ solve [ ltac1:(encode) ]
+                                              | pattern_match_aux () ])
+            (fun _ => eapply pat_PInline_neq > [ solve [ ltac1:(encode) ]
+                                               | ltac1:(congruence) ])
       | PConstant _ =>
           Control.plus
             (fun _ => eapply pat_PConst_eq; continue_matching ())
@@ -548,6 +703,7 @@ Ltac2 pattern_match0 () :=
         (fun _ => rewrite 1 ?encode_encode');
       pattern_match_aux ()
   | [ |- pattern _ _ _ _ _ _ ] => pattern_match_aux ()
+  | [ |- fpatterns _ _ _ _ _ _ ] => pattern_match_aux ()
   | [ |- _ ] =>
       Control.throw
         (Tactic_failure
@@ -872,26 +1028,40 @@ Tactic Notation "pure_path" := ltac2:(pure_path); try apply eq_refl.
    It applies the lemma [pure_eval_const], solves the subgoal [VConstant c = #x],
    and leaves the subgoal [φ x]. *)
 
-Ltac2 pure_const0 () :=
+Ltac2 pure_const0 (bopt : constr option) :=
   let (m, φ) := decompose_pure () in
   let e := get_expr_from_eval m in
   match! e with
-  | EConstant _ =>
-      (* [pure_eval_const : *)
-(*           VConstant c = #x -> ψ x -> pure (eval η (EConstant c)) ##ψ ⊥] *)
-      eapply pure_eval_const;
-      let solve_encoding : unit -> unit :=
-        fun _ =>
-          match! Constr.type φ with
-          | val -> Prop => rewrite <- solve_encode_val; reflexivity
-          | _ => solve [ ltac1:(encode) ]
-          end
+  | EConstant ?c =>
+      (* Specialize [pure_eval_const] to the constant [c] and the
+         postcondition's domain type, so that the [Constant] instance
+         is resolved at elaboration time (see
+         [specialized_imp_EConstant] in imp_tactics.v).  The type is
+         read off the postcondition, unless it is given explicitly —
+         which is needed when the goal leaves it undetermined (e.g. a
+         constant tuple component whose type nothing constrains
+         yet). *)
+      let b :=
+        match bopt with
+        | Some b => b
+        | None =>
+            lazy_match! Constr.type φ with
+            | ?b -> _ =>
+                (eval cbv beta iota delta [type_nel.coerce_to_type] in $b)
+            end
+        end
       in
-      Control.focus 1 1 solve_encoding
+      let hc := determine_Constant_instance c b in
+      let lem := '(pure_eval_const (HC:=$hc)) in
+      eapply $lem
   end.
 
-Ltac2 Notation "pure_const" := Control.enter pure_const0.
-Tactic Notation "pure_const" := ltac2:(pure_const).
+Ltac2 Notation "pure_const" := Control.enter (fun () => pure_const0 None).
+Tactic Notation "pure_const" :=
+  ltac2:(Control.enter (fun () => pure_const0 None)).
+Tactic Notation "pure_const" constr(b) :=
+  let tac := ltac2:(b |- Control.enter (fun () => pure_const0 (Ltac1.to_constr b))) in
+  tac b.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -970,62 +1140,6 @@ Ltac2 finished_struct0 () := apply structs_nil.
 
 Ltac2 Notation "finished_struct" := finished_struct0 ().
 Tactic Notation "finished_struct" := ltac2:(finished_struct).
-
-(* -------------------------------------------------------------------------- *)
-
-Local Open Scope nat.
-
-Ltac2 rec unfold_Forall2 () :=
-  match! goal with
-  | [ |- Forall2 _ (_ :: _) _ ] =>
-      apply List.Forall2_cons > [ | unfold_Forall2 () ]
-  | [ |- Forall2 _ [] _ ] =>
-      apply List.Forall2_nil
-  end.
-
-Ltac2 solve_or_silent tac :=
- try (complete tac).
-
-Ltac2 solve_encode () := solve_or_silent (fun _ => ltac1:(encode)).
-
-Ltac2 etuple_args (e : constr) : constr list :=
-  match! e with
-  | ETuple ?l =>
-      let rec aux l :=
-        match! l with
-        | cons ?e ?t => e :: (aux t)
-        | nil => []
-        end
-      in
-      aux l
-  end.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Given a tuple type of the form [ty := (t1 * t2 * ... * tn)],
-   [evar_tuple ty] returns an evar of that type.
-
-   Use: [let ev := evar_tuple &ty in epose $ev as t]. *)
-
-Ltac2 rec evar_tuple (ty: constr) : constr :=
-  (* Allows you to pass [ty] instead of something like [(nat * (bool * nat))%type]. *)
-  let ty := eval hnf in $ty in
-  lazy_match! ty with
-  | prod ?a ?b =>
-      let evar_a := evar_tuple a in
-      let evar_b := evar_tuple b in
-      (* typing constraints on the evars are enforced here;
-         note that this will give you an evar with evar type,
-         rather than a typed evar, if you pass it a type that is not a prod. *)
-      constr:(@pair $a $b $evar_a $evar_b)
-  | ?_a =>
-      (* This uses base name "t". *)
-      let arg_i := Fresh.in_goal @t in
-      (* [_] gives a new evar, use ['_] or [open_constr:(_)] in other contexts. *)
-      epose _ as $arg_i;
-      Control.hyp arg_i
-  end.
-
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1131,222 +1245,3 @@ Tactic Notation "pure_enter_anonfun" := ltac2:(pure_enter_anonfun).
    One might also wish to do a bit of both: that is, first apply some lemma
    [L] to the subgoal [pure (call v1 #x) ##φ ⊥], then solve [v'2 = #x], then
    attack the proof obligations created by applying the lemma [L]. *)
-
-Create HintDb pure_specs.
-
-
-(* -------------------------------------------------------------------------- *)
-
-(* Dummy proposition with one constructor *)
-Inductive BLOCK := block.
-
-(* Tranform a goal of the form [H1 -> H2 -> ... -> BLOCK -> G] into
-   [H1 /\ H2 /\ ... -> G] *)
-Ltac conj_until_BLOCK b :=
-  lazymatch goal with
-  | |- BLOCK -> _ =>
-      intros _; let H := fresh in
-               pose proof (H := I); revert H
-  | |- _ -> BLOCK -> _ =>
-      let H1 := fresh in
-      intros H1 _; revert H1
-  | |- ?A -> ?B -> _ =>
-      let H1 := fresh in
-      let H2 := fresh in
-      let H3 := fresh in
-      intros H1 H2; pose proof (H3 := conj H2 H1);
-      revert H3;
-      match b with
-      | true => clear H1; conj_until_BLOCK true
-      | false => conj_until_BLOCK true
-      end
-  end.
-
-(* Given a tuple (or single term), move all hypotheses depending on elements
-   of the tuple (or single term) into the goal *)
-Ltac generalize_tuple t :=
-  match t with
-  | pair ?x ?y =>
-      generalize dependent y; intro;
-      generalize_tuple x
-  | _ => generalize dependent t; intro
-  end.
-
-(* Given a term (or tuple of terms), move all hypotheses depending on this term
-   (or tuple of terms) into the goal as a single conjunction *)
-Ltac capture_hypotheses_aux arg :=
-  generalize (block);
-  generalize_tuple arg;
-  conj_until_BLOCK false.
-
-Tactic Notation "capture_hypotheses" constr(arg1) :=
-  capture_hypotheses_aux arg1.
-
-Tactic Notation "capture_hypotheses" constr(arg1) "as" simple_intropattern(x) :=
-  capture_hypotheses_aux arg1; intros x.
-
-Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) :=
-  capture_hypotheses_aux (arg1, arg2).
-
-Tactic Notation "capture_hypotheses" constr(arg1) constr(arg2) "as" simple_intropattern(x) :=
-  capture_hypotheses_aux (arg1, arg2); intros x.
-
-Ltac2 eta_expand (arg : constr) (f : constr) : constr :=
-  Std.eval_pattern [(arg, Std.AllOccurrences)] f.
-
-Ltac2 pure_rec0 arg pre hwf :=
-  let _expanded_post :=
-    lazy_match! goal with
-    | [ |- pure (call _ _) ##?φ ⊥ ] =>
-        Std.eval_pattern [(arg, Std.AllOccurrences)] φ
-    (* TODO: Standardize error messages. *)
-    | [ |- _ ] =>
-        Control.throw
-          (Tactic_failure
-             (Some
-                (Message.of_string
-                   "[pure_rec] expects a goal of the form [pure (call f x) ##φ ⊥]")))
-    end
-  in
-  match! pre with
-  | None =>
-      eapply pure_rec_call_no_pre with (v := $arg)
-  | Some ?pre =>
-      eapply pure_rec_call with (v := $arg) (P := $pre)
-  end;
-  Control.focus 1 1 (fun _ => apply $hwf).
-
-(* Automatically apply [pure_rec_call] on a goal of the form [pure m ##φ ⊥] *)
-Ltac pure_rec_tac arg pre Hwf :=
-  (* Eta-expand the postcondition *)
-  match goal with
-  | |- pure _ ##?H ⊥ =>
-      let post := fresh in
-      set (post := H); pattern arg in post; cbv delta [post]; clear post
-  end;
-  (* Apply [pure_rec_call], possibly with an explicit precondition *)
-  match pre with
-  | None =>
-      eapply pure_rec_call with (v:=arg)
-  | Some ?pre =>
-      eapply pure_rec_call with (v:=arg) (P:=pre)
-  end;
-  (* Try and solve subgoals generated by [pure_rec_call] *)
-  [ apply Hwf
-  | lazymatch pre with
-    | None =>
-        capture_hypotheses arg;
-        let HPre := fresh in intros HPre;
-        pattern arg in HPre;
-        exact HPre
-    | Some _ =>
-        subst; auto; fail
-    end
-  | ];
-  clear dependent arg; (* [pure_rec_call] deprecates the original argument *)
-  let HP := fresh "HP" in
-  let IH := fresh "IH" in
-  simpl; intros vf arg HP IH.
-
-Tactic Notation "pure_rec" constr(arg) constr(Hwf) :=
-  pure_rec_tac arg constr:(@None False) Hwf.
-
-Tactic Notation "pure_rec" constr(arg) constr(pre) constr(Hwf) :=
-  pure_rec_tac arg constr:(Some pre) Hwf.
-
-
-Definition lift_rel {X Y} (R : (X * Y) -> (X * Y) -> Prop) (y : Y) : X -> X -> Prop :=
-  fun x1 x2 => R (x1, y) (x2, y).
-
-
-(* Automatically apply [pure_nested_call] on a goal of the form [pure m ##φ ⊥] *)
-Ltac pure_nested_tac arg1 arg2 pre Hwf :=
-  match goal with
-  | |- pure _ ##(fun c => pure _ ##?H ⊥) ⊥ =>
-      let post := fresh in
-      set (post := H); pattern arg1, arg2 in post; cbv delta [post]; clear post;
-      lazymatch pre with
-      | None =>
-          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2)
-      | Some ?pre =>
-          eapply pure_rec_call2 with (v1:=arg1) (v2:=arg2) (P:=pre)
-      end;
-      [ reflexivity
-      | simpl_eval; reflexivity
-      | apply Hwf
-      | lazymatch pre with
-          None =>
-            capture_hypotheses arg1 arg2;
-            let HPre := fresh in intros HPre;
-                                 pattern arg1, arg2 in HPre;
-                                 exact HPre
-        | Some _ =>
-            auto
-        end
-      | ];
-      let HP := fresh "HP" in
-      let IH := fresh "IH" in
-      clear dependent arg1 arg2;
-      simpl; intros vf arg1 arg2 HP IH
-  end.
-
-Tactic Notation "pure_nested" constr(arg1) constr(arg2) constr(Hwf) :=
-  pure_nested_tac arg1 arg2 constr:(@None False) Hwf.
-
-Tactic Notation "pure_nested" constr(arg1) constr(arg2)
-  constr(pre) constr(Hwf) :=
-  pure_nested_tac arg1 arg2 constr:(Some pre) Hwf.
-
-(* -------------------------------------------------------------------------- *)
-
-Module Tac.
-  Import Ltac2.
-
-  Ltac2 eta_post' (arg : constr list) :=
-    lazy_match! goal with
-    | [ |- pure _ ##?φ ⊥ ] =>
-        let post := Fresh.in_goal @post in
-        set ($post := $φ);
-        Std.pattern (List.map (fun x => (x, Std.AllOccurrences)) arg)
-          { Std.on_hyps := Some [(post, Std.AllOccurrences, Std.InHyp)];
-                           Std.on_concl := Std.NoOccurrences };
-        cbv delta [&post];
-        clear $post
-    end.
-
-  Import Constr.Unsafe.
-
-  Ltac2 eta_post'' (arg : Ltac1.t) :=
-    let arg := Option.get (Ltac1.to_list arg) in
-    let arg := List.map (fun x => Option.get (Ltac1.to_constr x)) arg in
-    eta_post' arg.
-
-  Ltac eta_post arg :=
-    let f := ltac2:(arg |- eta_post'' arg) in
-    f arg.
-
-  Tactic Notation "eta_post" constr_list(arg) :=
-    let f := ltac2:(arg |- eta_post'' arg) in
-    f arg.
-
-  Ltac2 eta_tuple_aux t :=
-    let rec aux t :=
-      lazy_match! t with
-      | pair ?x ?y =>
-          let l := aux x in
-          List.append l [y]
-      | ?single => [single]
-      end
-    in
-    let arg_list := aux t in
-    eta_post' arg_list.
-
-  Ltac2 eta_tuple_aux_interface (arg : Ltac1.t) :=
-    let arg := Option.get (Ltac1.to_constr arg) in
-    eta_tuple_aux arg.
-
-  Tactic Notation "eta_tuple" constr(arg) :=
-    let f := ltac2:(arg |- eta_tuple_aux_interface arg) in
-    f arg.
-
-End Tac.

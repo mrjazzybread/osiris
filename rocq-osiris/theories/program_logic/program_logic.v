@@ -1,8 +1,9 @@
 (* This file summarizes the content of program_logic/ directory. *)
 
 Require Export
-  thread_step
+  subjective_step
   ewp
+  triples
   stop_rules
   handler_rules
   fun_spec
@@ -12,7 +13,10 @@ Require Export
   impure_rules
   array_rules
   record_rules
+  inline_rules
+  ipattern_rules
   atomic_rules
+  proph_rules
 .
 
 From osiris.pure_logic Require Export pure.

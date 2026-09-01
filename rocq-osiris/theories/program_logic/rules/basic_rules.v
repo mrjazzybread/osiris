@@ -9,7 +9,7 @@ From osiris Require Import base.
 From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
-Require Import thread_step ewp tactics.
+Require Import subjective_step ewp tactics.
 
 From osiris.pure_logic Require Export pure.
 
@@ -25,15 +25,15 @@ Section ewp.
 
   (* ------------------------------------------------------------------------ *)
 
-  Lemma ewp_step {E Ψ Q} {σ π σ'} m m' μ :
-    thread_step (σ, m, dom π) (σ', m', μ) →
-    state_interp (σ, π) -∗
+  Lemma ewp_step {E Ψ Q} {σ π σ' κ κs} m m' μ :
+    subjective_step (σ, m, dom π) κ (σ', m', μ) →
+    state_interp (σ, κ ++ κs, π) -∗
     ewp_def E m Ψ Q ==∗
     |={E}[∅]▷=>
         ewp_def E m' Ψ Q ∗
           (match μ with
-           | None => state_interp (σ', π)
-           | Some (ι', m') => ∃ φ' γ, state_interp (σ', <[ι':= γ]>π) ∗
+           | None => state_interp (σ', κs, π)
+           | Some (ι', m') => ∃ φ' γ, state_interp (σ', κs, <[ι':= γ]>π) ∗
                                         saved_prop.saved_pred_own γ DfracDiscarded φ' ∗
                                         ewp_def ⊤ m' ⊥ (λ o, □ φ' o)
           end).
@@ -88,8 +88,8 @@ Section ewp.
       iApply ("IH" with "Hwp Hmono"). }
 
     { (* Case: [m] is a [WPJoin]. *)
-      intro_state. iMod (fupd_mask_subseteq E1) as "Hmod". set_solver.
-      spec_state.
+      intro_state_join. iMod (fupd_mask_subseteq E1) as "Hmod". set_solver.
+      spec_state_join.
       iMod "Hwp". iModIntro.
       destruct (π !! t) eqn:Hlookup.
       - iDestruct "Hwp" as "(%φ'0 & $ & Hwp)".
@@ -135,7 +135,7 @@ Section ewp.
     | _ => None
     end.
 
-  Lemma ewp_atomic E E2 m Ψ Q `{!thread_step.Atomic m} :
+  Lemma ewp_atomic E E2 m Ψ Q `{!subjective_step.Atomic m} :
     TCEq (to_eff m) None →
     TCEq (to_join m) None →
     (|={E,E2}=> ewp_def E2 m Ψ (λ o, |={E2,E}=> Q o)) ⊢ ewp_def E m Ψ Q.
@@ -164,6 +164,27 @@ Section ewp.
         by iDestruct "Hewp" as ">[]". }
 
     { inversion Hjoin. }
+  Qed.
+
+  (* A fancy update that takes a step can be eliminated around a computation
+     that takes a step. *)
+  Lemma ewp_step_fupd E1 E2 m Ψ P Q :
+    TCEq (is_ewp_case m) WPStep →
+    E2 ⊆ E1 →
+    (|={E1}[E2]▷=> P) -∗
+    ewp_def E2 m Ψ (λ o, P ={E1}=∗ Q o) -∗
+    ewp_def E1 m Ψ Q.
+  Proof.
+    iIntros (Hcase HE) "HR H".
+    apply TCEq_eq in Hcase.
+    ewp_unfold_all. rewrite Hcase.
+    iIntros (σ κ κs π) "Hsi". iMod "HR".
+    iMod ("H" with "Hsi") as "[$ H]".
+    iIntros "!>" (σ' m' μ Hstep).
+    iMod ("H" $! σ' m' μ with "[//]") as "H".
+    iIntros "!> !>". iMod "H" as "[H $]". iMod "HR". iModIntro.
+    iApply (ewp_strong_mono with "H"); [done|iApply iEff_le_refl|].
+    iIntros (o) "HQ". by iApply "HQ".
   Qed.
 
   (** Derived rules *)
@@ -242,8 +263,8 @@ Section ewp_pure.
       (* and no step can change [σ] or escape [pure] *)
       ewp_cleanup_mod. ewp_mask_elim.
       specialize (H σ).
-      apply invert_can_step_thread_step in Hstep; last assumption.
-      destruct Hstep as (Hstep & ->).
+      apply invert_can_step_subjective_step in Hstep; last assumption.
+      destruct Hstep as (Hstep & -> & ->).
       destruct (pure_wp_preservation Hm Hstep) as (Hm' & <-).
       iFrame.
       by iApply "IH".
@@ -252,7 +273,7 @@ Section ewp_pure.
 
   Lemma ewp_pure `{Encode A} (m : micro val exn) (ζ : exn → Prop) (φ : A → Prop) :
     pure m φ ζ →
-    ⊢ imp m ⟨⟨ λ e, ⌜ζ e⌝ ⟩⟩ {{ λ x, ⌜φ x⌝ }} .
+    ⊢ EWP m ⟨⟨ e, ⌜ζ e⌝ ⟩⟩ {{ x, ⌜φ x⌝ }} .
   Proof.
     iIntros (Hpure).
     iApply ewp_mono; last (iApply pure_ewp; apply Hpure).

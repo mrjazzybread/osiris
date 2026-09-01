@@ -26,6 +26,15 @@ Definition pattern η δ p v (φ : env -> Prop) (ψ : Prop) :=
 Definition patterns η δ ps vs (φ : env -> Prop) (ψ : Prop) :=
   pure (eval_pats η δ ps vs) φ (λ (_ : unit), ψ).
 
+(* [fpatterns η δ fps vs φ ψ] matches the field patterns [fps] against the
+   (already loaded) field values [vs] of a record. Loading the fields from
+   the heap is not a pure operation; it is handled by the Iris-level
+   judgement [ipattern] (see [program_logic/rules/ipattern_rules.v]),
+   which defers to [fpatterns] once the values are in hand. *)
+
+Definition fpatterns η δ fps vs (φ : env -> Prop) (ψ : Prop) :=
+  pure (eval_fpats η δ fps vs) φ (λ (_ : unit), ψ).
+
 (* -------------------------------------------------------------------------- *)
 
 Section pattern_rules.
@@ -280,6 +289,53 @@ Section pattern_rules.
     destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
   Qed.
 
+  (* Rules for inline-record patterns. An inline-record pattern
+     [PInline c p] matches an inline-record value with the same
+     constructor; the sub-pattern [p] is matched against the
+     underlying record. *)
+
+  Lemma pat_PInline_or η δ c c' p l φ ψ :
+    (c = c' -> pattern η δ p (VRecord l) φ ψ) ->
+    pattern η δ (PInline c p) (VInline c' l) φ (ψ ∨ c ≠ c').
+      (* This form is useful when the truth of the equality [c = c']
+        is not statically known. *)
+  Proof.
+    unfold pattern; intros. simpl_eval_pat.
+    destruct_string_eqb; eauto using pure_throw.
+    eapply pure_mono; first apply H; eauto.
+  Qed.
+
+  Lemma pat_PInline_eq η δ c p v l φ ψ :
+    v = VInline c l ->
+    pattern η δ p (VRecord l) φ ψ →
+    pattern η δ (PInline c p) v φ ψ.
+      (* This form is useful when [c = c'] is statically known. See
+         [pat_PData_eq] for why the [v = VInline c l] equation is
+         explicit. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    destruct_string_eqb; solve [ eauto using pure_wp_throw | tauto ].
+  Qed.
+
+  Lemma pat_PInline_neq η δ c p c' v l φ :
+    v = VInline c' l ->
+    c ≠ c' →
+    pattern η δ (PInline c p) v φ True.
+      (* This form is useful when [c ≠ c'] is statically known. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
+  Qed.
+
+  Lemma pat_PInline η δ c p c' v l φ :
+    v = VInline c' l ->
+    (c = c' -> pattern η δ p (VRecord l) φ True) ->
+    pattern η δ (PInline c p) v φ True.
+  Proof.
+    unfold pattern; intros. simpl_eval_pat. subst.
+    destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
+  Qed.
+
   (* This more general version is not used in tactics at the moment *)
   Lemma pat_PXData η δ π ps l l' vs φ ψ :
     lookup_path η π = Some (VLoc l') →
@@ -383,6 +439,66 @@ Section pattern_rules.
     patterns η δ (p :: ps) (v :: vs) φ (ψ1 ∨ ψ2).
   Proof.
     intros. eapply pats_PCons_unary.
+    eapply pattern_mono; eauto.
+  Qed.
+
+  (* Rules for field patterns. *)
+
+  Lemma fpatterns_mono η δ fps vs (φ φ' : env -> Prop) (ψ ψ' : Prop) :
+    fpatterns η δ fps vs φ ψ →
+    (∀ δ, φ δ → φ' δ) →
+    (ψ → ψ') →
+    fpatterns η δ fps vs φ' ψ'.
+  Proof.
+    unfold fpatterns; eauto using pure_mono.
+  Qed.
+
+  Lemma fpats_nil η δ vs φ ψ :
+    φ δ →
+    fpatterns η δ [] vs φ ψ.
+  Proof.
+    unfold fpatterns. simpl_eval_fpats.
+    eauto using pure_ret.
+  Qed.
+
+  (* Given a goal [fpatterns η δ [] vs ?φ ?ψ], applying [fpats_nil2]
+     solves the goal, instantiating the success postcondition [?φ] with
+     an environment equality and the failure postcondition [?ψ] with
+     [False] (compare [pat_PVar2]). *)
+
+  Lemma fpats_nil2 η δ vs :
+    fpatterns η δ [] vs (λ δ', δ' = δ) False.
+  Proof.
+    by apply fpats_nil.
+  Qed.
+
+  (* [vs] is in one-to-one correspondence with [fps]: its head is the
+     value of the field that the head pattern selects. The field index
+     [f] therefore plays no role here — the selection happened in
+     [loadfs], at the point where the field was read. The head is still
+     named by an equation rather than by a [v :: vs'] pattern, so that
+     the automation can normalize it (see [fpats] in [pure_tactics]). *)
+
+  Lemma fpats_cons_unary η δ f p fps vs vs' v φ ψ1 ψ2 :
+    vs = v :: vs' →
+    pattern η δ p v (λ δ, fpatterns η δ fps vs' φ ψ2) ψ1 →
+    fpatterns η δ ((f, p) :: fps) vs φ (ψ1 ∨ ψ2).
+  Proof.
+    unfold fpatterns. intros -> Hp. simpl_eval_fpats.
+    eapply pure_strong_bind; [ apply Hp | | tauto ].
+    intros δ' Hδ'.
+    eapply pure_strong_bind; [ apply Hδ' | | tauto ].
+    simpl; intros.
+    eapply pure_ret; eauto.
+  Qed.
+
+  Lemma fpats_cons η δ f p fps vs vs' v φ' φ ψ1 ψ2 :
+    vs = v :: vs' →
+    pattern η δ p v φ' ψ1 →
+    (∀ δ, φ' δ → fpatterns η δ fps vs' φ ψ2) →
+    fpatterns η δ ((f, p) :: fps) vs φ (ψ1 ∨ ψ2).
+  Proof.
+    intros. eapply fpats_cons_unary; first eassumption.
     eapply pattern_mono; eauto.
   Qed.
 

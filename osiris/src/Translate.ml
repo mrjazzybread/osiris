@@ -245,6 +245,82 @@ let translate_exp_constant loc (c : constant) : expr =
   | Const_nativeint _ ->
       eunsupported loc "native integer literal"
 
+(* -------------------------------------------------------------------------- *)
+
+(* The [@resolve p v] annotation, which resolves the prophecy [p] with the
+   pair of the annotated expression's result and [v]. *)
+let resolve_attribute = "resolve"
+
+(* [translate_proph loc e] translates the first argument of a [@resolve]
+   annotation, which names the prophecy. It must be an identifier: a
+   prophecy is looked up in the environment, and nothing else may be
+   evaluated at a resolution. *)
+
+let translate_proph loc (e : Parsetree.expression) : path =
+  let open Parsetree in
+  match e.pexp_desc with
+  | Pexp_ident id ->
+      translate_longident (txt id)
+  | _ ->
+      unsupported loc
+        "this prophecy in [@resolve]: it must be an identifier" []
+
+(* [translate_proph_arg loc e] translates the second argument of a
+   [@resolve] annotation, the auxiliary value the prophecy is resolved
+   with. It must be an identifier or a constant, for the same reason. *)
+
+let translate_proph_arg loc (e : Parsetree.expression) : proph_arg =
+  let open Parsetree in
+  match e.pexp_desc with
+  | Pexp_ident id ->
+      PArgPath (translate_longident (txt id))
+  | Pexp_construct (id, None) ->
+      (* [()], [true], [false], and any other constant data constructor. *)
+      PArgData (Longident.last (txt id))
+  | Pexp_constant { pconst_desc = Pconst_integer (s, None); _ } ->
+      PArgInt (int_of_string s)
+  | _ ->
+      unsupported loc
+        "this argument of [@resolve]: it must be an identifier or a constant"
+        (PArgData "()")
+
+(* [names_value m f path] tests whether [path] designates the value [f] of a
+   module named [m]. Dune wraps a library's modules, so [m] may be reached
+   through a generated prefix, as in [SomeLibrary__Proph]; we accept that, and
+   we accept a qualifying prefix such as [Stdlib]. *)
+
+let names_value m f path =
+  match List.rev path with
+  | f' :: m' :: _ ->
+      f' = f && (m' = m || Filename.check_suffix m' ("__" ^ m))
+  | _ ->
+      false
+
+(* [recognize_resolve attrs] returns the prophecy and the tag of the
+   [@resolve] annotation carried by [attrs], if there is one. *)
+
+let recognize_resolve (attrs : Parsetree.attributes) : (path * proph_arg) option =
+  let open Parsetree in
+  match
+    List.find_opt (fun a -> txt a.attr_name = resolve_attribute) attrs
+  with
+  | None ->
+      None
+  | Some attr ->
+      let loc = attr.attr_loc in
+      begin match attr.attr_payload with
+      | PStr [ { pstr_desc = Pstr_eval (
+            { pexp_desc = Pexp_apply (p, [ (Nolabel, v) ]); _ }, _
+          ); _ } ] ->
+          Some (translate_proph loc p, translate_proph_arg loc v)
+      | _ ->
+          unsupported loc
+            "this [@resolve] annotation: it must be written [@resolve p v]"
+            (Some ([], PArgData "()"))
+      end
+
+(* -------------------------------------------------------------------------- *)
+
 let translate_pat_constant loc (c : constant) : pat =
   match c with
   | Const_int i ->
@@ -278,6 +354,11 @@ let is_extensible (constructor_desc : Data_types.constructor_description) =
   | Data_types.Cstr_extension _ ->
       true
 
+let is_inline (constructor_desc : Data_types.constructor_description) =
+  match constructor_desc.cstr_inlined with
+  | None -> false
+  | Some _ -> true
+
 (* -------------------------------------------------------------------------- *)
 
 (* Patterns, also known as value patterns. *)
@@ -295,7 +376,13 @@ let rec translate_pat (pat: pattern) : pat =
       PVar (txt x)
 
   | Tpat_alias (pat, _, x, _, _) ->
-      PAlias (translate_pat pat, txt x)
+      (* A type-constrained binding [let (x : t) = ...] is elaborated by the
+         OCaml typechecker as [Tpat_alias (Tpat_any, x)]. An alias of a
+         wildcard is just a variable, so we simplify it to [PVar]. *)
+      begin match translate_pat pat with
+      | PAny -> PVar (txt x)
+      | pat  -> PAlias (pat, txt x)
+      end
 
   | Tpat_constant c ->
       translate_pat_constant loc c
@@ -306,12 +393,19 @@ let rec translate_pat (pat: pattern) : pat =
   | Tpat_construct (id, constructor_desc, pats, _optional_type_annotation) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = translate_pats pats in
-     if is_extensible constructor_desc then
-       PXData (translate_longident (txt id), tuple)
-     else
-       let data = translate_data_constructor id constructor_desc in
-       PData (data, tuple)
+    let data = translate_data_constructor id constructor_desc in
+    if is_inline constructor_desc then
+      (* An inline-record constructor pattern has exactly one argument:
+         a pattern for the record itself. *)
+      match pats with
+      | [ p ] -> PInline (data, translate_pat p)
+      | _ -> assert false
+    else
+      let tuple = translate_pats pats in
+      if is_extensible constructor_desc then
+        PXData (translate_longident (txt id), tuple)
+      else
+        PData (data, tuple)
 
   | Tpat_variant _ ->
       punsupported loc "polymorphic variant pattern"
@@ -374,6 +468,18 @@ let apply e1 e2s =
 let rec translate_expr (e: expression) : expr =
   let loc = e.exp_loc in
   decorate loc @@
+  match recognize_resolve e.exp_attributes with
+  | Some (p, v) ->
+      (* [e [@resolve p v]]. The resolution is fused with [e]: it happens at
+         the very step at which [e] produces its result, which is why only an
+         atomic operation may carry one. That restriction is enforced by the
+         semantics, in [eval], rather than here. *)
+      EResolve (translate_expr_desc e, p, v)
+  | None ->
+      translate_expr_desc e
+
+and translate_expr_desc (e: expression) : expr =
+  let loc = e.exp_loc in
   match e.exp_desc with
 
   | Texp_ident (path, id, _) ->
@@ -420,12 +526,24 @@ let rec translate_expr (e: expression) : expr =
   | Texp_construct (id, constructor_desc, es) ->
       (* An OCaml data constructor application is always translated as an
          application of the data constructor to a tuple of its arguments. *)
-     let tuple = translate_exprs es in
-     if is_extensible constructor_desc then
-       EXData (translate_longident (txt id), tuple)
-     else
-       let data = translate_data_constructor id constructor_desc in
-       EData (data, tuple)
+    let data = translate_data_constructor id constructor_desc in
+    if is_inline constructor_desc then
+      (* An inline record must only have one argument under the constructor:
+         the record. *)
+      match es with
+      | [ { exp_desc = Texp_record { fields; _ }; _ } ] ->
+        let tuple =
+          translate_record_field_defs fields |>
+          List.map (fun (Fexpr (_, e)) -> e)
+        in
+        EInline (data, is_mutable_record fields, tuple)
+      | _ -> assert false
+    else
+      let tuple = translate_exprs es in
+      if is_extensible constructor_desc then
+        EXData (translate_longident (txt id), tuple)
+      else
+        EData (data, tuple)
 
   | Texp_variant _ ->
       eunsupported loc "polymorphic variant"
@@ -436,8 +554,13 @@ let rec translate_expr (e: expression) : expr =
   | Texp_record { fields; representation = _; extended_expression = Some e } ->
       translate_record_update e fields
 
-  | Texp_atomic_loc (_e, _id, _label_desc) ->
-      eunsupported loc "record with atomic field(s)"
+  | Texp_atomic_loc (e, id, label_desc) ->
+      (* An atomic field location [[%atomic.loc e.f]] denotes the location
+         of the field [f] of the record [e]. Because every record field is
+         modeled as a separate location, this location can be returned as a
+         first-class value, on which the atomic primitives operate. *)
+      let field = translate_record_field id label_desc in
+      EAtomicLoc (translate_expr e, field)
 
   | Texp_field (e, id, label_desc) ->
       let field = translate_record_field id label_desc in
@@ -576,6 +699,11 @@ and translate_stdlib_application loc path args =
       EStore (e1, e2)
   | ["Stdlib"; "Atomic"; "compare_and_set"], [e1; e2; e3] ->
       ECAS (e1, e2, e3)
+  (* [Proph.create ()] allocates a prophecy variable. The module's own
+     definition is never the one that is verified: it exists so that an
+     annotated program still compiles and runs. *)
+  | _, [_] when names_value "Proph" "create" path ->
+      ENewProph
   | _, _ ->
       raise Unrecognized
 
@@ -705,6 +833,19 @@ and translate_primitive_application loc path p args =
   | ["Stdlib"; "Atomic"; "compare_and_set"], "%atomic_cas_loc", [e1; e2; e3] ->
       ECAS (e1, e2, e3)
 
+  (* Atomic field locations. These primitives are recognized regardless of
+     the path through which they are named, e.g. [Atomic.Loc.get] in the
+     standard library or a local alias. Their first argument is an atomic
+     location, that is, a value of the form [VLoc l]. *)
+  | _, "%atomic_load_loc", [e] ->
+      ELoad e
+  | _, "%atomic_exchange_loc", [e1; e2] ->
+      EExchange (e1, e2)
+  | _, "%atomic_cas_loc", [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
+  | _, "%atomic_fetch_add_loc", [e1; e2] ->
+      EFAA (e1, e2)
+
   (* Arrays. *)
 
   | ["Stdlib"; "Array"; "length"], "%array_length", [e] ->
@@ -749,13 +890,13 @@ and translate_function_param (param : function_param) e : expr =
      match param.fp_kind with
      | Tparam_optional_default (_, _) -> raise Unsupported
      | Tparam_pat p ->
-        match p.pat_desc with
+        match translate_pat p with
         (* We recognize the special case of [fun x -> e]. In this case
            we can use [AnonFun], a primitive form in the Osiris AST. *)
-        | Tpat_var (_, x, _) ->
-           EAnonFun (AnonFun (txt x, e))
-        | _ ->
-           EAnonFun (AnonFunction [Branch (CVal (translate_pat p), e)])
+        | PVar x ->
+           EAnonFun (AnonFun (x, e))
+        | p ->
+           EAnonFun (AnonFunction [Branch (CVal p, e)])
 
 and translate_function_params params e : expr =
   match params with
@@ -865,6 +1006,9 @@ and project_EAnonFun (e : expr) : anonfun =
 and project_Tpat_var (pat : value general_pattern) : var =
   match pat.pat_desc with
   | Tpat_var (_, v, _) -> txt v
+  (* A type-constrained binding [let rec f : t = ...] is elaborated as
+     [Tpat_alias (Tpat_any, f)]; it binds exactly one variable. *)
+  | Tpat_alias ({ pat_desc = Tpat_any; _ }, _, v, _, _) -> txt v
   | _ -> assert false
 
 and translate_rec_binding (vb : value_binding) : rec_binding =
@@ -1001,6 +1145,17 @@ and translate_primitive_expr prim_name args =
       ERef e
   | "%setfield0", [e1; e2] ->
       EStore (e1, e2)
+
+  (* Atomic field locations. *)
+
+  | "%atomic_load_loc", [e] ->
+      ELoad e
+  | "%atomic_exchange_loc", [e1; e2] ->
+      EExchange (e1, e2)
+  | "%atomic_cas_loc", [e1; e2; e3] ->
+      ECAS (e1, e2, e3)
+  | "%atomic_fetch_add_loc", [e1; e2] ->
+      EFAA (e1, e2)
 
   (* Arrays. *)
 

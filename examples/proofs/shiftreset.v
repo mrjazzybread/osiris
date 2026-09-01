@@ -1,5 +1,4 @@
 From stdpp Require Import telescopes.
-From iris.proofmode Require Import base ltac_tactics classes environments.
 From iris.algebra Require Import excl_auth.
 
 From osiris Require Import osiris.
@@ -24,7 +23,7 @@ Section shift_protocol.
   Definition is_shift (Ψ : iEff Σ) (Φ Q : val → iPropO Σ) h : iProp Σ :=
     iSpec τ[cont] h (λ k m,
         (∀ w, Q w -∗ may_resume (O2Ret w) k ⊤ Ψ ⊥ Φ) -∗
-        ▷ imp m <| Ψ |> {{ Φ }})%I.
+        ▷ EWP m <| Ψ |> {{ Φ }})%I.
 
   (* Note that this specification is different from in [Hazel]; there is
      no recursive reference within the specification itself. *)
@@ -56,20 +55,20 @@ Section reasoning_rules.
   Definition env (shift_eff : loc) := ("Shift", #shift_eff) :: [].
 
   (* Mapping of translated function declaration names *)
-  Definition shift_f := (EAnonFun __fun0).
-  Definition reset_f := (EAnonFun __fun2).
+  Definition shift_f := (EAnonFun __shift).
+  Definition reset_f := (EAnonFun __reset).
 
   Definition reset_spec ℓ : val → microvx → iProp Σ :=
     λ f m,
       (∀ (Ψ : iEff Σ) (Φ : val → iProp Σ),
-          iSpec τ[unit] f (λ _ m, imp m <|SHIFT ℓ Ψ Φ|> {{ Φ }}) -∗
-          imp m <|Ψ|> {{ Φ }})%I.
+          iSpec τ[unit] f (λ _ m, EWP m <|SHIFT ℓ Ψ Φ|> {{ Φ }}) -∗
+          EWP m <|Ψ|> {{ Φ }})%I.
 
   Definition shift_spec ℓ : val → microvx → iProp Σ :=
     λ f m,
       (∀ (Ψ : iEff Σ) (Φ Q : val → iProp Σ),
           is_shift Ψ Φ Q f -∗
-          imp m <|SHIFT ℓ Ψ Φ|> {{ Q }})%I.
+          EWP m <|SHIFT ℓ Ψ Φ|> {{ Q }})%I.
 
 End reasoning_rules.
 
@@ -95,8 +94,8 @@ Section verification.
 
   Lemma establish_shift_spec η :
     lookup_name η "Shift" = Some #shift_eff →
-    ⊢ imp eval η (EAnonFun __fun0)
-      {{ λ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
+    ⊢ EWP eval η (EAnonFun __shift)
+      {{ v, □ iSpec τ[val] v (shift_spec shift_eff) }}.
   Proof.
     iIntros (Hlookup).
     iApply (imp_EAnon_pers τ[val]); simpl.
@@ -115,8 +114,8 @@ Section verification.
 
   Lemma establish_reset_spec η :
     lookup_name η "Shift" = Some #shift_eff →
-    ⊢ imp eval η (EAnonFun __fun2)
-      {{ λ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
+    ⊢ EWP eval η (EAnonFun __reset)
+      {{ v, □ iSpec τ[val] v (reset_spec shift_eff) }}.
   Proof.
     iIntros (Hlookup).
     iApply (imp_EAnon_pers τ[val]); simpl.

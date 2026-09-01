@@ -198,6 +198,12 @@ Global Instance data_nodeR `{Encode A} : Data "NodeR" τ[tree A; A; zipper A] (z
   { ctor_apply := λ '(t1, (x, t2)), NodeR t1 x t2;
     ctor_encode := λ '(t1, (x, t2)), eq_refl }.
 
+Global Instance Constant_Leaf `{Encode A} : Constant "Leaf" (tree A) :=
+  { constant_value := Leaf; constant_encode := eq_refl }.
+
+Global Instance Constant_Root `{Encode A} : Constant "Root" (zipper A) :=
+  { constant_value := Root; constant_encode := eq_refl }.
+
 End encode.
 
 (* -------------------------------------------------------------------------- *)
@@ -547,7 +553,7 @@ Proof. rewrite /singleton. by intros ->. Qed.
 
 Lemma Splay_spec :
   splay_spec
-    (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __branches1)] "splay").
+    (VCloRec stdlib_env [RecBinding "splay" (AnonFunction __splay_branches1)] "splay").
 Proof.
   intros A H ctx l x r.
 
@@ -654,7 +660,7 @@ Qed.
 Lemma Splay_leaf_spec splay :
   splay_spec splay ->
   splay_leaf_spec
-    (VClo ("splay" ~> splay; stdlib_env) __fun4).
+    (VClo ("splay" ~> splay; stdlib_env) __splay_leaf).
 Proof.
   unfold splay_leaf_spec.
   intros Hsplay A H ctx.
@@ -669,8 +675,7 @@ Proof.
   (* Case: [ctx] matches [NodeL (up, x, r)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl. (* Todo: weird *)
+    pure_const (tree A). apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
 
     intros ? ? -> <-.
@@ -681,11 +686,10 @@ Proof.
   (* Case: [ctx] matches [NodeR (l, x, up)] *)
   { eapply pure_eval_app. pure_path.
     pure_tuple.
-    eapply pure_eval_const.
-    apply (@solve_encode_Leaf A); reflexivity. apply eq_refl.
+    pure_const (tree A). apply eq_refl.
     intros ???? (<- & <- & <- & <-). apply eq_refl.
     intros ? ? -> <-.
-    specialize (Hsplay _ _ z' t a Leaf).
+    specialize (Hsplay A _ x1 x x0 Leaf).
     apply Hsplay. }
 Qed.
 
@@ -696,7 +700,7 @@ Lemma Zlookup_spec splay splay_leaf :
     (VCloRec ("splay_leaf" ~> splay_leaf;
               "splay" ~> splay;
               stdlib_env)
-       [RecBinding "zlookup" (AnonFunction __branches11)]
+       [RecBinding "zlookup" (AnonFunction __zlookup_branches1)]
        "zlookup").
 Proof.
   unfold zlookup_spec.

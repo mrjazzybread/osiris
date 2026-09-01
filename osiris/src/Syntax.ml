@@ -78,6 +78,9 @@ type pat =
   | PXData of path * pats
   (* A record pattern. *)
   | PRecord of fpats
+  (* An inline-record pattern: [C p] where [C] is an inline-record
+     constructor and [p] matches the underlying record. *)
+  | PInline of data * pat
   (* A literal integer pattern. *)
   | PInt of int
   (* A literal character pattern. *)
@@ -149,6 +152,26 @@ and fcoercions =
 
 (* -------------------------------------------------------------------------- *)
 
+(* The auxiliary argument of a prophecy resolution. *)
+
+(* A resolution [e [@resolve p v]] is a ghost annotation: it must not change
+   what the program does. So neither [p] nor [v] is an arbitrary expression.
+   Evaluating one could take a step, allocate, or perform an effect, and the
+   erasure of [EResolve (e, p, v)] down to [e] would no longer be sound. The
+   prophecy [p] is a path, and the auxiliary argument [v] is drawn from the
+   grammar below. *)
+
+type proph_arg =
+  (* A path [x] or [π.x], looked up in the environment. *)
+  | PArgPath of path
+  (* A constant data constructor: [()], [true], [false], [None], ... *)
+  | PArgData of data
+  (* An integer literal. *)
+  | PArgInt of int
+    [@@ deriving show]
+
+(* -------------------------------------------------------------------------- *)
+
 (* Expressions. *)
 
 type expr =
@@ -186,6 +209,11 @@ type expr =
   | ERecordAccess of expr * field
   (* Mutable record field assignment: [e1.f <- e2]. *)
   | ERecordSet of expr * field * expr
+  (* Atomic record field location: [[%atomic.loc e.f]]. *)
+  | EAtomicLoc of expr * field
+
+  (* Inline-record construction: [A {fs = es}] *)
+  | EInline of data * mut_tag * exprs
 
   (* Length of an array: [Array.length a] *)
   | EArrayLength of expr
@@ -303,6 +331,21 @@ type expr =
   | ECAS of expr * expr * expr
   (* Fetch-and-add: [Atomic.fetch_and_and e1 e2]. *)
   | EFAA of expr * expr
+
+  (* Allocating a prophecy variable: [Proph.create ()]. *)
+  | ENewProph
+  (* Resolving a prophecy variable: [EResolve (e, π, a)] resolves the
+     prophecy denoted by the path [π] with the pair of [e]'s result and the
+     value of the auxiliary argument [a], at the very step at which [e]
+     produces that result.
+
+     In OCaml this is written as an ATTRIBUTE on the resolved expression,
+     [e [@resolve p v]], rather than as a function call: the resolution is
+     a ghost annotation with no runtime meaning, and an attribute is
+     erased by the OCaml compiler, so the program still runs unchanged.
+     Neither argument of the attribute is an arbitrary expression; see
+     [proph_arg] above. *)
+  | EResolve of expr * path * proph_arg
 
   | EIgnore of expr
 

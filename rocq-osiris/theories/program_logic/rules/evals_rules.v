@@ -59,7 +59,7 @@ Section evals_rules.
   Lemma imp_EData `{DC : Data c τ A} {Φ : A → iProp Σ} η es (Φs : τ → iProp Σ) :
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(ctor_apply) xs)) -∗
-    imp eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "H Hk". simpl_eval.
     iApply (imp_bind with "H").
@@ -70,11 +70,21 @@ Section evals_rules.
     simpl. apply DC.(ctor_encode).
   Qed.
 
+  Lemma imp_EData_evar `{DC : Data c τ A} η es (Φs : τ → iProp Σ) :
+    impure E (evals η es) Ψ ζ Φs -∗
+    EWP eval η (EData c es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, ∃# xs, ⌜x = DC.(ctor_apply) xs⌝ ∗ Φs xs }}.
+  Proof.
+    iIntros "Hes".
+    iApply (imp_EData with "Hes").
+    rewrite bi_tforall_equiv. setoid_rewrite bi_texist_equiv.
+    iIntros (xs) "$ //".
+  Qed.
+
   Lemma imp_EXData `{DC : XData l τ A} {Φ : A → iProp Σ} η π es (Φs : τ → iProp Σ) :
     lookup_path η π = Some #l →
     impure E (evals η es) Ψ ζ Φs -∗
     (∀# xs, Φs xs -∗ Φ (DC.(xctor_apply) xs)) -∗
-    imp eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EXData π es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros (Hlookup) "He Hk". simpl_eval.
     rewrite Hlookup. unfold as_loc; simpl. rewrite !bind_ret.
@@ -85,5 +95,45 @@ Section evals_rules.
     iApply (imp_ret _ (DC.(xctor_apply) xs)); last iApply "HΦ".
     simpl. apply DC.(xctor_encode).
   Qed.
+
+  Lemma imp_ETuple {τ : types} {Φ : τ → iProp Σ} (Φs : τ → iProp Σ) η es :
+    impure E (evals η es) Ψ ζ Φs -∗
+    (∀# (xs : τ), Φs xs -∗ Φ xs) -∗
+    impure E (eval η (ETuple es)) Ψ ζ Φ.
+  Proof.
+    iIntros "Hes Hk".
+    simpl_eval.
+    iApply (imp_bind with "Hes").
+    iIntros (xs) "HΦs".
+    rewrite bi_tforall_equiv.
+    iDestruct ("Hk" with "HΦs") as "HΦ".
+    iApply (imp_ret with "HΦ").
+    encode.
+  Qed.
+
+  (* Tuple construction without a monotonicity premise: the elements
+     are evaluated directly against the tuple postcondition [Φ].  This
+     is the version to use when [Φ] is still an evar, since the split
+     amongst the elements then determines [Φ] and no monotonicity goal
+     is needed. *)
+  Lemma imp_ETuple_evar {τ : types} {Φ : τ → iProp Σ} η es :
+    impure E (evals η es) Ψ ζ Φ -∗
+    impure E (eval η (ETuple es)) Ψ ζ Φ.
+  Proof.
+    iIntros "Hes".
+    simpl_eval.
+    iApply (imp_bind with "Hes").
+    iIntros (xs) "HΦs".
+    iApply (imp_ret with "HΦs").
+    encode.
+  Qed.
+
+  (* Reflexivity of the [imp_ETuple] monotonicity premise.  Used by the
+     [imp_step] automation to discharge that premise when a tuple is
+     solved without a selection pattern: applying it unifies the
+     intermediate postcondition with the tuple postcondition. *)
+  Lemma tuple_mono_refl {τ : types} (Φ : τ → iProp Σ) :
+    ⊢ ∀# (xs : τ), Φ xs -∗ Φ xs.
+  Proof. rewrite bi_tforall_equiv. iIntros (xs) "H". iApply "H". Qed.
 
 End evals_rules.

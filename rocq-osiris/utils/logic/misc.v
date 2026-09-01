@@ -16,6 +16,18 @@ Proof.
   firstorder.
 Qed.
 
+(* [and_dup] shrinks a conjunctive goal whose right half follows from its
+   left down to the left half alone. Stating the derivation as [P → Q] and
+   letting [apply] read [P] off the goal saves restating [P] at every use site. *)
+
+Lemma and_dup (P Q : Prop) :
+  (P → Q) →
+  P →
+  P ∧ Q.
+Proof.
+  tauto.
+Qed.
+
 (* Rewriting rules that are used to simplify typical goals. *)
 
 Lemma true_iff (P : Prop) :

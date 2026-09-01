@@ -99,7 +99,7 @@ Fixpoint tapp {τs : types} {U} : (τs -#> U) -> τs → U :=
   end.
 (* The bidirectionality hint [&] simplifies defining arg_app-based notation *)
 (* such as the atomic updates and atomic triples in Iris. *)
-Global Arguments tapp {!_ _} & _ !_ /.
+Global Arguments tapp {!_} / {_} & _ _.
 Global Coercion tapp : fun_type >-> Funclass.
 
 (* Inversion for [coerce_to_type] *)
@@ -329,6 +329,8 @@ Section types_helpers.
     - exact (tau_lookup_go τ (Z.to_nat f) xs).
   Defined.
 
+  Global Arguments τ_lookup_total {τ} / (f xs).
+
   Global Instance encode_types_lookup {τ : types} {f : Z} : Encode (τ !!! f).
   Proof.
     unfold lookup_total, types_lookup_total.
@@ -435,10 +437,10 @@ Include universes.
 
   Definition bi_tforall {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
     tfold (λ (T : Type@{_}) (b : T → PROP), ∀ x : T, b x)%I Datatypes.id (tbind Ψ).
-  Global Arguments bi_tforall {_ !_} _ /.
+  Global Arguments bi_tforall {_ !_} / _.
   Definition bi_texist {PROP : bi} {τ : types} (Ψ : τ → PROP) : PROP :=
     tfold (@bi_exist PROP) Datatypes.id (@tbind PROP τ Ψ).
-  Global Arguments bi_texist {_ !_} _ /.
+  Global Arguments bi_texist {_ !_} / _.
 
   Notation "'∀#' x .. y , P" := (bi_tforall (λ x, .. (bi_tforall (λ y, P)) .. ))
                                 (at level 200, x binder, y binder, right associativity,

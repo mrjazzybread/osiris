@@ -1,4 +1,4 @@
-From osiris Require Import osiris.
+From osiris Require Import osiris lang.
 From osiris.utils Require Import big_opLZ.
 
 
@@ -20,15 +20,20 @@ Section verification.
 
   Context `{!osirisGS Σ}.
 
+  (* [imp_arith reading] splits the resource in two, and the proofmode
+     does that through [AsFractional]; hence the [DfracOwn]. Reading at a
+     discarded share does not need [imp_arith]'s splitting at all — the
+     resource is duplicable there ([ownBlock_discarded_dup]). *)
   Definition length_spec r (m : microvx) : iProp Σ :=
     ∀ qp t (x y : Z),
-      ▷ @ownRecord Σ _ τ[Z; Z] r qp t (x, y) -∗
-      imp m {{ λ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗ @ownRecord _ _ τ[Z; Z] r qp t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z; Z]) r (DfracOwn qp) t (x, y) -∗
+      EWP m {{ (i : Z), ⌜i = (x*x + y*y)%Z⌝ ∗
+                 ownBlock (τ:=τ[Z;Z]) r (DfracOwn qp) t (x, y) }}.
 
   Definition elength := EAnonFun __fun0.
 
   Lemma imp_length η :
-    ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length length_spec }}.
+    ⊢ EWP (eval η elength) {{ length, □ iSpec τ[record] length length_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r qp t x y) "Hown".
@@ -44,13 +49,13 @@ Section verification.
 
   Definition update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ t (x0 y : Z),
-      ▷ @ownRecord Σ _ τ[Z;Z] r 1 t (x0, y) -∗
-      imp m {{ λ (_ : unit), @ownRecord Σ _ τ[Z;Z] r 1 t (x, y) }}.
+      ▷ ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x0, y) -∗
+      EWP m {{ (_ : unit), ownBlock (τ:=τ[Z;Z]) r (DfracOwn 1) t (x, y) }}.
 
   Definition eupdate_x := EAnonFun __fun2.
 
   Lemma imp_update_x η :
-    ⊢ imp (eval η eupdate_x) {{ λ update_x, □ iSpec τ[record; Z] update_x update_x_spec }}.
+    ⊢ EWP (eval η eupdate_x) {{ update_x, □ iSpec τ[record; Z] update_x update_x_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r x t x0 y) "Hown".
@@ -65,9 +70,83 @@ Section verification.
 
   (* -------------------------------------------------------------------------- *)
 
+  (* Matching a record pattern against a record value:
+     [match v with { x = a; y = b } -> a + b].
+     The match reads the record's fields, so the pattern premise is the
+     Iris judgement [icpattern] (see [ipattern_rules]); the sub-patterns
+     are delegated to the pure [fpatterns] judgement. *)
+
+  Lemma match_record_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    EWP eval (("v", VRecord r) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=record) (λ r', ⌜r' = r⌝)%I with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (r') "-> !>".
+    next_branch.
+    iApply (imp_wand with "[]").
+    { imp_arith. }
+    iIntros (i) "->". by iFrame.
+  Qed.
+
+  (* The same, on an inline record, through an alias pattern — the shape
+     generated for [match v with Root ({ x = a; y = b } as w) -> ...]. *)
+
+  Lemma match_inline_record_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    EWP eval (("v", VInline "Root" r) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PInline "Root"
+                            (PAlias (PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]) "w")))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=val) (λ v, ⌜v = VInline "Root" r⌝)%I with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (v) "-> !>".
+    next_branch.
+    iApply (imp_wand with "[]").
+    { imp_arith. }
+    iIntros (i) "->". by iFrame.
+  Qed.
+
+  (* A mixed pattern: a heap-free sub-pattern (a literal) next to a
+     record pattern in the same tuple. [next_branch] lowers the
+     literal to the pure engine mid-walk and processes the record with
+     the Iris rules; the literal's no-match side surfaces as the pure
+     refutation witness [1 = 1]. *)
+
+  Lemma match_mixed_fields η r qp t (x y : Z) :
+    ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗
+    EWP eval (("v", VTuple ((#1%Z) :: VRecord r :: nil)) :: η)
+        (EMatch (EVar "v")
+           [Branch (CVal (PTuple [PInt 1; PRecord [(0%Z, PVar "a"); (1%Z, PVar "b")]]))
+                   (EIntAdd (EVar "a") (EVar "b"))])
+        {{ (i : Z), ⌜i = (x + y)%Z⌝ ∗ ownBlock (τ:=τ[Z;Z]) r qp t (x, y) }}.
+  Proof.
+    iIntros "Hown".
+    iApply (imp_EMatch (A':=val) (λ v, ⌜v = VTuple ((#1%Z) :: VRecord r :: nil)⌝)%I
+             with "[]").
+    { iApply imp_wand. imp_path. iIntros (?) "-> //". }
+    iIntros (v) "-> !>".
+    next_branch.
+    { iApply (imp_wand with "[]").
+      { imp_arith. }
+      iIntros (i) "->". by iFrame. }
+    reflexivity.
+  Qed.
+
+  (* -------------------------------------------------------------------------- *)
+
   Lemma module_proof η :
     2 ≤ max_array_length →
-    ⊢ imp (eval_mexpr η __main)
+    ⊢ EWP (eval_mexpr η __main)
       {{ context
            [ var_spec "length" (λ length, iSpec τ[record] length length_spec);
              var_spec "update_x" (λ update, iSpec τ[record;Z] update update_x_spec) ]
@@ -107,11 +186,6 @@ Section encoded_fields.
 
   Hypothesis Hmax : (2 ≤ max_array_length)%Z.
 
-  Class RecordRepr (A : Type) (τ : types) (t : mut_tag) :=
-    { repr_to_types : A → τ;
-      types_to_repr : τ -#> A;
-      repr_id : ∀ xs, (repr_to_types ∘ types_to_repr) xs = xs }.
-
   Record point : Type := { x : Z; y : Z }.
 
   Instance point_record : RecordRepr point τ[Z;Z] Mut :=
@@ -119,77 +193,20 @@ Section encoded_fields.
       types_to_repr := λ x y, {| x:=x; y:=y |};
       repr_id := λ '(x, y), eq_refl }.
 
-  Definition ownRepr `{RecordRepr A τ t} (r : record) qp (a : A) : iProp Σ :=
-    ownRecord (τ:=τ) r qp t (repr_to_types a).
-
-  Instance ownRepr_fractional `{RecordRepr A τ t} r (a : A) : Fractional (λ qp, ownRepr r qp a) := _.
-
-  Global Instance ownRepr_as_fractional `{RecordRepr A t} (r : record) q (a : A) :
-    AsFractional (ownRepr r q a) (λ q, ownRepr r q a) q.
-  Proof. constructor; done || apply _. Qed.
-
-  (* -------------------------------------------------------------------------- *)
-
-  Lemma imp_record `{RecordRepr A τ t} {η E Ψ ζ} es (Φs : τ -#> iProp Σ) :
-    (τ_length τ ≤ max_array_length)%Z →
-    impure E (evals η es) Ψ ζ Φs -∗
-    impure E (eval η (ERecord t es)) Ψ ζ (λ r, ∃# (xs : τ), ownRepr r 1 (types_to_repr xs) ∗ Φs xs).
-  Proof.
-    iIntros (Hlength) "Hes".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecord with "Hes"). assumption. }
-    iIntros (r).
-    rewrite !bi_texist_equiv.
-    iIntros "(%xs & Hr & HΦ)".
-    iFrame. unfold ownRepr.
-    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
-    iApply "Hr".
-  Qed.
-
-  Lemma imp_record_access `{RecordRepr A τ t} {η E Ψ ζ} f (r : record) (qp : Qp) (a : A) (e : expr) :
-    valid_field f τ →
-    ▷ ownRepr r qp a -∗
-    impure E (eval η e) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η (ERecordAccess e f)) Ψ ζ (λ (x : τ !!! f), ⌜x = repr_to_types a !!τ f⌝ ∗ ownRepr r qp a).
-  Proof.
-    iIntros (Hvalid) "Hown He".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordAccess with "Hown He"). assumption. }
-    iIntros (x) "($ & $)".
-  Qed.
-
-  Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
-    valid_field f τ →
-    ▷ ownRepr r 1 a -∗
-    impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
-    impure E (eval η e2) Ψ ζ Φ -∗
-    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ
-      (λ _ : unit, ∃ (x : τ !!! f), Φ x ∗ ownRepr r 1 (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
-  Proof.
-    iIntros (Hvf) "Hown He1 He2".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordSet with "Hown He1 He2"). exact Hvf. }
-    iIntros (_) "(%x & HΦ & Hrecord)".
-    iExists x. iFrame "HΦ".
-    unfold ownRepr.
-    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
-    iApply "Hrecord".
-  Qed.
-
   (* -------------------------------------------------------------------------- *)
 
   Definition point_length_spec r (m : microvx) : iProp Σ :=
     ∀ qp (p : point),
-      ▷ ownRepr r qp p -∗
-      imp m {{ λ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ ownRepr r qp p }}.
+      ▷ r ⤇{#qp} p -∗
+      EWP m {{ (i : Z), ⌜i = (p.(x) * p.(x) + p.(y) * p.(y))%Z⌝ ∗ r ⤇{#qp} p }}.
 
   Definition point_update_x_spec r x (m : microvx) : iProp Σ :=
     ∀ (p : point),
-      ▷ ownRepr r 1 p -∗
-      imp m {{ λ (_ : unit), ownRepr r 1 {| x := x; y:=p.(y) |} }}.
+      ▷ r ⤇ p -∗
+      EWP m {{ (_ : unit), r ⤇ {| x := x; y:=p.(y) |} }}.
 
   Lemma imp_point_length η :
-    ⊢ imp (eval η elength) {{ λ length, □ iSpec τ[record] length point_length_spec }}.
+    ⊢ EWP (eval η elength) {{ length, □ iSpec τ[record] length point_length_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r qp p) "Hown".
@@ -198,15 +215,10 @@ Section encoded_fields.
 
     (* Goal: [(v.x * v.x) + (v.y * v.y)] *)
     imp_arith reading "Hown".
-    (* Subgoals of the form [v.x]: *)
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
-    - iApply (imp_record_access with "Hown"). split; simpl; lia. imp_path.
   Qed.
 
   Lemma imp_point_update_x η :
-    ⊢ imp (eval η eupdate_x) {{ λ update_x, □ iSpec τ[record; Z] update_x point_update_x_spec }}.
+    ⊢ EWP (eval η eupdate_x) {{ update_x, □ iSpec τ[record; Z] update_x point_update_x_spec }}.
   Proof.
     iApply imp_EAnon_pers.
     iIntros "!>" (r x p) "Hown".
@@ -222,7 +234,7 @@ Section encoded_fields.
   (* -------------------------------------------------------------------------- *)
 
   Lemma point_module_proof η :
-    ⊢ imp (eval_mexpr η __main)
+    ⊢ EWP (eval_mexpr η __main)
       {{ context
            [ var_spec "length" (λ length, iSpec τ[record] length point_length_spec);
              var_spec "update_x" (λ update, iSpec τ[record;Z] update point_update_x_spec) ]
@@ -231,9 +243,7 @@ Section encoded_fields.
     iApply imp_module.
 
     iApply (imp_sitems_let (A:=record)).
-    { iApply (imp_record (A:=point)). assumption.
-      iApply imp_evals_cons. imp_arith.
-      iApply imp_evals_singleton. imp_arith. }
+    { imp_record. }
     iIntros (r) "(%x & %y & Hown & (-> & ->))".
     unfold types_to_repr. simpl.
 
@@ -250,5 +260,28 @@ Section encoded_fields.
     iFrame "#". simpl. auto.
   Qed.
 
+  (* -------------------------------------------------------------------------- *)
+
+  (* The point of indexing [ownRecord] by a [dfrac] rather than a [Qp]:
+     a record whose contents will never change again can be held at
+     [DfracDiscarded], where it is freely duplicable... *)
+
+  Lemma point_discarded_dup (r : record) (p : point) :
+    r ⤇□ p ⊢ r ⤇□ p ∗ r ⤇□ p.
+  Proof. rewrite {1}ownRecord_discarded_dup //. Qed.
+
+  (* ...and still enough to read a field. Before, a discarded share could
+     not be written at all at the [ownRecord] level, and clients had to
+     drop down to [isBlockLocs] plus a raw per-field points-to. *)
+
+  Lemma imp_point_read_discarded η e (r : record) (p : point) :
+    ▷ r ⤇□ p -∗
+    EWP (eval η e) {{ (r' : record), ⌜r' = r⌝ }} -∗
+    EWP (eval η (ERecordAccess e 0%Z)) {{ (i : Z), ⌜i = p.(x)⌝ ∗ r ⤇□ p }}.
+  Proof.
+    iIntros "Hown He".
+    iApply (imp_record_access with "Hown He").
+    split; simpl; lia.
+  Qed.
 
 End encoded_fields.

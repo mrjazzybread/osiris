@@ -92,6 +92,18 @@ Definition eff := val.
 (* [CFork (f, a) is a request to create a new thread, and to evaluate the
    application [f a] inside of it. *)
 
+(* [CNewProph ()] allocates a fresh prophecy variable and returns its
+   identifier. A prophecy variable has no computational content and is
+   never read or written: it is a name, to which the program logic can
+   attach a prediction about the future. *)
+
+(* [CResolve c (x, p, v)] performs the system call [c x] and, in the
+   same step, resolves the prophecy [p] with the pair of the call's
+   result and [v]. *)
+
+(* [CReturn w] is the system call that does nothing and returns [w]. It
+   exists so that a resolution has a step to happen at. *)
+
 Inductive code : Type → Type → Type → Type :=
 | CEval  : code (env * expr) val exn
 | CLoop  : code (env * var * int * int * expr) val exn
@@ -109,6 +121,9 @@ Inductive code : Type → Type → Type → Type :=
 | CWrap : code (bool * cont * env * handler) loc exn
 | CFork : code (val * val) val exn
 | CJoin : code thread val exn
+| CNewProph : code unit loc exn
+| CResolve {X} (c : code X val exn) : code (X * loc * val) val exn
+| CReturn : code val val exn
 .
 
 Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
@@ -117,9 +132,14 @@ Definition is_concurrent_code {v exn eff} (c : code v exn eff) : Prop :=
   | _ => False
   end.
 
+(* The codes that [step] cannot reduce on their own, and which therefore
+   float out of [Handle] and [Par] until they reach the top of a thread.
+   [CResolve] joins them for the same reason [CFork] and [CJoin] are here:
+   its step belongs to [subjective_step]. *)
+
 Definition step_through_par_code {v exn eff} (c : code v exn eff) :=
   match c with
-  | CPerf | CJoin | CFork => True
+  | CPerf | CJoin | CFork | CResolve _ => True
   | _ => False
   end.
 
@@ -210,6 +230,28 @@ Definition faa (l : loc) (i : int) :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [new_proph] allocates a fresh prophecy variable. *)
+
+Definition new_proph : micro loc exn :=
+  stop CNewProph ().
+
+(* [resolve c x p v] performs the system call [c x] and resolves the
+   prophecy [p] with the pair of its result and [v], at that very step. *)
+
+Definition resolve {X} (c : code X val exn) (x : X) (p : loc) (v : val)
+  : micro val exn :=
+  stop (CResolve c) (x, p, v).
+
+(* ------------------------------------------------------------------------ *)
+
+(* An observation records one prophecy resolution: the identifier that was
+   resolved, the result of the system call it was fused with, and the
+   annotation the program supplied. *)
+
+Definition observation : Type := loc * (val * val).
+
+(* ------------------------------------------------------------------------ *)
+
 Definition fork (v1 v2 : val) :=
   stop CFork (v1, v2).
 
@@ -253,6 +295,19 @@ Fixpoint loadn {E} (ls : list loc) : micro (list val) E :=
       vs ← loadn ls ;
       ret (v :: vs)
   end.
+
+(* Loading a concatenation is loading each part in turn. *)
+
+Lemma loadn_app {E} (ls1 ls2 : list loc) :
+  loadn (E:=E) (ls1 ++ ls2) =
+  (vs1 ← loadn ls1 ;
+   vs2 ← loadn ls2 ;
+   ret (vs1 ++ vs2)).
+Proof.
+  induction ls1 as [| l ls1 IH]; simpl.
+  { symmetry. apply bind_ret_right. }
+  rewrite IH. repeat setoid_rewrite bind_bind. reflexivity.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 

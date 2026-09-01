@@ -11,7 +11,7 @@ Context `{!osirisGS Σ}.
    depends on a variable [y] that was created after the creation of the evar, in
    which case, instantiate the evar with something like [λx, ∃y, ⌜x = y⌝ ∗ R] *)
 Lemma imp_ret_eq `{Encode A} {E} {Ψ} (v : A) :
-  ⊢ imp (@Ret val E #v) <|Ψ|> {{ λ x, ⌜x = v⌝ }}.
+  ⊢ EWP (@Ret val E #v) <|Ψ|> {{ x, ⌜x = v⌝ }}.
 Proof.
   iApply imp_ret; auto.
 Qed.
@@ -38,14 +38,14 @@ Qed.
 (* [ref 1] *)
 
 Lemma example_ref_1 η:
-  ⊢ imp (eval η (ERef (EInt 1))) {{ λ (l : loc), l ↦ #1%Z }}.
+  ⊢ EWP (eval η (ERef (EInt 1))) {{ (l : loc), l ↦ #1%Z }}.
 Proof.
   imp_ref.
 Qed.
 
 (* [!x] *)
 Lemma example_load η x l v :
-  l ↦ #v ⊢ imp (eval (x~>#l; η) (ELoad (EVar x))) {{ λ v', ⌜v' = v⌝ ∗ l ↦ v }}.
+  l ↦ #v ⊢ EWP (eval (x~>#l; η) (ELoad (EVar x))) {{ v', ⌜v' = v⌝ ∗ l ↦ v }}.
 Proof.
   iIntros "Hl".
   imp_load l.
@@ -55,8 +55,8 @@ Qed.
 Lemma example_store η x l :
   lookup_name η x = Some #l ->
   l ↦ #1%Z
-    ⊢ imp (eval η (EStore (EVar x) (EInt 2)))
-    {{ λ (_ : unit), l ↦ #2 }}.
+    ⊢ EWP (eval η (EStore (EVar x) (EInt 2)))
+    {{ (_ : unit), l ↦ #2 }}.
 Proof.
   iIntros (Hx) "Hl".
   imp_store l.
@@ -66,11 +66,11 @@ Qed.
 Lemma example_2_stores η x l :
   lookup_name η x = Some #l ->
   l ↦ #1%Z
-  ⊢ imp (eval η
+  ⊢ EWP (eval η
            (ESeq
               (EStore (EVar x) (EInt 2))
               (EStore (EVar x) (EInt 4))))
-      {{ λ (_ : unit), l ↦ #4%Z }}.
+      {{ (_ : unit), l ↦ #4%Z }}.
 Proof.
   iIntros (Hx) "Hl".
   iApply (imp_ESeq with "[Hl]").
@@ -81,7 +81,7 @@ Qed.
 
 (* [!(ref 1)]  *)
 Lemma example_load_ref η :
-  ⊢ imp (eval η (ELoad (ERef (EInt 1)))) {{ λ r, ⌜r = 1%Z⌝ }}.
+  ⊢ EWP (eval η (ELoad (ERef (EInt 1)))) {{ r, ⌜r = 1%Z⌝ }}.
 Proof.
   iApply (imp_ELoad2 (λ l, l ↦ #1%Z)%I).
   - (* ref 1 *)
@@ -95,8 +95,8 @@ Qed.
 Lemma example_incr η x lx n :
   lookup_name η x = Some #lx ->
   lx ↦ #n
-  ⊢ imp (eval η (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
-    {{ λ (_ : unit),lx ↦ #(1 + n)%Z }}.
+  ⊢ EWP (eval η (EStore (EVar x) (EIntAdd (EInt 1) (ELoad (EVar x)))))
+    {{ (_ : unit),lx ↦ #(1 + n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
@@ -120,8 +120,8 @@ Qed.
 Lemma example_double η x lx n :
   lookup_name η x = Some #lx ->
   lx ↦ #n
-  ⊢ imp (eval η (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
-    {{ λ (_ : unit), lx ↦ #(2 * n)%Z }}.
+  ⊢ EWP (eval η (EStore (EVar x) (ELoad (EVar x) + ELoad (EVar x))))
+    {{ (_ : unit), lx ↦ #(2 * n)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
@@ -148,9 +148,9 @@ Qed.
 Lemma example_double_double η x lx n :
   lookup_name η x = Some #lx ->
   lx ↦ #n
-  ⊢ imp (eval η (EStore (EVar x)
+  ⊢ EWP (eval η (EStore (EVar x)
      ((ELoad (EVar x) + ELoad (EVar x)) * (ELoad (EVar x) + ELoad (EVar x)) )))
-    {{ λ (_ : unit), lx ↦ #((2 * n)^2)%Z }}.
+    {{ (_ : unit), lx ↦ #((2 * n)^2)%Z }}.
 Proof.
   iIntros (Ex) "Hx".
   iApply (imp_EStore2 (A:=Z) with "[] [Hx]").
@@ -164,30 +164,70 @@ Proof.
     iApply "Hlx".
 Qed.
 
+
+(* [(!x, !y)] *)
+Lemma example_tuple_resources η x lx y ly (n : Z) :
+  lookup_name η x = Some #lx ->
+  lookup_name η y = Some #ly ->
+  lx ↦ #n -∗
+  ly ↦ #n -∗
+  EWP (eval η (ETuple [ELoad (EVar x); ELoad (EVar y)]))
+    {{ (x, y), ⌜x = n⌝ ∗ ⌜y = n⌝ ∗ lx ↦ #n ∗ ly ↦ #n }}.
+Proof.
+  iIntros (Ex Ey) "Hx Hy".
+  imp_tuple with "[Hx] [Hy]".
+  (* Only the monotonicity goal remains; the elements were stepped. *)
+  iIntros (x0 y0) "((-> & ?) & (-> & ?))". by iFrame.
+Qed.
+
+(* [!x :: []] — a data constructor; resources are split via [imp_data with]. *)
+Lemma example_data_resources η x lx (n : Z) :
+  lookup_name η x = Some #lx ->
+  lx ↦ #n -∗
+  EWP (eval η (EData "::" [ELoad (EVar x); EData "[]" []]))
+    {{ (l : list Z), ⌜l = [n]⌝ ∗ lx ↦ #n }}.
+Proof.
+  iIntros (Ex) "Hx".
+  imp_data with "[Hx]".
+  (* Only the monotonicity goal remains; the arguments were stepped. *)
+  iIntros (h t) "((-> & ?) & ->)". by iFrame.
+Qed.
+
+Lemma example_env_lookup `{Encode A} η (fun_spec : A → iProp Σ) :
+  in_env "fun" (λ a, □ fun_spec a) η -∗
+  EWP (eval (("x", #1%Z) :: ("y", #2%Z) :: ("a", #1%Z) :: ("z", #3%Z) :: η) (EVar "z"))
+    {{ (i : Z), ⌜i = 3%Z⌝ }}.
+Proof.
+  iIntros "#Hf".
+  iApply imp_wand.
+  imp_path.
+  iIntros (?) "-> //".
+Qed.
+
 (* match 1 with _ -> true *)
 
 Lemma simple_PAny_match η :
-  ⊢ imp eval η
+  ⊢ EWP eval η
     (EMatch (EInt 1)
       [Branch (CVal PAny) (EConstant "true")])
-    {{ λ b, ⌜b = true⌝ }}.
+    {{ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   imp_constant.
 Qed.
 
 (* match 1 with 1 -> true | _ -> false *)
 
 Lemma simple_PInt_eq_match η :
-  ⊢ imp eval η
+  ⊢ EWP eval η
     (EMatch (EInt 1)
       [Branch (CVal (PInt 1)) (EConstant "true");
        Branch (CVal  PAny   ) (EConstant "false")])
-    {{ λ b, ⌜b = true⌝ }}.
+    {{ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   - imp_constant.
   - auto.
 Qed.
@@ -196,41 +236,40 @@ Qed.
 match [] with _ :: _ -> 1 | _ -> 2 *)
 
 Lemma simple_true_true_match `{Encode A} η :
-  ⊢ imp eval η
+  ⊢ EWP eval η
     (EMatch (EData "[]" [])
       [Branch (CVal (PData "::" [ PAny; PAny ])) (EInt 1);
        Branch (CVal (PConstant "[]")) (EInt 2)])
-    {{ λ i, ⌜i = 2%Z⌝ }}.
+    {{ i, ⌜i = 2%Z⌝ }}.
 Proof.
   iStartProof.
   imp_match (list A).
   - imp_int.
   - auto.
-  Unshelve. refine ⊥. refine ⊥.
 Qed.
 
 (* Testing imp_branches: automatically process all match branches *)
 
 Lemma imp_branches_PAny η :
-  ⊢ imp eval η
+  ⊢ EWP eval η
     (EMatch (EInt 1)
       [Branch (CVal PAny) (EConstant "true")])
-    {{ λ b, ⌜b = true⌝ }}.
+    {{ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   imp_constant.
 Qed.
 
 Lemma imp_branches_two_branches η :
-  ⊢ imp eval η
+  ⊢ EWP eval η
     (EMatch (EInt 1)
       [Branch (CVal (PInt 1)) (EConstant "true");
        Branch (CVal  PAny   ) (EConstant "false")])
-    {{ λ b, ⌜b = true⌝ }}.
+    {{ b, ⌜b = true⌝ }}.
 Proof.
   iStartProof.
-  imp_match Z.
+  imp_match.
   - imp_constant.
   - auto.
 Qed.

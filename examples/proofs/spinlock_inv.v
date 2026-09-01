@@ -1,6 +1,6 @@
 From iris.base_logic.lib Require Import invariants token.
+
 From osiris Require Import osiris.
-From osiris.proofmode Require Import proofmode.
 From osiris.examples Require Import og_spinlock.
 
 (** * Invariant-based spinlock specification
@@ -41,21 +41,21 @@ Definition locked (γ : gname) : iProp Σ := token γ.
 (* [create ()] allocates [ref false] and exposes the lock.  The caller
    may initialise it with any [▷R] to receive [is_lock γ l R]. *)
 Definition create_spec (u : unit) (m : microvx) : iProp Σ :=
-  imp m {{ λ (l : loc), ∀ (R : iProp Σ), ▷R ={⊤}=∗ ∃ γ, is_lock γ l R }}.
+  EWP m {{ (l : loc), ∀ (R : iProp Σ), ▷R ={⊤}=∗ ∃ γ, is_lock γ l R }}.
 
 (* Acquiring the lock transfers ownership of [locked γ] and [▷R]. *)
 Definition acquire_spec (l : loc) (m : microvx) : iProp Σ :=
-  ∀ γ (R : iProp Σ), is_lock γ l R -∗ imp m {{ λ (_ : unit), locked γ ∗ ▷R }}.
+  ∀ γ (R : iProp Σ), is_lock γ l R -∗ EWP m {{ (_ : unit), locked γ ∗ ▷R }}.
 
 (* Releasing requires the holder to give back [locked γ] and [▷R]. *)
 Definition release_spec (l : loc) (m : microvx) : iProp Σ :=
-  ∀ γ (R : iProp Σ), is_lock γ l R -∗ locked γ -∗ ▷R -∗ imp m {{ λ (_ : unit), True }}.
+  ∀ γ (R : iProp Σ), is_lock γ l R -∗ locked γ -∗ ▷R -∗ EWP m {{ (_ : unit), True }}.
 
 (* ------------------------------------------------------------------ *)
 (* Module-level theorem *)
 
 Lemma spinlock_inv_proof η :
-  ⊢ imp (eval_mexpr η __main)
+  ⊢ EWP (eval_mexpr η __main)
     {{ context [
          var_spec "create"  (λ create,  □ iSpec τ[unit] create create_spec);
          var_spec "acquire" (λ acquire, □ iSpec τ[loc]  acquire acquire_spec);
@@ -71,7 +71,7 @@ Proof.
   { iApply (imp_EAnon_pers τ[unit]).
     iIntros "!>" ([]).
     iApply imp_please; iNext.
-    imp_match unit.
+    imp_match.
     (* After [ref false] we have [l ↦ #false]; use it to build the invariant. *)
     iApply (imp_wand).
     { imp_ref false. }

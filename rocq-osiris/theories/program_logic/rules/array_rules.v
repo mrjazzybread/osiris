@@ -5,7 +5,7 @@ Require Import ewp.
 Require Import impure_rules stop_rules.
 From osiris.utils Require Import list_z big_opLZ.
 
-(** This file defines array resource predicates and [imp] rules for array expressions. *)
+(** This file defines array resource predicates and [EWP] rules for array expressions. *)
 
 Local Notation array := syntax.array.
 
@@ -40,7 +40,7 @@ Section array_resources.
      Includes the exclusive physical block ownership [a ⤇{1} Mut ls], enabling freeze. *)
 
   Definition ownArray `{Encode A} (a : array) dq (xs : list A) : iProp Σ :=
-    ∃ ls, isBlockLocs a ls ∗ a ⤇{dq} Mut ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
+    ∃ ls, isBlockLocs a ls ∗ isBlock a dq Mut ∗ isSlice a dq 0 xs ∗ ⌜length ls = length xs⌝.
 
   Lemma ownArray_isBlockLocs `{Encode A} a dq (xs : list A) :
     ownArray a dq xs -∗ ∃ ls, isBlockLocs a ls ∗ ⌜length ls = length xs⌝.
@@ -60,9 +60,29 @@ Section array_resources.
     ownArray a dq xs -∗ isSlice a dq 0 xs.
   Proof. iIntros "(%ls & #Ha & _ & $ & %Hlen)". Qed.
 
+  (* Making a slice read-only. An array that is written once, at
+     creation, and then only read — the [items] array of a concurrent
+     data structure, say — can have its points-to discarded here and
+     shared freely afterwards, so that a reader needs no invariant. *)
+  Lemma isSlice_persist `{Encode A} (E : coPset) a i (xs : list A) :
+    isSlice a (DfracOwn 1) i xs ={E}=∗ isSlice a DfracDiscarded i xs.
+  Proof.
+    iIntros "(%ls & #Hblock & %Hbound & Hpts)".
+    iMod (big_opLZ.big_sepLZ2_fupd E
+            (λ (_ : Z) (l : locations.loc) (x : A), (l ↦□ #x)%I)
+            with "[Hpts]") as "Hpts".
+    { iApply (big_opLZ.big_sepLZ2_impl with "Hpts").
+      iIntros "!>" (k l x _ _) "Hl".
+      by iMod (gen_heap.pointsto_persist with "Hl"). }
+    iModIntro. iExists ls.
+    iSplitR; [ iExact "Hblock" | ].
+    iSplitR; [ iPureIntro; exact Hbound | ].
+    iExact "Hpts".
+  Qed.
+
   Lemma isSlice_ownArray `{Encode A} a dq ls (xs : list A) :
     isBlockLocs a ls -∗
-    a ⤇{dq} Mut -∗
+    isBlock a dq Mut -∗
     isSlice a dq 0 xs -∗
     ⌜length ls = length xs⌝ -∗
     ownArray a dq xs.
@@ -133,15 +153,15 @@ Section array_reasoning.
 
   Context {η : env} {E : coPset} {Ψ : iEff Σ}.
 
-  Global Instance notval_dict : NotVal (mut_tag * list loc) := {}.
+  Global Instance notval_block : NotVal (mut_tag * list loc) := {}.
   Global Instance notval_listloc : NotVal (list loc) := {}.
 
   (** General [as_array] rule.  Given that the postcondition of [m] implies
       [isBlockLocs a ls] for some [a] and [ls], the [load_block] step is
       discharged automatically and [Φ ls] is delivered. *)
   Lemma imp_as_array {ζ} {Φ : array → iProp Σ} (m : microvx) :
-    imp m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp as_array m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP as_array m @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "Hm".
     iApply (imp_bind with "Hm").
@@ -151,9 +171,9 @@ Section array_reasoning.
 
   Lemma imp_EArrayLit `{Encode A} {ζ} (Φs : list (A → iProp Σ)) es :
     ⌜length Φs = length es ∧ length es ≤ max_array_length⌝ -∗
-    imp evals η es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ xs, [∗ listZ] x;Φ ∈ xs;Φs, Φ x }} -∗
-    imp eval η (EArrayLit es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ a, ∃ xs, a ↦∗ xs ∗ [∗ listZ] x;Φ ∈ xs;Φs, Φ x }}.
+    EWP evals η es @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ xs, [∗ listZ] x;Φ ∈ xs;Φs, Φ x }} -∗
+    EWP eval η (EArrayLit es) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ a, ∃ xs, a ↦∗ xs ∗ [∗ listZ] x;Φ ∈ xs;Φs, Φ x }}.
   Proof.
     iIntros "[%Hleneq %Hlenbound] He". simpl_eval.
     iApply (imp_bind (A1:=list A) with "He").
@@ -178,8 +198,8 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayEmpty `{Encode A} {ζ} :
-    ⊢ imp eval η (EArrayLit []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-        {{ λ a, a ↦∗ (@nil A) }}.
+    ⊢ EWP eval η (EArrayLit []) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+        {{ a, a ↦∗ (@nil A) }}.
   Proof.
     iApply imp_wand.
     - iApply (imp_EArrayLit (@nil (A → _))  []).
@@ -193,8 +213,8 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayLength' {ζ} (ls : list loc) e :
-    imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ (a : array), isBlockLocs a ls }} -∗
-    imp eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = length ls⌝ }}.
+    EWP eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ (a : array), isBlockLocs a ls }} -∗
+    EWP eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ n, ⌜n = length ls⌝ }}.
   Proof.
     iIntros "He". simpl_eval.
     iApply (imp_bind with "[He] [-]").
@@ -206,8 +226,8 @@ Section array_reasoning.
   Qed.
 
   Lemma imp_EArrayLength `{Encode A} {ζ} dq (xs : list A) e :
-    imp eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a, a ↦∗{dq} xs }} -∗
-    imp eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ n, ⌜n = length xs⌝ }}.
+    EWP eval η e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a, a ↦∗{dq} xs }} -∗
+    EWP eval η (EArrayLength e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ n, ⌜n = length xs⌝ }}.
   Proof.
     iIntros "He". simpl_eval.
     iApply (imp_bind with "[He] [-]").
@@ -223,10 +243,10 @@ Section array_reasoning.
 
   Lemma imp_EArrayMake `{Encode A} {ζ} {e1 e2} (n : Z) (Φ : A → iProp Σ) :
     ⌜0 ≤ n ≤ max_array_length⌝ -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i, ⌜i = n⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (a : array), ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}.
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i, ⌜i = n⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP eval η (EArrayMake e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (a : array), ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}.
   Proof.
     iIntros (Hbound) "He1 He2". simpl_eval.
     iApply (imp_bind_par with "[He1] He2").
@@ -327,13 +347,13 @@ Section array_reasoning.
 
   Lemma imp_EArrayGet2 `{Encode A, Inhabited A} {Φ : A → iProp Σ} {ζ} (Φ2 : Z → iProp Σ) e1 e2 (a : array) ls :
     ▷ isBlockLocs a ls -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a'=a⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
     (∀ i, Φ2 i -∗
           ∃ dq j xs,
             ▷ (⌜j ≤ i < j + length xs⌝ ∗ a ↦∗[j]{dq} xs) ∗
             ▷ (a ↦∗[j]{dq} xs -∗ Φ (xs !!! (i - j)))) -∗
-    imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "#Ha He1 He2 P". simpl_eval.
     iApply (imp_bind_par with "[He1] [He2]").
@@ -364,10 +384,10 @@ Section array_reasoning.
   Lemma imp_EArrayGet' `{Encode A, Inhabited A} {ζ} (a : array) (i j : Z) dq (xs : list A) e1 e2 :
     ⌜j ≤ i < j + length xs⌝ -∗
     ▷ a ↦∗[j]{dq} xs -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-    imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (x : A), ⌜x = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }}.
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a' = a⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i', ⌜i' = i⌝ }} -∗
+    EWP eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (x : A), ⌜x = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }}.
   Proof.
     iIntros (Hlen) "Hslice He1 He2".
     iDestruct "Hslice" as "(%ls & #Harr & >%Hlenls & H)".
@@ -381,10 +401,10 @@ Section array_reasoning.
   Lemma imp_EArrayGet `{Encode A, Inhabited A} {ζ} (a : array) (i j : Z) dq (xs : list A) e1 e2 :
     ⌜0 ≤ i < length xs⌝ -∗
     a ↦∗{dq} xs -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a' = a⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i' = i⌝ }} -∗
-    imp eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (x : A), ⌜x = xs !!! i⌝ ∗ a ↦∗{dq} xs }}.
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a' = a⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i', ⌜i' = i⌝ }} -∗
+    EWP eval η (EArrayGet e1 e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (x : A), ⌜x = xs !!! i⌝ ∗ a ↦∗{dq} xs }}.
   Proof.
     iIntros (Hlen) "Hown He1 He2".
     iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".
@@ -400,14 +420,14 @@ Section array_reasoning.
 
   Lemma imp_EArraySet2 `{Encode A, Inhabited A} {Φ : unit → iProp Σ} {ζ}
     (Φ3 : A → iProp Σ) (Φ1 : array → iProp Σ) (Φ2 : Z → iProp Σ) e1 e2 e3 :
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3  }} -∗
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+    EWP eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3  }} -∗
     (∀ a i y, Φ1 a -∗ Φ2 i -∗ Φ3 y -∗
                  ∃ j xs,
                    ▷ (⌜j ≤ i < j + length xs⌝ ∗ a ↦∗[j] xs) ∗
                    ▷ (a ↦∗[j] (<[i - j := y]> xs) -∗ Φ ())) -∗
-    imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+    EWP eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros "He1 He2 He3 P". simpl_eval.
     iApply (imp_bind_par (A2:=(Z * A)) with "[He1] [He2 He3]").
@@ -439,11 +459,11 @@ Section array_reasoning.
     (Φ : A → iProp Σ) (i j : Z) (a : array) xs e1 e2 e3 :
     ⌜j ≤ i < j + length xs ⌝ -∗
     ▷ a ↦∗[j] xs -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i'=i⌝ }} -∗
-    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (_ : unit), ∃ y, Φ y ∗ a ↦∗[j] (<[i-j:=y]> xs) }}.
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a'=a⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i', ⌜i'=i⌝ }} -∗
+    EWP eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (_ : unit), ∃ y, Φ y ∗ a ↦∗[j] (<[i-j:=y]> xs) }}.
   Proof.
     iIntros (Hbound) "Hslice He1 He2 He3".
     iDestruct "Hslice" as "(%ls & #Harr & >%Hlenls & slice)".
@@ -458,11 +478,11 @@ Section array_reasoning.
     (Φ : A → iProp Σ) (i j : Z) (a : array) xs e1 e2 e3 :
     ⌜0 ≤ i < length xs⌝ -∗
     a ↦∗ xs -∗
-    imp eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ a', ⌜a'=a⌝ }} -∗
-    imp eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ i', ⌜i'=i⌝ }} -∗
-    imp eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
-    imp eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
-      {{ λ (_ : unit), ∃ y, Φ y ∗ a ↦∗ (<[i:=y]> xs) }}.
+    EWP eval η e1 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ a', ⌜a'=a⌝ }} -∗
+    EWP eval η e2 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ i', ⌜i'=i⌝ }} -∗
+    EWP eval η e3 @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }} -∗
+    EWP eval η (EArraySet e1 e2 e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩
+      {{ (_ : unit), ∃ y, Φ y ∗ a ↦∗ (<[i:=y]> xs) }}.
   Proof.
     iIntros (Hbound) "Hown He1 He2 He3".
     iDestruct "Hown" as "(%ls & #Harr & Hblock & Hslice & %Hlenls)".

@@ -112,6 +112,9 @@ Inductive pat :=
   | PXData (π : path) (ps : list pat)
   (* PRecord: a record pattern. *)
   | PRecord (fps : list (field * pat))
+  (* An inline-record pattern: [C p] where [C] is an inline-record
+     constructor and [p] matches the underlying record. *)
+  | PInline (c : data) (p : pat)
   (* PArray: an array pattern. *)
   | PArray (ps : list pat)
   (* A literal integer pattern. *)
@@ -171,6 +174,23 @@ Definition fcoercions :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* The auxiliary argument of a prophecy resolution. *)
+
+(* A resolution [e [@resolve p v]] is a ghost annotation: it must not change
+   what the program does. So neither [p] nor [v] is an arbitrary expression.
+   [p] is a path to a pre-existing prophecy variable, and [v] is drawn from
+   the type [proph_arg]. *)
+
+Inductive proph_arg :=
+  (* A path [x] or [π.x], looked up in the environment. *)
+  | PArgPath (π : path)
+  (* A constant data constructor: [()], [true], [false], [None], ... *)
+  | PArgData (c : data)
+  (* An integer literal. *)
+  | PArgInt (i : Z).
+
+(* ------------------------------------------------------------------------ *)
+
 (* Expressions. *)
 
 Inductive expr :=
@@ -196,14 +216,19 @@ Inductive expr :=
   | EData (c : data) (e : list expr)
   | EXData (π : path) (e : list expr)
 
-  (* Record construction: [{ fs = es }]. *)
+  (* Record construction: [{ es }]. *)
   | ERecord (t : mut_tag) (es : list expr)
-  (* Record update: [{ e with fs = es }]. *)
+  (* Record update: [{ e with es }]. *)
   | ERecordUpdate (e : expr) (fes : list fexpr)
   (* Record access: [e.f]. *)
   | ERecordAccess (e : expr) (f : field)
   (* Mutable record field assignment: [e1.f <- e2]. *)
   | ERecordSet (e1 : expr) (f : field) (e2 : expr)
+  (* Atomic record field location: [[%atomic.loc e.f]]. *)
+  | EAtomicLoc (e : expr) (f : field)
+
+  (* Inline-record construction: [A {es}] *)
+  | EInline (c : data) (t : mut_tag) (es : list expr)
 
   (* An array literal: [ [|1;2;3|] ] *)
   | EArrayLit (es : list expr)
@@ -320,6 +345,11 @@ Inductive expr :=
   | ECAS (e1 e2 e3 : expr)
   (* Fetch-and-add: [Atomic.fetch_and_add e1 e2]. *)
   | EFAA (e1 e2 : expr)
+
+  (* Allocating a prophecy variable: [Proph.create ()]. *)
+  | ENewProph
+  (* Resolving a prophecy variable: [e [@resolve π a]]. *)
+  | EResolve (e : expr) (π : path) (a : proph_arg)
 
   | EIgnore (e : expr)
 
@@ -446,22 +476,38 @@ Inductive val : Type :=
   (* Extension constructors are dynamically alocated to the heap.
      [l] is the location of the constructor. Extensible types can
      alias by having two constructors point to the same location. *)
-  | VXData (l : loc) (v : list val)
+  | VXData (l: loc) (v : list val)
   (* A location. *)
-  | VLoc (l: loc)
+  | VLoc (l : loc)
   (* Both records and array are represented as pointers to a block. *)
-  | VRecord (l: loc)
-  | VArray (l: loc)
+  | VRecord (l : loc)
+  | VArray (l : loc)
+  (* Inline records contain both a tag and a pointer to a block. *)
+  | VInline (c : data) (l : loc)
   (* A continuation; more precisely, a location which stores a continuation. *)
-  | VCont (k: cont)
+  | VCont (k : cont)
   (* A thread id. *)
-  | VThread (t: thread)
+  | VThread (t : thread)
   (* A module. *)
   | VStruct (xvs : list (var * val))
   (* A functor. *)
   | VFunctor (η : list (var * val)) (x : var) (xvs : list sitem)
   | VChar (c: char)
 .
+
+(* Osiris' own scopes for expressions and values. Osiris used to borrow the
+   [expr_scope] and [val_scope] that Iris declares in [iris.bi.weakestpre], but
+   pulling that module into scope also brings Iris' Texan triple notations,
+   which clash with ours (see [program_logic/triples.v]).
+
+   Only the scopes are declared here; the notations that populate [expr_scope]
+   live in [notations.v]. This way a file can delimit with [%E] / [%V] without
+   pulling in the notations themselves. *)
+Declare Scope expr_scope.
+Delimit Scope expr_scope with E.
+
+Declare Scope val_scope.
+Delimit Scope val_scope with V.
 
 Definition env := list (var * val).
 Definition envs := (env * env)%type.

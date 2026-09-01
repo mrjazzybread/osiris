@@ -59,9 +59,15 @@ Qed.
 
 Local Hint Resolve encode_tree_is_encode : encode.
 
+Local Instance Constant_Leaf `{Encode A} : Constant "Leaf" (tree A) :=
+  { constant_value := Leaf; constant_encode := eq_refl }.
+
+(* Derived from [Constant_Leaf], for the [encode] hints: the pattern
+   lemmas below need the equation at a concrete [#Leaf], which the bare
+   [constant_encode] projection cannot unify against. *)
 Lemma solve_encode_Leaf `{Encode A} :
   VConstant "Leaf" = #(@Leaf A).
-Proof. eauto. Qed.
+Proof. exact (constant_encode (c:="Leaf") (A:=tree A)). Qed.
 
 Lemma solve_encode_Node `{Encode A} t1 x t2 (t : tree A) vt1 vx vt2 :
   Node t1 x t2 = t →
@@ -203,7 +209,7 @@ Lemma insert_mkspec insert (x : Z) (t : tree Z) :
   representable x ->
   Spec τ[Z * tree Z] insert
     (λ '(x : Z * tree Z) (m : microvx), tlt x.2 t → insert_spec x m) ->
-  η ⊢ₚ { EMatch (EPath ["v"]) __branches4
+  η ⊢ₚ { EMatch (EPath ["v"]) __insert_branches
            ensures λ t' : tree Z, ∀ x0 : Z, lookup x0 t' = (x0 =? x) || lookup x0 t }.
 Proof.
   intros Hv Hx Hinsert Ht Hrepr IH.
@@ -311,7 +317,7 @@ Lemma member_mkspec member (x : Z) (t : tree Z) :
   Spec τ[Z * tree Z] member
     (λ (x0 : Z * tree Z) (m : microvx),
       tlt x0.2 (x, t).2 → member_spec x0 m) ->
-  η ⊢ₚ { EMatch (EPath ["v"]) __branches11
+  η ⊢ₚ { EMatch (EPath ["v"]) __member_branches
            ensures λ b : bool, b = lookup x t }.
 Proof.
   intros Hv Hx Hmember Ht Hrepr IH.

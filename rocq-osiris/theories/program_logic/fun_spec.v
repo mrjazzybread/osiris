@@ -44,7 +44,7 @@ Section imp_spec.
     (P : τ[X] -#> microvx -> iProp Σ) η (x : var) e E Ψ
     :
     (∀ (v : X), P v (please_eval ((x, #v) :: η) e)) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <|Ψ|> {{ λ c, iSpec τ[X] c P }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <|Ψ|> {{ c, iSpec τ[X] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply (@imp_ret _ _ val val); auto.
@@ -54,7 +54,7 @@ Section imp_spec.
     (P : τ[X;Y] -#> microvx -> iProp Σ) η (x y : var) e E Ψ
     :
     (∀ (vx : X) (vy : Y), P vx vy (please_eval ((y, #vy) :: (x, #vx) :: η) e)) -∗
-    imp (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <|Ψ|> {{ λ c, iSpec τ[X;Y] c P }}.
+    EWP (eval η (EAnonFun (AnonFun x (EAnonFun (AnonFun y e))))) @ E <|Ψ|> {{ c, iSpec τ[X;Y] c P }}.
   Proof.
     iIntros "HP"; simpl_eval.
     iApply (@imp_ret _ _ val val); first auto.
@@ -139,7 +139,7 @@ Section imp_spec.
     iApply ("IH" with "HP").
   Qed.
 
-  Local Lemma prove_iSpec_pers (τ : types) η x e (P : τ -#> microvx -> iProp Σ) :
+  Lemma prove_iSpec_pers (τ : types) η x e (P : τ -#> microvx -> iProp Σ) :
     □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
     □ iSpec τ (VClo η (AnonFun x e)) P.
   Proof.
@@ -165,7 +165,7 @@ Section imp_spec.
     (x : var)
     e E Ψ :
     predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, iSpec τ c P }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ c, iSpec τ c P }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
@@ -179,7 +179,7 @@ Section imp_spec.
     (x : var)
     e E Ψ :
     □ predicate_over_function_body τ P η (EAnonFun (AnonFun x e)) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ iSpec τ c P }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ c, □ iSpec τ c P }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
@@ -193,11 +193,34 @@ Section imp_spec.
     (x : var)
     e E Ψ :
     (□ ∀ A (_ : Encode A), predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ ∀ A (_ : Encode A), iSpec (τ A) c (P A) }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ c, □ ∀ A (_ : Encode A), iSpec (τ A) c (P A) }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
     iIntros (A HencA).
+    by iApply prove_iSpec_pers.
+  Qed.
+
+  (* [imp_EAnon_poly_pers], for a specification that depends on further
+     structure on [A] beyond its encoding (e.g. a decomposition of its
+     values into inline records [InlineEncode]). *)
+
+  Lemma imp_EAnon_poly_str_pers
+    (C : ∀ A, Encode A → Type)
+    (τ : ∀ A `{Encode A}, types)
+    (P : ∀ A (HA : Encode A), C A HA → τ A -#> microvx -> iProp Σ)
+    η
+    (x : var)
+    e E Ψ :
+    (□ ∀ A (HA : Encode A) (HC : C A HA),
+        predicate_over_function_body (τ A) (P A HA HC) η (EAnonFun (AnonFun x e))) -∗
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |>
+      {{ c, □ ∀ A (HA : Encode A) (HC : C A HA), iSpec (τ A) c (P A HA HC) }}.
+  Proof.
+    iIntros "HP".
+    simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
+    iIntros (A HA HC).
+    iSpecialize ("HP" $! A HA HC).
     by iApply prove_iSpec_pers.
   Qed.
 
@@ -208,7 +231,7 @@ Section imp_spec.
     (x : var)
     e E Ψ :
     (□ ∀ A `(Encode A, Inhabited A), predicate_over_function_body (τ A) (P A) η (EAnonFun (AnonFun x e))) -∗
-    imp (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ λ c, □ ∀ A `(Encode A, Inhabited A), iSpec (τ A) c (P A) }}.
+    EWP (eval η (EAnonFun (AnonFun x e))) @ E <| Ψ |> {{ c, □ ∀ A `(Encode A, Inhabited A), iSpec (τ A) c (P A) }}.
   Proof.
     iIntros "HP".
     simpl_eval; iApply (@imp_ret _ _ val val); first reflexivity.
@@ -264,9 +287,9 @@ Section imp_spec.
   (* For now, we don't allow masks to be opened when proving [e] and [e1] *)
   Lemma imp_EApp_partial `{Encode X} (τ: types) η e e1 {ζ Ψ}
     (P : type_nel.Tcons X τ -#> microvx -> iProp Σ) :
-    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec (type_nel.Tcons X τ) c P }} -∗
-    imp eval η e1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v1, ∃ (x : X), ⌜v1 = #x⌝ }} -∗
-    imp eval η (EApp e e1) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, ∃ (x : X), iSpec τ c (P x) }}.
+    EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ c, iSpec (type_nel.Tcons X τ) c P }} -∗
+    EWP eval η e1 <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v1, ∃ (x : X), ⌜v1 = #x⌝ }} -∗
+    EWP eval η (EApp e e1) <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ c, ∃ (x : X), iSpec τ c (P x) }}.
   Proof.
     iIntros "He He1". simpl_eval.
     iApply (imp_bind_par with "He He1").
@@ -302,7 +325,7 @@ Section imp_EApp_prop_aux_def.
     iProp Σ :=
   | Tbase X, es, conseq_acc :=
       ∀ (e : expr) (φ : X -> iProp Σ),
-        imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
+        EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, φ x }} -∗
         (* [Hconseq] is the consequence premise built over all parameters *)
         let Hconseq := ∀ (x : X), conseq_acc x (φ x) in
         (* [nested_eapp] is the nested application *)
@@ -310,7 +333,7 @@ Section imp_EApp_prop_aux_def.
         Hconseq -∗ goal_prop (nested_eapp)
   | type_nel.Tcons X τ', es, conseq_acc :=
       ∀ (e : expr) (φ : X -> iProp Σ),
-        imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, φ x }} -∗
+        EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, φ x }} -∗
         let conseq_acc :=
           (λ# (tt : τ') (Q : iProp Σ),
               ∀ (x : X),
@@ -354,14 +377,14 @@ Section imp_EApp_def.
   Definition imp_EApp_prop `{Encode A} (τ : types) : iProp Σ :=
     ∀ (η : env) (e : expr) (Φ' : A -> iProp Σ) (Ψ : iEff Σ) ζ
       (P : τ -#> microvx -> iProp Σ),
-    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, iSpec τ c P }} -∗
+    EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ c, iSpec τ c P }} -∗
     accumulate_argument_premises_and_build_consequence_hyp
       η Ψ ζ e
-      (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }})
+      (λ e, EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v, Φ' v }})
       τ
       []
       (λ# (tt : τ) (Q : iProp Σ),
-           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ imp m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }}).
+           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ EWP m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v, Φ' v }}).
 
   Arguments imp_EApp_prop {_ _} !τ /.
   Transparent imp_EApp_prop.
@@ -412,7 +435,7 @@ Section imp_EApp_def.
       iIntros (η e Φ' Ψ ζ P) "HSpec"; iIntros (ex φx) "Hex".
       change [ex] with ([] ++ [ex]).
       iApply (imp_EApp_prop_induction_step τ η Ψ ζ e
-              (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ x, Φ' x }})%I); first reflexivity.
+              (λ e, EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ x, Φ' x }})%I); first reflexivity.
 
     (* Define the intermediate specification P' *)
     set (P' := (λ# (tt : τ) m,
@@ -453,14 +476,14 @@ Section imp_EApp_def.
   Definition imp_EApp_pers_prop `{Encode A} (τ : types) : iProp Σ :=
     ∀ (η : env) (e : expr) (Φ' : A -> iProp Σ) (Ψ : iEff Σ) ζ
       (P : τ -#> microvx -> iProp Σ),
-    imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ c, □ iSpec τ c P }} -∗
+    EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ c, □ iSpec τ c P }} -∗
     accumulate_argument_premises_and_build_consequence_hyp
       η Ψ ζ e
-      (λ e, imp eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }})
+      (λ e, EWP eval η e <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v, Φ' v }})
       τ
       []
       (λ# (tt : τ) (Q : iProp Σ),
-           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ imp m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ λ v, Φ' v }}).
+           Q -∗ ∀ m, (tapp P tt) m -∗ ▷ EWP m <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ v, Φ' v }}).
 
   Arguments imp_EApp_pers_prop {_ _} !τ /.
   Transparent imp_EApp_pers_prop.
@@ -488,7 +511,7 @@ Section transparent_funs.
   Context {E : coPset} {Ψ : iEff Σ} {ζ : exn → iProp Σ}.
 
  Lemma imp_EAnon_literal η a :
-   ⊢ imp (eval η (EAnonFun a)) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ λ v, ⌜v = VClo η a⌝ }}.
+   ⊢ EWP (eval η (EAnonFun a)) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ v, ⌜v = VClo η a⌝ }}.
  Proof.
    simpl_eval.
    iApply imp_ret; auto.
@@ -496,10 +519,10 @@ Section transparent_funs.
 
  Lemma imp_EApp_literal B `{Encode A, Encode B} {Φ : A → iProp Σ} Φ1 η' v e η p e1 :
    lookup_path η p = Some (VClo η' (AnonFun v e)) →
-   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   EWP (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
    (∀ (x : B), Φ1 x -∗
-               ▷ imp (eval ((v, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-   imp (eval η (EApp (EPath p) e1)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+               ▷ EWP (eval ((v, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   EWP (eval η (EApp (EPath p) e1)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
  Proof.
    iIntros (Hlookup) "He Hbody".
    simpl_eval.
@@ -515,11 +538,11 @@ Section transparent_funs.
 
  Lemma imp_EApp_literal2 B C `{Encode A, Encode B, Encode C} {Φ : A → iProp Σ} Φ1 Φ2 η' v1 v2 e η p e1 e2 :
    lookup_path η p = Some (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 e)))) →
-   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-   imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+   EWP (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   EWP (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
    (∀ (x : B) (y : C), Φ1 x -∗ Φ2 y -∗
-               ▷^2 imp (eval ((v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-   imp (eval η (EApp (EApp (EPath p) e1) e2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+               ▷^2 EWP (eval ((v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   EWP (eval η (EApp (EApp (EPath p) e1) e2)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
  Proof.
    iIntros (Hlookup) "He1 He2 Hbody". simpl_eval.
    iApply (imp_bind_par (A1:=val) (A2:=C) with "[He1] He2").
@@ -544,12 +567,12 @@ Section transparent_funs.
  Lemma imp_EApp_literal3 B C D `{Encode A, Encode B, Encode C, Encode D} {Φ : A → iProp Σ}
    Φ1 Φ2 Φ3 η' v1 v2 v3 e η p e1 e2 e3 :
    lookup_path η p = Some (VClo η' (AnonFun v1 (EAnonFun (AnonFun v2 (EAnonFun (AnonFun v3 e)))))) →
-   imp (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
-   imp (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
-   imp (eval η e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
+   EWP (eval η e1) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ1 }} -∗
+   EWP (eval η e2) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ2 }} -∗
+   EWP (eval η e3) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ3 }} -∗
    (∀ (x : B) (y : C) (z : D), Φ1 x -∗ Φ2 y -∗ Φ3 z -∗
-               ▷^2 imp (eval ((v3,#z) :: (v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-   imp (eval η (EApp (EApp (EApp (EPath p) e1) e2) e3)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+               ▷^2 EWP (eval ((v3,#z) :: (v2, #y) :: (v1, #x) :: η') e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+   EWP (eval η (EApp (EApp (EApp (EPath p) e1) e2) e3)) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
  Proof.
    iIntros (Hlookup) "He1 He2 He3 Hbody". simpl_eval.
    iApply (imp_bind_par (A1:=val) (A2:=D) with "[He1 He2] He3").

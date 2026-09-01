@@ -1,7 +1,3 @@
-From iris.proofmode Require Import base proofmode classes ltac_tactics.
-From iris.bi Require Import weakestpre.
-From iris Require Import base_logic.lib.gen_heap.
-
 From osiris Require Import osiris.
 From osiris.examples Require Import og_find.
 
@@ -101,7 +97,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
     (* Calling [find l pred] returns an option [o] such that
        - if [o = Some x] then [φ x]
        - if [o = None] then there is no [x] such that [φ x]. *)
-    imp m {{ λ (o : option A), ⌜match o with
+    EWP m {{ (o : option A), ⌜match o with
                                 | Some x => x ∈ l ∧ φ x
                                 | None => Forall (λ x, ¬ (φ x)) l
                                 end⌝ }}.
@@ -113,7 +109,7 @@ Definition find_spec `{Encode A} (l : list A) (pred : val) (m : microvx) : iProp
 
 
 Lemma iter_module_pure η :
-  ⊢ imp (eval_mexpr η __main)
+  ⊢ EWP (eval_mexpr η __main)
     {{ context [
          var_spec "find_first" (λ find, □ iSpec τ[list A; val] find find_spec)
        ]
@@ -130,7 +126,7 @@ Proof.
             ⌜∃ iter, ηδ = (("iter", iter) :: η, [("iter",iter)]) ∧
                      Spec τ[val; list A] iter listiter_spec⌝)%I).
   { (* Proof of [iter]. *)
-    iApply (impure_pure (B:=void) (eval_sitem (η, []) (ILetRec __bindings3))).
+    iApply (impure_pure (B:=void) (eval_sitem (η, []) (ILetRec __iter_bindings))).
     (* Enter the body of the recursive function. *)
     eapply (struct_letrec τ[val; list A]) with (P := listiter_spec_inv).
     { (* Side-condition: the expression is a function. *) repeat eexists. }
@@ -269,8 +265,7 @@ Proof.
        [match .. with ..] expression, we move on to the branches. *)
     - (* Case 1: We returned a value, we don't get caught in the branch *)
       intros () Hforall. pure_match.
-      eapply pure_eval_const.
-      instantiate (1 := @None A); apply solve_encode_None; reflexivity.
+      pure_const.
       apply Hforall.
 
     - (* Case 2: We raised an exception, we get caught by the branch. *)

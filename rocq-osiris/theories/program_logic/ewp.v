@@ -1,12 +1,12 @@
-From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token.
+From iris.base_logic.lib Require Import own gen_heap ghost_map invariants saved_prop token proph_map.
 From iris.base_logic Require Import ghost_map.
 From iris.algebra Require Import gmap_view dfrac gset auth excl ofe.
-From iris.program_logic Require Export weakestpre.
+From iris.base_logic.lib Require Export fancy_updates.
 From iris.proofmode Require Import proofmode.
 
 From osiris.lang Require Import thread_ids syntax locations encode.
 From osiris.semantics Require Import semantics.
-Require Import thread_step.
+Require Import subjective_step.
 Require Export protocols.
 
 Definition discrete_fun2 {A B} := λ (C : A -> B → ofe), ∀ (x : A) (y : B), C x y.
@@ -99,6 +99,7 @@ Section ghost_instances.
       #[global] osiris_savedPredG :: savedPredG Σ (outcome2 val exn);
       osiris_tokenG :: tokenG Σ;
       #[global] osiris_array_ghostG :: ghost_mapG Σ locations.loc (list locations.loc);
+      #[global] osiris_prophGpreS :: proph_mapGpreS locations.loc (val * val) Σ;
     }.
 
   (* The [osirisGS] typeclass is what we use in our proofs.
@@ -121,6 +122,9 @@ Section ghost_instances.
       (* This gives us a ghost map tracking array locations (persistent per array). *)
       osiris_array_ghostGS :: ghost_mapG Σ locations.loc (list locations.loc);
       osiris_array_name : gname;
+      (* This gives us the prophecy map, relating [proph] assertions to
+         the observations the execution has yet to produce. *)
+      osiris_prophGS :: proph_mapGS locations.loc (val * val) Σ;
     }.
 
 End ghost_instances.
@@ -132,14 +136,15 @@ Definition osirisΣ : gFunctors :=
      gen_heapΣ thread gname;
      savedPredΣ (outcome2 val exn);
      tokenΣ;
-     ghost_mapΣ locations.loc (list locations.loc)
+     ghost_mapΣ locations.loc (list locations.loc);
+     proph_mapΣ locations.loc (val * val)
     ].
 
 (* Show that inclusion of [osirisΣ] in [Σ] is enough to instantiate [osirisGpreS Σ]. *)
 Global Instance subG_heapGpreS {Σ} : subG osirisΣ Σ → osirisGpreS Σ.
 Proof. solve_inG. Qed.
 
-#[global] Arguments OsirisGS Σ {_ _ _ _ _ _} : assert.
+#[global] Arguments OsirisGS Σ {_ _ _ _ _ _ _} : assert.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -171,11 +176,20 @@ Global Instance osiris_block_heapGS `{osirisGS Σ} : gen_heap.gen_heapGS locatio
 Proof. apply (osiris_genGS Σ). Defined.
 
 Definition isBlock `{osirisGS Σ} (b : locations.loc) dq t : iProp Σ :=
-  ∃ ls, gen_heap.pointsto b dq (Dict t ls).
+  ∃ ls, gen_heap.pointsto b dq (Block t ls).
 
-Notation "b ⤇ dq t" :=
-  (isBlock b dq t)
-    (at level 20, dq custom dfrac at level 1, format "b ⤇ dq  t") : bi_scope.
+(* Taking a freshly allocated block's exclusive tag to the persistent
+   form above. Every block that enters a shared invariant goes through
+   this. *)
+
+Lemma isBlock_persist `{osirisGS Σ} b t :
+  isBlock b (DfracOwn 1) t ==∗ isBlock b DfracDiscarded t.
+Proof.
+  iIntros "H".
+  iDestruct "H" as (ls) "H".
+  iMod (gen_heap.pointsto_persist with "H") as "H".
+  iModIntro. iExists ls. iFrame.
+Qed.
 
 (* -------------------------------------------------------------------------- *)
 (* Definition of the state interpretation. *)
@@ -194,7 +208,7 @@ Section state_interp.
      cells via [l ↦ v]. The auxiliary component is a ghost map that records,
      for each allocated array block, its list of element locations. The
      [array_coherent] predicate ties the two: every entry in the ghost map
-     points to a [Dict] block in [σ] with the same locations. *)
+     points to a [Block] block in [σ] with the same locations. *)
 
   (* The ghost map for arrays is kept separate from the heap because array
      identity must be persistent: once a block is allocated its location list
@@ -225,7 +239,7 @@ Section state_interp.
      every array registered in σ' has a corresponding block in σ with the same locations. *)
   Definition array_coherent (σ' : gmap locations.loc (list loc)) (σ : store) : Prop :=
     ∀ (a : loc) (ls : list loc),
-      σ' !! (a : loc) = Some ls → ∃ t : mut_tag, σ !! a = Some (Dict t ls).
+      σ' !! (a : loc) = Some ls → ∃ t : mut_tag, σ !! a = Some (Block t ls).
 
   Definition array_interp (σ : store) : iProp Σ :=
     ∃ σ', ghost_map_auth (osiris_array_name Σ) 1 σ' ∗ ⌜array_coherent σ' σ⌝.
@@ -233,8 +247,38 @@ Section state_interp.
   Definition osiris_state_interp (σ : store) : iProp Σ :=
     @gen_heap_interp locations.loc _ _ mem_block Σ _ σ ∗ array_interp σ.
 
-  Definition state_interp : (store * post_map Σ) -> iProp Σ :=
-    (λ '(σ, π), osiris_state_interp σ ∗ osiris_thread_interp π)%I.
+  (* The prophecy interpretation. Unlike every other component of the
+     state interpretation, [proph_map_interp] does not describe the
+     PRESENT: [κs] is the list of observations the execution has yet to
+     produce, and [proph_map_interp κs ps] ties the [proph p vs]
+     assertions to it. That is what makes a prediction meaningful, and it
+     is why the trace must reach adequacy — see [ewp_adequacy.v].
+
+     [ps] is the set of prophecy identifiers allocated so far; it is
+     existentially quantified here because no rule needs to name it. *)
+
+  (* [ps] is the set of prophecy identifiers allocated so far. It is
+     pinned to the store's domain, and that is not bookkeeping: allocating
+     a prophecy needs an identifier fresh for [ps], while the operational
+     rule [StepNewProph] only offers one fresh for the store. Tying the
+     two is what lets the two freshness conditions meet. Nothing ever
+     removes a location from the store, so the inclusion is easy to
+     maintain — see [osiris_proph_interp_mono]. *)
+
+  Definition osiris_proph_interp (σ : store) (κs : list observation) : iProp Σ :=
+    ∃ ps, ⌜ps ⊆ dom σ⌝ ∗ proph_map_interp κs ps.
+
+  Lemma osiris_proph_interp_mono σ σ' κs :
+    dom σ ⊆ dom σ' →
+    osiris_proph_interp σ κs -∗ osiris_proph_interp σ' κs.
+  Proof.
+    iIntros (Hsub) "(%ps & %Hps & H)".
+    iExists ps. iFrame. iPureIntro. set_solver.
+  Qed.
+
+  Definition state_interp : (store * list observation * post_map Σ) -> iProp Σ :=
+    (λ '(σ, κs, π),
+       osiris_state_interp σ ∗ osiris_proph_interp σ κs ∗ osiris_thread_interp π)%I.
 
   (* [isBlockLocs a ls] is the persistent ghost knowledge that array [a] has locations [ls]. *)
   Definition isBlockLocs (a : loc) (ls : list locations.loc) : iProp Σ :=
@@ -274,7 +318,7 @@ Section state_interp.
   Lemma osiris_state_valid_array σ (l : loc) ls :
     osiris_state_interp σ -∗
     l ↪[osiris_array_name Σ]□ ls -∗
-    ∃ t, ⌜σ !! (l : locations.loc) = Some (Dict t ls)⌝.
+    ∃ t, ⌜σ !! (l : locations.loc) = Some (Block t ls)⌝.
   Proof.
     iIntros "(_ & %A & Hauth & %Hcoh) #Hfrag".
     iDestruct (ghost_map_lookup with "Hauth Hfrag") as "%Hlookup".
@@ -282,12 +326,12 @@ Section state_interp.
     iExists t. iPureIntro. exact Hσl.
   Qed.
 
-  (* [mem_block_view] splits a [mem_block] into the [Dict] case (which carries
+  (* [mem_block_view] splits a [mem_block] into the [Block] case (which carries
      a list of locations) and everything else. Used to shorten the proof of
      [osiris_state_alloc]. *)
   Variant mem_block_view : mem_block → Type :=
-  | dict_view t ls : mem_block_view (Dict t ls)
-  | ndict_view b  : (∀ t ls, b ≠ Dict t ls) → mem_block_view b.
+  | view_block t ls : mem_block_view (Block t ls)
+  | view_nonblock b  : (∀ t ls, b ≠ Block t ls) → mem_block_view b.
 
   Lemma block_view b : mem_block_view b.
   Proof. destruct b; econstructor; congruence. Defined.
@@ -297,14 +341,14 @@ Section state_interp.
     osiris_state_interp σ ==∗
     osiris_state_interp (<[l := v]>σ) ∗ pointsto l (DfracOwn 1) v ∗ meta_token l ⊤ ∗
     match block_view v with
-    | dict_view _ ls => (l : loc) ↪[osiris_array_name Σ]□ ls
-    | ndict_view _ _ => True
+    | view_block _ ls => (l : loc) ↪[osiris_array_name Σ]□ ls
+    | view_nonblock _ _ => True
     end.
   Proof.
     iIntros (Hfresh) "(Hmem & (%σ' & Hauth & %Hcoh))".
     iMod (gen_heap_alloc σ l v with "Hmem") as "(Hmem & Hl & Hmeta)"; first done.
     destruct (block_view v).
-    - (* Dict: register the new block in the ghost array map. *)
+    - (* Block: register the new block in the ghost array map. *)
       iAssert ⌜σ' !! (l : loc) = None⌝%I as "%HA_fresh".
       { iPureIntro. apply not_elem_of_dom. intros Hin.
         apply elem_of_dom in Hin as (ls' & Hlookup).
@@ -321,7 +365,7 @@ Section state_interp.
       + rewrite lookup_insert_ne in Hlookup; last done.
         destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
         exists t_a. rewrite lookup_insert_ne; done.
-    - (* Not a Dict: array coherence is trivially preserved. *)
+    - (* Not a Block: array coherence is trivially preserved. *)
       iModIntro. iFrame. iPureIntro.
       intros a ls_a Hlookup.
       destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
@@ -331,11 +375,11 @@ Section state_interp.
   Qed.
 
   Lemma osiris_state_update (v' v : mem_block) σ l :
-    (∀ t ls, v ≠ Dict t ls) →
+    (∀ t ls, v ≠ Block t ls) →
     osiris_state_interp σ -∗ pointsto l (DfracOwn 1) v ==∗
     osiris_state_interp (<[l := v']>σ) ∗ pointsto l (DfracOwn 1) v'.
   Proof.
-    iIntros (Hnotdict) "(Hmem & Harreg) Hl".
+    iIntros (Hnotblock) "(Hmem & Harreg) Hl".
     iDestruct (gen_heap_valid with "Hmem Hl") as "%Hσl".
     iMod (gen_heap_update with "Hmem Hl") as "(Hmem & Hl)".
     iModIntro. iFrame.
@@ -344,13 +388,13 @@ Section state_interp.
     destruct (Hcoh a ls_a Hlookup) as (t_a & Hσa).
     destruct (decide (a = l)) as [->|Hne].
     - rewrite Hσl in Hσa. injection Hσa as Hσa.
-      exact (False_rect _ (Hnotdict t_a ls_a Hσa)).
+      exact (False_rect _ (Hnotblock t_a ls_a Hσa)).
     - exists t_a. rewrite lookup_insert_ne; done.
   Qed.
 
   Lemma osiris_state_set_tag σ l t t' ls :
-    osiris_state_interp σ -∗ pointsto l (DfracOwn 1) (Dict t ls) ==∗
-    osiris_state_interp (<[l := Dict t' ls]>σ) ∗ pointsto l (DfracOwn 1) (Dict t' ls).
+    osiris_state_interp σ -∗ pointsto l (DfracOwn 1) (Block t ls) ==∗
+    osiris_state_interp (<[l := Block t' ls]>σ) ∗ pointsto l (DfracOwn 1) (Block t' ls).
   Proof.
     iIntros "(Hmem & Harreg) Hl".
     iDestruct (gen_heap_valid with "Hmem Hl") as "%Hσl".
@@ -446,12 +490,12 @@ Definition is_ewp_case {A X} (m : micro A X) : ewp_case :=
   | _ => WPStep
   end.
 
-Lemma thread_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ :
-  thread_step (σ, m, π) (σ', m', μ) ->
+Lemma subjective_step_is_WPStep {A X} σ π (m m' : micro A X) σ' μ κ :
+  subjective_step (σ, m, π) κ (σ', m', μ) ->
   is_ewp_case m = WPStep.
 Proof.
   intros Hwp.
-  destruct_thread_step; reflexivity.
+  destruct_subjective_step; reflexivity.
 Qed.
 
 Lemma inv_is_ewp_case_outcome {A X} (m : micro A X) o :
@@ -489,31 +533,37 @@ Section ewp_def.
           satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
            |={E}=> Ψ allows perform e << λ o, ▷ ewp E (k o) Ψ φ >>
-       (* [EWP4]: [m] is a computation that can take a step. *)
+       (* [EWP4]: [m] is a computation that can take a step.
+
+          The trace is split as [κ ++ κs]: [κ] is what THIS step emits and
+          [κs] is the rest of the future. Every step but a prophecy
+          resolution has [κ = []], so in practice the split is trivial —
+          but it is what lets the resolution rule learn that the head of
+          its [proph] assertion is the value it just observed. *)
        | WPStep =>
-           ∀ σ π,
-             state_interp (σ, π) ={E, ∅}=∗
+           ∀ σ κ κs π,
+             state_interp (σ, κ ++ κs, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
-               ⌜thread_step (σ, m, dom π) (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ⌜subjective_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
                ewp E m' Ψ φ ∗
                match μ with
-               | None => state_interp (σ', π)
+               | None => state_interp (σ', κs, π)
                | Some (ι', mforked) =>
-                   ∃ φ' γ, state_interp (σ', <[ι' := γ]> π) ∗
+                   ∃ φ' γ, state_interp (σ', κs, <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
                            ewp ⊤ mforked ⊥ (λ o, □ φ' o)
                end
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
-           ∀ σ π,
-             state_interp (σ, π) ={E, ∅}=∗
+           ∀ σ κs π,
+             state_interp (σ, κs, π) ={E, ∅}=∗
              match π !! ι' with
              | None => |={∅, E}=> ▷ False
              | Some γ =>
                  ∃ φ', saved_pred_own γ DfracDiscarded φ' ∗
                        ▷ (∀ o, □ φ' o ={∅}=∗ |={∅,E}=>
-                          ewp E (k o) Ψ φ ∗ state_interp (σ, π))
+                          ewp E (k o) Ψ φ ∗ state_interp (σ, κs, π))
              end
        end)%I.
 
@@ -569,12 +619,13 @@ Proof.
   - repeat f_equiv. intro o. f_contractive.
     apply IH; auto; intro; auto.
     eapply dist_lt; eauto.
-  - do 18 (f_contractive || f_equiv).
+  - do 20 (f_contractive || f_equiv).
+    do 2 f_equiv.
     apply IH; eauto.
     f_equiv.
     eapply dist_lt; eauto.
-  - do 17 (f_contractive || f_equiv).
-    + apply IH; eauto. f_equiv. eapply dist_lt; eauto.
+  - do 18 (f_contractive || f_equiv).
+    + f_equiv. apply IH; eauto. f_equiv. eapply dist_lt; eauto.
 Qed.
 
 Global Instance ewp_proper E m Ψ:
@@ -617,60 +668,188 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
    The exception postcondition comes BEFORE the return postcondition
    so the parser can distinguish from the short form. *)
 
-Notation "'imp' e ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E ⊥ ζ%I Φ%I)
     (at level 20, e, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ζ%I Φ%I)
-    (at level 20, e, Φ, ζ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' '}}' ']'")
+    (at level 20, e, Ψ, Φ, ζ at level 200,
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
-Notation "'imp' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ }}" :=
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E Ψ%I ζ%I Φ%I)
     (at level 20, e, Ψ, Φ, ζ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 (* Notations without exceptional postcondition (uses ⊥) *)
 
-Notation "'imp' e {{ Φ }}" :=
+Notation "'EWP' e {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e @ E {{ Φ }}" :=
+Notation "'EWP' e @ E {{ Φ } }" :=
   (impure E e%E ⊥ ⊥ Φ%I)
     (at level 20, e, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-Notation "'imp' e <| Ψ '|>' {{ Φ }}" :=
+Notation "'EWP' e <| Ψ '|>' {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ⊥ Φ%I)
-    (at level 20, e, Φ at level 200,
-      format "'[hv' 'imp'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' '}}' ']'")
+    (at level 20, e, Ψ, Φ at level 200,
+      format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
-Notation "'imp' e @ E <| Ψ |> {{ Φ }}" :=
+Notation "'EWP' e @ E <| Ψ |> {{ Φ } }" :=
   (impure E e%E Ψ%I ⊥ Φ%I)
     (at level 20, e, Ψ, Φ at level 200,
-      format "'[' 'imp'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  '}}' ']' ']'")
+      format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  } } ']' ']'")
     : bi_scope.
 
-(* N.B.: we don't use [bi_scope] here to avoid a notation conflict with
-  pre-existing notation; might be brittle *)
-Notation "'{{{' P } } } e {{{ x .. y , 'RET' pat  ;  Q } } }" :=
-  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ imp e {{ Φ }}).
+(* Notations taking the postconditions as a binder and a body, the analogue of
+   Iris' [WP e {{ v, Q }}]. Either postcondition may be written in either style,
+   so each of the four [@ E] / [<| Ψ |>] shapes comes in four flavours.
+
+   These come after the predicate notations above, and printing picks the most
+   recently declared match, so they are the ones used for printing. As in Iris,
+   that means an opaque postcondition prints eta-expanded, as [{{ v, Φ v }}].
+
+   The general approach for the formats: an outer '[hv' to switch between
+   "horizontal mode" where it all fits on one line, and "vertical mode" where
+   each '/' becomes a line break; then a nested box around each postcondition so
+   that it stays maximally horizontal and suitably indented. *)
+
+(* Binder on the return postcondition, exceptional postcondition given. *)
+
+Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ ζ%I (λ v, Q%I))
+    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E ⊥ ζ%I (λ v, Q%I))
+    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I ζ%I (λ v, Q%I))
+    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E Ψ%I ζ%I (λ v, Q%I))
+    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Binder on the exceptional postcondition only. *)
+
+Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure ⊤ e%E ⊥ (λ w, R%I) Φ%I)
+    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure E e%E ⊥ (λ w, R%I) Φ%I)
+    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure ⊤ e%E Ψ%I (λ w, R%I) Φ%I)
+    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
+  (impure E e%E Ψ%I (λ w, R%I) Φ%I)
+    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
+    : bi_scope.
+
+(* Binders on both postconditions. *)
+
+Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E ⊥ (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, Ψ, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
+  (impure E e%E Ψ%I (λ w, R%I) (λ v, Q%I))
+    (at level 20, e, Ψ, R, Q at level 200,
+     w at level 200 as pattern, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Binder on the return postcondition, no exceptional postcondition.
+
+   These must come last: for a computation whose exceptional postcondition is
+   [⊥], the notations above also match (printing [⊥] eta-expanded as
+   [⟨⟨ w, ⊥ w ⟩⟩]), and printing picks the most recently declared match. *)
+
+Notation "'EWP' e {{ v , Q } }" :=
+  (impure ⊤ e%E ⊥ ⊥ (λ v, Q%I))
+    (at level 20, e, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E {{ v , Q } }" :=
+  (impure E e%E ⊥ ⊥ (λ v, Q%I))
+    (at level 20, e, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e <| Ψ '|>' {{ v , Q } }" :=
+  (impure ⊤ e%E Ψ%I ⊥ (λ v, Q%I))
+    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+Notation "'EWP' e @ E <| Ψ '|>' {{ v , Q } }" :=
+  (impure E e%E Ψ%I ⊥ (λ v, Q%I))
+    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+      format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
+    : bi_scope.
+
+(* Both binders are parsed [as pattern], so either postcondition may destructure
+   its result directly: [{{ (x, y), Q }}], [⟨⟨ (i, j), R ⟩⟩]. Write the pattern
+   without a leading ['] — a quoted [{{ '(x, y), Q }}] would send the parser into
+   stdpp's ["' x ← y ; z"] (monadic bind) rule and fail asking for [←]. This is
+   also the form Rocq prints back, so the notation round-trips. *)
+
+(* Texan triples for [EWP] are declared in [program_logic/triples.v]. *)
 
 (* N.B. A slight hack to control the namespace of constructs that have the same
   name in [stdpp] and [osiris]. *)

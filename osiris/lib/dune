@@ -1,0 +1,13 @@
+;; The OCaml-side support library that Osiris ships alongside the translator.
+;; A program that is annotated for verification links against it; the modules
+;; it provides have no runtime meaning of their own, as the translator gives
+;; the constructs they name their ghost meaning.
+
+;; The library is named after its only module, so dune does not wrap it: the
+;; module is visible to clients as [Proph], which is the name the translator
+;; recognizes.
+(library
+  (public_name osiris.proph)
+  (name proph)
+  (flags (:standard -bin-annot))
+)

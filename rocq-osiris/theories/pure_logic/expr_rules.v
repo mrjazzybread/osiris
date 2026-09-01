@@ -161,15 +161,17 @@ Qed.
 
 (* EData (c : data) (e : list expr) *)
 
-Lemma pure_eval_const `{Encode A} `{Encode C}
-  η c x (ψ : A -> Prop) (ζ : C → Prop) :
-  VConstant c = #x ->
-  ψ x ->
+(* The logical value of the constant is determined by the [Constant]
+   typeclass resolution. *)
+Lemma pure_eval_const {c : data} {B : Type} {HB : Encode B} {HC : Constant c B} `{Encode C}
+  η (ψ : B -> Prop) (ζ : C → Prop) :
+  ψ (@constant_value c B HB HC) ->
   pure (eval η (EConstant c)) ψ ζ.
 Proof.
-  intros.
-  simpl_eval.
-  eauto using pure_ret with pure.
+  intros. simpl_eval.
+  eapply pure_ret.
+  - apply constant_encode.
+  - assumption.
 Qed.
 
 Lemma pure_eval_data `{DC : Data c τ A} `{Encode C} {φ : A → Prop} (φs : τ → Prop) η es (ζ : C → Prop) :

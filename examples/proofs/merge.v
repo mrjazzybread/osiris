@@ -172,7 +172,7 @@ Lemma merge_mkspec merge (l1 l2 : list Z) :
       → merge_spec x1 x2 m)
   → merge_spec l1 l2
       (please_eval η
-         (EMatch (ETuple [EPath ["l1"]; EPath ["l2"]]) __branches2)).
+         (EMatch (ETuple [EPath ["l1"]; EPath ["l2"]]) __merge_branches)).
 Proof.
    intros Hl1 Hl2 Hmerge IH.
    unfold merge_spec. intros [Hreprl1 Hsortl1] [Hreprl2 Hsortl2].
@@ -264,7 +264,7 @@ Lemma split_mkspec split (l : list Z) :
   Spec τ[list Z] split
        (λ (x : list Z) (m : microvx),
          (length x < length l)%nat → split_spec x m) ->
-  split_spec l (please_eval η (EMatch (EPath ["l"]) __branches6)).
+  split_spec l (please_eval η (EMatch (EPath ["l"]) __split_branches)).
 Proof.
   intros Hl Hsplit IH.
   unfold split_spec.
@@ -288,7 +288,7 @@ Proof.
     split; simpl; auto. }
   (* Third branch of match *)
   { (* Case: l matches a::b::t *)
-    rename x into x2. rename xs'0 into t.
+    rename xs' into t.
     eapply pure_eval_let_pair.
     { (* Recursive call to [split t]. *)
       eapply (pure_EApp τ[list Z]).
@@ -340,7 +340,7 @@ Lemma mergesort_mkspec mergesort (l : list Z) :
   (Spec τ[list Z] mergesort (λ x m,
        (length x < length l)%nat ->
        mergesort_spec x m)) ->
-  mergesort_spec l (please_eval η (EMatch (EPath ["l"]) __branches11)).
+  mergesort_spec l (please_eval η (EMatch (EPath ["l"]) __merge_sort_branches)).
 Proof.
   intros Hl Hmergesort IH Hpre.
   apply pure_please_eval.

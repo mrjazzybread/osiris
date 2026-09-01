@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 
-From osiris.lang Require Import encode type_nel.
+From osiris.lang Require Import encode type_nel constructors.
 From osiris.semantics Require Import eval.
 From osiris.program_logic Require Import program_logic.
 
@@ -8,7 +8,7 @@ From osiris.utils Require Import tactics.
 Require Import equality.
 
 (* This file defines the [imp_path] tactic, used for solving goals of the
-   form [imp (eval η (EPath p)) {{ Φ }}]. *)
+   form [EWP (eval η (EPath p)) {{ Φ }}]. *)
 
 (* --------------------------------------------------------------------------*)
 (* Specifications for whole modules. *)
@@ -80,8 +80,8 @@ Section ModuleSpecs.
 
   (* Check *)
   (*   context [ *)
-  (*      var_spec "+" (λ add, iSpec τ[Z; Z] add (λ i j m, imp m {{ λ n, ⌜(n = i + j)%Z⌝ }})%I); *)
-  (*      var_spec "-" (λ sub, iSpec τ[Z; Z] sub (λ i j m, imp m {{ λ n, ⌜(n = i - j)%Z⌝ }})%I) *)
+  (*      var_spec "+" (λ add, iSpec τ[Z; Z] add (λ i j m, EWP m {{ n, ⌜(n = i + j)%Z⌝ }})%I); *)
+  (*      var_spec "-" (λ sub, iSpec τ[Z; Z] sub (λ i j m, EWP m {{ n, ⌜(n = i - j)%Z⌝ }})%I) *)
   (*    ] {["+";"-";"*"]}. *)
 
 End ModuleSpecs.
@@ -117,6 +117,43 @@ Section LookupName.
       destruct (name =? x)%string.
       + discriminate 1.
       + apply IH.
+  Qed.
+
+  Lemma not_elem_of_dom_lookup_name (η : env) name :
+    name ∉ (list_to_set (η.*1) : gset var) → lookup_name η name = None.
+  Proof.
+    induction η as [|[y v] η IH]; simpl; first done.
+    intros Hnin.
+    simpl in Hnin.
+    apply not_elem_of_union in Hnin as [Hne Hnin].
+    apply not_elem_of_singleton in Hne.
+    destruct (name =? y)%string eqn:Heq; last by apply IH.
+    exfalso. apply Hne. by apply String.eqb_eq in Heq.
+  Qed.
+
+  (* [lookup_path] only ever inspects the environment through
+     [lookup_name] on the path's own head — the rest of the path is
+     resolved inside the module value that head resolves to, entirely
+     independently of whatever else the outer environment contains. So
+     [lookup_path] agrees on [η] and any environment differing from it
+     only in bindings absent from the path's head. *)
+
+  Lemma lookup_path_cons π (η : env) y w :
+    (match π with [] => True | x :: _ => (x =? y)%string = false end) →
+    lookup_path ((y, w) :: η) π = lookup_path η π.
+  Proof.
+    destruct π as [|x π]; simpl; first done.
+    intros Hne.
+    destruct π as [|z π]; simpl; rewrite Hne; reflexivity.
+  Qed.
+
+  Lemma lookup_path_app_r π (η δ : env) :
+    (match π with [] => True | x :: _ => lookup_name δ x = None end) →
+    lookup_path (δ ++ η) π = lookup_path η π.
+  Proof.
+    destruct π as [|x π]; simpl; first done.
+    intros Hδ.
+    destruct π as [|y π]; simpl; rewrite (lookup_name_app_r x δ η Hδ); reflexivity.
   Qed.
 
 End LookupName.
@@ -179,6 +216,31 @@ Section InEnv.
     simpl lookup_name; rewrite Heq. reflexivity.
   Qed.
 
+  (* [in_env_here] requires unification to invert [#?v = <stored value>].
+     That works when the encoding is transparent enough (a [val], a [Z],
+     a record), but not when [A] is a variant type whose [Encode] is a
+     [match] on constructors: from [VInline "Root" r] there is no way to
+     guess [CtRoot r]. This variant reads the constructor off the stored
+     value and looks the answer up in the [Inline] class instead.
+
+     The constructor function [mk] is taken as a parameter constrained by
+     an equation rather than looked up directly, so that a caller can
+     apply this rule while [c] is still an evar: unification against the
+     goal fixes [c] and [r], and only then is the equation discharged by
+     [Inline]'s instance — which is exactly when its [Hint Mode] permits
+     resolution. *)
+
+  Lemma in_env_here_inline {η} (c : data) (r : record) (mk : record → A) x y :
+    (x =? y)%string = true →
+    (∀ r' : record, VInline c r' = #(mk r')) →
+    Φ (mk r) -∗
+    in_env x Φ ((y, VInline c r) :: η).
+  Proof.
+    iIntros (Heq Hmk) "HΦ".
+    rewrite Hmk.
+    by iApply in_env_here.
+  Qed.
+
 End InEnv.
 
 (* --------------------------------------------------------------------------*)
@@ -216,6 +278,59 @@ Section PathSpec.
     simpl. destruct p.
     - simpl in Hlookup'. discriminate Hlookup'.
     - rewrite Hlookup. apply Hlookup'.
+  Qed.
+
+  (* Monotonicity of [path_spec], mirroring [in_env_mono]: lets [imp_path]
+     reuse an already-available [path_spec] hypothesis directly — e.g.
+     when the caller keeps a whole [path_spec p Φ' η] hypothesis folded
+     instead of destructuring it into the per-segment [in_env]/[context]
+     facts [solve_path_spec] otherwise decomposes it into. *)
+
+  Lemma path_spec_mono (Φ' : A → iProp Σ) p η :
+    path_spec p Φ' η -∗
+    (∀ a, Φ' a -∗ Φ a) -∗
+    path_spec p Φ η.
+  Proof.
+    iIntros "(%a & %Hlookup & HΦ') Hmono".
+    iExists a. iSplit; first done.
+    iApply ("Hmono" with "HΦ'").
+  Qed.
+
+  (* [path_spec] is unaffected by prepending a binding that doesn't
+     shadow the path's own head — used to let [imp_path] reuse a folded
+     [path_spec] hypothesis stated over an outer environment [η] even
+     when the actual goal's environment has since been extended (e.g. by
+     a function argument bound via [iIntros "!>" (v)]), without the
+     caller having had to re-derive the hypothesis for the new
+     environment by hand. *)
+
+  Lemma path_spec_cons_env p η y w :
+    (match p with [] => True | x :: _ => (x =? y)%string = false end) →
+    path_spec p Φ η -∗
+    path_spec p Φ ((y, w) :: η).
+  Proof.
+    iIntros (Hne) "(%v & %Hlookup & HΦ)".
+    iExists v. iSplit; last done.
+    iPureIntro. by rewrite (lookup_path_cons p η y w Hne).
+  Qed.
+
+  (* The [context]-based analogue of [path_spec_cons_env], for when the
+     environment was extended by appending a whole (module-)context
+     fragment rather than a single binding — mirrors [in_env_app_r]. *)
+
+  Lemma path_spec_app_r p η δ d mspec :
+    (match p with [] => True | x :: _ => x ∉ d end) →
+    context mspec d δ -∗
+    path_spec p Φ η -∗
+    path_spec p Φ (δ ++ η).
+  Proof.
+    iIntros (Hnin) "(%Hdom & _) (%v & %Hlookup & HΦ)".
+    iExists v. iSplit; last done.
+    iPureIntro.
+    rewrite (lookup_path_app_r p η δ); [done|].
+    destruct p as [|x p]; first done.
+    apply not_elem_of_dom_lookup_name.
+    unfold dom, dom_env in Hdom. rewrite Hdom. exact Hnin.
   Qed.
 
 End PathSpec.
@@ -319,7 +434,7 @@ Section PathRule.
   Lemma imp_EPath_spec {E : coPset} {Ψ : iEff Σ} {A : Type} {EncA : Encode A}
     {Φ : A → iProp Σ} {ζ : exn → iProp Σ} (η : env) (p : path) :
     path_spec p Φ η -∗
-    imp eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} : iProp Σ.
+    EWP eval η (EPath p) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }} : iProp Σ.
   Proof.
     iIntros "(% & %Hlookup & Hspec)".
     simpl_eval.
@@ -416,6 +531,37 @@ Ltac2 get_in_env (x : constr) (η : constr) : constr :=
     (fun _ => go pers_hyps)
     (fun _ => go spat_hyps).
 
+(* [get_path_spec p η] tries to find a hypothesis of the form
+   [path_spec p' _ η] in the iris context, for a path [p'] equal to [p]
+   (and the same environment [η]). This lets [solve_path_spec] reuse an
+   already-available [path_spec] hypothesis directly when the caller
+   kept it folded (e.g. [path_spec ["G";"fresh"] Φ η] introduced via a
+   plain [iIntros "#HG"], not destructured into the per-segment
+   [in_env]/[context] facts the rest of [imp_path] otherwise looks
+   for). *)
+
+Ltac2 get_path_spec (p : constr) (η : constr) : constr :=
+  let (pers_hyps, spat_hyps) := get_iris_hyps () in
+  let rec go env :=
+    lazy_match! env with
+    | environments.Enil =>
+        Control.zero (Tactic_failure
+                        (Some (fprintf "Could not find [path_spec] hypothesis for path %t" p)))
+    | environments.Esnoc ?env ?name ?prop =>
+        match! prop with
+        | path_spec ?p' _ ?δ =>
+            if Constr.equal p p' && Constr.equal η δ then
+              name
+            else
+              go env
+        | _ => go env
+        end
+    end
+  in
+  Control.plus
+    (fun _ => go pers_hyps)
+    (fun _ => go spat_hyps).
+
 
 (** Applying lemmas that reason about [in_env]. *)
 
@@ -433,6 +579,53 @@ Ltac2 in_env_here () :=
   (* For this tactic to succeed, it must solve the [x =? y = true]
      condition of [in_env_here]. *)
   Control.focus 1 1 (fun _ => apply String.eqb_refl).
+
+(* The constructor-aware variant, for a target type whose [Encode] is a
+   [match] on constructors, so that unification cannot invert [#?v]
+   against the stored value (nothing recovers [CtRoot r] from
+   [VInline "Root" r]).
+
+   It is NOT offered as an alternative to [in_env_here], neither inside
+   that tactic nor at the search level in [solve_in_env]. All three
+   placements were tried — [Control.plus] inside [in_env_here],
+   [Control.once (Control.plus ...)] inside it, and a [Control.plus] in
+   [solve_in_env]'s cons branch — and all three break callers in the same
+   way: a *later* argument goal of the same [imp_app] then fails, with
+   [set_postcondition] reporting a goal that is no longer of the form
+   [EWP m @ E <|Ψ|> ⟨⟨ζ⟩⟩ {{Φ}}]. Reverting just the alternation, with
+   everything else in place, restores it.
+
+   So the obstacle is not where the rule choice is made: merely making
+   this rule *reachable by backtracking* perturbs an earlier, unrelated
+   bracket of the same [imp_app].
+
+   What instrumenting [imp_app] established (baseline, alternation off).
+   After [imp_app τ[loc;content;content]] and its first bracket, exactly
+   three goals remain: the two argument goals
+     [EWP eval η (EPath ["cx"])  {{ (c : content), ?x  c }}]
+     [EWP eval η (EPath ["cx'"]) {{ (c : content), ?x0 c }}]
+   and the continuation, whose premises mention the same [?x]/[?x0].
+   Both argument evars are plain, unapplied postcondition evars. On the
+   first of them [set_postcondition] succeeds, [iApply imp_EPath_spec]
+   succeeds (yielding [path_spec ["cx"] (λ c, ?x c) η]), and [imp_path]
+   fails precisely at the leaf, with
+     [Could not solve goal [in_env "cx" _ (…)]]
+   — i.e. the constructor-inversion failure this rule exists to fix, on
+   a perfectly well-formed goal.
+
+   With the alternation on, [imp_path] at that same bracket instead
+   reports that it cannot apply [imp_EPath_spec] at all, which means the
+   goal it sees is no longer the one above: the preceding bracket has
+   left something different behind. The corresponding dump with the
+   alternation on could not be taken (the file no longer compiles, so no
+   proof state is available at that position); obtaining it needs the
+   dump captured from a scratch file that reproduces the [imp_app] shape
+   without depending on the rest of this proof. That is the next step. *)
+
+Ltac2 in_env_here_inline_tac () :=
+  iApply in_env_here_inline;
+  Control.focus 1 1 (fun _ => apply String.eqb_refl);
+  Control.focus 1 1 (fun _ => apply inline_encode).
 
 Ltac2 in_env_app_l () :=
   iApply in_env_app_l.
@@ -471,7 +664,12 @@ Ltac2 in_env_context hyp :=
    - if [η] is a cons: apply either [in_env_here] or [in_env_cons].
    - if [η] is an app: apply either [in_env_app_r] or [in_env_app_l].
    - otherwise: try and find a hypothesis on [η] in the context.
- *)
+
+   When the head of the cons *is* the name we are after, a second rule
+   ([in_env_here_inline], for a target type whose [Encode] is a [match]
+   on constructors) can also apply. It is deliberately NOT offered here
+   as an extra alternative — see the note on [in_env_here_inline_tac]
+   above for what goes wrong. *)
 
 Ltac2 rec solve_in_env () :=
   lazy_match! get_iris_goal () with
@@ -511,9 +709,14 @@ Ltac2 rec solve_in_env () :=
                     in_env_context spec_name)
                  (fun _ =>
                     Control.plus
-                      (* Try to find a [lookup_name] hypothesis. *)
+                      (* Try to find a [lookup_name] hypothesis.  We use
+                         [match!] rather than [lazy_match!] so that, when
+                         several [lookup_name] hypotheses are in context
+                         (e.g. one per element of a tuple), we backtrack
+                         through them until we find the one matching [name]
+                         and [η]. *)
                       (fun _ =>
-                         lazy_match! goal with
+                         match! goal with
                          | [ h : lookup_name ?δ ?name' = Some #_ |- _ ] =>
                              if (Constr.equal δ η) && Constr.equal name' name then
                                let h := Control.hyp h in
@@ -554,35 +757,110 @@ Ltac2 rec path_spec_to_in_env () : detected_path :=
   | _ => Control.zero (Tactic_failure (Some (fprintf "Expected goal to be [path_spec]")))
   end.
 
+(* [try_reuse_path_spec] tries to solve a goal [path_spec p Φ env] by
+   reusing an already-available [path_spec p _ env'] hypothesis
+   directly, for an [env'] equal to [env] up to bindings prepended
+   after the hypothesis was obtained (e.g. a function argument bound
+   via [iIntros "!>" (v)], or a whole [context] fragment appended via
+   module-opening) — the case where the caller kept the hypothesis
+   folded instead of destructuring it into the per-segment
+   [in_env]/[context] facts the rest of this file otherwise works with.
+
+   It walks down [env]'s cons/app structure exactly like [solve_in_env]
+   does for [in_env] goals (via [path_spec_cons_env]/[path_spec_app_r],
+   the [path_spec] analogues of [in_env_cons]/[in_env_app_r]), stopping
+   as soon as [get_path_spec] finds a hypothesis for the path and the
+   environment reached so far. *)
+
+Ltac2 rec try_reuse_path_spec () :=
+  lazy_match! get_iris_goal () with
+  | path_spec ?p ?_spec ?goal_env =>
+      match! goal_env with
+      | (?_y, ?_w) :: ?_rest =>
+          Control.plus
+            (fun _ =>
+               iApply path_spec_cons_env;
+               Control.focus 1 1 (fun _ => complete (fun _ => reflexivity));
+               try_reuse_path_spec ())
+            (fun _ =>
+               let hyp_name := get_path_spec p goal_env in
+               iApply (path_spec_mono with $hyp_name);
+               iIntros "% #Hspec"; iApply "Hspec")
+      | ?δ ++ ?_rest =>
+          Control.plus
+            (fun _ =>
+               let spec_name := get_context_spec δ in
+               iApply (path_spec_app_r with $spec_name);
+               Control.focus 1 1 (fun _ => complete (fun _ => ltac1:(set_solver)));
+               try_reuse_path_spec ())
+            (fun _ =>
+               let hyp_name := get_path_spec p goal_env in
+               iApply (path_spec_mono with $hyp_name);
+               iIntros "% #Hspec"; iApply "Hspec")
+      | ?base_env =>
+          let hyp_name := get_path_spec p base_env in
+          iApply (path_spec_mono with $hyp_name);
+          iIntros "% #Hspec"; iApply "Hspec"
+      end
+  | _ => Control.zero (Tactic_failure None)
+  end.
+
 (* [solve_path_spec] solves a goal of the form [path_spec p Φ η]. *)
 
-(* It first calls [path_spec_to_in_env] to produce a subgoal of the
-   form [in_env _ _ η], before calling [solve_in_env] to solve that
-   subgoal.
+(* It first tries [try_reuse_path_spec] (see above). Failing that (no
+   [path_spec] hypothesis found anywhere along the way, or its
+   postcondition doesn't line up with the goal's), it falls back to the
+   original strategy: [path_spec_to_in_env] reduces the goal to
+   [in_env _ _ η], which [solve_in_env] then solves.
 
    In the case where the path is not a singleton, [solve_path_spec]
    calls itself recursively on the tail of the path. *)
 
 Ltac2 rec solve_path_spec () :=
-  match path_spec_to_in_env () with
-  | Psingleton => solve_in_env ()
-  | Pcons =>
-      Control.focus 1 1 (fun _ => complete solve_in_env);
-      let hyp_name := iFresh "Hpath" in
-      iIntros ("% #" ++ $hyp_name)%string;
-      solve_path_spec ()
-  end.
+  Control.plus
+    try_reuse_path_spec
+    (fun _ =>
+       match path_spec_to_in_env () with
+       | Psingleton => solve_in_env ()
+       | Pcons =>
+           Control.focus 1 1 (fun _ => complete solve_in_env);
+           let hyp_name := iFresh "Hpath" in
+           iIntros ("% #" ++ $hyp_name)%string;
+           solve_path_spec ()
+       end).
 
 (** User-level tactics. *)
 
 Ltac2 solve_eq_goal () :=
+  (* The postcondition may be wrapped in the [tapp] coercion (from the
+     n-ary application machinery used for tuples and records), which
+     hides the postcondition evar behind [tapp].  When [tapp] is applied
+     to an evar, unfold it so that the evar appears as the head of the
+     goal and the evar branch below fires.  We only do so for an evar,
+     to leave concrete postconditions untouched for downstream tactics.
+     ([cbn]/[simpl] do not reduce [tapp], because of the [Arguments tapp
+     ... /] simpl-nomatch hint.) *)
+  (lazy_match! get_iris_goal () with
+   | tapp ?f _ => if Constr.is_evar f then ltac1:(unfold tapp) else ()
+   | _ => ()
+   end);
   lazy_match! get_iris_goal () with
   | (⌜_ = _⌝)%I => ltac1:(equality)
   | ?spec ?x =>
       match Constr.Unsafe.kind spec with
       | Constr.Unsafe.Evar _ _ =>
           let prop := '(λ x,⌜x=$x⌝)%I in
-          try_complete (fun _ => Std.unify spec prop; auto)
+          (* Instantiate the postcondition evar to [λ x, ⌜x = v⌝], then
+             discharge the resulting equality with [equality] (as in the
+             concrete branch above).  We must instantiate the evar
+             unconditionally (not under [try_complete]): otherwise a
+             failure to fully close would roll the instantiation back and
+             leave an evar postcondition, on which the subsequent
+             [iFrame] raises a unification error.  We use [equality]
+             rather than [auto], which is too weak to close the pure
+             equality. *)
+          Std.unify spec prop;
+          try (ltac1:(equality))
       | _ => ()
       end
   end.
@@ -648,8 +926,8 @@ Section TacticTests.
      - Module2 is in the environment and contains [Module3],
        which contains [sub] *)
 
-  Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i + j)%Z⌝ }})%I.
-  Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, imp m {{ λ k, ⌜(k = i - j)%Z⌝ }})%I.
+  Definition add_spec add : iProp Σ := □ iSpec τ[Z;Z] add (λ (i j : Z) m, EWP m {{ k, ⌜(k = i + j)%Z⌝ }})%I.
+  Definition sub_spec sub : iProp Σ := □ iSpec τ[Z;Z] sub (λ (i j : Z) m, EWP m {{ k, ⌜(k = i - j)%Z⌝ }})%I.
   Definition a_spec a : iProp Σ := ∀ (A : Type), □ ⌜a > 2⌝.
 
   Definition module3_spec η := context [var_spec "sub" sub_spec] {["sub"]} η.
@@ -664,7 +942,7 @@ Section TacticTests.
                          var_spec "add" add_spec] {["some_other_val";"add"]})
       ] {["Module1"]} δ -∗
     context [var_spec "Module2" module2_spec] {["Module2";"z"]} η -∗
-    imp (eval (δ ++ η) e) {{ λ (i : Z), ⌜i > 0⌝ }}.
+    EWP (eval (δ ++ η) e) {{ (i : Z), ⌜i > 0⌝ }}.
   Proof.
     iIntros "#zspec #aspec #δspec #ηspec".
     (* TODO: imp_let tactic which instantiates

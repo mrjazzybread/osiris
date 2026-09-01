@@ -1,6 +1,5 @@
 From iris.proofmode Require Import base proofmode classes.
 From iris.base_logic.lib Require Import fancy_updates.
-From iris.bi Require Import weakestpre.
 From iris.prelude Require Import options.
 Import uPred.
 
@@ -65,7 +64,7 @@ Section ExternalsDef.
   Definition Externals__addint : val := VEta2 EIntAdd.
 
   Lemma add_spec :
-    ⊢ iSpec τ[Z;Z] Externals__addint (λ i j (m : microvx), imp m {{ λ (n : Z), ⌜(n = i + j)%Z⌝ }}).
+    ⊢ iSpec τ[Z;Z] Externals__addint (λ i j (m : microvx), EWP m {{ (n : Z), ⌜(n = i + j)%Z⌝ }}).
   Proof.
     rewrite iSpec_equation_2.
     iIntros (i).
@@ -83,7 +82,7 @@ Section ExternalsDef.
   Definition Externals__subint : val := VEta2 EIntSub.
 
   Lemma sub_spec :
-    ⊢ iSpec τ[Z;Z] Externals__subint (λ i j (m : microvx), imp m {{ λ (n : Z), ⌜(n = i - j)%Z⌝ }}).
+    ⊢ iSpec τ[Z;Z] Externals__subint (λ i j (m : microvx), EWP m {{ (n : Z), ⌜(n = i - j)%Z⌝ }}).
   Proof.
     rewrite iSpec_equation_2.
     iIntros (i).
@@ -177,15 +176,15 @@ Section ExternalsDef.
   Definition Externals__array_length_expr := EEta1 EArrayLength.
 
   Definition array_length_spec length : iProp Σ :=
-    iSpec τ[array] length (λ a m, ∀ (ls : list loc), isBlockLocs a ls -∗ imp m {{ λ n', ⌜n' = list_z.length ls⌝ }})%I.
+    iSpec τ[array] length (λ a m, ∀ (ls : list loc), isBlockLocs a ls -∗ EWP m {{ n', ⌜n' = list_z.length ls⌝ }})%I.
 
   Lemma imp_externals_length {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ length,
        □ array_length_spec length -∗
-       imp eval_sitems (x ~> length;
+       EWP eval_sitems (x ~> length;
                      η, x ~> length;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) (IExternal x Externals__array_length_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    EWP eval_sitems (η, δ) (IExternal x Externals__array_length_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
@@ -208,15 +207,15 @@ Section ExternalsDef.
          ∀ (A : Type) (_ : Encode A) (_ : Inhabited A) dq j (xs : list A),
          ▷ a ↦∗[j]{dq} xs -∗
          ⌜j ≤ i < j + length xs⌝ -∗
-         imp m {{ λ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }})%I.
+         EWP m {{ (v : A), ⌜v = xs !!! (i - j)⌝ ∗ a ↦∗[j]{dq} xs }})%I.
 
   Lemma imp_externals_get {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ get,
        □ array_get_spec get -∗
-       imp eval_sitems (x ~> get;
+       EWP eval_sitems (x ~> get;
                      η, x ~> get;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) (IExternal x Externals__array_get_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    EWP eval_sitems (η, δ) (IExternal x Externals__array_get_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
@@ -242,15 +241,15 @@ Section ExternalsDef.
          ▷ a ↦∗[j] xs -∗
          Φ x -∗
          ⌜j ≤ i < j + length xs⌝ -∗
-         imp m {{ λ (_ : unit), ∃ x, Φ x ∗ a ↦∗[j] (<[i - j:=x]> xs) }})%I.
+         EWP m {{ (_ : unit), ∃ x, Φ x ∗ a ↦∗[j] (<[i - j:=x]> xs) }})%I.
 
   Lemma imp_externals_set {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ set,
        □ array_set_spec set -∗
-       imp eval_sitems (x ~> set;
+       EWP eval_sitems (x ~> set;
                      η, x ~> set;
                      δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) (IExternal x Externals__array_set_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    EWP eval_sitems (η, δ) (IExternal x Externals__array_set_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
@@ -274,15 +273,15 @@ Section ExternalsDef.
       (λ n x m,
            ∀ Φ, ⌜0 ≤ n ≤ max_array_length⌝ -∗
                 Φ x -∗
-                imp m {{ λ a, ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}).
+                EWP m {{ a, ∃ x, Φ x ∗ a ↦∗ (replicate n x) }}).
 
   Lemma imp_externals_make {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ make,
        □ array_make_spec make -∗
-       imp eval_sitems (x ~> make;
+       EWP eval_sitems (x ~> make;
                         η, x ~> make;
                         δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) (IExternal x Externals__array_make_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    EWP eval_sitems (η, δ) (IExternal x Externals__array_make_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").
@@ -301,16 +300,16 @@ Section ExternalsDef.
   Definition freeze_spec freeze : iProp Σ :=
     iSpec τ[array] freeze
       (λ l m, ∀ t,
-         l ⤇ t -∗
-         imp m {{ λ l', ⌜l' = l⌝ ∗ l ⤇ Immut }})%I.
+         isBlock l (DfracOwn 1) t -∗
+         EWP m {{ l', ⌜l' = l⌝ ∗ isBlock l (DfracOwn 1) Immut }})%I.
 
   Lemma imp_externals_freeze {E Ψ ζ} (sitems : list sitem) (x : var) (Q : envs → iProp Σ) (η δ : env) :
     (∀ freeze,
        □ freeze_spec freeze -∗
-       imp eval_sitems (x ~> freeze;
+       EWP eval_sitems (x ~> freeze;
                         η, x ~> freeze;
                         δ) sitems @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}) -∗
-    imp eval_sitems (η, δ) (IExternal x Externals__freeze_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
+    EWP eval_sitems (η, δ) (IExternal x Externals__freeze_expr :: sitems) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Q }}.
   Proof.
     iIntros "Hsitems".
     iApply (imp_sitems_external with "[] Hsitems").

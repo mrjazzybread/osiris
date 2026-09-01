@@ -179,16 +179,10 @@ Definition val_as_record {E} (v : val) : micro record E :=
   match v with
   | VRecord l =>
       ret l
+  | VInline _ l =>
+      ret l
   | _ =>
       type_mismatch "location value expected"
-  end.
-
-Definition val_as_record_opt (v : val) : option record :=
-  match v with
-  | VRecord l =>
-      Some l
-  | _ =>
-      None
   end.
 
 Definition as_record {E} (m : micro val E) : micro record E :=
@@ -330,7 +324,36 @@ Fixpoint lookup_path η π : option val :=
       lookup_path xvs π
   end.
 
+(* ------------------------------------------------------------------------ *)
+
+(* [eval_proph_arg η a] is the value of the auxiliary argument [a] of a
+   prophecy resolution. It is a function of [η], not a computation: reading
+   [a] takes no step and has no effect. *)
+
+Definition eval_proph_arg η (a : proph_arg) : option val :=
+  match a with
+  | PArgPath π =>
+      lookup_path η π
+  | PArgData c =>
+      Some (VData c [])
+  | PArgInt i =>
+      Some (VInt (int.repr i))
+  end.
+
 End LookupEnv.
+
+(* ------------------------------------------------------------------------ *)
+
+Lemma bind_proph_args {B E} {η} {π : path} {a : proph_arg} {p : loc} {v : val}
+    {k : loc → val → micro B E} :
+  lookup_path η π = Some (VLoc p) →
+  eval_proph_arg η a = Some v →
+  (p' ← as_loc (of_option (lookup_path η π)) ;
+   v' ← of_option (eval_proph_arg η a) ;
+   k p' v') = k p v.
+Proof.
+  intros Hp Hv. rewrite Hp, Hv. reflexivity.
+Qed.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -388,6 +411,34 @@ Fixpoint lookup_rec_bindings rbs g : option anonfun :=
 
 (* ------------------------------------------------------------------------ *)
 
+(* [loadfs ls fps] reads the fields [fps] of a block [ls], and returns
+   their values in the order in which [fps] selects them.
+
+   Only the selected fields are read: a record pattern that mentions
+   one field of a wide record performs one load. A field index out of
+   bounds triggers a crash. *)
+
+Fixpoint loadfs {E} (ls : list loc) (fps : list (field * pat)) : micro (list val) E :=
+  match fps with
+  | [] => ret []
+  | (f, _) :: fps =>
+      v ← (match ls !! f with Some l => load l | None => Crash end) ;
+      vs ← loadfs ls fps ;
+      ret (v :: vs)
+  end.
+
+(* [fvals vs fps] is the pure counterpart of [loadfs]: if [vs] are the
+   values of a block's fields, then [fvals vs fps] is what reading the
+   fields selected by [fps] yields. *)
+
+Fixpoint fvals (vs : list val) (fps : list (field * pat)) : list val :=
+  match fps with
+  | [] => []
+  | (f, _) :: fps => vs !!! f :: fvals vs fps
+  end.
+
+(* ------------------------------------------------------------------------ *)
+
 (* This section defines the auxiliary functions that are mutually recursive
    with [eval_pat]. *)
 
@@ -425,22 +476,26 @@ Fixpoint pre_eval_pats (η δ : env) ps vs : micro env unit :=
       length_mismatch "shorter tuple expected"
  end.
 
-(* [eval_fpats η δ fps vs] matches the positionally-indexed record values
-   [vs] against the field-indexed patterns [fps].
+(* [eval_fpats η δ fps vs] matches the values [vs] against the field
+   patterns [fps]. The two lists are in one-to-one correspondence: [vs]
+   holds the value of the field selected by each pattern of [fps], in the
+   order in which [fps] selects them (this is what [loadfs] produces).
 
    In case of success, the result is an extension of [δ] with bindings for
-   the bound variables of [fps]. A field index out of bounds is a meta-level
-   invariant violation and triggers a crash. *)
+   the bound variables of [fps]. *)
 
-Fixpoint pre_eval_fpats (η δ : env) fps vs : micro env unit :=
+Fixpoint pre_eval_fpats (η δ : env) (fps : list (field * pat)) vs : micro env unit :=
   let eval_fpats := pre_eval_fpats in
-  match fps with
-  | [] => ret δ
-  | (f, p) :: fps =>
-      v ← of_option (vs !! f) ;
+  match fps, vs with
+  | [], _ => ret δ
+  | (_, p) :: fps, v :: vs =>
       δ ← eval_pat η δ p v ;
       δ ← eval_fpats η δ fps vs ;
       ret δ
+  | _ :: _, [] =>
+      (* [loadfs] produces one value per field pattern, so this cannot
+         arise from [eval_pat]. *)
+      length_mismatch "one value per field pattern expected"
   end.
 
 End EvalPat.
@@ -503,12 +558,16 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       if (locations.eqb l l') then eval_pats η δ ps vs else throw ()
   | PRecord fps, VRecord l =>
       (* A record pattern matches a record value. The pattern may
-         mention fewer fields than the value. The values are loaded
-         from the heap in field order; field indices in [fps] are
-         positional and looked up against [vs]. *)
+         mention fewer fields than the value; only the fields it
+         mentions are loaded, in the order in which it mentions them. *)
       '(_, ls) ← load_block l ;
-      vs ← loadn ls ;
+      vs ← loadfs ls fps ;
       eval_fpats η δ fps vs
+  | PInline c p, VInline c' l =>
+      (* An inline-record pattern matches an inline-record value with the
+         same constructor; the sub-pattern is matched against the record
+         itself. A constructor mismatch is a match failure. *)
+      if c =? c' then eval_pat η δ p (VRecord l) else throw ()
   | PArray ps, VArray l =>
       (* An array pattern matches an array value of the same length;
          a length mismatch is a match failure, not a crash. *)
@@ -532,6 +591,8 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       type_mismatch "extensible algebraic data expected"
   | PRecord _, _ =>
       type_mismatch "record expected"
+  | PInline _ _, _ =>
+      type_mismatch "inline record expected"
   | PArray _, _ =>
       type_mismatch "array expected"
   | PInt _, _ =>
@@ -561,6 +622,9 @@ Local Definition eval_fpats_aux : seal (pre_eval_fpats eval_pat).
 Proof. by eexists. Qed.
 (* Top-level definition for [extendfs] *)
 Definition eval_fpats := eval_fpats_aux.(unseal).
+Lemma fold_pre_eval_fpats :
+  pre_eval_fpats eval_pat = eval_fpats.
+Proof. unfold eval_fpats; by rewrite seal_eq. Qed.
 
 (* [eval_cpat η δ cp o] matches the outcome [o] against
    the computation pattern [cp]. *)
@@ -644,7 +708,8 @@ Definition phys_eq_val v1 v2 : micro bool exn :=
   | VLoc l1, VLoc l2 =>
       ret (locations.eqb l1 l2)
   | VArray l1, VArray l2
-  | VRecord l1, VRecord l2 =>
+  | VRecord l1, VRecord l2
+  | VInline _ l1, VInline _ l2 =>
       '((t1, _), (t2, _)) ← par (load_block l1) (load_block l2) ;
       match t1, t2 with
       | Mut, _ | _, Mut => ret (locations.eqb l1 l2)
@@ -1230,6 +1295,20 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       | Some l => store l v
       | None => Crash
       end
+  | EAtomicLoc e f =>
+      (* The location of the field [f] is returned as a first-class value,
+         on which the atomic operations (load, store, CAS, ...) operate. *)
+      r ← as_record (eval η e) ;
+      '(_, ls) ← load_block r ;
+      match ls !! f with
+      | Some l => ret (VLoc l)
+      | None => Crash
+      end
+  | EInline c t es =>
+    vs ← evals η es ;
+    ls ← allocn vs ;
+    l ← alloc_block t ls ;
+    ret (VInline c l)
   | EArrayLit es =>
       vs ← evals η es ;
       ls ← allocn vs ;
@@ -1457,6 +1536,37 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   | EFAA e1 e2 =>
       '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
       faa l i
+  | ENewProph =>
+      p ← new_proph ;
+      ret (VLoc p)
+  | EResolve e π a =>
+      (* The prophecy [π] and the annotation [a] are looked up in the
+         environment. The resolved expression [e]'s own arguments are
+         then evaluated, and the resolution is attached to the system
+         call performing [e]'s effect (if there is one). *)
+      p ← as_loc (of_option (lookup_path η π)) ;
+      v ← of_option (eval_proph_arg η a) ;
+      match e with
+      | ELoad e1 =>
+          l ← as_loc (eval η e1) ;
+          resolve CLoad l p v
+      | EExchange e1 e2 =>
+          '(l, w) ← pair_op Strat.fun_app_order (as_loc (eval η e1)) (eval η e2) ;
+          resolve CExchange (l, w) p v
+      | ECAS e1 e2 e3 =>
+          '(l, seen, w) ← par (par (as_loc (eval η e1)) (eval η e2)) (eval η e3) ;
+          resolve CCAS (l, seen, w) p v
+      | EFAA e1 e2 =>
+          '(l, i) ← par (as_loc (eval η e1)) (as_int (eval η e2)) ;
+          resolve CFAA (l, i) p v
+      | _ =>
+          (* A non-atomic expression cannot be resolved at its own step:
+             its evaluation is many steps, and only a single system call
+             can carry a resolution. So we run it and resolve on the value
+             it produced afterwards. *)
+          w ← eval η e ;
+          resolve CReturn w p v
+      end
   | EIgnore e =>
       _ ← eval η e ;
       ok
@@ -1562,92 +1672,102 @@ Proof. unfold eval_sitems; by rewrite seal_eq. Qed.
 
 (* Unfolding and simplifying definitions. *)
 
+(* [simpl_X] unseals [X], reduces one layer of its [pre_] body, and then puts
+   back behind its sealed name every [pre_] name that the reduction exposed,
+   so that a goal is never left mentioning one. *)
+
+Ltac fold_evaluators :=
+  rewrite ?fold_pre_eval,
+    ?fold_pre_eval_pat, ?fold_pre_eval_pats, ?fold_pre_eval_fpats,
+    ?fold_pre_evals, ?fold_pre_evalfs,
+    ?fold_pre_eval_branches, ?fold_pre_shallow_eval_branches,
+    ?fold_pre_eval_bindings,
+    ?fold_pre_wrap_eval_branches,
+    ?fold_pre_eval_mexpr,
+    ?fold_pre_eval_sitem, ?fold_pre_eval_sitems.
+
 Ltac simpl_eval :=
   (unfold eval;
    rewrite seal_eq;
    (progress simpl pre_eval);
-   rewrite ?fold_pre_eval,
-     ?fold_pre_evals,
-     ?fold_pre_evalfs,
-     ?fold_pre_eval_branches,
-     ?fold_pre_eval_bindings,
-     ?fold_pre_eval_mexpr,
-     ?fold_pre_wrap_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of eval".
 
 Ltac simpl_evals :=
   (unfold evals;
    rewrite seal_eq;
    (progress simpl pre_evals);
-   rewrite ?fold_pre_eval, ?fold_pre_evals)
-  || idtac "Unable to simplify application of evals".
+   fold_evaluators)
+  || fail "Unable to simplify application of evals".
 
 Ltac simpl_evalfs :=
   (unfold evalfs;
    rewrite seal_eq;
-   (progress simpl pre_evalfs))
+   (progress simpl pre_evalfs);
+   fold_evaluators)
   || fail "Unable to simplify application of evalfs".
 
 Ltac simpl_shallow_eval_branches :=
   (unfold shallow_eval_branches;
    rewrite seal_eq;
    (progress simpl pre_shallow_eval_branches);
-  rewrite ?fold_pre_shallow_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of shallow_eval_branches".
 
 Ltac simpl_eval_branches :=
   (unfold eval_branches;
    rewrite seal_eq;
    (progress simpl pre_eval_branches);
-   rewrite ?fold_pre_eval_branches)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_branches".
+
+(* [pre_wrap_eval_branches] is a plain definition whose unfolding exposes no
+   [match], and both [simpl] and [cbn] decline to unfold such a constant — so
+   here the unfolding has to be asked for by name. What is then worth
+   reducing is [wrap_outcome], which does match on the outcome; the tactic
+   used to run a bare [simpl] over the whole goal to get at it. *)
 
 Ltac simpl_wrap_eval_branches :=
   (unfold wrap_eval_branches;
    rewrite seal_eq;
-   (progress unfold pre_wrap_eval_branches; simpl);
-   rewrite ?fold_pre_wrap_eval_branches)
+   (progress (unfold pre_wrap_eval_branches;
+              cbn beta iota delta [ wrap_outcome ]));
+   fold_evaluators)
   || fail "Unable to simplify application of wrap_eval_branches".
 
 Ltac simpl_eval_bindings :=
   (unfold eval_bindings;
    rewrite seal_eq;
    (progress simpl pre_eval_bindings);
-   rewrite ?fold_pre_eval_bindings;
-   fold eval)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_bindings".
 
 Ltac simpl_eval_sitem :=
   (unfold eval_sitem;
    rewrite seal_eq;
    (progress simpl pre_eval_sitem);
-   rewrite ?fold_pre_eval_sitem;
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_sitem".
 
 Ltac simpl_eval_sitems :=
   (unfold eval_sitems;
    rewrite seal_eq;
    (progress simpl pre_eval_sitems);
-   rewrite ?fold_pre_eval_sitem, ?fold_pre_eval_sitems;
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_sitems".
 
 Ltac simpl_eval_mexpr :=
   (unfold eval_mexpr;
    rewrite seal_eq;
    (progress simpl pre_eval_mexpr);
-   (rewrite ?fold_pre_eval_mexpr,
-     ?fold_pre_eval_sitems,
-     ?fold_pre_eval_sitem);
-  fold eval_bindings)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_mexpr".
 
 Ltac simpl_eval_pats :=
   (unfold eval_pats;
    rewrite seal_eq;
    (progress simpl pre_eval_pats);
-   rewrite ?fold_pre_eval_pats)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_pats".
 
 Ltac simpl_eval_pat :=
@@ -1655,8 +1775,15 @@ Ltac simpl_eval_pat :=
    unfold eval_pat;
    rewrite seal_eq;
    (progress simpl pre_eval_pat);
-   rewrite ?fold_pre_eval_pat, ?fold_pre_eval_pats)
+   fold_evaluators)
   || fail "Unable to simplify application of eval_pat".
+
+Ltac simpl_eval_fpats :=
+  (unfold eval_fpats;
+   rewrite seal_eq;
+   (progress simpl pre_eval_fpats);
+   fold_evaluators)
+  || fail "Unable to simplify application of eval_fpats".
 
 Ltac unfold_all :=
   unfold eval, evals, evalfs,
@@ -1665,20 +1792,6 @@ Ltac unfold_all :=
     eval_pats, irrefutably_extend, eval_pat;
   rewrite ?seal_eq.
 
-Ltac fold_all :=
-  repeat first [ rewrite fold_pre_eval
-               | rewrite fold_pre_evals
-               | rewrite fold_pre_evalfs
-               | rewrite fold_pre_eval_branches
-               | rewrite fold_pre_wrap_eval_branches
-               | rewrite fold_pre_shallow_eval_branches
-               | rewrite fold_pre_eval_bindings
-               | rewrite fold_pre_eval_mexpr
-               | rewrite fold_pre_eval_sitem
-               | rewrite fold_pre_eval_sitems
-               | rewrite fold_pre_eval_pat
-               | rewrite fold_pre_eval_pats
-    ].
 
 (* -------------------------------------------------------------------------- *)
 (* Auxiliary functions on [eval] *)

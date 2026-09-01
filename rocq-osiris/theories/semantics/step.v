@@ -1,6 +1,7 @@
 From Stdlib Require Import Logic.FunctionalExtensionality Program.Equality.
 From stdpp Require Import gmap relations.
 From osiris Require Import base.
+From osiris.utils.logic Require Import lsteps.
 From osiris.lang Require Import lang.
 Require Import code eval.
 
@@ -19,13 +20,13 @@ Require Import code eval.
 
    A continuation is either not-yet-shot or already shot.
 
-   This gives rise to four cases: [Val] for values, [Dict] for blocks of
+   This gives rise to four cases: [Val] for values, [Block] for blocks of
    memory, [Kont] for continuations, and [Shot] for already-shot
    continuations.  *)
 
 Inductive mem_block : Type :=
 | Val (v : val)
-| Dict (t : mut_tag) (ls : list loc)
+| Block (t : mut_tag) (ls : list loc)
 | Kont (k : outcome2 val exn → microvx)
 | Shot.
 
@@ -93,7 +94,7 @@ Local Ltac exploit_location_lookup :=
 
 (* [case_location_lookup] finds an occurrence of [σ !! l] in a hypothesis or
    in the goal and performs a case analysis on [σ !! l], giving rise to 5
-   cases (value block; dict/block-of-memory block; ordinary continuation block;
+   cases (value block; block-of-memory block; ordinary continuation block;
    shot continuation block; nonexistent address). *)
 
 Ltac case_location_lookup :=
@@ -146,7 +147,7 @@ Qed.
 
 Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (mut_tag * list loc) exn → _) : micro A E :=
   match σ !! l with
-  | Some (Dict t ls) => continue k (t, ls)
+  | Some (Block t ls) => continue k (t, ls)
   | _          => crash "load error: unbound location"
   end.
 
@@ -203,19 +204,19 @@ Qed.
 
 (* [step_set_tag σ l t k] is the right-hand side of the reduction rule [StepSetTag].
 
-   This rule looks up the dict block at location [l] in the store [σ], changes
+   This rule looks up the memory block at location [l] in the store [σ], changes
    its mutability tag to [t], and returns unit to the continuation [k].
-   It fails if [l] is not in the domain of [σ] or does not contain a [Dict]. *)
+   It fails if [l] is not in the domain of [σ] or does not contain a [Block]. *)
 
 Definition step_set_tag_1 σ l t : store :=
   match σ !! l with
-  | Some (Dict _ ls) => <[ l := Dict t ls ]> σ
+  | Some (Block _ ls) => <[ l := Block t ls ]> σ
   | _          => σ
   end.
 
 Definition step_set_tag_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :=
   match σ !! l with
-  | Some (Dict _ _) => continue k ()
+  | Some (Block _ _) => continue k ()
   | _          => crash "set_tag error: unbound location"
   end.
 
@@ -248,10 +249,11 @@ Definition phys_eq_val_store v1 v2 σ : option bool :=
   | VLoc l1, VLoc l2 =>
       Some (locations.eqb l1 l2)
   | VArray l1, VArray l2
-  | VRecord l1, VRecord l2 =>
+  | VRecord l1, VRecord l2
+  | VInline _ l1, VInline _ l2 =>
       match σ !! l1, σ !! l2 with
-      | Some (Dict Mut _), Some (Dict _ _)
-      | Some (Dict _ _), Some (Dict Mut _) => Some (locations.eqb l1 l2)
+      | Some (Block Mut _), Some (Block _ _)
+      | Some (Block _ _), Some (Block Mut _) => Some (locations.eqb l1 l2)
       | _, _ => None
       end
   | VCont k1, VCont k2 =>
@@ -455,6 +457,14 @@ Inductive step {A E} : config A E → config A E → Prop :=
         (σ, Stop CEval (η, e) k)
         (σ, try2 (eval η e) k)
 
+  (* [Stop CReturn w k] does nothing and returns [w]. Its only purpose is
+     to give a resolution a step to happen at; see [CReturn] in code.v. *)
+  | StepReturn :
+      ∀ σ w k,
+      step
+        (σ, Stop CReturn w k)
+        (σ, continue k w)
+
   (* [stop (η, x, i1, i2, e)] behaves like [loop η x i1 i2 e]. *)
   | StepLoop :
       ∀ σ η x i1 i2 e k,
@@ -483,7 +493,18 @@ Inductive step {A E} : config A E → config A E → Prop :=
       σ !! l = None →
       step
         (σ, Stop CAllocBlock (t, ls) k)
-        (<[ l := Dict t ls ]> σ, continue k l)
+        (<[ l := Block t ls ]> σ, continue k l)
+
+  (* [stop CNewProph ()] allocates a fresh prophecy identifier. The heap
+     cell it reserves is never read and never written; it exists only so
+     that the identifier is fresh, exactly as [StepAlloc] does for a ref
+     cell. All the meaning of a prophecy lives in the ghost state. *)
+  | StepNewProph :
+      ∀ σ x p k,
+      σ !! p = None →
+      step
+        (σ, Stop CNewProph x k)
+        (<[ p := Val VUnit ]> σ, continue k p)
 
   (* If the location [l] exists and contains a value [v], then
      [stop CLoad l] returns this value; otherwise, it crashes. *)
@@ -570,6 +591,15 @@ Inductive step {A E} : config A E → config A E → Prop :=
       step
         (σ, Handle (Stop CJoin ι k) h)
         (σ, Stop CJoin ι (λ o, Handle (k o) h))
+
+  (* A resolution floats out of [Handle] for the same reason a fork does:
+     the step that gives it meaning lives in [subjective_step], so it must
+     reach the top of its thread. *)
+  | StepHandleResolve :
+    ∀ {X} σ (c : code X val exn) y k h,
+      step
+        (σ, Handle (Stop (CResolve c) y k) h)
+        (σ, Stop (CResolve c) y (λ o, Handle (k o) h))
 
   (* If [Handle _ h] observes a crash then this crash is propagated. *)
   | StepHandleCrash :
@@ -739,6 +769,8 @@ Section threadpool.
     | None => Some (crash "join invalid thread")
     end.
 
+  (* The semantic model for concurrency via a pool of threads. *)
+
   Inductive threadpool_step : tconfig -> tconfig -> Prop :=
   | BaseTS :
     ∀ ι π m σ m' σ',
@@ -762,9 +794,14 @@ Section threadpool.
         (σ, <[ ι := m ]> π)
   .
 
-  Definition threadpool_steps := @nsteps (tconfig) (threadpool_step).
+  Notation threadpool_steps := (nsteps threadpool_step).
 
 End threadpool.
+
+(* The notation must be repeated outside the section: a [Notation] inside a
+   section does not survive it. *)
+
+Notation threadpool_steps := (nsteps threadpool_step).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -811,6 +848,41 @@ Lemma invert_is_ret_Some {A E} {m : micro A E} {a} :
 Proof.
   destruct m; inversion 1; reflexivity.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Definition is_result {A E} (m : micro A E) : Prop :=
+  match m with
+  | Ret _ | Throw _ | Crash => True
+  | _ => False
+  end.
+
+(* Recovering the shape for the proofs that must treat the cases
+   differently. A result is either an [outcome2] or a crash. *)
+
+Lemma is_result_inv {A E} (m : micro A E) :
+  is_result m → (∃ o, m = inject2 o) ∨ m = Crash.
+Proof.
+  destruct m; simpl; try done;
+    [ left; by exists (O2Ret a) | left; by exists (O2Throw e) | by right ].
+Qed.
+
+(* Consuming the [is_result] hypothesis a resolution rule leaves behind, and
+   substituting the shape it reveals throughout. *)
+
+Tactic Notation "destruct_is_result" simple_intropattern(p) :=
+  match goal with
+  | Hr : is_result _ |- _ =>
+      destruct (is_result_inv _ Hr) as [ (p & ->) | -> ]
+  end.
+
+(* The observation a resolution emits, given the outcome its call reached. *)
+
+Definition resolve_obs (p : loc) (v : val) (b : microvx) : list observation :=
+  match b with
+  | Ret w => [(p, (w, v))]
+  | _ => []
+  end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -906,16 +978,6 @@ Ltac destruct_can_step :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* A configuration that is not [ret _] and that is unable to step is stuck.
-   This includes unhandled exceptions and unhandled effects. *)
-
-Definition stuck {A E} (c : config A E) :=
-  let '(σ, m) := c in
-  is_not_ret m ∧
-  ∀ σ' m', ¬ step (σ, m) (σ', m').
-
-(* -------------------------------------------------------------------------- *)
-
 (* Basic lemmas about [step] and [can_step]. *)
 
 (* [Ret a] cannot step. *)
@@ -968,6 +1030,15 @@ Proof.
   intros. destruct_can_step. destruct_step.
 Qed.
 
+(* A resolution has no sequential step either: the step that gives it
+   meaning lives in [subjective_step], where it emits an observation. *)
+Lemma invert_can_step_resolve {A E X} σ (c : code X val exn) y (k : _ -> micro A E) :
+  can_step (σ, (Stop (CResolve c) y k)) ->
+  False.
+Proof.
+  intros. destruct_can_step. inversion H.
+Qed.
+
 Global Hint Resolve
   invert_can_step_Ret
   invert_can_step_Crash
@@ -975,6 +1046,7 @@ Global Hint Resolve
   invert_can_step_perform
   invert_can_step_fork
   invert_can_step_join
+  invert_can_step_resolve
 : invert_can_step.
 
 (* -------------------------------------------------------------------------- *)
@@ -1086,7 +1158,7 @@ Lemma invert_step_alloc_block {A E} σ σ' t ls k m' :
   @step A E (σ, Stop CAllocBlock (t, ls) k) (σ', m') →
   ∃ l,
     σ !! l = None ∧
-    σ' = <[ l := Dict t ls ]> σ ∧
+    σ' = <[ l := Block t ls ]> σ ∧
     m' = continue k l.
   Proof.
     intros Hstep. destruct_step.
@@ -1107,7 +1179,7 @@ Qed.
 
 Lemma can_step_stop {A X Y E' E}
   σ (c : code X Y E') x (k : outcome2 Y E' → _) :
-  match c with | CPerf => False | _ => True end ∧ not (is_concurrent_code c)  ->
+  match c with | CPerf | CResolve _ => False | _ => True end ∧ not (is_concurrent_code c)  ->
   can_step ((σ, Stop c x k) : config A E).
 Proof.
   destruct c; repeat destruct x as (x & ?); try destruct o;
@@ -1131,6 +1203,10 @@ Proof.
     assert (lookup l' σ = None) by apply not_elem_of_dom, is_fresh.
     destruct x;
       eauto using StepWrap, StepShallowWrap with step. }
+  (* Allocating a prophecy identifier is an allocation like any other. *)
+  { eexists. apply StepNewProph.
+    apply not_elem_of_dom.
+    apply is_fresh. }
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -1334,101 +1410,24 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Basic lemmas about [stuck]. *)
+(* A resolution never steps on its own: the step that gives it meaning
+   belongs to [subjective_step]. The program-logic rules use this to discharge
+   an impossible [step] hypothesis. *)
 
-(* [ret _] is not stuck. *)
+Lemma no_step_Resolve {A E X} σ (c : code X val exn) y k σ' m' :
+  ¬ step ((σ, Stop (CResolve c) y k) : config A E) (σ', m').
+Proof. inversion 1. Qed.
 
-Lemma invert_stuck_ret {A E} a σ :
-  stuck ((σ, ret a) : config A E) →
-  False.
-Proof.
-  unfold stuck. intuition eauto using is_not_ret_ret.
-Qed.
+(* -------------------------------------------------------------------------- *)
 
-(* A configuration that can step is not stuck. *)
+(* Every computation is either a result, one of the four codes whose step
+   belongs to the pool, or able to step on its own. *)
 
-Lemma can_step_not_stuck {A E} (c : config A E) :
-  stuck c →
-  can_step c →
-  False.
-Proof.
-  destruct c as (σ, m).
-  unfold can_step, stuck.
-  intros (_ & Hnostep).
-  intros ([σ' m'] & Hstep).
-  eapply Hnostep. exact Hstep.
-Qed.
-
-(* [Crash] is stuck. *)
-
-Lemma stuck_Crash {A E} σ :
-  stuck ((σ, Crash) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Throw e] is stuck. *)
-
-Lemma stuck_Throw {A E} σ e :
-  stuck ((σ, Throw e) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CPerf e k] is stuck. *)
-
-Lemma stuck_Perform {A E} σ e k :
-  stuck ((σ, Stop CPerf e k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CFork x k] is stuck. *)
-
-Lemma stuck_Fork {A E} σ x k :
-  stuck ((σ, Stop CFork x k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* [Stop CJoin i k] is stuck. *)
-
-Lemma stuck_Join {A E} σ i k :
-  stuck ((σ, Stop CJoin i k) : config A E).
-Proof.
-  unfold stuck. split; [ eauto | inversion 1 ].
-Qed.
-
-(* The only stuck terms are
-   [Crash], [Throw _], [perform _], and [fork _ _]. *)
-
-Lemma invert_stuck {A E} σ m :
-  stuck ((σ, m) : config A E) →
-  (m = Crash) ∨
-    (∃ e, m = Throw e) ∨
-    (∃ X Y E (c : code X Y E) x k, m = Stop c x k ∧ step_through_par_code c).
-Proof.
-  intros.
-  destruct m; try solve [
-    eauto
-  | exfalso; eauto using invert_stuck_ret
-  | exfalso; eauto using can_step_not_stuck with step
-  ].
-  (* [Stop] *)
-  destruct_code; try solve [
-      eauto 9
-    | exfalso; eauto using can_step_not_stuck with step
-    | do 2 right; repeat eexists
-  ].
-Qed.
-
-(* TODO could we use this lemma
-   and avoid reasoning with [stuck],
-   which introduces painful negations? *)
 Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : micro A E) :
   match m with
   | Ret _ | Crash | Throw _
-  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _ =>
+  | Stop CPerf _ _ | Stop CFork _ _ | Stop CJoin _ _
+  | Stop (CResolve _) _ _ =>
       True
   | _ =>
       can_step (σ, m)
@@ -1436,63 +1435,6 @@ Lemma only_crash_and_throw_and_perform_and_concurrent_are_stuck' {A E} σ (m : m
 Proof.
   destruct m; eauto with step.
   destruct_code; eauto with step.
-Qed.
-
-(* [destruct_stuck_cases] destructs the nested disjunction resulting from
-   [only_crash_and_throw_and_perform_and_concurrent_are_stuck], which has
-   four cases: Crash, Throw, Perform (CPerf), and a general concurrent case
-   (covering Fork, Join, Die). For the concurrent case, the code must
-   be further destructed to determine which specific concurrent operation it is. *)
-
-From Ltac2 Require Import Ltac2.
-Set Default Proof Mode "Classic".
-
-(* Recursively destruct all existential quantifiers and a final conjunction *)
-Local Ltac2 rec destruct_existentials_and_conjunction (h : ident) :=
-  let hyp := Control.hyp h in
-  lazy_match! Constr.type hyp with
-  | ex _ =>
-      let x := Fresh.in_goal @_x in
-      destruct $hyp as [$x $h];
-      destruct_existentials_and_conjunction h
-  | _ /\ _ =>
-      let x := Fresh.in_goal @_x in
-      let y := Fresh.in_goal @_y in
-      destruct $hyp as [$x $y]
-  | _ => ()
-  end.
-
-(* Recursively destruct nested disjunctions, then handle existentials *)
-Local Ltac2 rec destruct_nested_disjunction (h : ident) :=
-  let hyp := Control.hyp h in
-  lazy_match! Constr.type hyp with
-  | _ \/ _ =>
-      destruct $hyp as [$h | $h];
-      Control.enter (fun () => destruct_nested_disjunction h)
-  | _ =>
-      destruct_existentials_and_conjunction h
-  end.
-
-(* Main tactic notation *)
-Tactic Notation "destruct_stuck_cases" ident(h) :=
-  let f := ltac2:(h |- destruct_nested_disjunction (Option.get (Ltac1.to_ident h))) in
-  f h.
-
-(* If [m] is stuck then [bind m f] is also stuck. *)
-
-Lemma stuck_bind {A B E} σ m (f : A → micro B E) :
-  stuck (σ, m) →
-  stuck (σ, bind m f).
-Proof.
-  intros Hstuck.
-  apply invert_stuck in Hstuck.
-  destruct_stuck_cases Hstuck; subst m; simpl bind.
-  - (* Crash *) apply stuck_Crash.
-  - (* Throw *) apply stuck_Throw.
-  - (* Stop *)
-    destruct_code;
-    try contradiction; (* eliminate non-relevant codes *)
-    eauto using stuck_Fork, stuck_Join, stuck_Perform.
 Qed.
 
 (* The following lemma is a stronger version of [invert_step_bind_weak].
@@ -1513,25 +1455,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* A triplicity principle. *)
-
-(* This principle allows case analyses with three cases, as follows:
-   either [m] is a result, or [m] can step, or [m] is stuck. *)
-
-Lemma triplicity {A E} σ (m : micro A E) :
-  (∃ a, m = ret a) ∨
-  can_step (σ, m) ∨
-  stuck (σ, m).
-Proof.
-  destruct m; try destruct_code;
-  try solve [left; eauto];  (* Ret case *)
-  try solve [right; left; eauto with step];  (* can_step cases *)
-  try solve [right; right; eauto using stuck_Crash, stuck_Throw, stuck_Perform, stuck_Fork, stuck_Join].  (* stuck cases *)
-Qed.
-
-Ltac triplicity σ m H :=
-  let a := fresh "a" in
-  destruct (triplicity σ m) as [ (a & ->) | [ H | H ]].
 
 (* -------------------------------------------------------------------------- *)
 

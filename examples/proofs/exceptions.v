@@ -1,10 +1,6 @@
 (** This file contains both a "pure" and "effectful" proof of exceptions.v, to guide the
    generalization of lemmas about [pure] to non-trivial exceptional postconditions.  *)
 
-From iris.proofmode Require Import base proofmode classes ltac_tactics.
-From iris.bi Require Import weakestpre.
-From iris Require Import base_logic.lib.gen_heap.
-
 From osiris Require Import osiris.
 From osiris.examples Require Import og_exception.
 
@@ -86,7 +82,7 @@ Section proof_pure.
         eapply pure_evals_singleton. pure_path.
         intros xs <-; auto.
       - intros e (-> & ->). pure_match.
-        eapply pure_eval_const. encode. reflexivity. }
+        pure_const. reflexivity. }
     intros catch_head Hcatch_head.
 
     (* Struct item: [let catch_head2 l = ...] *)
