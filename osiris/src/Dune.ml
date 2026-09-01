@@ -51,7 +51,11 @@ let rec extract_module_descriptions (e : Base.Sexp.t) accu =
   | List (Atom "executables" :: [List (List (Atom "names" :: [List [Atom ("interp" | "Main")]]) :: _)]) ->
     Printf.fprintf stderr "Warning: extract_module_descriptions: skipping translator/interp executable\n";
     accu
-  | List [Atom "library"; List (List [Atom "name"; Atom ("translatorlib" | "extracted" as name)] :: _)] ->
+  (* [osiris.proph]: the translator gives the constructs it names their own
+     meaning, so its OCaml definitions have no Rocq counterpart and must not
+     be translated. *)
+  | List [Atom "library"; List (List [Atom "name";
+      Atom ("translatorlib" | "extracted" | "osiris.proph" as name)] :: _)] ->
     Printf.fprintf stderr "Warning: extract_module_descriptions: skipping S-expression (library ((name %s) ...))\n" name;
     accu
   | _ ->

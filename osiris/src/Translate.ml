@@ -286,8 +286,8 @@ let translate_proph_arg loc (e : Parsetree.expression) : proph_arg =
 
 (* [names_value m f path] tests whether [path] designates the value [f] of a
    module named [m]. Dune wraps a library's modules, so [m] may be reached
-   through a generated prefix, as in [RocqOsirisExamples__Proph]; we accept
-   that, and we accept a qualifying prefix such as [Stdlib]. *)
+   through a generated prefix, as in [SomeLibrary__Proph]; we accept that, and
+   we accept a qualifying prefix such as [Stdlib]. *)
 
 let names_value m f path =
   match List.rev path with

@@ -5,6 +5,9 @@
 (library
   (flags (:standard -bin-annot))
   (name RocqOsirisExamples)
+  ;; [proph] provides the [Proph] module, whose constructs the translator
+  ;; recognizes; it is shipped with the translator, under [osiris/lib].
+  (libraries osiris.proph)
 )
 
 (alias

@@ -115,6 +115,8 @@ The translator from OCaml source files to Rocq definitions is under `osiris/`.
   - `Rocqify.ml`: transforms the Osiris AST into Rocq source text
   - `Main.ml`: entry point; reads `.cmt` files, calls dune for module discovery, writes `og_*.v` files
   - `Dune.ml`: discovers modules and `.cmt` file paths via `dune describe`; extracts workspace root for correct path resolution
+- `osiris/lib/`: the OCaml support library shipped with the translator
+  - `proph.ml`: the `Proph` module for prophecy allocation. This module is treated specially by the translator
 
 
 # Correspondence with the paper
