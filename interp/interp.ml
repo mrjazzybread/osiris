@@ -104,7 +104,7 @@ let io_step step cfg =
   | Step l -> `Silent (Step l)
   | Final f ->
     match f with
-    | FRet _ | FCrash | FThrow _ | FConcurrent -> `Silent (Final f)
+    | FRet _ | FCrash | FThrow _ | FConcurrent | FStuck -> `Silent (Final f)
     | FPerform (eff, k) ->
       match [@warning "-4"] eff with
       | VXData(loc, args) when loc = io_loc ->
@@ -197,6 +197,7 @@ let interactive_run step cfg =
       | Final (FThrow _) -> fprintf stderr "Unhandled exception\n%!"; exit 1
       | Final (FPerform (_, _)) -> fprintf stderr "Unhandled effect\n%!"; exit 1
       | Final FConcurrent -> fprintf stderr "Unsupported concurrent operation\n%!"; exit 1
+      | Final FStuck -> fprintf stderr "Stuck prophecy resolution\n%!"; exit 1
       | Step l ->
         match l with
         | [] -> failwith "Step []"

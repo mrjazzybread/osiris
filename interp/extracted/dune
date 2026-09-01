@@ -10,7 +10,7 @@
     Datatypes Specif Decimal Basics Bool Orders ListDef list_basics List base NatDef BinNums PosDef
     BinPos BinNat Nat Ascii BinInt ZArith_dec String Zpower option numbers list_z
     list_init countable infinite fin_sets fin_maps mapset list_monad gmap locations thread_ids
-    decidable PrimFloat Coqlib Zbits Integers int syntax notations outcome code Mergesort
+    decidable PrimFloat Coqlib Zbits Integers int syntax type_nel notations outcome code Mergesort
     strategy eval step DecimalString Stdlib run
  )
 )

@@ -13,6 +13,10 @@ Inductive final A E :=
   | FCrash
   | FPerform (e : eff) (k : outcome2 val exn → micro A E)
   | FConcurrent
+  (* A prophecy resolution on a call that cannot reach a result in one step.
+     [step] has no rule for one either; see [eval.v], which only ever builds a
+     resolution on [CLoad], [CExchange], [CCAS], [CFAA] and [CReturn]. *)
+  | FStuck
 .
 
 Arguments FRet {A E}.
@@ -20,6 +24,7 @@ Arguments FThrow {A E}.
 Arguments FCrash {A E}.
 Arguments FPerform {A E}.
 Arguments FConcurrent {A E}.
+Arguments FStuck {A E}.
 
 Inductive step_result A E :=
   | Final (f : final A E)
@@ -48,7 +53,16 @@ Fixpoint confluent_step {A E} (σ : store) (m : micro A E) : option (config A E)
   | Stop CLoop (η, x, i1, i2, e) k => Some (σ, try2 (loop η x i1 i2 e) k)
   | Stop CAlloc v k => Some (let l := fresh (dom σ) in (<[l:=Val v]>σ, continue k l))
   | Stop CAllocBlock (t, ls) k => Some (let l := fresh (A:=loc) (dom σ) in
-                                   (insert l (Dict t ls) σ, continue k l))
+                                   (insert l (Block t ls) σ, continue k l))
+  (* [CReturn w] returns [w] and does nothing else; [CNewProph] reserves a
+     fresh cell. *)
+  | Stop CReturn w k => Some (σ, continue k w)
+  | Stop CNewProph _ k => Some (let p := fresh (dom σ) in
+                                   (<[p := Val VUnit]> σ, continue k p))
+  (* A resolution takes the step of the call it wraps and drops the ghost pair
+     [(p, v)], so it is confluent exactly when that call is. *)
+  | Stop (CResolve CReturn) (w, _, _) k => Some (σ, continue k w)
+  | Stop (CResolve _) _ _ => None
   | Handle (Ret v) h => Some (σ, h (O3Ret v))
   | Handle (Throw e) h => Some (σ, h (O3Throw e))
   | Handle Crash h => Some (σ, Crash)
@@ -110,6 +124,9 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
       | Final (FThrow e) => Step [(σ, h (O3Throw e))]
       | Final (FCrash) => Step [(σ, Crash)]
       | Final FConcurrent => Step [(σ, Crash)]
+      (* A resolution floats out of a handler ([StepHandleResolve]), so a stuck
+         one is stuck under [Handle] too. *)
+      | Final FStuck => Final FStuck
       | Step l => Step (map (λ '(σ', m'), (σ', Handle m' h)) l)
       end
 
@@ -119,7 +136,7 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CAlloc v k => let l := fresh (dom σ) in
                        Step [(<[l:=Val v]>σ, continue k l)]
   | Stop CAllocBlock (t, ls) k => let l := fresh (A:=loc) (dom σ) in
-                             Step [(insert l (Dict t ls) σ, continue k l)]
+                             Step [(insert l (Block t ls) σ, continue k l)]
   | Stop CSetBlockTag (t, l) k =>
       Step [step_set_tag σ t l k]
 
@@ -133,6 +150,21 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
   | Stop CWrap (true, l, η, bs) k => Step [step_wrap σ l η bs (fresh (dom σ)) k]
   | Stop CWrap (false, l, η, bs) k => Step [step_shallow_wrap σ l η bs (fresh (dom σ)) k]
   | Stop CFlip x k => Step [(σ, continue k false); (σ, continue k true)]
+
+  (* [CReturn] and [CNewProph] are confluent; see [confluent_step]. *)
+  | Stop CReturn w k => Step [(σ, continue k w)]
+  | Stop CNewProph _ k => let p := fresh (dom σ) in
+                          Step [(<[p := Val VUnit]> σ, continue k p)]
+
+  (* A resolution performs the call it wraps in a single step, dropping the
+     ghost pair [(p, v)]: the resolution leaves no trace in the store, so each
+     case below is the case of the wrapped call, applied to the same [k]. *)
+  | Stop (CResolve CReturn) (w, _, _) k => Step [(σ, continue k w)]
+  | Stop (CResolve CLoad) (l, _, _) k => Step [step_load σ l k]
+  | Stop (CResolve CExchange) ((l, v'), _, _) k => Step [step_exchange σ l v' k]
+  | Stop (CResolve CCAS) ((l, seen, v'), _, _) k => Step [step_cas σ l seen v' k]
+  | Stop (CResolve CFAA) ((l, i), _, _) k => Step [step_faa σ l i k]
+  | Stop (CResolve _) _ _ => Final FStuck
 
   (* [Par] of two [Ret]s is also confluent and results in one possible configuration *)
   | Par (Ret v1) (Ret v2) k => Step [(σ, continue k (v1, v2))]
@@ -154,6 +186,8 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
             | FCrash => [(σ, Crash)]
             | FConcurrent => [(σ, Crash)]
             | FPerform e1 k1 => [(σ, Stop CPerf e1 (λ o, Par (k1 o) m2 k))]
+            (* A stuck [m1] contributes no transition; [m2] may still step *)
+            | FStuck => []
             end
         (* [m1] taking a step *)
         | Step l => map (λ '(σ1', m1'), (σ1', Par m1' m2 k)) l
@@ -169,6 +203,7 @@ Fixpoint stepto {A E} (σ : store) (m : micro A E) {struct m} : step_result A E 
             | FCrash => [(σ, Crash)]
             | FPerform e2 k2 => [(σ, Stop CPerf e2 (λ o, Par m1 (k2 o) k))]
             | FConcurrent => [(σ, Crash)]
+            | FStuck => []
             end
         | Step l => map (λ '(σ2', m2'), (σ2', Par m1 m2' k)) l
         end
@@ -282,6 +317,7 @@ Fixpoint string_of_pat (p : pat) : string :=
   | PData data list_pat => "PData(" ++ data ++ ", " ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PXData path list_pat => "PXData(" ++ String.concat "." path ++ ", " ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PRecord fs => "PRecord(" ++ String.concat "," (map (string_of_pair string_of_field string_of_pat) fs) ++ ")"
+  | PInline data pat => "PInline(" ++ data ++ ", " ++ string_of_pat pat ++ ")"
   | PArray list_pat => "PArray(" ++ String.concat "," (map string_of_pat list_pat) ++ ")"
   | PInt Z => "PInt(" ++ string_of_Z Z ++ ")"
   | PChar char => "PChar(" ++ string_of_char char ++ ")"
@@ -308,6 +344,13 @@ Definition string_of_mut_tag (t : mut_tag) :=
   | Immut => "Immut"
   end.
 
+Definition string_of_proph_arg (a : proph_arg) : string :=
+  match a with
+  | PArgPath π => "PArgPath(" ++ String.concat "." π ++ ")"
+  | PArgData c => "PArgData(" ++ c ++ ")"
+  | PArgInt i => "PArgInt(" ++ string_of_Z i ++ ")"
+  end.
+
 Fixpoint string_of_expr (e : expr) : string :=
   match e with
   | EUnsupported => "EUnsupported"
@@ -321,6 +364,8 @@ Fixpoint string_of_expr (e : expr) : string :=
   | ERecordUpdate expr fes => "ERecordUpdate(" ++ string_of_expr expr ++ ", " ++ String.concat "; " (map string_of_fexpr fes) ++ ")"
   | ERecordAccess expr field => "ERecordAccess(" ++ string_of_expr expr ++ ", " ++ string_of_field field ++ ")"
   | ERecordSet e1 f e2 => "ERecordSet(" ++ string_of_expr e1 ++ ", " ++ string_of_field f ++ ", " ++ string_of_expr e2 ++ ")"
+  | EAtomicLoc e f => "EAtomicLoc(" ++ string_of_expr e ++ ", " ++ string_of_field f ++ ")"
+  | EInline c t es => "EInline(" ++ c ++ ", " ++ string_of_mut_tag t ++ ", [" ++ String.concat "; " (map string_of_expr es) ++ "])"
   | EArrayLit list_expr => "EArrayLit(" ++ String.concat "," (map string_of_expr list_expr) ++ ")"
   | EArrayLength expr => "EArrayLength(" ++ string_of_expr expr ++ ")"
   | EArrayGet e1 e2 => "EArrayGet(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
@@ -380,6 +425,8 @@ Fixpoint string_of_expr (e : expr) : string :=
   | EExchange e1 e2 => "EExchange(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | ECAS e1 e2 e3 => "ECAS(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ", " ++ string_of_expr e3 ++ ")"
   | EFAA e1 e2 => "EFAA(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
+  | ENewProph => "ENewProph"
+  | EResolve e π a => "EResolve(" ++ string_of_expr e ++ ", " ++ String.concat "." π ++ ", " ++ string_of_proph_arg a ++ ")"
   | EIgnore e => "EIgnore(" ++ string_of_expr e ++ ")"
   | EFork e1 e2 => "EFork(" ++ string_of_expr e1 ++ ", " ++ string_of_expr e2 ++ ")"
   | EJoin e => "EFork(" ++ string_of_expr e ++ ")"
@@ -446,6 +493,7 @@ Fixpoint string_of_val (v : val) : string :=
   | VThread thread => "VLoc(" ++ string_of_Z thread.(tid) ++ ")"
   | VRecord l => "VRecord(" ++ string_of_Z l.(address) ++ ")"
   | VArray l => "VArray(" ++ string_of_Z l.(address) ++ ")"
+  | VInline c l => "VInline(" ++ c ++ ", " ++ string_of_Z l.(address) ++ ")"
   | VStruct fields => "VStruct(" ++ String.concat "; " (map (string_of_pair id string_of_val) fields) ++ ")"
   | VFunctor fields v l  => "VFunctor(Unsupported)"
   | VChar c => "VChar(" ++ string_of_char c ++ ")"
@@ -459,7 +507,7 @@ Definition string_of_outcome2 (o : outcome2 val exn) : string :=
 
 Definition abstr_printer {A} : A → string := λ _, "<abstr>".
 
-Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
+Fixpoint string_of_code {X Y Z} (c : code X Y Z) : string :=
   match c with
   | CEval => "CEval"
   | CLoop => "CLoop"
@@ -477,6 +525,9 @@ Definition string_of_code {X Y Z} (c : code X Y Z) : string :=
   | CWrap => "CWrap"
   | CFork => "CFork"
   | CJoin => "CJoin"
+  | CNewProph => "CNewProph"
+  | CReturn => "CReturn"
+  | CResolve c => "CResolve(" ++ string_of_code c ++ ")"
   end.
 
 Definition string_of_bool (b : bool) : string :=
@@ -510,6 +561,10 @@ Fixpoint string_of_micro {A E} (ppa : A → string) (ppe : E → string) (m : mi
   | Stop CWrap (d, loc, η, h) k => "Stop(CWrap" ++ ", " ++ string_of_bool d ++ ", " ++ string_of_Z loc.(address) ++ "<env>, <handler>" ++ ", <cont>)"
   | Stop CFork (v1, v2) k => "Stop(CFork" ++ ", " ++ string_of_val v1 ++ ", " ++ string_of_val v2 ++ ", <cont>)"
   | Stop CJoin ι' k => "Stop(CFork" ++ ", " ++ string_of_Z ι'.(tid) ++ ", <cont>)"
+  | Stop CNewProph () k => "Stop(CNewProph" ++ ", (), <cont>)"
+  | Stop CReturn w k => "Stop(CReturn" ++ ", " ++ string_of_val w ++ ", <cont>)"
+  | Stop (CResolve c) (_, p, v) k =>
+      "Stop(CResolve(" ++ string_of_code c ++ "), <arg>, " ++ string_of_Z p.(address) ++ ", " ++ string_of_val v ++ ", <cont>)"
   | Handle m h => "Handle(" ++ string_of_micro string_of_val string_of_val m ++ ", <handler>)"
   | Par m1 m2 k =>
       "Par(" ++
@@ -522,7 +577,7 @@ Definition string_of_microvx := string_of_micro string_of_val string_of_val.
 Definition string_of_block (b : mem_block) : string :=
   match b with
   | Val v => "Val(" ++ string_of_val v ++ ")"
-  | Dict t ls => "Dict(" ++ string_of_tag t ++ ", " ++ "[" ++ String.concat ";" (map (fun l => string_of_Z l.(address)) ls) ++ "])"
+  | Block t ls => "Block(" ++ string_of_tag t ++ ", " ++ "[" ++ String.concat ";" (map (fun l => string_of_Z l.(address)) ls) ++ "])"
   | Kont _ => "Kont(<cont>)"
   | Shot => "Shot"
   end.

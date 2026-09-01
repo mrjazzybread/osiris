@@ -813,9 +813,7 @@ Proof.
                                     (erase_vals vs)))).
   (* A pattern holds no expressions, so both sides run the *same* pattern
      against a value and its erasure, and every test they make is one
-     erasure preserves. The environment built is erased pointwise — the
-     payload map here — and a failed match is a [throw ()] over [unit],
-     unchanged. *)
+     erasure preserves. *)
   - (* PUnsupported *)
     intros η δ v; simpl_eval_pat; apply EM_Crash.
   - (* PAny *)
@@ -833,11 +831,11 @@ Proof.
     destruct v; simpl_eval_pat; try apply EM_Crash; apply IHps.
   - (* PData *)
     intros d ps IHps η δ v;
-    destruct v; simpl_eval_pat; try apply EM_Crash;
+    destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
     case_match; [ apply IHps | ee_ret ].
   - (* PXData *)
     intros π ps IHps η δ v;
-    destruct v; simpl_eval_pat; try apply EM_Crash;
+    destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
     rewrite erase_lookup_path;
     eapply erase_bind; [ apply erase_as_loc, erase_of_option | ]; intros l';
     ee_pair;
@@ -850,7 +848,7 @@ Proof.
     apply IHfps.
   - (* PInline *)
     intros d q IHq η δ v;
-    destruct v; simpl_eval_pat; try apply EM_Crash;
+    destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
     case_match; [ apply IHq | ee_ret ].
   - (* PArray *)
     intros ps IHps η δ v;

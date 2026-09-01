@@ -583,6 +583,14 @@ Local Fixpoint pre_eval_pat η δ p v : micro env unit :=
       if Ascii.eqb c c' then ret δ else throw ()
   | PString s', VString s =>
       if s =? s' then ret δ else throw ()
+  (* An inline-record constructor and an ordinary (or extensible) one can be
+     constructors of the same sum type, so these four combinations are ordinary
+     constructor mismatches. *)
+  | PData _ _, VInline _ _
+  | PXData _ _, VInline _ _
+  | PInline _ _, VData _ _
+  | PInline _ _, VXData _ _ =>
+      throw ()
   | PTuple _, _ =>
       type_mismatch "tuple expected"
   | PData _ _, _ =>

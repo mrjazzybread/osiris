@@ -47,6 +47,11 @@ let mut_tag : O.mut_tag -> E.mut_tag = function
   | Mut -> Mut
   | Immut -> Immut
 
+let proph_arg : O.proph_arg -> E.proph_arg = function
+  | PArgPath p -> PArgPath (path p)
+  | PArgData d -> PArgData (data d)
+  | PArgInt i -> PArgInt (z i)
+
 let rec pat : O.pat -> E.pat = function
   | PUnsupported    -> PUnsupported
   | PAny            -> PAny
@@ -57,6 +62,7 @@ let rec pat : O.pat -> E.pat = function
   | PData (d, ps)   -> PData (data d, pats ps)
   | PXData (ph, ps) -> PXData (path ph, pats ps)
   | PRecord fps     -> PRecord (fpats fps)
+  | PInline (d, p)  -> PInline (data d, pat p)
   | PInt i          -> PInt (z i)
   | PChar c         -> PChar (char c)
   | PString s       -> PString (string s)
@@ -91,6 +97,8 @@ let rec expr : O.expr -> E.expr = function
   | ERecordUpdate (e, fes) -> ERecordUpdate (expr e, fexprs fes)
   | ERecordAccess (e, f) -> ERecordAccess (expr e, field f)
   | ERecordSet (e1, f, e2) -> ERecordSet (expr e1, field f, expr e2)
+  | EAtomicLoc (e, f) -> EAtomicLoc (expr e, field f)
+  | EInline (d, t, es) -> EInline (data d, mut_tag t, exprs es)
   | EArrayLit es -> EArrayLit (exprs es)
   | EArrayLength e -> EArrayLength (expr e)
   | EArrayGet (e1, e2) -> EArrayGet (expr e1, expr e2)
@@ -150,6 +158,8 @@ let rec expr : O.expr -> E.expr = function
   | EExchange (e1, e2) -> EExchange (expr e1, expr e2)
   | ECAS (e1, e2, e3) -> ECAS (expr e1, expr e2, expr e3)
   | EFAA (e1, e2) -> EFAA (expr e1, expr e2)
+  | ENewProph -> ENewProph
+  | EResolve (e, p, a) -> EResolve (expr e, path p, proph_arg a)
   | EIgnore e -> EIgnore (expr e)
   | EFork (e1, e2) -> EFork (expr e1, expr e2)
   | EJoin e -> EJoin (expr e)

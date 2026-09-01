@@ -33,6 +33,8 @@ all:
 # Compile the stdlib and examples Rocq theories.
 	@ make --no-print-directory -C rocq-osiris all
 	@ dune build @examples/all --display=short
+# Extract the semantics and build the interpreter.
+	@ dune build interp --display=short
 
 .PHONY: clean
 clean:
