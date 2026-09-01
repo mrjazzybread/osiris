@@ -139,32 +139,28 @@ Section proph.
       remember (x, p, v) as y eqn:Hy.
       dependent destruction Hstep.
       { exfalso. eapply (no_step_Resolve _ c _ k); eassumption. }
-      + (* [ResolveThrowS] *)
+      destruct_is_result [w | e]; simpl in *; simplify_eq.
+      + (* the call threw *)
         iMod ("Hwp" $! σ' (throw e) None with "[%]") as "Hwp";
           first by apply BaseS.
         iModIntro. iNext. iMod "Hwp" as "[Hwp $]".
         iApply fupd_ewp.
         iEval (rewrite (ewp_unfold (throw e)) /ewp_pre /=) in "Hwp".
         by iMod "Hwp".
-      + (* [ResolveCrashS] *)
+      + (* the call crashed *)
         iMod ("Hwp" $! σ' Crash None with "[%]") as "Hwp";
           first by apply BaseS.
         iModIntro. iNext. iMod "Hwp" as "[Hwp $]".
         ewp_unfold (@Crash val exn). by iMod "Hwp".
-    - (* One observation. The call itself emits nothing, so it is handed
-         the whole trace; the resolution is cashed in AFTERWARDS, once the
-         step has told us the observation is [p]'s and its first component
-         is the call's result. *)
-      iMod ("Hwp" $! σ [] (((p', (w', v')) :: κ'') ++ κs) π with "[Hsi]")
+    - iMod ("Hwp" $! σ [] (((p', (w', v')) :: κ'') ++ κs) π with "[Hsi]")
         as "[_ Hwp]".
       { by iFrame "Hsi". }
       iModIntro. iSplit.
       { iPureIntro. eapply can_progress_resolve; [ exact Hcs | apply Hat ]. }
       iIntros (σ' m' μ) "%Hstep".
       remember (x, p, v) as y eqn:Hy.
-      (* Only [ResolveS] emits, so there is one case, and unifying its
-         label with ours is what identifies [p'], [v'] and the result. *)
       dependent destruction Hstep.
+      destruct_is_result [w | e]; simpl in *; simplify_eq.
       iMod ("Hwp" $! σ' (ret w') None with "[%]") as "Hwp";
         first by apply BaseS.
       iModIntro. iNext. iMod "Hwp" as "[Hwp ($ & Hpi & $)]".
@@ -230,9 +226,10 @@ Section proph.
     remember (x, p, v) as y eqn:Hy.
     dependent destruction Hstep.
     - exfalso. eapply (no_step_Resolve _ c _ inject2); eassumption.
-    - by eapply subjective_step.is_ret.
-    - by eapply subjective_step.is_throw.
-    - by eapply subjective_step.is_crash.
+    - destruct_is_result [w | e].
+      + by eapply subjective_step.is_ret.
+      + by eapply subjective_step.is_throw.
+      + by eapply subjective_step.is_crash.
   Qed.
 
   (* The rule a client uses for a non-atomic resolution. There is no

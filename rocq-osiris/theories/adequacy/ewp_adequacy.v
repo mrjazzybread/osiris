@@ -307,8 +307,8 @@ Section satisfiability_weakest_pre.
   (* Relating a "real" threadpool step (from the definition of the semantics),
      to a "local" thread step (from the definition of our weakest pre). *)
   Lemma threadpool_subjective_step (σ1 σ2 : store) (π1 π2 : thpool) κ :
-    (* If the threadpool can take a step *)
-    threadpool_step (σ1, π1) κ (σ2, π2) →
+    (* If the threadpool can take an instrumented step *)
+    proph_step (σ1, π1) κ (σ2, π2) →
     (* Then either that step was a join, which emits nothing *)
     (∃ ι ι' k m,
         π1 !! ι = Some (Stop CJoin ι' k) ∧
@@ -331,7 +331,7 @@ Section satisfiability_weakest_pre.
       end.
   Proof.
     intros Htpstep.
-    inversion_clear Htpstep.
+    inversion_clear Htpstep as [ ? ? Hpure | ]; [ inversion_clear Hpure | ].
     - (* BaseTP case: π !! ι = Some m, step (σ, m) (σ', m') *)
       right; rename H into Hlookup, H0 into Hstep; subst.
       eapply BaseS in Hstep as Htstep.
@@ -352,21 +352,12 @@ Section satisfiability_weakest_pre.
       left; rename H into Hlookup, H0 into Hattempt; subst.
       exists ι, ι', k, m.
       split; [exact Hlookup | split; [exact Hattempt | done]].
-    - (* [ResolveTS]: emulated by [ResolveS], which carries the same label. *)
-      right; rename H into Hlookup, H0 into Hstep; subst.
-      eexists ι, _, (continue k w), None.
+    (* [ResolveTS] is [ResolveS] one level up: same outcome, so the same
+       [resolve_obs] label and the same [try2] target. *)
+    - right; rename H into Hlookup, H0 into Hstep; subst.
+      eexists ι, _, (try2 b k), None.
       split; [exact Hlookup | split; [apply lookup_insert_eq | ]].
-      split; [by apply ResolveS | reflexivity].
-    - (* [ResolveThrowTS] *)
-      right; rename H into Hlookup, H0 into Hstep; subst.
-      eexists ι, _, (discontinue k e), None.
-      split; [exact Hlookup | split; [apply lookup_insert_eq | ]].
-      split; [by apply ResolveThrowS | reflexivity].
-    - (* [ResolveCrashTS] *)
-      right; rename H into Hlookup, H0 into Hstep; subst.
-      eexists ι, _, Crash, None.
-      split; [exact Hlookup | split; [apply lookup_insert_eq | ]].
-      split; [by apply ResolveCrashS | reflexivity].
+      split; [by eapply ResolveS | reflexivity].
   Qed.
 
   Lemma wptp_tstep (π1 : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))) σ1 σ2 m m' ι μ κ κs :
@@ -403,9 +394,9 @@ Section satisfiability_weakest_pre.
       iFrame. iApply "Hsaved'".
   Qed.
 
-  Ltac invert_threadpool_step :=
+  Ltac invert_proph_step :=
     lazymatch goal with
-    | h: threadpool_step (?σ1, ?π1) ?κ (?σ2, ?π2) |- _ =>
+    | h: proph_step (?σ1, ?π1) ?κ (?σ2, ?π2) |- _ =>
         let Hsteps := fresh "Hsteps" in
         (have Hsteps := threadpool_subjective_step σ1 σ2 π1 π2 κ h);
         destruct Hsteps as
@@ -417,7 +408,7 @@ Section satisfiability_weakest_pre.
     end.
 
   Lemma wptp_step (π1 π2 : thpool) (πp : gmap thread (gname * (outcome2 val exn → iProp Σ))) σ1 σ2 κ κs :
-    ⌜threadpool_step (σ1, π1) κ (σ2, π2)⌝ -∗
+    ⌜proph_step (σ1, π1) κ (σ2, π2)⌝ -∗
     (state_interp (σ1, κ ++ κs, fst <$> πp) ∗ WPTP π1 πp) ={⊤}[∅]▷=∗
     (∃ (l : list (thread * (gname * (outcome2 val exn → iProp Σ)))),
         ⌜∀ ι', ι' ∈ fst <$> l → ι' ∉ dom (πp)⌝ ∗
@@ -426,8 +417,8 @@ Section satisfiability_weakest_pre.
     iIntros "%Hstep [Hsi Hwps]".
     iPoseProof (WPTP_dom with "Hwps") as "%Hdomeq".
     iCombine "Hsi Hwps" as "Hwps".
-    invert_threadpool_step.
-    - (* Case: [threadpool_step] is immitated by a [subjective_step]. *)
+    invert_proph_step.
+    - (* Case: [proph_step] is immitated by a [subjective_step]. *)
       rewrite <- Hdomeq in Htstep.
       iPoseProof (wptp_tstep $! Hlookup Htstep with "Hwps") as "Hwps". (* Use [wptp_tstep]. *)
       iModFL "Hwps".
@@ -449,7 +440,7 @@ Section satisfiability_weakest_pre.
         { intros Heq_ι. subst ι'. rewrite lookup_insert_eq in Hfresh. discriminate Hfresh. }
         rewrite lookup_insert_ne in Hfresh; last exact Hneq_ι.
         exact Hfresh.
-    - (* Case: [threadpool_step] is a join. *)
+    - (* Case: [proph_step] is a join. *)
       iDestruct "Hwps" as "(Hsi & Hwps)".
       iPoseProof (WPTP_extract_wp $! Hlookup with "Hwps") as "(%γ & %φ & %Hlookup_p & Hsaved & Hwp & Hwps)".
       case (πp !! ι') eqn:Hlookup_p'.
@@ -490,7 +481,7 @@ Section satisfiability_weakest_pre.
   Qed.
 
   Lemma wptp_steps k π1 π2 σ1 σ2 πp κs κs' :
-    ⌜threadpool_steps k (σ1, π1) κs (σ2, π2)⌝ -∗
+    ⌜proph_steps k(σ1, π1) κs (σ2, π2)⌝ -∗
     state_interp (σ1, κs ++ κs', fst <$> πp) ∗ WPTP π1 πp ={⊤}[∅]▷=∗^k
     (∃ (l : list (thread * (gname * (outcome2 val exn → iProp Σ)))),
         ⌜∀ ι', ι' ∈ fst <$> l → ι' ∉ dom (πp)⌝ ∗
@@ -523,7 +514,7 @@ Section satisfiability_weakest_pre.
 
   (* composing the adequacy lemmas *)
   Lemma wptp_adequacy k σ1 σ2 π2 ι e κs Φ :
-    ⌜threadpool_steps k (σ1, {[ι:=e]}) κs (σ2, π2)⌝ -∗
+    ⌜proph_steps k(σ1, {[ι:=e]}) κs (σ2, π2)⌝ -∗
     (∃ γ, state_interp (σ1, κs, {[ι:=γ]}) ∗
           saved_pred_own γ DfracDiscarded (λ o, ⌜Φ o⌝)%I ∗
           ewp_def ⊤ e ⊥ (λ o, ⌜Φ o⌝)) ={⊤}[∅]▷=∗^k
@@ -579,7 +570,7 @@ Section satisfiability_weakest_pre.
        saved_pred_own γ DfracDiscarded (λ o, ⌜Φ o⌝)%I ∗
        ewp_def ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
     (* and we take a k-step execution to [e'] and some forked of threads *)
-    threadpool_steps k (σ1, {[ι := e]}) κs (σ2, π2) →
+    proph_steps k(σ1, {[ι := e]}) κs (σ2, π2) →
     (* then no thread is stuck *)
     (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
     (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
@@ -635,7 +626,7 @@ Lemma SAT_ewp_adequacy `{invGpreS Σ} (X: Type) (I: X → osirisGS Σ) σ1 σ2 �
   (* prove the weakest precondition for all choices of [X] *)
   (∀ x, let i: osirisGS Σ := I x in P x ⊢ ewp_def ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
   (* then any k-step execution is safe: *)
-  threadpool_steps k (σ1, {[ι := e]}) κs (σ2, π2) →
+  proph_steps k(σ1, {[ι := e]}) κs (σ2, π2) →
   (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
   (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
 Proof.
@@ -700,7 +691,7 @@ Section adequacy.
     (* If we can show [EWP e1 {{ True }}] with the ghost state provided by [Σ]. *)
     (∀ `{!osirisGS Σ}, ⊢ ewp_def ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
     (* then any k-step execution, with the trace [κs] it produces, is safe: *)
-    threadpool_steps k (σ1, {[ι := e]}) κs (σ2, π2) →
+    proph_steps k(σ1, {[ι := e]}) κs (σ2, π2) →
     (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
     (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
   Proof.
@@ -721,7 +712,7 @@ Section adequacy.
 
   Definition osiris_adequacy_closed (e : micro val exn) ι σ1 π2 σ2 k κs Φ :
     (∀ `{!osirisGS osirisΣ}, ⊢ ewp_def ⊤ e ⊥ (λ o, ⌜Φ o⌝)) →
-    threadpool_steps k (σ1, {[ι :=e]}) κs (σ2, π2) →
+    proph_steps k(σ1, {[ι :=e]}) κs (σ2, π2) →
     (∀ ι m, π2 !! ι = Some m → not_stuck m σ2 (dom π2)) ∧
     (∀ o, π2 !! ι = Some (inject2 o) → Φ o).
   Proof.

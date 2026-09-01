@@ -327,13 +327,12 @@ Section handle_rules.
       iIntros (σ'' m'' μ) "%Hstep2".
       dependent destruction Hstep2.
       { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
-      all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H) as Hs
-           | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H) as Hs
-           | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H) as Hs ];
-           iSpecialize ("He" $! _ _ _ Hs);
-           ewp_mask_elim; iMod "He" as "(He & $)"; iModIntro.
-      + iApply ("IH" with "He Hsh").
-      + iApply ("IH" with "He Hsh").
+      destruct_is_result o;
+        epose proof (ResolveS _ _ _ _ _ _ _ _ _ H ltac:(eassumption)) as Hs;
+        rewrite ?try2_inject2 in Hs;
+        iSpecialize ("He" $! _ _ _ Hs);
+        ewp_mask_elim; iMod "He" as "(He & $)"; iModIntro.
+      + rewrite try2_inject2. iApply ("IH" with "He Hsh").
       + ewp_unfold (@Crash val exn). by iMod "He". }
 
     { (* [StepHandleCrash] *)
@@ -541,13 +540,12 @@ Section handler_proof.
       iIntros (σ'' m'' μ) "%Hstep2".
       dependent destruction Hstep2.
       { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
-      all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H1) as Hs
-           | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H1) as Hs
-           | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H1) as Hs ];
-           iSpecialize ("Hwp" $! _ _ _ Hs);
-           ewp_mask_elim; iMod "Hwp" as "(Hwp & $)"; iModIntro.
-      + iApply ("IH" with "Hwp Hdh").
-      + iApply ("IH" with "Hwp Hdh").
+      destruct_is_result o;
+        epose proof (ResolveS _ _ _ _ _ _ _ _ _ H1 ltac:(eassumption)) as Hs;
+        rewrite ?try2_inject2 in Hs;
+        iSpecialize ("Hwp" $! _ _ _ Hs);
+        ewp_mask_elim; iMod "Hwp" as "(Hwp & $)"; iModIntro.
+      + rewrite try2_inject2. iApply ("IH" with "Hwp Hdh").
       + by iPoseProof (invert_imp_Crash with "Hwp") as ">HFalse". }
 
     { (* [StepHandleCrash] *)

@@ -3,6 +3,7 @@ From Stdlib Require Import Program.Equality.
 From stdpp Require Import gmap fin_map_dom fin_sets.
 From osiris Require Import base.
 From osiris.lang Require Import lang.
+From osiris.utils.logic Require Import lsteps.
 From osiris.semantics Require Import code eval step.
 
 From iris.base_logic.lib Require Import iprop own.
@@ -25,13 +26,7 @@ Section subjective_step.
   Definition th_config A X : Type := store * (micro A X) * (gset thread).
   Definition th_config_step A X : Type := store * (micro A X) * option (thread * microvx).
 
-  (* [subjective_step] is [step] plus the two things [step] cannot express: a
-     fork, which produces a new thread, and a prophecy resolution, which
-     produces an OBSERVATION. The label is what carries the latter.
-
-     Every rule but [ResolveS] emits nothing, so in practice the label is
-     [[]] everywhere except at a resolution — which is exactly what makes
-     the change to the existing rules a matter of threading [[]] through. *)
+  (* [subjective_step] is the stepping relation viewed from a single thread. *)
 
   Inductive subjective_step {A X} :
     th_config A X -> list observation -> th_config_step A X -> Prop :=
@@ -43,46 +38,64 @@ Section subjective_step.
       subjective_step
         (σ, Stop CFork (v1, v2) k, π) []
         (σ, continue k (VThread ι), Some (ι, call v1 v2))
-
-  (* The resolution proper, and the reason this relation is labelled. The
-     premise is a step of the BARE system call [stop c x], whose targets
-     are exactly [Ret _], [Throw _] and [Crash] — three disjoint shapes,
-     so the three rules below never overlap and a resolution can never be
-     silently skipped.
-
-     Note that the call and the resolution happen in ONE step. That is the
-     whole point: an observation emitted one step later could be separated
-     from the call by another thread, and would be worthless as a
-     linearization point. *)
-  | ResolveS : ∀ {Y} σ σ' (c : code Y val exn) x p v w π
+  (* The stop call and the resolution happen in one subjective step. An
+     observation emitted one step later could be separated from the effect
+     by another thread, and could separate it from the linearization point. *)
+  | ResolveS : ∀ {Y} σ σ' (c : code Y val exn) x p v b π
         (k : outcome2 val exn -> micro A X),
-      step (σ, stop c x) (σ', Ret w) ->
+      step (σ, stop c x) (σ', b) ->
+      is_result b ->
       subjective_step
-        (σ, Stop (CResolve c) (x, p, v) k, π) [(p, (w, v))]
-        (σ', continue k w, None)
-
-  (* If the call throws or crashes there is no result to resolve with, and
-     the outcome propagates with no observation. *)
-  | ResolveThrowS : ∀ {Y} σ σ' (c : code Y val exn) x p v e π
-        (k : outcome2 val exn -> micro A X),
-      step (σ, stop c x) (σ', Throw e) ->
-      subjective_step
-        (σ, Stop (CResolve c) (x, p, v) k, π) []
-        (σ', discontinue k e, None)
-
-  | ResolveCrashS : ∀ {Y} σ σ' (c : code Y val exn) x p v π
-        (k : outcome2 val exn -> micro A X),
-      step (σ, stop c x) (σ', Crash) ->
-      subjective_step
-        (σ, Stop (CResolve c) (x, p, v) k, π) []
-        (σ', Crash, None)
+        (σ, Stop (CResolve c) (x, p, v) k, π) (resolve_obs p v b)
+        (σ', try2 b k, None)
   .
 
   Global Arguments subjective_step {A X}.
 
+(* -------------------------------------------------------------------------- *)
+
+  (* [proph_step] is exactly the semantic model [threadpool_step], plus
+     prophecy resolution. *)
+
+  Inductive proph_step : tconfig -> list observation -> tconfig -> Prop :=
+  | PureTS :
+    ∀ c c',
+      threadpool_step c c' ->
+      proph_step c [] c'
+
+  (* [ResolveS] one pool level up: same [is_result] premise, same [try2]
+     dispatch on the outcome, same [resolve_obs] label. *)
+  | ResolveTS :
+    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v b k,
+      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
+      step (σ, stop c x) (σ', b) ->
+      is_result b ->
+      proph_step
+        (σ, π) (resolve_obs p v b)
+        (σ', <[ ι := try2 b k ]> π)
+  .
+
 End subjective_step.
 
 Global Hint Constructors subjective_step : subjective_step.
+Global Hint Constructors proph_step : subjective_step.
+
+(* Runs of the instrumented model accumulate a trace, hence [lsteps];
+   [erased_proph_step] forgets it again for the clients that only need
+   reachability. *)
+
+Notation proph_steps := (lsteps proph_step).
+Notation erased_proph_step := (erased_lstep proph_step).
+
+Lemma erased_proph_steps_proph_steps c1 c2 :
+  rtc erased_proph_step c1 c2 ↔ ∃ n κs, proph_steps n c1 κs c2.
+Proof. apply erased_lsteps_lsteps. Qed.
+
+(* Every step of the semantic model is a silent step of the instrumented one. *)
+
+Lemma threadpool_step_proph_step c c' :
+  threadpool_step c c' → proph_step c [] c'.
+Proof. apply PureTS. Qed.
 
 From iris.bi Require Import bi.
 
@@ -168,14 +181,8 @@ Section can_progress.
   Qed.
 
   (* A [Resolve] can progress provided the system call it wraps can step
-     AND that step lands on an outcome — which is what the three [Resolve]
-     rules cover between them.
-
-     The second hypothesis is not a technicality: it is atomicity. A code
-     like [CEval] steps to a whole computation, not to a result, and there
-     is nothing for a resolution to record at such a step. The rule for
-     [Resolve] in the program logic will require the same thing, exactly
-     as HeapLang's [wp_resolve] requires its expression to be atomic. *)
+     and that step lands on an outcome, which is exactly [ResolveS]'s
+     [is_result] premise. *)
 
   Lemma can_progress_resolve {A E X} σ π (c : code X val exn) x p v
     (k : outcome2 val exn -> micro A E) :
@@ -187,11 +194,8 @@ Section can_progress.
     intros Hcs Hat.
     unfold can_progress.
     destruct Hcs as ([σ' m'] & Hstep).
-    (* The shape of the target decides which of the three rules applies. *)
-    destruct (Hat _ _ Hstep) as [(w & ->) | [(e & ->) | ->]].
-    - do 4 eexists. by eapply ResolveS.
-    - do 4 eexists. by eapply ResolveThrowS.
-    - do 4 eexists. by eapply ResolveCrashS.
+    do 4 eexists. eapply ResolveS; [ exact Hstep | ].
+    by destruct (Hat _ _ Hstep) as [(w & ->) | [(e & ->) | ->]].
   Qed.
 
   Lemma can_progress_join {A E} σ π ι' (k : _ -> micro A E) :
@@ -217,8 +221,6 @@ Section can_progress.
     dependent destruction Hcp.
     - exfalso. eapply (no_step_Resolve _ c y k); exact H.
     - do 4 eexists. by eapply ResolveS.
-    - do 4 eexists. by eapply ResolveThrowS.
-    - do 4 eexists. by eapply ResolveCrashS.
   Qed.
 
   (* [try2] pushes into continuations, and no rule of [subjective_step] looks

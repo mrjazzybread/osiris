@@ -769,21 +769,20 @@ Section threadpool.
     | None => Some (crash "join invalid thread")
     end.
 
-  (* Threadpool steps are labbeled by the observations they emit when
-     resolving a prophecy. *)
+  (* The semantic model for concurrency via a pool of threads. *)
 
-  Inductive threadpool_step : tconfig -> list observation -> tconfig -> Prop :=
+  Inductive threadpool_step : tconfig -> tconfig -> Prop :=
   | BaseTS :
     ∀ ι π m σ m' σ',
       π !! ι = Some m ->
       step (σ, m) (σ', m') ->
-      threadpool_step (σ, π) [] (σ', <[ ι := m' ]> π)
+      threadpool_step (σ, π) (σ', <[ ι := m' ]> π)
   | ForkTS :
     ∀ ι π ι' v1 v2 k σ,
       π !! ι = Some (Stop CFork (v1, v2) k) ->
       π !! ι' = None ->
       threadpool_step
-        (σ, π) []
+        (σ, π)
         (σ, @insert _ _ _ insert_thpool ι' (call v1 v2) (
                 @insert _ _ _ insert_thpool ι (continue k (VThread ι')) π))
   | JoinTS :
@@ -791,50 +790,18 @@ Section threadpool.
       π !! ι = Some (Stop CJoin ι' k) ->
       attempt_join ι' π k = Some m ->
       threadpool_step
-        (σ, π) []
+        (σ, π)
         (σ, <[ ι := m ]> π)
-
-  | ResolveTS :
-    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v w k,
-      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
-      step (σ, stop c x) (σ', Ret w) ->
-      threadpool_step
-        (σ, π) [(p, (w, v))]
-        (σ', <[ ι := continue k w ]> π)
-  | ResolveThrowTS :
-    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v e k,
-      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
-      step (σ, stop c x) (σ', Throw e) ->
-      threadpool_step
-        (σ, π) []
-        (σ', <[ ι := discontinue k e ]> π)
-  | ResolveCrashTS :
-    ∀ ι π σ σ' {Y} (c : code Y val exn) x p v k,
-      π !! ι = Some (Stop (CResolve c) (x, p, v) k) ->
-      step (σ, stop c x) (σ', Crash) ->
-      threadpool_step
-        (σ, π) []
-        (σ', <[ ι := Crash ]> π)
   .
 
-  (* [threadpool_steps n c1 κs c2]: [n] steps from [c1] to [c2] emitting the
-     concatenated trace [κs], and [erased_step], the same relation with the
-     label forgotten. *)
-
-  Notation threadpool_steps := (lsteps threadpool_step).
-  Notation erased_step := (erased_lstep threadpool_step).
-
-  Lemma erased_steps_threadpool_steps c1 c2 :
-    rtc erased_step c1 c2 ↔ ∃ n κs, threadpool_steps n c1 κs c2.
-  Proof. apply erased_lsteps_lsteps. Qed.
+  Notation threadpool_steps := (nsteps threadpool_step).
 
 End threadpool.
 
-(* The notations must be repeated outside the section: a [Notation] inside a
+(* The notation must be repeated outside the section: a [Notation] inside a
    section does not survive it. *)
 
-Notation threadpool_steps := (lsteps threadpool_step).
-Notation erased_step := (erased_lstep threadpool_step).
+Notation threadpool_steps := (nsteps threadpool_step).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -881,6 +848,41 @@ Lemma invert_is_ret_Some {A E} {m : micro A E} {a} :
 Proof.
   destruct m; inversion 1; reflexivity.
 Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+Definition is_result {A E} (m : micro A E) : Prop :=
+  match m with
+  | Ret _ | Throw _ | Crash => True
+  | _ => False
+  end.
+
+(* Recovering the shape for the proofs that must treat the cases
+   differently. A result is either an [outcome2] or a crash. *)
+
+Lemma is_result_inv {A E} (m : micro A E) :
+  is_result m → (∃ o, m = inject2 o) ∨ m = Crash.
+Proof.
+  destruct m; simpl; try done;
+    [ left; by exists (O2Ret a) | left; by exists (O2Throw e) | by right ].
+Qed.
+
+(* Consuming the [is_result] hypothesis a resolution rule leaves behind, and
+   substituting the shape it reveals throughout. *)
+
+Tactic Notation "destruct_is_result" simple_intropattern(p) :=
+  match goal with
+  | Hr : is_result _ |- _ =>
+      destruct (is_result_inv _ Hr) as [ (p & ->) | -> ]
+  end.
+
+(* The observation a resolution emits, given the outcome its call reached. *)
+
+Definition resolve_obs (p : loc) (v : val) (b : microvx) : list observation :=
+  match b with
+  | Ret w => [(p, (w, v))]
+  | _ => []
+  end.
 
 (* -------------------------------------------------------------------------- *)
 

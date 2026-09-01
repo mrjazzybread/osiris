@@ -188,24 +188,16 @@ Section ewp_rules.
         iIntros (σ' m' μ) "%Hstep2".
         dependent destruction Hstep2.
         { exfalso. eapply (no_step_Resolve _ c _ (pftry2 k f)); exact H. }
-        - eassert (subjective_step
-                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
-          { eapply ResolveS. eassumption. }
-          spec_step.
-          ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
-          iModIntro. iApply ("IH" with "Hwp").
-        - eassert (subjective_step
-                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
-          { eapply ResolveThrowS. eassumption. }
-          spec_step.
-          ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
-          iModIntro. iApply ("IH" with "Hwp").
-        - eassert (subjective_step
-                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _).
-          { eapply ResolveCrashS. eassumption. }
-          spec_step.
-          ewp_mask_elim. iMod "Hwp" as "(Hwp & $)".
-          iModIntro. iApply ("IH" with "Hwp"). }
+        (* [ResolveS] leaves the outcome abstract; recover its shape, which
+           is what reduces [try2] here. *)
+        destruct_is_result o;
+          rewrite ?try2_inject2;
+          eassert (subjective_step
+                     (σ, Stop (CResolve c) (x0, p, v) k, dom π) _ _)
+            by (by eapply ResolveS);
+          spec_step;
+          ewp_mask_elim; iMod "Hwp" as "(Hwp & $)";
+          iModIntro; rewrite ?try2_inject2; iApply ("IH" with "Hwp"). }
       (* Get more information out of [e2]; *)
       construct_wp_nonret.
       pose proof (can_step_try2 _ _ f Hstep) as Hstep2.
@@ -355,13 +347,13 @@ Section ewp_rules.
         iIntros (σ'' m'' μ) "%Hstep2".
         dependent destruction Hstep2.
         { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
-        all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0) as Hs
-             | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H0) as Hs
-             | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H0) as Hs ];
-             iSpecialize ("H1" $! _ _ _ Hs);
-             ewp_mask_elim; iMod "H1" as "(H1 & $)".
-        + iApply ("IH" with "H1 H2 Hjoin").
-        + iApply ("IH" with "H1 H2 Hjoin").
+        (* An outcome is handed to the continuation; a crash aborts. *)
+        destruct_is_result o;
+          epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0 ltac:(eassumption)) as Hs;
+          rewrite ?try2_inject2 in Hs;
+          iSpecialize ("H1" $! _ _ _ Hs);
+          ewp_mask_elim; iMod "H1" as "(H1 & $)".
+        + rewrite try2_inject2. iApply ("IH" with "H1 H2 Hjoin").
         + iApply fupd_ewp; iMod (ewp_crash_inv with "H1") as "[]". }
 
     { (* [StepThroughParRight]. *)
@@ -409,13 +401,12 @@ Section ewp_rules.
         iIntros (σ'' m'' μ) "%Hstep2".
         dependent destruction Hstep2.
         { exfalso. eapply (no_step_Resolve _ _ _ _); eassumption. }
-        all: [> epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0) as Hs
-             | epose proof (ResolveThrowS _ _ _ _ _ _ _ _ _ H0) as Hs
-             | epose proof (ResolveCrashS _ _ _ _ _ _ _ _ H0) as Hs ];
-             iSpecialize ("H2" $! _ _ _ Hs);
-             ewp_mask_elim; iMod "H2" as "(H2 & $)".
-        + iApply ("IH" with "H1 H2 Hjoin").
-        + iApply ("IH" with "H1 H2 Hjoin").
+        destruct_is_result o;
+          epose proof (ResolveS _ _ _ _ _ _ _ _ _ H0 ltac:(eassumption)) as Hs;
+          rewrite ?try2_inject2 in Hs;
+          iSpecialize ("H2" $! _ _ _ Hs);
+          ewp_mask_elim; iMod "H2" as "(H2 & $)".
+        + rewrite try2_inject2. iApply ("IH" with "H1 H2 Hjoin").
         + iApply fupd_ewp; iMod (ewp_crash_inv with "H2") as "[]". }
 
     { (* [ParLeft] *)
