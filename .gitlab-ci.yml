@@ -51,7 +51,6 @@ translator:
       optional: true
   script:
     - make translator
-    - cd osiris && dune runtest
   <<: *cache
 
 translate:

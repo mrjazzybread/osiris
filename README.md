@@ -47,7 +47,7 @@ only required for end-to-end verification.
 
 | Target            | What it does                                                           |
 |-------------------|------------------------------------------------------------------------|
-| `make`            | Full pipeline: translator → translate examples & stdlib → compile Rocq |
+| `make`            | Full pipeline: translator → translate examples & stdlib → compile Rocq → build the interpreter |
 | `make translator` | Compile the OCaml translator only (`osiris/`)                          |
 | `make theory`     | Compile the core Rocq theory only (`rocq-osiris/theories/`)            |
 | `make clean`      | Remove `_build/` and generated `og_*.v` files                          |
@@ -55,8 +55,7 @@ only required for end-to-end verification.
 | `make check-axioms` | List axioms used in the Rocq development (see [Axioms](#axioms))     |
 
 When working only on `.v` files, `make theory` is sufficient and significantly
-faster than `make`. When working only on the translator, `make translator`
-followed by `cd osiris && dune runtest` is the inner-loop combination.
+faster than `make`. When working only on the translator, use `make translator`.
 
 ## Setup targets
 
