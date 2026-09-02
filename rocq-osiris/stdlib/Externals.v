@@ -9,20 +9,20 @@ From osiris.program_logic Require Import program_logic.
 From osiris.proofmode Require Import env_lookups.
 From osiris.utils Require Import list_z.
 
-Notation VEta1 body :=
+Abbreviation VEta1 body :=
   (
     VClo [] $
          AnonFun "__x0" $
          body (EPath [ "__x0" ])
   ).
-Notation VEta2 body :=
+Abbreviation VEta2 body :=
   (
     VClo [] $
          AnonFun "__x0" $
          EAnonFun (AnonFun "__x1"
          (body (EPath [ "__x0" ]) (EPath [ "__x1" ])))
   ).
-Notation VEta3 body :=
+Abbreviation VEta3 body :=
   (
     VClo [] $
          AnonFun "__x0" $
@@ -31,20 +31,20 @@ Notation VEta3 body :=
                      (body (EPath [ "__x0" ]) (EPath [ "__x1" ]) (EPath [ "__x2" ]))))
   ).
 
-Notation EEta1 body :=
+Abbreviation EEta1 body :=
   (
     EAnonFun $
       AnonFun "__x0" $
       body (EPath [ "__x0" ])
   ).
-Notation EEta2 body :=
+Abbreviation EEta2 body :=
   (
     EAnonFun $
       AnonFun "__x0" $
       EAnonFun (AnonFun "__x1"
                   (body (EPath [ "__x0" ]) (EPath [ "__x1" ])))
   ).
-Notation EEta3 body :=
+Abbreviation EEta3 body :=
   (
     EAnonFun $
          AnonFun "__x0" $

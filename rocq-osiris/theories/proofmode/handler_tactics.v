@@ -34,6 +34,7 @@ From Ltac2 Require Import Ltac2 Printf.
 
 
 Create HintDb osiris.
+Create Rewrite HintDb osiris.
 
 Set Default Proof Mode "Classic".
 
@@ -609,10 +610,10 @@ Ltac2 imp_match_tac (a' : constr option) (phi : constr option) (selpat : constr 
       | Some phi => open_constr:(imp_EMatch (A':=$a) $phi)
       end
     in
-    match selpat with
+    (match selpat with
     | None => iApply $specialized_match
     | Some sel => iApply ($specialized_match with $sel)
-    end >
+    end) >
     [ try (imp_step0 None) | simple_intros (); try (imp_branches0 ()) ]
   | _ =>
       Control.zero (Tactic_failure

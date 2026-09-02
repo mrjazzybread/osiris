@@ -86,7 +86,7 @@ Qed.
 
 Lemma not_elem_of_insert_list {A} ι l (πp : gmap thread A) :
   ι ∉ dom (insert_list l πp) →
-  ι ∉ fst <$> l ∧ ι ∉ dom πp.
+  (ι ∉ fst <$> l) ∧ ι ∉ dom πp.
 Proof.
   induction l as [| [ι' a] l IH].
   - simpl.

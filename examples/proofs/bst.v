@@ -259,7 +259,7 @@ Proof.
       destruct (y <? a) eqn:Hla; first done.
       destruct (a <? y) eqn:Hlt'; try lia.
       simpl in Hlt.
-      assert (y =? x = false) as Heqf by lia. by rewrite Heqf. }
+      assert ((y =? x) = false) as Heqf by lia. by rewrite Heqf. }
 
     (* Case: [¬ (z < a)] *)
     { intros Hge.
@@ -290,7 +290,7 @@ Proof.
 
         cbn in *; setoid_rewrite Ht'; clear Ht'; intros y.
         destruct (y <? a) eqn:Hla.
-        { assert (y =? x = false) as Heqf by lia.
+        { assert ((y =? x) = false) as Heqf by lia.
           rewrite Heqf; done. }
         destruct (a <? y) eqn:Hlx; try lia; done. }
 
@@ -303,9 +303,9 @@ Proof.
       intros ??? (<- & <- & <-).
       intros x. cbn.
       destruct (x <? a) eqn:Hla.
-      { assert (x =? a = false) by lia; rewrite H0; done. }
+      { assert ((x =? a) = false) by lia; rewrite H0; done. }
       destruct (a <? x) eqn : Hla'; try lia.
-      assert (x =? a = false) by lia; rewrite H0; done. }
+      assert ((x =? a) = false) by lia; rewrite H0; done. }
 Qed.
 
 Lemma member_mkspec member (x : Z) (t : tree Z) :
@@ -376,8 +376,8 @@ Proof.
         - assumption. }
       intros ? ->. cbn.
       simpl in Hge, Hgt.
-      assert (x <? y = false) by lia; rewrite H.
-      assert (y <? x = true) by lia; rewrite H0. done. }
+      assert ((x <? y) = false) by lia; rewrite H.
+      assert ((y <? x) = true) by lia; rewrite H0. done. }
 
     (* Subcase : [¬ (x > a)] *)
     { intros Hle. pure_const. simpl in Hge, Hle.

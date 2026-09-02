@@ -545,7 +545,7 @@ Section ewp_def.
              state_interp (σ, κ ++ κs, π) ={E, ∅}=∗
              ⌜can_progress σ (dom π) m⌝ ∗
              ∀ σ' m' μ,
-               ⌜subjective_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ |={∅,E}=>
+               ⌜subjective_step (σ, m, dom π) κ (σ', m', μ)⌝ ={∅}=∗ ▷ (|={∅,E}=>
                ewp E m' Ψ φ ∗
                match μ with
                | None => state_interp (σ', κs, π)
@@ -553,7 +553,7 @@ Section ewp_def.
                    ∃ φ' γ, state_interp (σ', κs, <[ι' := γ]> π) ∗
                            saved_pred_own γ DfracDiscarded φ' ∗
                            ewp ⊤ mforked ⊥ (λ o, □ φ' o)
-               end
+               end)
        (* [EWP5]: A request to join a thread [ι']. *)
        | WPJoin ι' k =>
            ∀ σ κs π,
@@ -670,25 +670,25 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
 
 Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ζ%I Φ%I)
-    (at level 20, e, Φ, ζ at level 200,
+    (at level 0, e, Φ, ζ at level 200,
       format "'[' 'EWP'  e  '/' '[ '  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E ⊥ ζ%I Φ%I)
-    (at level 20, e, Φ, ζ at level 200,
+    (at level 0, e, Φ, ζ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ζ%I Φ%I)
-    (at level 20, e, Ψ, Φ, ζ at level 200,
+    (at level 0, e, Ψ, Φ, ζ at level 200,
       format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  ⟨⟨  ζ  ⟩⟩  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
   (impure E e%E Ψ%I ζ%I Φ%I)
-    (at level 20, e, Ψ, Φ, ζ at level 200,
+    (at level 0, e, Ψ, Φ, ζ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  ⟨⟨  ζ  ⟩⟩  {{  Φ  } } ']' ']'")
     : bi_scope.
 
@@ -696,25 +696,25 @@ Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
 
 Notation "'EWP' e {{ Φ } }" :=
   (impure ⊤ e%E ⊥ ⊥ Φ%I)
-    (at level 20, e, Φ at level 200,
+    (at level 0, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E {{ Φ } }" :=
   (impure E e%E ⊥ ⊥ Φ%I)
-    (at level 20, e, Φ at level 200,
+    (at level 0, e, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  {{  Φ  } } ']' ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I ⊥ Φ%I)
-    (at level 20, e, Ψ, Φ at level 200,
+    (at level 0, e, Ψ, Φ at level 200,
       format "'[hv' 'EWP'  e  '/' <| Ψ '|>'  {{  '[' Φ  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ |> {{ Φ } }" :=
   (impure E e%E Ψ%I ⊥ Φ%I)
-    (at level 20, e, Ψ, Φ at level 200,
+    (at level 0, e, Ψ, Φ at level 200,
       format "'[' 'EWP'  e  '/' '[ ' @  E  <|  Ψ  '|>'  {{  Φ  } } ']' ']'")
     : bi_scope.
 
@@ -735,25 +735,25 @@ Notation "'EWP' e @ E <| Ψ |> {{ Φ } }" :=
 
 Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
   (impure ⊤ e%E ⊥ ζ%I (λ v, Q%I))
-    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, ζ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
   (impure E e%E ⊥ ζ%I (λ v, Q%I))
-    (at level 20, e, ζ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, ζ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
   (impure ⊤ e%E Ψ%I ζ%I (λ v, Q%I))
-    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
   (impure E e%E Ψ%I ζ%I (λ v, Q%I))
-    (at level 20, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Ψ, ζ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  ζ  ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
@@ -761,25 +761,25 @@ Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ ζ ⟩⟩ {{ v , Q } }" :=
 
 Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E ⊥ (λ w, R%I) Φ%I)
-    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+    (at level 0, e, R, Φ at level 200, w at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
   (impure E e%E ⊥ (λ w, R%I) Φ%I)
-    (at level 20, e, R, Φ at level 200, w at level 200 as pattern,
+    (at level 0, e, R, Φ at level 200, w at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
   (impure ⊤ e%E Ψ%I (λ w, R%I) Φ%I)
-    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+    (at level 0, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
   (impure E e%E Ψ%I (λ w, R%I) Φ%I)
-    (at level 20, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
+    (at level 0, e, Ψ, R, Φ at level 200, w at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  Φ  } } ']'")
     : bi_scope.
 
@@ -787,28 +787,28 @@ Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ Φ } }" :=
 
 Notation "'EWP' e ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
   (impure ⊤ e%E ⊥ (λ w, R%I) (λ v, Q%I))
-    (at level 20, e, R, Q at level 200,
+    (at level 0, e, R, Q at level 200,
      w at level 200 as pattern, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
   (impure E e%E ⊥ (λ w, R%I) (λ v, Q%I))
-    (at level 20, e, R, Q at level 200,
+    (at level 0, e, R, Q at level 200,
      w at level 200 as pattern, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
   (impure ⊤ e%E Ψ%I (λ w, R%I) (λ v, Q%I))
-    (at level 20, e, Ψ, R, Q at level 200,
+    (at level 0, e, Ψ, R, Q at level 200,
      w at level 200 as pattern, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
   (impure E e%E Ψ%I (λ w, R%I) (λ v, Q%I))
-    (at level 20, e, Ψ, R, Q at level 200,
+    (at level 0, e, Ψ, R, Q at level 200,
      w at level 200 as pattern, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  ⟨⟨  '[' w ,  '/' R  ']' ⟩⟩  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
@@ -821,25 +821,25 @@ Notation "'EWP' e @ E <| Ψ '|>' ⟨⟨ w , R ⟩⟩ {{ v , Q } }" :=
 
 Notation "'EWP' e {{ v , Q } }" :=
   (impure ⊤ e%E ⊥ ⊥ (λ v, Q%I))
-    (at level 20, e, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E {{ v , Q } }" :=
   (impure E e%E ⊥ ⊥ (λ v, Q%I))
-    (at level 20, e, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e <| Ψ '|>' {{ v , Q } }" :=
   (impure ⊤ e%E Ψ%I ⊥ (λ v, Q%I))
-    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Ψ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 
 Notation "'EWP' e @ E <| Ψ '|>' {{ v , Q } }" :=
   (impure E e%E Ψ%I ⊥ (λ v, Q%I))
-    (at level 20, e, Ψ, Q at level 200, v at level 200 as pattern,
+    (at level 0, e, Ψ, Q at level 200, v at level 200 as pattern,
       format "'[hv' 'EWP'  e  '/' @  E  <|  Ψ  |>  '/' {{  '[' v ,  '/' Q  ']' } } ']'")
     : bi_scope.
 

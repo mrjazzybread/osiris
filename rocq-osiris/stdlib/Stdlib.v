@@ -26,14 +26,14 @@ Local Transparent encode.
    avoid it to be unfolded: some unfolding would lead to several duplications of
    continuations (ie. the rest of the code). *)
 
-Local Notation VClo1 body :=
+Local Abbreviation VClo1 body :=
   (
     VClo [] $
       AnonFun "x" $
       (body (EVar "x"))
   ).
 
-Local Notation VClo2 body :=
+Local Abbreviation VClo2 body :=
   (
     VClo [] $
       AnonFun "x" $

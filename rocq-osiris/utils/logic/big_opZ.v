@@ -20,11 +20,11 @@ Global Arguments big_opLZ {SI} {M} o {u _ A} _ !_ /.
 Global Typeclasses Opaque big_opLZ.
 Notation "'[^' o 'listZ]' k ↦ x ∈ l , P" :=
   (big_opLZ o (fun (k : Z) x => P) l)
-    (at level 200, o at level 1, l at level 10, k, x at level 1, right associativity,
+    (at level 200, o at level 1, l at level 200, k, x at level 1, right associativity,
        format "[^ o  listZ]  k ↦ x  ∈  l ,  P") : stdpp_scope.
 Notation "'[^' o 'listZ]' x ∈ l , P" :=
   (big_opLZ o (fun _ x => P) l)
-    (at level 200, o at level 1, l at level 10, x at level 1, right associativity,
+    (at level 200, o at level 1, l at level 200, x at level 1, right associativity,
        format "[^ o  listZ]  x  ∈  l ,  P") : stdpp_scope.
 
 Section big_op.

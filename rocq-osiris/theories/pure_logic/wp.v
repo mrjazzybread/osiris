@@ -22,6 +22,7 @@ Inductive pure_wp {A E} : micro A E → (A → Prop) → (E → Prop) → Prop :
     (∀ m', may m m' → pure_wp m' φ ψ) →
     pure_wp m φ ψ.
 
+Create HintDb pure.
 Global Hint Constructors pure_wp : pure.
 
 (* -------------------------------------------------------------------------- *)
@@ -261,8 +262,8 @@ Section pure_wp_rules.
   Lemma pure_wp_sn {A E} {φ : A → Prop} {ψ : E → Prop} m :
     pure_wp m φ ψ → sn may m.
   Proof.
-    induction 1; constructor; try solve [intros y M; inversion M].
-    firstorder.
+    induction 1; try solve [constructor; intros y M; inversion M].
+    constructor. firstorder.
   Qed.
 
   Lemma pure_wp_long_steps {A E} {φ : A → Prop} {ψ : E → Prop} m :

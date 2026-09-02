@@ -160,7 +160,7 @@ Include Make(C).
    Coq by a computation of type [micro val exn]. We use [microvx] as a
    short-hand for this type. *)
 
-Notation microvx :=
+Abbreviation microvx :=
   (micro val exn).
 
 (* ------------------------------------------------------------------------ *)

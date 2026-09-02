@@ -87,13 +87,12 @@ pin:
 	$(PIN) dune 3.21.0
 	$(INSTALL) pprint ocaml-compiler-libs
 	$(ADD) rocq-released https://rocq-prover.org/opam/released
-	$(ADD) iris-dev     git+https://gitlab.mpi-sws.org/iris/opam.git
 	opam update --switch=$(SWITCH_NAME) --yes
-	$(PIN) rocq-core 9.1.0
+	$(PIN) rocq-core 9.2.0
 	$(PIN) rocq-stdlib 9.1.0
-	$(PIN) rocq-stdpp https://gitlab.mpi-sws.org/iris/stdpp.git#f5017975
-	$(PIN) rocq-iris https://gitlab.mpi-sws.org/iris/iris.git#eea849e6
-	$(PIN) rocq-equations 1.3.1+9.1
+	$(PIN) rocq-stdpp 1.13.0
+	$(PIN) rocq-iris 4.5.0
+	$(PIN) rocq-equations 1.3.2+9.2
 	$(PIN) ppx_sexp_conv v0.17.1
 	$(PIN) ppx_deriving 6.1.1
 

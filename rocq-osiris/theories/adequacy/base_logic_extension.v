@@ -31,7 +31,7 @@ Proof.
 Qed.
 
 Local Lemma lc_elim_upd `{!lcGS Σ} n P:
-  (supply n ∗ |==£> P)%I ⊢ Nat.iter n (λ P, (|==> ▷ P))%I (|==> ◇ |==> (supply n ∗ P))%I.
+  (supply n ∗ (|==£> P))%I ⊢ Nat.iter n (λ P, (|==> ▷ P))%I (|==> ◇ (|==> (supply n ∗ P)))%I.
 Proof.
   iIntros "[Hc Hupd]". iPoseProof (le_upd_elim with "Hc Hupd") as "Hx".
   iApply (bi.iter_modal_mono with "[] Hx").

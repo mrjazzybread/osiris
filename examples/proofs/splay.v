@@ -245,7 +245,7 @@ Section BST.
 
   Lemma bst_Node_iff l x r :
     bst (Node l x r) ↔
-    bst l ∧ bst r ∧ fringe l ≺ [x] ∧ [x] ≺ fringe r.
+    bst l ∧ bst r ∧ (fringe l ≺ [x]) ∧ [x] ≺ fringe r.
   Proof.
     unfold bst. simpl fringe.
     repeat (first [ rewrite Sorted_app_iff
@@ -312,6 +312,7 @@ Qed.
 
 (* This tactic proves an equality between two fringes. *)
 
+Create Rewrite HintDb fringe.
 #[export] Hint Rewrite @fringe_fill @app_nil_l @app_nil_r @app_assoc : fringe.
 
 Local Ltac prove_same_fringe :=

@@ -74,4 +74,5 @@ Section lsteps.
 
 End lsteps.
 
-Global Hint Constructors lsteps : lsteps.
+Create HintDb lsteps.
+Hint Constructors lsteps : lsteps.

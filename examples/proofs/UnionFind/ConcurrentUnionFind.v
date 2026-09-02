@@ -15,11 +15,11 @@ Require Import UnionFind12GhostInv.
     structure. *)
 
 (* A vertex is a two-field record { id; content }. *)
-Notation elem := record.
+Abbreviation elem := record.
 
 (* Field offsets of the vertex record. *)
-Notation id_field := 0%Z (only parsing).
-Notation content_field := 1%Z (only parsing).
+Abbreviation id_field := 0%Z (only parsing).
+Abbreviation content_field := 1%Z (only parsing).
 
 Section ConcurrentUnionFind.
 
@@ -232,7 +232,7 @@ Definition make_spec (γ : uf_names) (v : val) (m : microvx) : iProp Σ :=
   is_uf γ -∗
   <<{ ∀∀ (D : gset elem) (R : elem → elem) (V : elem → val), UF γ D R V }>>
     m @ ↑ufN
-  <<{ ∃∃ x : elem, ⌜x ∉ D ∧ R x = x⌝ ∗ UF γ (D ∪ {[x]}) R V.[x -/R/> v]
+  <<{ ∃∃ x : elem, ⌜(x ∉ D) ∧ R x = x⌝ ∗ UF γ (D ∪ {[x]}) R V.[x -/R/> v]
     | RET x; in_uf γ x }>>.
 
 (* Records allocated by this module must fit within [max_array_length]. *)
@@ -1289,7 +1289,7 @@ Proof.
     first exact Heq.
 
   imp_match unit with "[]".
-  { iApply (imp_EAssert (R:=True)%I).
+  { iApply (imp_EAssert (R:=True%I)).
     iSplit; first done.
     iApply (imp_wand with "[]").
     iApply (imp_EOpNe_Z _ _ _ i' j' with "[Hav] [Hbv]"); try eassumption.

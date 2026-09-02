@@ -200,11 +200,11 @@ Lemma erase_alloc_block t ls :
 Proof. apply (erase_stop CAllocBlock (t, ls)). done. Qed.
 
 Lemma erase_exchange l v :
-  erase_comp (exchange l v) (exchange l (erase_val v)).
+  erase_microvx (exchange l v) (exchange l (erase_val v)).
 Proof. apply (erase_stop CExchange (l, v)). done. Qed.
 
 Lemma erase_store_op l v :
-  erase_comp (code.store l v) (code.store l (erase_val v)).
+  erase_microvx (code.store l v) (code.store l (erase_val v)).
 Proof.
   unfold code.store.
   eapply erase_bind; [ apply erase_exchange | ]. intros w.
@@ -212,11 +212,11 @@ Proof.
 Qed.
 
 Lemma erase_cas l seen v :
-  erase_comp (cas l seen v) (cas l (erase_val seen) (erase_val v)).
+  erase_microvx (cas l seen v) (cas l (erase_val seen) (erase_val v)).
 Proof. apply (erase_stop CCAS (l, seen, v)). done. Qed.
 
 Lemma erase_faa l i :
-  erase_comp (faa l i) (faa l i).
+  erase_microvx (faa l i) (faa l i).
 Proof. apply (erase_stop CFAA (l, i)). done. Qed.
 
 Lemma erase_set_tag l t :
@@ -389,15 +389,15 @@ Qed.
 
 (** ** Effects and continuations. *)
 
-Lemma erase_perform v : erase_comp (perform v) (perform (erase_val v)).
+Lemma erase_perform v : erase_microvx (perform v) (perform (erase_val v)).
 Proof. apply (erase_stop CPerf v). done. Qed.
 
 Lemma erase_resume l o :
-  erase_comp (resume l o) (resume l (erase_outcome o)).
+  erase_microvx (resume l o) (resume l (erase_outcome o)).
 Proof. apply (erase_stop CResume (l, o)). done. Qed.
 
 Lemma erase_please_eval η e :
-  erase_comp (please_eval η e) (please_eval (erase_env η) (erase_expr e)).
+  erase_microvx (please_eval η e) (please_eval (erase_env η) (erase_expr e)).
 Proof. apply (erase_stop CEval (η, e)). done. Qed.
 
 Lemma erase_wrap l η bs :
@@ -430,7 +430,7 @@ Qed.
    so the two computations [eval] builds for them line up exactly. *)
 
 Lemma erase_new_proph :
-  erase_comp ('p ← new_proph ; ret (VLoc p)) ('l ← alloc VUnit ; ret (VLoc l)).
+  erase_microvx ('p ← new_proph ; ret (VLoc p)) ('l ← alloc VUnit ; ret (VLoc l)).
 Proof.
   apply EM_NewProph. intros [ p | ex ]; simpl.
   - exact (EM_Ret erase_val erase_val (VLoc p)).
@@ -443,12 +443,12 @@ Qed.
    first. *)
 
 Lemma erase_resolve_return w p v :
-  erase_comp (resolve CReturn w p v) (ret (erase_val w)).
+  erase_microvx (resolve CReturn w p v) (ret (erase_val w)).
 Proof. apply EM_ResolveReturn. apply EM_Ret. Qed.
 
 Lemma erase_bind_resolve_return p v m m' :
-  erase_comp m m' →
-  erase_comp (bind m (λ w, resolve CReturn w p v)) m'.
+  erase_microvx m m' →
+  erase_microvx (bind m (λ w, resolve CReturn w p v)) m'.
 Proof.
   intros Hm.
   (* The erased side does nothing after the expression; [bind m' ret] is [m']. *)
@@ -482,21 +482,21 @@ Proof. no_throw. Qed.
    an exception it cannot carry — what [code_no_throw] excuses. *)
 
 Lemma erase_resolve_load l p v :
-  erase_comp (resolve CLoad l p v) (load l).
+  erase_microvx (resolve CLoad l p v) (load l).
 Proof.
   apply EM_Resolve; [ done | apply code_no_throw_load | ].
   intros w. apply EM_Ret.
 Qed.
 
 Lemma erase_resolve_exchange l w p v :
-  erase_comp (resolve CExchange (l, w) p v) (exchange l (erase_val w)).
+  erase_microvx (resolve CExchange (l, w) p v) (exchange l (erase_val w)).
 Proof.
   apply EM_Resolve; [ done | apply code_no_throw_exchange | ].
   intros u. apply EM_Ret.
 Qed.
 
 Lemma erase_resolve_cas l seen w p v :
-  erase_comp (resolve CCAS (l, seen, w) p v)
+  erase_microvx (resolve CCAS (l, seen, w) p v)
              (cas l (erase_val seen) (erase_val w)).
 Proof.
   apply EM_Resolve; [ done | apply code_no_throw_cas | ].
@@ -504,7 +504,7 @@ Proof.
 Qed.
 
 Lemma erase_resolve_faa l i p v :
-  erase_comp (resolve CFAA (l, i) p v) (faa l i).
+  erase_microvx (resolve CFAA (l, i) p v) (faa l i).
 Proof.
   apply EM_Resolve; [ done | apply code_no_throw_faa | ].
   intros u. apply EM_Ret.
@@ -515,14 +515,14 @@ Qed.
 (** ** Threads, loops and choice. *)
 
 Lemma erase_fork v1 v2 :
-  erase_comp (fork v1 v2) (fork (erase_val v1) (erase_val v2)).
+  erase_microvx (fork v1 v2) (fork (erase_val v1) (erase_val v2)).
 Proof. apply (erase_stop CFork (v1, v2)). done. Qed.
 
-Lemma erase_join t : erase_comp (join t) (join t).
+Lemma erase_join t : erase_microvx (join t) (join t).
 Proof. apply (erase_stop CJoin t). done. Qed.
 
 Lemma erase_loop η x i1 i2 e :
-  erase_comp (code.loop η x i1 i2 e)
+  erase_microvx (code.loop η x i1 i2 e)
              (code.loop (erase_env η) x i1 i2 (erase_expr e)).
 Proof. apply (erase_stop CLoop (η, x, i1, i2, e)). done. Qed.
 
@@ -570,14 +570,14 @@ Proof.
 Qed.
 
 Lemma erase_acall η a v :
-  erase_comp (acall η a v) (acall (erase_env η) (erase_anonfun a) (erase_val v)).
+  erase_microvx (acall η a v) (acall (erase_env η) (erase_anonfun a) (erase_val v)).
 Proof.
   destruct a as [ x e ]. unfold acall, please_eval.
   apply (erase_stop CEval ((x, v) :: η, e)). done.
 Qed.
 
 Lemma erase_call v1 v2 :
-  erase_comp (call v1 v2) (call (erase_val v1) (erase_val v2)).
+  erase_microvx (call v1 v2) (call (erase_val v1) (erase_val v2)).
 Proof.
   destruct v1; simpl; try apply EM_Crash.
   - apply erase_acall.
@@ -745,8 +745,8 @@ Definition eval_resolved (η : env) (e : expr) (p : loc) (v : val) : microvx :=
 
 Lemma erase_resolved_of_eval e :
   (∀ η p v, eval_resolved η e p v = (w ← eval η e ; resolve CReturn w p v)) →
-  (∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))) →
-  ∀ η p v, erase_comp (eval_resolved η e p v)
+  (∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) →
+  ∀ η p v, erase_microvx (eval_resolved η e p v)
              (eval (erase_env η) (erase_expr e)).
 Proof.
   intros Hres He η p v. rewrite Hres. by apply erase_bind_resolve_return.
@@ -917,13 +917,13 @@ Qed.
 
 
 Lemma erase_eval η e :
-  erase_comp (eval η e) (eval (erase_env η) (erase_expr e)).
+  erase_microvx (eval η e) (eval (erase_env η) (erase_expr e)).
 Proof.
   revert η.
   apply (expr_ind
     (* Pexpr: the expression on its own, and under a resolution. *)
-    (λ e, (∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e)))
-        ∧ (∀ η p v, erase_comp (eval_resolved η e p v)
+    (λ e, (∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e)))
+        ∧ (∀ η p v, erase_microvx (eval_resolved η e p v)
                       (eval (erase_env η) (erase_expr e))))
     (* Pexprs *)
     (λ es, ∀ η, erase_micro erase_vals erase_val
@@ -931,7 +931,7 @@ Proof.
     (* Pfexpr *)
     (λ fe, match fe with
            | Fexpr _ e =>
-               ∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))
+               ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
            end)
     (* Pfexprs *)
     (λ fes, ∀ η, erase_micro erase_fvals erase_val
@@ -939,21 +939,21 @@ Proof.
     (* Pbranch *)
     (λ b, match b with
           | Branch _ e =>
-              ∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))
+              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
           end)
     (* Pbranches: the list as a deep handler, and as a shallow one. *)
-    (λ bs, (∀ η o, erase_comp (eval_branches η o bs)
+    (λ bs, (∀ η o, erase_microvx (eval_branches η o bs)
                      (eval_branches (erase_env η) (erase_out3 o)
                                     (erase_branches bs)))
          ∧ (∀ η all_bs o,
-              erase_comp (shallow_eval_branches η bs all_bs o)
+              erase_microvx (shallow_eval_branches η bs all_bs o)
                 (shallow_eval_branches (erase_env η) (erase_branches bs)
                                        (erase_branches all_bs)
                                        (erase_out3 o))))
     (* Pbinding *)
     (λ b, match b with
           | Binding _ e =>
-              ∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))
+              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
           end)
     (* Pbindings *)
     (λ bs, ∀ η, erase_micro erase_env erase_val
@@ -962,7 +962,7 @@ Proof.
     (* Prec_binding *)
     (λ rb, match rb with
            | RecBinding _ (AnonFun _ e) =>
-               ∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))
+               ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
            end)
     (* Prec_bindings *)
     (λ rbs, ∀ η, eval_rec_bindings (erase_env η) (erase_rec_bindings rbs) =
@@ -970,10 +970,10 @@ Proof.
     (* Panonfun *)
     (λ a, match a with
           | AnonFun _ e =>
-              ∀ η, erase_comp (eval η e) (eval (erase_env η) (erase_expr e))
+              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
           end)
     (* Pmexpr *)
-    (λ me, ∀ η, erase_comp (eval_mexpr η me)
+    (λ me, ∀ η, erase_microvx (eval_mexpr η me)
                   (eval_mexpr (erase_env η) (erase_mexpr me)))
     (* Psitem — stated with the two environments apart, so that [eval_sitem]
        can reduce; it matches on the pair. *)
@@ -1634,7 +1634,7 @@ Qed.
    induction on the list does. *)
 
 Lemma erase_eval_branches bs :
-  ∀ η o, erase_comp (eval_branches η o bs)
+  ∀ η o, erase_microvx (eval_branches η o bs)
            (eval_branches (erase_env η) (erase_out3 o) (erase_branches bs)).
 Proof.
   induction bs as [| [ cp e0 ] bs IH ]; intros η o.
@@ -1659,7 +1659,7 @@ Qed.
 
 Lemma erase_shallow_eval_branches bs :
   ∀ η all_bs o,
-    erase_comp (shallow_eval_branches η bs all_bs o)
+    erase_microvx (shallow_eval_branches η bs all_bs o)
       (shallow_eval_branches (erase_env η) (erase_branches bs)
                              (erase_branches all_bs) (erase_out3 o)).
 Proof.
@@ -1688,7 +1688,7 @@ Qed.
 
 
 Lemma erase_wrap_eval_branches η bs o :
-  erase_comp (wrap_eval_branches η bs o)
+  erase_microvx (wrap_eval_branches η bs o)
     (wrap_eval_branches (erase_env η) (erase_branches bs) (erase_out3 o)).
 Proof.
   simpl_wrap_eval_branches.
@@ -1702,7 +1702,7 @@ Qed.
    [erase_loop] above relates the calls. *)
 
 Lemma erase_loop_body η x i1 i2 e :
-  erase_comp (E.loop η x i1 i2 e) (E.loop (erase_env η) x i1 i2 (erase_expr e)).
+  erase_microvx (E.loop η x i1 i2 e) (E.loop (erase_env η) x i1 i2 (erase_expr e)).
 Proof.
   unfold E.loop. case_match.
   - (* the last iteration: run the body and stop *)

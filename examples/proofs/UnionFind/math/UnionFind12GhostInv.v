@@ -6,7 +6,7 @@ From osiris Require Import osiris.
 
 Require Export UnionFind08DataConc UnionFind09SameClass UnionFind10ReprPred.
 
-Local Notation elem := record.
+Local Abbreviation elem := record.
 
 Definition ufN : namespace := nroot .@ "concurrent_uf".
 

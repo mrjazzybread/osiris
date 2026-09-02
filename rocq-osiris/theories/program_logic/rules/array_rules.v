@@ -7,7 +7,7 @@ From osiris.utils Require Import list_z big_opLZ.
 
 (** This file defines array resource predicates and [EWP] rules for array expressions. *)
 
-Local Notation array := syntax.array.
+Local Abbreviation array := syntax.array.
 
 Section array_resources.
 

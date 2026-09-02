@@ -33,8 +33,8 @@ Require Import ewp_adequacy erasure erasure_eval.
 
 (** ** Reachability. *)
 
-Notation proph_steps_one := (lsteps_once proph_step).
-Notation proph_steps_trans := (lsteps_trans proph_step).
+Abbreviation proph_steps_one := (lsteps_once proph_step).
+Abbreviation proph_steps_trans := (lsteps_trans proph_step).
 
 (* [safe σ π]: any reachable configuration from (σ, π) is safe. *)
 
@@ -64,7 +64,7 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 Lemma erase_thpool_singleton ι m m' :
-  erase_comp m m' →
+  erase_microvx m m' →
   erase_thpool {[ ι := m ]} {[ ι := m' ]}.
 Proof.
   intros Hm ι'. unfold erase_thpool, map_relation, thpool.
@@ -78,7 +78,7 @@ Qed.
 Lemma erase_thpool_lookup π πe ι me :
   erase_thpool π πe →
   πe !! ι = Some me →
-  ∃ m, π !! ι = Some m ∧ erase_comp m me.
+  ∃ m, π !! ι = Some m ∧ erase_microvx m me.
 Proof.
   intros Hπ Hme. specialize (Hπ ι). unfold thpool in *.
   rewrite Hme in Hπ.
@@ -160,9 +160,9 @@ Inductive tstep {A E} : store * micro A E → list observation → store * micro
 (* Runs of [tstep], sharing the generic labelled-steps machinery with
    [proph_steps] (utils/logic/lsteps.v). *)
 
-Notation tsteps := (lsteps tstep).
-Notation tsteps_one := (lsteps_once tstep).
-Notation tsteps_trans := (lsteps_trans tstep).
+Abbreviation tsteps := (lsteps tstep).
+Abbreviation tsteps_one := (lsteps_once tstep).
+Abbreviation tsteps_trans := (lsteps_trans tstep).
 
 (* A [tstep] can resolve, so it lands in the instrumented model. *)
 
@@ -408,7 +408,7 @@ Local Ltac erase_op l :=
 
 Lemma erase_step_load_2 σ σe l :
   erase_store σ σe →
-  erase_comp (step_load_2 σ l inject2) (step_load_2 σe l inject2).
+  erase_microvx (step_load_2 σ l inject2) (step_load_2 σe l inject2).
 Proof.
   intros Hσ. unfold step_load_2. erase_op l;
     first [ apply EM_Crash | exact (EM_Ret erase_val erase_val _) ].
@@ -433,7 +433,7 @@ Qed.
 
 Lemma erase_step_exchange_2 σ σe l :
   erase_store σ σe →
-  erase_comp (step_exchange_2 σ l inject2) (step_exchange_2 σe l inject2).
+  erase_microvx (step_exchange_2 σ l inject2) (step_exchange_2 σe l inject2).
 Proof.
   intros Hσ. unfold step_exchange_2. erase_op l;
     first [ apply EM_Crash | exact (EM_Ret erase_val erase_val _) ].
@@ -472,8 +472,8 @@ Qed.
 
 Lemma erase_step_cas_2 σ σe l seen v :
   erase_store σ σe →
-  erase_comp (step_cas_2 σ l seen v inject2)
-             (step_cas_2 σe l (erase_val seen) (erase_val v) inject2).
+  erase_microvx (step_cas_2 σ l seen v inject2)
+                (step_cas_2 σe l (erase_val seen) (erase_val v) inject2).
 Proof.
   intros Hσ. unfold step_cas_2. erase_op l;
     try (rewrite (erase_phys_eq_val_store σ σe) //;
@@ -494,7 +494,7 @@ Qed.
 
 Lemma erase_step_faa_2 σ σe l i :
   erase_store σ σe →
-  erase_comp (step_faa_2 σ l i inject2) (step_faa_2 σe l i inject2).
+  erase_microvx (step_faa_2 σ l i inject2) (step_faa_2 σe l i inject2).
 Proof.
   intros Hσ. unfold step_faa_2. erase_op l;
     try (match goal with v : val |- _ => destruct v end; simpl);
@@ -511,7 +511,7 @@ Qed.
 
 Lemma erase_step_resume_2 σ σe l o :
   erase_store σ σe →
-  erase_comp (step_resume_2 σ l o inject2)
+  erase_microvx (step_resume_2 σ l o inject2)
              (step_resume_2 σe l (erase_outcome o) inject2).
 Proof.
   intros Hσ. unfold step_resume_2. erase_op l;
@@ -917,10 +917,10 @@ Proof.
 Qed.
 
 Lemma handle_unstutter {A E} σ (m m' : microvx) (h : _ → micro A E) :
-  erase_comp m m' →
+  erase_microvx m m' →
   reaches_stuck σ (Handle m h)
   ∨ (∃ n κ m0, tsteps n (σ, Handle m h) κ (σ, Handle m0 h) ∧
-               erase_comp m0 m' ∧ no_stutter m0).
+               erase_microvx m0 m' ∧ no_stutter m0).
 Proof.
   intros Hm.
   destruct (erase_unstutter erase_val erase_val m m' σ Hm)
@@ -1261,7 +1261,7 @@ Qed.
 
 Lemma erase_thpool_insert π πe ι m me :
   erase_thpool π πe →
-  erase_comp m me →
+  erase_microvx m me →
   erase_thpool (<[ ι := m ]> π) (<[ ι := me ]> πe).
 Proof.
   intros Hπ Hm ι'. unfold thpool, insert_thpool, lookup_thpool in *.
@@ -1276,7 +1276,7 @@ Qed.
 Lemma erase_thpool_insert_l π πe ι m me :
   erase_thpool π πe →
   πe !! ι = Some me →
-  erase_comp m me →
+  erase_microvx m me →
   erase_thpool (<[ ι := m ]> π) πe.
 Proof.
   intros Hπ Hme Hm ι'. unfold thpool, insert_thpool, lookup_thpool in *.
@@ -1492,7 +1492,7 @@ Lemma erase_not_stuck_micro ma :
   ∀ me σ (π : thpool) σe (πe : thpool) ι,
     safe σ π →
     π !! ι = Some ma →
-    erase_comp ma me →
+    erase_microvx ma me →
     not_stuck me σe (dom πe).
 Proof.
   dependent induction ma; intros me σ π σe πe ι Hsafe Hι Hm.
@@ -1557,7 +1557,7 @@ Lemma erase_result_micro m :
   ∀ oe σ π ι,
     safe σ π →
     π !! ι = Some m →
-    erase_comp m (inject2 oe) →
+    erase_microvx m (inject2 oe) →
     ∃ n κ σ' π' o',
       proph_steps n (σ, π) κ (σ', π') ∧
       π' !! ι = Some (inject2 o') ∧ erase_outcome o' = oe.

@@ -80,8 +80,10 @@ let mut_tag (t : Syntax.mut_tag) =
 
 (* Integer literals. *)
 
+(* We add parentheses in case of a negative literal. *)
 let int i =
-  plain (string_of_int i)
+  let s = string_of_int i in
+  if i < 0 then plain ("(" ^ s ^ ")") else plain s
 
 (* -------------------------------------------------------------------------- *)
 

@@ -2,7 +2,7 @@ From osiris Require Import osiris.
 
 Require Import UnionFind01Data UnionFind03Link.
 
-Local Notation elem := record.
+Local Abbreviation elem := record.
 
 (* Graph-theoretic facts about growing [F] by one edge. These feed the
    linking case of the CAS lemma [uf_cas_fupd] below. *)

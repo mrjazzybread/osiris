@@ -77,6 +77,8 @@ Section subjective_step.
 
 End subjective_step.
 
+Create HintDb subjective_step.
+
 Global Hint Constructors subjective_step : subjective_step.
 Global Hint Constructors proph_step : subjective_step.
 
@@ -84,8 +86,8 @@ Global Hint Constructors proph_step : subjective_step.
    [erased_proph_step] forgets it again for the clients that only need
    reachability. *)
 
-Notation proph_steps := (lsteps proph_step).
-Notation erased_proph_step := (erased_lstep proph_step).
+Abbreviation proph_steps := (lsteps proph_step).
+Abbreviation erased_proph_step := (erased_lstep proph_step).
 
 Lemma erased_proph_steps_proph_steps c1 c2 :
   rtc erased_proph_step c1 c2 ↔ ∃ n κs, proph_steps n c1 κs c2.
@@ -320,6 +322,8 @@ Section can_progress.
 End can_progress.
 
 Global Opaque can_progress.
+
+Create HintDb can_progress.
 
 Global Hint Resolve
   can_progress_join

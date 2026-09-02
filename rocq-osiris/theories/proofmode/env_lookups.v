@@ -874,9 +874,9 @@ Ltac2 imp_path_tac () :=
       (fun _ =>
          if empty_spatial_env () then
            (* If there are no resources, first try to solve the goal as an equality. *)
-           solve_eq_goal ();
+           (solve_eq_goal ();
            (* If that failed, try to frame the persistent resources. *)
-           Control.enter (fun _ => iFrame "#")
+            Control.enter (fun _ => iFrame "#"))
          else
            try_complete (fun _ => iFrame)).
 

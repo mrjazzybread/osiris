@@ -87,10 +87,10 @@ It is known to compile with the following versions of the packages:
 | `pprint`        | -       | -                                            |
 | `ocaml-compiler-libs` | - | -                                            |
 | `dune`          | 3.21.0  | -                                            |
-| `rocq`          | 9.1.0   | https://rocq-prover.org/opam/released        |
-| `rocq-iris`     | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `rocq`          | 9.2.0   | https://rocq-prover.org/opam/released        |
+| `rocq-iris`     | 4.5.0   | git+https://gitlab.mpi-sws.org/iris/opam.git |
 | `rocq-stdpp`    | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `rocq-equations`| 1.3.1+9.1 | -                                         |
+| `rocq-equations`| 1.3.2+9.2 | -                                         |
 | `ppx_sexp_conv` | v0.17.1 | -                                        |
 | `ppx_deriving`  | 6.1.1   | -                                           |
 

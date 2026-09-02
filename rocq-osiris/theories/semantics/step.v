@@ -107,6 +107,8 @@ Ltac case_location_lookup :=
       destruct (σ !! l) as [ [ | | | ] |] eqn:Hσ
   end.
 
+Create HintDb exploit_location_lookup.
+
 Local Hint Extern 1 (_ = _) =>
   exploit_location_lookup
 : exploit_location_lookup.
@@ -125,7 +127,7 @@ Definition step_load_2 {A E} σ (l : loc) (k : outcome2 val exn → _) : micro A
   | _          => crash "load error: unbound location"
   end.
 
-Notation step_load σ l k :=
+Abbreviation step_load σ l k :=
   (σ, step_load_2 σ l k).
 
 (* [step_load_2] commutes with [try2]. This expresses the intuition that
@@ -151,7 +153,7 @@ Definition step_load_block_2 {A E} σ (l : loc) (k : outcome2 (mut_tag * list lo
   | _          => crash "load error: unbound location"
   end.
 
-Notation step_load_block σ l k :=
+Abbreviation step_load_block σ l k :=
   (σ, step_load_block_2 σ l k).
 
 (* [step_load_2] commutes with [try2]. This expresses the intuition that
@@ -186,7 +188,7 @@ Definition step_exchange_2 {A E} σ l (k : outcome2 val exn → _) : micro A E :
   | _          => crash "exchange error: unbound location"
   end.
 
-Notation step_exchange σ l v' k :=
+Abbreviation step_exchange σ l v' k :=
   (step_exchange_1 σ l v', step_exchange_2 σ l k).
 
 (* Storing is an algebraic effect. *)
@@ -220,7 +222,7 @@ Definition step_set_tag_2 {A E} σ l (k : outcome2 unit exn → _) : micro A E :
   | _          => crash "set_tag error: unbound location"
   end.
 
-Notation step_set_tag σ l t k :=
+Abbreviation step_set_tag σ l t k :=
   (step_set_tag_1 σ l t, step_set_tag_2 σ l k).
 
 (* Storing is an algebraic effect. *)
@@ -284,7 +286,7 @@ Definition step_cas_2 {A E} σ l seen (v' : val) (k : outcome2 val exn → _) : 
   | _          => crash "store error: unbound location"
   end.
 
-Notation step_cas σ l seen v' k :=
+Abbreviation step_cas σ l seen v' k :=
   (step_cas_1 σ l seen v', step_cas_2 σ l seen v' k).
 
 (* Comparing-and-setting is an algebraic effect. *)
@@ -324,7 +326,7 @@ Definition step_faa_2 {A E} σ l (i : int) (k : outcome2 val exn → _) : micro 
   | _          => crash "store error: unbound location or not int"
   end.
 
-Notation step_faa σ l i k :=
+Abbreviation step_faa σ l i k :=
   (step_faa_1 σ l i, step_faa_2 σ l i k).
 
 (* Fetching-and-adding is an algebraic effect. *)
@@ -362,10 +364,14 @@ Definition step_resume_2 {A E} σ l o k : micro A E :=
   | _           => crash "resume error: unbound location"
   end.
 
-Notation step_resume σ l o k :=
+Abbreviation step_resume σ l o k :=
   (step_resume_1 σ l, step_resume_2 σ l o k).
 
 (* Resuming is an algebraic effect. *)
+
+Create HintDb try_try.
+Hint Extern 1 (_ = _) => rewrite try_try : try_try.
+Hint Extern 1 (_ = _) => rewrite try2_try2 : try_try.
 
 Lemma try2_step_resume_2 {A B E F} σ l o
   (k : _ → micro A E)
@@ -388,13 +394,13 @@ Definition step_wrap_1 σ l η bs l' :=
 Definition step_wrap_2 {A E} l' (k : outcome2 loc exn → _) : micro A E :=
   continue k l'.
 
-Notation step_wrap σ l η bs l' k :=
+Abbreviation step_wrap σ l η bs l' k :=
   (step_wrap_1 σ l η bs l', step_wrap_2 l' k).
 
 Definition step_shallow_wrap_1 σ l η bs l' :=
   <[l' := Kont (λ o, Handle (stop CResume (l, o)) (shallow_eval_branches η bs bs))]> σ.
 
-Notation step_shallow_wrap σ l η bs l' k :=
+Abbreviation step_shallow_wrap σ l η bs l' k :=
   (step_shallow_wrap_1 σ l η bs l', step_wrap_2 l' k).
 
 (* Installing is an algebraic effect. *)
@@ -411,6 +417,8 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* A summary of our algebraicity laws. *)
+
+Create HintDb try2_algebraic.
 
 Global Hint Resolve
   try2_step_load_2
@@ -718,6 +726,8 @@ Inductive step {A E} : config A E → config A E → Prop :=
    However, this would make computations like [Par (Handle m k) m2] and
    [Par (Par m1 m2) m3] stuck. *)
 
+Create HintDb step.
+
 Global Hint Constructors step : step.
 
 Ltac destruct_step :=
@@ -794,14 +804,9 @@ Section threadpool.
         (σ, <[ ι := m ]> π)
   .
 
-  Notation threadpool_steps := (nsteps threadpool_step).
-
 End threadpool.
 
-(* The notation must be repeated outside the section: a [Notation] inside a
-   section does not survive it. *)
-
-Notation threadpool_steps := (nsteps threadpool_step).
+Abbreviation threadpool_steps := (nsteps threadpool_step).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -888,7 +893,7 @@ Definition resolve_obs (p : loc) (v : val) (b : microvx) : list observation :=
 
 (* [is_not_ret m] holds if [m] is not [ret _]. *)
 
-Notation is_not_ret m :=
+Abbreviation is_not_ret m :=
   (is_ret m = None).
 
 (* -------------------------------------------------------------------------- *)
@@ -935,7 +940,7 @@ Qed.
 
 (* [is_not_throw m] holds if [m] is not [throw _]. *)
 
-Notation is_not_throw m :=
+Abbreviation is_not_throw m :=
   (is_throw m = None).
 
 (* -------------------------------------------------------------------------- *)
@@ -1038,6 +1043,8 @@ Lemma invert_can_step_resolve {A E X} σ (c : code X val exn) y (k : _ -> micro 
 Proof.
   intros. destruct_can_step. inversion H.
 Qed.
+
+Create HintDb invert_can_step.
 
 Global Hint Resolve
   invert_can_step_Ret
@@ -1187,8 +1194,6 @@ Proof.
   first [ tauto | intros _ ];
   (* Deal with all remaining cases except [CFlip], [CAlloc], [CInstall]. *)
   eauto using StepLoad with step.
-  (* [StepFlip] needs to be told which Boolean to use *)
-  { econstructor. apply (StepFlip true). }
   (* In the case of allocation, we must exhibit an address [l]
      that is not in the domain of [σ]. *)
   { eexists. apply StepAlloc.
@@ -1207,6 +1212,8 @@ Proof.
   { eexists. apply StepNewProph.
     apply not_elem_of_dom.
     apply is_fresh. }
+  (* For [CFlip], we need to provide a boolean. *)
+  Unshelve. refine true.
 Qed.
 
 Global Hint Resolve can_step_stop : step.
@@ -1352,6 +1359,8 @@ Proof.
   rewrite bind_as_try. eauto using can_step_try.
 Qed.
 
+Create HintDb can_step.
+
 Global Hint Resolve can_step_try2 can_step_try can_step_bind : can_step.
 
 (* If [try m f h] takes a step, and if [m] can step, then the step taken by
@@ -1459,6 +1468,8 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 Definition steps {A E} := @nsteps (config A E) step.
+
+Create HintDb steps.
 
 Global Hint Unfold steps : steps.
 Global Hint Constructors nsteps : steps.

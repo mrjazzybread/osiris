@@ -463,6 +463,7 @@ Ltac representable :=
             | prove_representable_array
             | (eapply representable_sub; [representable | lia | representable | lia]) ].
 
+Create HintDb representable.
 Global Hint Extern 1 (representable _) => representable : representable.
 
 (* -------------------------------------------------------------------------- *)

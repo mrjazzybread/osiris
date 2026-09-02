@@ -5,7 +5,7 @@ From iris.prelude Require Import options.
 Import interface.bi derived_laws.bi derived_laws_later.bi.
 Require Export logic.big_opZ logic.list_z.
 
-Local Notation length := list_z.length.
+Local Abbreviation length := list_z.length.
 
 Section ofe.
 
@@ -26,23 +26,23 @@ Set Printing Coercions.
 
 (** [big_sepLZ] is a variant of [big_sepL] where the index type is [Z] *)
 
-Notation big_sepLZ := (big_opLZ bi_sep) (only parsing).
+Abbreviation big_sepLZ := (big_opLZ bi_sep) (only parsing).
 Notation "'[∗' 'listZ]' k ↦ x ∈ l , P" := (big_sepLZ (λ k x, P%I) l)
-  (at level 200, l at level 10, k, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, k, x at level 1, right associativity) : bi_scope.
 Notation "'[∗' 'listZ]' x ∈ l , P" := (big_sepLZ (λ _ x, P%I) l)
-  (at level 200, l at level 10, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, x at level 1, right associativity) : bi_scope.
 
-Notation big_andLZ := (big_opLZ bi_and) (only parsing).
+Abbreviation big_andLZ := (big_opLZ bi_and) (only parsing).
 Notation "'[∧' 'listZ]' k ↦ x ∈ l , P" := (big_andLZ (λ k x, P%I) l)
-  (at level 200, l at level 10, k, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, k, x at level 1, right associativity) : bi_scope.
 Notation "'[∧' 'listZ]' x ∈ l , P" := (big_andLZ (λ _ x, P%I) l)
-  (at level 200, l at level 10, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, x at level 1, right associativity) : bi_scope.
 
-Notation big_orLZ := (big_opLZ bi_or) (only parsing).
+Abbreviation big_orLZ := (big_opLZ bi_or) (only parsing).
 Notation "'[∨' 'listZ]' k ↦ x ∈ l , P" := (big_orLZ (λ k x, P%I) l)
-  (at level 200, l at level 10, k, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, k, x at level 1, right associativity) : bi_scope.
 Notation "'[∨' 'listZ]' x ∈ l , P" := (big_orLZ (λ _ x, P%I) l)
-  (at level 200, l at level 10, x at level 1, right associativity) : bi_scope.
+  (at level 200, l at level 200, x at level 1, right associativity) : bi_scope.
 
 Fixpoint big_sepLZ2 {PROP : bi} {A B}
     (Φ : Z → A → B → PROP) (l1 : list A) (l2 : list B) : PROP :=
@@ -56,10 +56,10 @@ Global Arguments big_sepLZ2 {PROP A B} _ !_ !_ /.
 Global Typeclasses Opaque big_sepLZ2.
 Notation "'[∗' 'listZ]' k ↦ x1 ; x2 ∈ l1 ; l2 , P" :=
   (big_sepLZ2 (λ k x1 x2, P%I) l1 l2)
-  (at level 200, l1, l2 at level 10, k, x1, x2 at level 1, right associativity) : bi_scope.
+  (at level 200, l1, l2 at level 200, k, x1, x2 at level 1, right associativity) : bi_scope.
 Notation "'[∗' 'listZ]' x1 ; x2 ∈ l1 ; l2 , P" :=
   (big_sepLZ2 (λ _ x1 x2, P%I) l1 l2)
-  (at level 200, l1, l2 at level 10, x1, x2 at level 1, right associativity) : bi_scope.
+  (at level 200, l1, l2 at level 200, x1, x2 at level 1, right associativity) : bi_scope.
 
 Section big_op.
 Context {PROP : bi}.

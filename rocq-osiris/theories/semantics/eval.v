@@ -105,7 +105,7 @@ Definition if_in_shift_range {A E} (i : int) (m : micro A E) :=
 
 (* [ok] is an inert computation. It produces the value [VUnit]. *)
 
-Notation ok :=
+Abbreviation ok :=
   (ret (VData "()" [])).
 
 (* ------------------------------------------------------------------------ *)

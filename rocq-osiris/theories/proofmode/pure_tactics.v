@@ -65,7 +65,7 @@ Ltac2 rec specify_cpattern () : int :=
           | _ =>
               eapply cpat_mismatch > [ cbn; reflexivity | ];
               if Constr.is_evar (Control.goal ()) then
-                apply I; 0
+                (apply I; 0)
               else
                 1
           end
@@ -75,7 +75,7 @@ Ltac2 rec specify_cpattern () : int :=
           | CVal _ => eapply cpat_CVal_abst; intros ??; 1
           | CExc _ => eapply cpat_CExc_abst; intros ??; 1
           | CEff _ _ => Control.plus
-                         (fun _ => apply cpat_CEff_impossible; 0)
+                         (fun () => apply cpat_CEff_impossible; 0)
                          (fun _ => eapply cpat_CEff_abst; intros ???; 1)
           | COr _ _ =>
               eapply cpat_COr;
@@ -94,7 +94,7 @@ Local Tactic Notation "specify_cpattern" := ltac2:(let _ := specify_cpattern () 
 (* Custom tauto tactic. *)
 
 Local Ltac2 tauto0 () := ltac1:(tauto).
-Ltac2 Notation tauto := tauto0 ().
+Ltac2 Abbreviation tauto := tauto0 ().
 
 (* -------------------------------------------------------------------------- *)
 
@@ -163,7 +163,7 @@ Local Ltac2 rewrite_in_hyps (rw : constr) (hyps : ident list) :=
   let rw :=
     { Std.rew_orient := Some Std.LTR;
       Std.rew_repeat := Std.RepeatPlus;
-      Std.rew_equatn := fun _ => (rw, Std.NoBindings) }
+      Std.rew_equatn := (fun _ => (rw, Std.NoBindings)) }
   in
   Std.rewrite false [rw] clause None.
 

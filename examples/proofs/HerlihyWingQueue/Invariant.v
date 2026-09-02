@@ -44,8 +44,8 @@ Open Scope Z.
 (* A slot is a one-field record [{ v : 'a option [@atomic] }]; a queue is a
    three-field record [{ items : 'a slot array; proph : Proph.t;
    back : int [@atomic] }]. *)
-Notation queue := record.
-Notation slot := record.
+Abbreviation queue := record.
+Abbreviation slot := record.
 
 Record hwq_names := HwqNames {
   hwq_bk : gname; (** monotonicity of [back] *)
@@ -195,8 +195,8 @@ Definition hwq_pure (cap back : Z) (pvs pref : list Z) (rest : list val)
         (was_written <$> slots !! i = Some false → i ∉ deqs)) ∧
   (* The commit prefix names committed, undequeued slots -- and, in a
      contradiction state, never the slot that caused it. *)
-  (∀ i, i ∈ pref → was_committed <$> slots !! i = Some true ∧ i ∉ deqs ∧
-                   match cont with WithCont i1 _ => i ≠ i1 | _ => True end) ∧
+  (∀ i, i ∈ pref → was_committed <$> slots !! i = Some true ∧ (i ∉ deqs) ∧
+                   (match cont with WithCont i1 _ => i ≠ i1 | _ => True end)) ∧
   (* A dequeued slot was written and committed, and now reads empty. *)
   (∀ i, i ∈ deqs → was_written <$> slots !! i = Some true ∧
                    was_committed <$> slots !! i = Some true ∧
@@ -216,7 +216,7 @@ Definition hwq_pure (cap back : Z) (pvs pref : list Z) (rest : list val)
        [i2] next. Whoever resolves that will derive [False]. *)
     (0 ≤ i1 ∧ i1 < i2 < cap ∧ i1 < back) ∧
     was_committed <$> slots !! i1 = Some true ∧
-    was_written <$> slots !! i1 = Some true ∧ i1 ∉ deqs ∧
+    was_written <$> slots !! i1 = Some true ∧ (i1 ∉ deqs) ∧
     array_get slots deqs i1 ≠ None ∧
     pref ++ [i2] `prefix_of` pvs
   end.

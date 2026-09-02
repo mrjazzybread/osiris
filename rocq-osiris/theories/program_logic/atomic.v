@@ -258,7 +258,7 @@ Notation "'<<{' α '}>>' e @ E '<<{' β '|' 'RET' v '}>>'" :=
 (** Theory *)
 Section lemmas.
   Context `{!osirisGS Σ} {TA TB TP : tele}.
-  Notation iProp := (iProp Σ).
+  Abbreviation iProp := (iProp Σ).
   Context `{Observe A V}.
   Implicit Types (α : TA → iProp) (β : TA → TB → iProp) (POST : TA → TB → TP → option iProp) (f : TA → TB → TP → A).
 
@@ -380,7 +380,7 @@ Definition resolved `{!osirisGS Σ} (p : locations.loc) (v w : val)
 
 Section proph_lemmas.
   Context `{!osirisGS Σ} {TA TB TP : tele}.
-  Notation iProp := (iProp Σ).
+  Abbreviation iProp := (iProp Σ).
   Context `{Observe A val}.
   Implicit Types (α : TA → iProp) (β : TA → TB → iProp)
     (POST : TA → TB → TP → option iProp) (f : TA → TB → TP → A).

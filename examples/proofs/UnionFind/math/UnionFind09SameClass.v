@@ -7,7 +7,7 @@ Require Import UnionFind08DataConc.
 
 Section same_class.
 
-Local Notation elem := record.
+Local Abbreviation elem := record.
 Context `{!osirisGS Σ, !inG Σ (authR (gsetUR (elem * elem)))}.
 
 Implicit Types γ : uf_names.
@@ -16,42 +16,10 @@ Implicit Types γ : uf_names.
 (* Equivalence, as monotone ghost knowledge. *)
 
 (* [same_class γ u w]: [u] and [w] belong to the same equivalence class of
-   the structure.
+   the structure. *)
 
-   The fact is recorded once and never expires, which is the whole point of
-   it: a traversal observes the hop [u ⟶ w] at one instant and cashes the
-   observation in at another — its linearization point, several invariant
-   opens later — and in between, other domains are free to act. Nothing
-   they can do invalidates it, because [union] only ever MERGES classes;
-   "same class" is a monotone predicate on the abstract state, so a
-   snapshot of it stays valid forever. That is what this ghost state
-   records, and it is the only reason it exists.
-
-   The pairs are recorded against the abstract representative function [R]
-   (see [same_class_sound]), not against a graph of parent pointers: it is
-   the client-visible partition that is monotone, whereas the pointers are
-   rewritten by path compression all the time.
-
-   Reflexivity is built into the definition rather than proved as a ghost
-   step: a caller that needs [same_class γ u u] very often has no fancy
-   update left to run it under (the reflexive case of a traversal is
-   exactly the case that returns immediately), and paying an invariant open
-   for a fact that holds in every state whatsoever is pure noise. *)
-
-(* [same_class] is a CHAIN of recorded pairs, not a single one, and that is
-   deliberate. A single pair would make transitivity a ghost UPDATE — it
-   would have to record the composite pair — and an update needs the full
-   authority over the recorded set. That authority is deliberately split
-   between the invariant and the client's [UF] (see [UF] in
-   UnionFind12GhostInv.v), precisely so that a holder of [UF] can READ it
-   at any mask; the two halves only ever meet at a linearization point.
-   Composing two class facts, on the other hand, happens at arbitrary
-   moments — [findc] does it after its recursive call returns.
-
-   Making the closure structural resolves that: reflexivity, symmetry and
-   transitivity all become definitional, no authority and no fancy update
-   required, and the only operation left that mints anything is the
-   linking CAS, which is the one place a new equivalence is really born. *)
+(* [same_class] is a chain of recorded pairs, a single pair would make
+   transitivity a ghost update, and an update would need full ownership. *)
 
 Fixpoint same_class_chain (γ : uf_names) (n : nat) (u w : elem) : iProp Σ :=
   match n with

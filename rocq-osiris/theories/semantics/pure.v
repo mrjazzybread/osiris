@@ -160,6 +160,7 @@ Inductive may {A E} : micro A E → micro A E → Prop :=
     (Handle m h)
     (Handle m' h).
 
+Create HintDb may.
 Global Hint Constructors may : may.
 
 
@@ -335,6 +336,7 @@ Proof.
   - inversion He.
 Qed.
 
+Create HintDb invert_may.
 
 Global Hint Resolve invert_may_ret invert_may_throw invert_may_crash
   invert_may_eval invert_may_par

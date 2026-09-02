@@ -8,7 +8,7 @@ From Stdlib Require Import FunctionalExtensionality.
 
 (* An object in the Union Find data structure is represented by an
    heap_lang location. *)
-Notation elem := loc.
+Abbreviation elem := loc.
 
 Record link `{Encode A} : Type := { parent : elem }.
 Record root `{Encode A} : Type := { rank : Z; value : A }.
@@ -85,7 +85,7 @@ Inductive lcontent :=
 (* The heap-level description of a vertex: the location of the record block
    backing it, and its logical content. The memory of the whole structure is
    a single finite map [M : gmap elem vcell]. *)
-Local Notation vcell := (record * lcontent)%type.
+Local Abbreviation vcell := (record * lcontent)%type.
 
 (* The predicate [Mem ...] relates the mathematical graph encoded by [D/F/V]
    and the memory encoded by the finite map [M]. In short,
@@ -491,7 +491,7 @@ Definition make_spec : val → microvx → iProp Σ :=
   λ v m,
     (∀ D R V,
        UF D R V -∗
-       EWP m {{ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜x ∉ D ∧ R x = x⌝ }})%I.
+       EWP m {{ (x : elem), UF (D ∪ {[x]}) R V.[x -/R/> v] ∗ ⌜(x ∉ D) ∧ R x = x⌝ }})%I.
 
 Lemma imp_make η :
   ⊢ EWP (eval η (EAnonFun __make)) {{ c, □ iSpec τ[val] c make_spec }}.

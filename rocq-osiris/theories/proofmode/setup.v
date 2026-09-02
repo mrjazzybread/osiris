@@ -54,9 +54,9 @@ Arguments eval_sitems ηδ !sitems / : rename.
 (* Fix integers. *)
 
 Notation "'EInt' z" :=
-  (EInt (z)%Z) (at level 0, only parsing).
+  (EInt (z)%Z) (at level 20, only parsing).
 Notation "'PInt' z" :=
-  (PInt (z)%Z) (at level 0, only parsing).
+  (PInt (z)%Z) (at level 20, only parsing).
 
 (* -------------------------------------------------------------------------- *)
 

@@ -2,7 +2,7 @@ From osiris Require Import osiris.
 
 Require Export UnionFind00Update.
 
-Notation elem := record.
+Abbreviation elem := record.
 
 (* ------------------------------------------------------------------------ *)
 (* The ghost names of one union-find structure. *)

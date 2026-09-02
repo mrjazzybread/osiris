@@ -7,7 +7,7 @@ Require Import UnionFind08DataConc UnionFind09SameClass.
 (* ------------------------------------------------------------------------ *)
 (* Representation predicates. *)
 Section repr.
-Local Notation elem := record.
+Local Abbreviation elem := record.
 Context `{!osirisGS Σ,
           !ghost_mapG Σ elem Z,
           !ghost_mapG Σ elem (option record),

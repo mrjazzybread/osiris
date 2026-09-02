@@ -66,7 +66,7 @@ Module Make (C : PARAMS).
 Import C. (* We write [code] for [C.code]. *)
 
 (* Notations and coercions for outcomes *)
-Notation outcome3 := (outcome3 eff continuation).
+Abbreviation outcome3 := (outcome3 eff continuation).
 Definition outcome_inject {A X} : outcome2 A X -> outcome3 A X := outcome2_inject.
 Coercion outcome_inject : outcome2 >-> outcome3.
 
@@ -81,9 +81,6 @@ Lemma discontinue_glue2 {A E R} e (f : A -> R) (h : E -> R) :
 Proof.
   tauto.
 Qed.
-
-Global Hint Extern 1 (_ = _) => rewrite continue_glue2 : continue_glue2.
-Global Hint Extern 1 (_ = _) => rewrite discontinue_glue2 : discontinue_glue2.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -176,10 +173,10 @@ Arguments Par       {A E A1 A2 E'} m1 m2 k.
 (* The following combinators are public: [ret], [throw], [crash], [stop],
    [par]. *)
 
-Notation ret :=
+Abbreviation ret :=
   (Ret).
 
-Notation throw :=
+Abbreviation throw :=
   (Throw).
 
 Definition crash {A E} (s : string) :=
@@ -276,21 +273,21 @@ Definition try {A B E' E}
 
 (* Point-free [bind]. *)
 
-Notation pfbind k f :=
+Abbreviation pfbind k f :=
   (λ o, bind (k o) f).
 
 (* Point-free [fmap]. *)
 
-Notation pffmap f k := (λ o, fmap f (k o)).
+Abbreviation pffmap f k := (λ o, fmap f (k o)).
 
 (* Point-free [try2]. *)
 
-Notation pftry2 k h :=
+Abbreviation pftry2 k h :=
   (λ o, try2 (k o) h).
 
 (* Point-free [try]. *)
 
-Notation pftry k f h :=
+Abbreviation pftry k f h :=
   (λ o, try (k o) f h).
 
 (* ------------------------------------------------------------------------ *)
@@ -347,9 +344,6 @@ Proof.
   extensionality v.
   intros; apply try_as_fmap.
 Qed.
-
-Global Hint Extern 1 (_ = _) => rewrite bind_as_try : bind_as_try.
-Global Hint Extern 1 (_ = _) => rewrite try_as_fmap : try_as_fmap.
 
 (* ------------------------------------------------------------------------ *)
 
@@ -481,8 +475,6 @@ Proof.
   reflexivity.
 Qed.
 
-Global Hint Extern 1 (_ = _) => rewrite try_ret : try_ret.
-
 Lemma try2_continue {A B C E F G}
   a
   (h : outcome2 A E → micro B F)
@@ -549,6 +541,7 @@ Proof.
   intros m ? <- f g Hfg. f_equal; eauto using functional_extensionality.
 Qed.
 
+Local Create HintDb eq.
 Local Hint Resolve
   eq_handle_handle eq_stop_stop eq_par_par
 : eq.
@@ -624,12 +617,6 @@ Lemma try2_try2 {A B C E E' E''} (m : micro A E'') (h : _ → micro B E') (k : _
 Proof.
   induction m; simpl; eauto with eq.
 Qed.
-
-Global Hint Extern 1 (_ = _) => rewrite bind_bind : bind_bind.
-Global Hint Extern 1 (_ = _) => rewrite bind_try : bind_try.
-Global Hint Extern 1 (_ = _) => rewrite try_bind : try_bind.
-Global Hint Extern 1 (_ = _) => rewrite try_try : try_try.
-Global Hint Extern 1 (_ = _) => rewrite try2_try2 : try_try.
 
 Lemma try2_inject2 {A' E' A E} (o : outcome2 A' E') (k : _ → micro A E) :
   try2 (inject2 o) k = k o.

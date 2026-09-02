@@ -3,6 +3,8 @@ From osiris.lang Require Import lang.
 
 (* This file defines a tactic that is supposed to prove equality goals. *)
 
+Create HintDb equality.
+
 Ltac equality :=
   eauto 3 with equality.
 

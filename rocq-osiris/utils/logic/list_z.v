@@ -77,7 +77,7 @@ Proof. lia. Qed.
 
 (* [clip k i j] forces the index [k] into the semi-open interval [i, j). *)
 
-Global Notation clip k i j :=
+Global Abbreviation clip k i j :=
   ((k `max` i) `min` j).
 
 (* -------------------------------------------------------------------------- *)
@@ -175,14 +175,14 @@ Qed.
 (* [valid_seg i j xs] means that [i] and [j] delimit a valid segment
    of the list [xs]. *)
 
-Global Notation valid_seg i j xs :=
+Global Abbreviation valid_seg i j xs :=
   (0 ≤ i ≤ j ≤ length xs).
 
 (* [valid i xs] means that [i] is a valid index into the list [xs].
    In other words, this index can be used for reading or updating
    one element; it is the start index of a valid segment of length 1. *)
 
-Global Notation valid i xs :=
+Global Abbreviation valid i xs :=
   (0 ≤ i < length xs).
 
 Lemma valid_valid_seg {A} (i : Z) (xs : list A) :
@@ -274,6 +274,8 @@ Global Tactic Notation "length" "in" "*" :=
   autorewrite with length in *.
 
 (* At this point, [lookup] can prove that a lookup [xs !! i] yields [None]. *)
+
+Create Rewrite HintDb lookup.
 
 Global Hint Rewrite
   @lookup_None_invalid_2
@@ -451,6 +453,8 @@ Global Ltac listx i :=
 
 (* The tactic [length] simplifies applications of the form [length _]
    by using the following rewrite rules. *)
+
+Create Rewrite HintDb length.
 
 Global Hint Rewrite
   Z.sub_diag
@@ -1362,6 +1366,8 @@ End Take.
 
 (* The tactic [take] simplifies an application of [take]. *)
 
+Create Rewrite HintDb take.
+
 Global Hint Rewrite
   Z.add_simpl_l
   @cons_is_append
@@ -1540,7 +1546,9 @@ Qed.
 
 End Drop.
 
-Global Hint Rewrite
+Create Rewrite HintDb drop.
+
+Hint Rewrite
   @drop_all
 : drop.
 
@@ -1750,6 +1758,8 @@ Qed.
 
 End Seg.
 
+Create Rewrite HintDb seg.
+
 Global Hint Rewrite
   app_nil_r
   app_nil_l
@@ -1911,6 +1921,8 @@ Qed.
 
 End Replicate.
 
+Create Rewrite HintDb replicate.
+
 Global Hint Rewrite
   Z.sub_0_r Z.sub_diag
   app_nil_l app_nil_r
@@ -2067,6 +2079,8 @@ Proof.
 Qed.
 
 End Insert.
+
+Create Rewrite HintDb insert.
 
 Global Hint Rewrite
   @cons_is_append

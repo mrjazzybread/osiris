@@ -298,8 +298,7 @@ Qed.
 (* Syntax-directed reasoning rules for the auxiliary judgement [module]. *)
 
 #[export]
-  Hint Extern 1 (returns _ _) => unfold returns; by firstorder : pure_wp.
-
+  Hint Extern 1 (returns _ _) => unfold returns; by firstorder : pure.
 
 Lemma pure_wp_module η me φ :
   eval_module η me φ ->

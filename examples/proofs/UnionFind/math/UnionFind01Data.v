@@ -72,7 +72,7 @@ Class Root {V} (F : relation V) x :=
    dedicated lemma for; here plain [induction]/[destruct] already gives us
    that shape for free. *)
 
-Local Notation path := rtc.
+Local Abbreviation path := rtc.
 
 (* The descendants of [r] are the vertices [x] such that there exists a path
    from [x] to [r]. Since [F] need not be decidable, this can fail to be
@@ -127,10 +127,6 @@ Proof. destruct is_dsf_F. apply _. Qed.
 
 Hypothesis is_dsf_F :
   DSF D.
-
-Local Hint Resolve is_dsf_confined : confined.
-
-Local Hint Resolve is_dsf_functional : functional.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -868,21 +864,3 @@ Proof.
   - f_equal.
     eapply R_is_identity_outside_D; eauto.
 Qed.
-
-Global Hint Resolve sticky_path sticky_is_repr sticky_is_equiv : sticky.
-
-Global Hint Resolve is_dsf_functional functional_is_repr : functional.
-
-Global Hint Resolve finite_descendants finite_ancestors : finite.
-
-Global Hint Resolve is_repr_is_root : is_root.
-
-Global Hint Resolve is_dsf_confined non_root_in_D : confined.
-
-Global Hint Resolve is_repr_is_equiv_is_repr path_is_equiv : is_repr.
-
-Global Hint Constructors rtc : is_repr.
-
-Global Hint Unfold is_equiv : is_equiv.
-
-Global Hint Resolve is_equiv_refl is_equiv_sym is_equiv_trans : is_equiv.

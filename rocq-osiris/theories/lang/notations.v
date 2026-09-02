@@ -208,7 +208,7 @@ Abort.
 
 Notation "'Anon' '(' '_' '=>' e ')'" :=
   (AnonFun "__osiris_anonymous_arg" e)
-    (at level 200,
+    (at level 0,
       format "'Anon'  '(' '_'  '=>' '/    '  '[hv' e ']' ')'").
 
 Goal (trivial
@@ -217,7 +217,7 @@ Abort.
 
 Notation "'Anon' '(' x '=>' e ')'" :=
   (AnonFun x e)
-    (at level 200,
+    (at level 0,
       format "'Anon'  '(' x  '=>'  '/    ' '[hv' e ']' ')'").
 
 Goal (trivial (AnonFun "argname" (EInt 1))).
@@ -237,7 +237,7 @@ Notation "'_'" := (EPath "__osiris_anonymous_arg") (only printing).
 
 Notation "'EApp' '(' e1 ')' '(' e2 ',' .. ',' en ')'" :=
   (EApp (.. (EApp e1 e2) ..) en)
-    (at level 200,
+    (at level 0,
       only printing,
       format "'EApp'  '(' e1 ')'  '/' '(' e2 ','  '/' .. ','  '/' en ')'").
 
@@ -271,7 +271,7 @@ Abort.
 
 Notation "'EMatch' '(' x ')' []" :=
   (EMatch x [])
-    (at level 90,
+    (at level 0,
       only printing,
       no associativity,
       format "'EMatch'  '(' x ')'  []").
@@ -280,7 +280,7 @@ Goal (trivial (EMatch (EPath ["l"]) [])). Abort.
 
 Notation "'EMatch' '(' x ')' 'with' b1 .. bn 'end'" :=
   (EMatch x (cons b1 (.. (cons bn nil) ..)))
-    (at level 90,
+    (at level 0,
       only printing,
       no associativity,
       format "'[v' 'EMatch'  '(' x ')'  'with' '//'     '[' b1 '//' ..  '//' bn ']'  '//' 'end' ']'").

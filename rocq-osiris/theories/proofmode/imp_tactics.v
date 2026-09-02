@@ -350,7 +350,7 @@ with imp_data0 (selpat : constr option) (reading : constr option) :=
       (* The postcondition is still an evar: use the monotonicity-free
          rule, which sets it to [λ x, ∃# xs, ⌜x = ctor_apply xs⌝ ∗ Φs xs],
          determined by the split.  No monotonicity goal is left behind. *)
-      iApply imp_EData_evar; step_args ()
+      (iApply imp_EData_evar; step_args ())
     else
       (* The postcondition is fixed: use the rule with the built-in
          monotonicity premise.  We send all the spatial resources to the
@@ -825,10 +825,10 @@ Tactic Notation "imp_app" constr(types) "with" constr(sel) :=
 
 Ltac2 imp_for_tac (invariant : constr) (i : constr) (j : constr) (selpat : constr option) :=
   let specialized_for := '(imp_EFor $invariant $i $j) in
-  match selpat with
+  (match selpat with
   | None => iApply $specialized_for
   | Some s => iApply ($specialized_for with $s)
-  end >
+  end) >
     [ representable () | representable () | try (imp_step0 None) | try (imp_step0 None) | | iIntros "!>" ].
 
 Tactic Notation "imp_for" constr(i) "to" constr(j) "$!" constr(invariant) "with" constr(sel) :=
@@ -856,10 +856,10 @@ Ltac2 imp_if_tac (selpat : constr option) :=
     | EIfThenElse _ _ _ => 'imp_EIfThenElse2
     end
   in
-  match selpat with
+  (match selpat with
   | None => iApply $specialized_if
   | Some s => iApply ($specialized_if with $s)
-  end >
+  end) >
     [ try (imp_step0 None) | iSplit; try (iIntros "%") ].
 
 Tactic Notation "imp_if" "with" constr(sel) :=

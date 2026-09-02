@@ -21,7 +21,7 @@ Inductive type_nel : Type :=
 Global Arguments Tbase _ {_}.
 Global Arguments Tcons _ {_} _.
 
-Notation types := type_nel.
+Abbreviation types := type_nel.
 
 (* The type signature of a function that takes type list [τ]
    as an argument. *)
@@ -78,11 +78,11 @@ Global Arguments coerce_to_type _ : simpl never.
 
    (N.B. Trick and comment from [stdpp].) *)
 
-Notation TBase a :=
+Abbreviation TBase a :=
   (a : coerce_to_type (Tbase _)) (only parsing).
 (* The casts and annotations are necessary for Coq to typecheck nested [TCons]
    as well as the final [TBase] in a chain of [TCons]. *)
-Notation TCons a b :=
+Abbreviation TCons a b :=
   (@pair _ (coerce_to_type _) a b : (coerce_to_type (Tcons _ _)))
     (only parsing).
 

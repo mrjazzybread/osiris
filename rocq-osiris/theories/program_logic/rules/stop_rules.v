@@ -593,8 +593,8 @@ Section imp_combinators.
     rewrite /E.loop.
     rewrite int.lt_repr_repr; try assumption.
     rewrite int.eq_repr_repr; try assumption.
-    assert (i =? j = false)%Z as -> by lia.
-    assert (j <? i = true)%Z as -> by lia.
+    assert ((i =? j) = false)%Z as -> by lia.
+    assert ((j <? i) = true)%Z as -> by lia.
     iApply (imp_ret VUnit ()); [ encode | auto ].
   Qed.
 
@@ -623,7 +623,7 @@ Section imp_combinators.
     iPoseProof ("He" $! i with "[] HR") as "Heapp". iPureIntro; lia.
     rewrite int.eq_repr_repr; try assumption.
     case (decide (i = j)%Z); intros Heq.
-    - assert (i =? j = true)%Z as -> by lia.
+    - assert ((i =? j) = true)%Z as -> by lia.
       iApply ewp_bind.
       iApply (ewp_mono with "Heapp").
       iIntros ([|]) "Ho".
@@ -631,7 +631,7 @@ Section imp_combinators.
         iApply (imp_ret VUnit ()); first encode.
         rewrite Heq. iApply "HR".
       + done.
-    - assert (i =? j = false)%Z as -> by lia.
+    - assert ((i =? j) = false)%Z as -> by lia.
       iApply ewp_bind.
       iApply (ewp_wand with "Heapp").
       iIntros ([|]) "Ho".

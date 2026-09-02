@@ -3,5 +3,6 @@
 (rocq.theory
   (package rocq-osiris)
   (name osiris.utils)
+  (generate_project_file)
   (theories Stdlib Ltac2 iris stdpp)
 )

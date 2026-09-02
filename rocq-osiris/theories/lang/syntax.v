@@ -76,7 +76,7 @@ Global Typeclasses Opaque cont array record.
 
 (* Machine integers. *)
 
-Notation int :=
+Abbreviation int :=
   int.int.
 
 (* Characters. *)
@@ -90,6 +90,9 @@ Definition char :=
 
 (* An ordinary pattern, or value pattern, has type [pat].
    Such a pattern is used in a case analysis on a value. *)
+
+Scheme All for list.
+Scheme All for prod.
 
 Inductive pat :=
   (* A placeholder for as-yet-unsupported constructs. *)
@@ -520,24 +523,24 @@ Definition envs := (env * env)%type.
 
 (* Unit. *)
 
-Notation PUnit :=
+Abbreviation PUnit :=
   (PData "()" $ []).
 
-Notation EUnit :=
+Abbreviation EUnit :=
   (EData "()" $ []).
 
-Notation VUnit :=
+Abbreviation VUnit :=
   (VData "()" $ []).
 
 (* Constant constructors, that is, constructors of arity 0. *)
 
-Notation PConstant c :=
+Abbreviation PConstant c :=
   (PData c $ []).
 
-Notation EConstant c :=
+Abbreviation EConstant c :=
   (EData c $ []).
 
-Notation VConstant c :=
+Abbreviation VConstant c :=
   (VData c $ []).
 
 (* The Boolean constants. *)
@@ -545,25 +548,25 @@ Notation VConstant c :=
 Definition BoolConstructor (b : bool) :=
   if b then "true" else "false".
 
-Notation PBool b :=
+Abbreviation PBool b :=
   (PConstant (BoolConstructor b)).
 
-Notation EBool b :=
+Abbreviation EBool b :=
   (EConstant (BoolConstructor b)).
 
-Notation EFalse :=
+Abbreviation EFalse :=
   (EBool false).
 
-Notation ETrue :=
+Abbreviation ETrue :=
   (EBool true).
 
-Notation VBool b :=
+Abbreviation VBool b :=
   (VConstant (BoolConstructor b)).
 
-Notation VFalse :=
+Abbreviation VFalse :=
   (VConstant "false").
 
-Notation VTrue :=
+Abbreviation VTrue :=
   (VConstant "true").
 
 (* ------------------------------------------------------------------------ *)

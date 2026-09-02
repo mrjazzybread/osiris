@@ -22,22 +22,22 @@ Definition pure `{Observe A V} {E} (m : micro V E) (Φ : A -> Prop) :
 
 Notation "η ⊢ₚ '{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure (eval η e) Φ ψ)
-   (at level 80, e, Φ at level 100,
+   (at level 1, e, Φ at level 100,
      format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ 'raises' ψ '}'" :=
   (pure e Φ ψ)
-   (at level 80, e, Φ at level 100,
+   (at level 0, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  'raises'  ψ  '}' ']'").
 
 Notation "'{' e 'ensures' Φ '}'" :=
   (pure e Φ (⊥ : void → Prop))
-   (at level 80, e, Φ at level 100,
+   (at level 0, e, Φ at level 100,
      format "'[hv' '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 Notation "η ⊢ₚ '{' e 'ensures' Φ '}'" :=
   (pure (eval η e) Φ (⊥ : void → Prop))
-   (at level 80, e, Φ at level 100,
+   (at level 1, e, Φ at level 100,
      format "'[hv' η  '⊢ₚ'  '{'  e  '/' 'ensures'  Φ  '}' ']'").
 
 (* -------------------------------------------------------------------------- *)

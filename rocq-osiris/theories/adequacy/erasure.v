@@ -326,7 +326,7 @@ Fixpoint erase_sitems (items : list sitem) : list sitem :=
   end.
 
 
-Notation erase_handler := erase_branches.
+Abbreviation erase_handler := erase_branches.
 
 
 Lemma erase_exprs_fmap es : erase_exprs es = erase_expr <$> es.
@@ -677,7 +677,7 @@ Definition EM_Crash {A E} (fA : A → A) (fE : E → E) :
 (* The instance the metatheory uses: a computation of an OCaml program,
    whose results and exceptions are both values. *)
 
-Notation erase_comp := (erase_micro erase_val erase_val).
+Abbreviation erase_microvx := (erase_micro erase_val erase_val).
 
 (* -------------------------------------------------------------------------- *)
 
@@ -815,7 +815,7 @@ Definition erase_mem_block (b b' : mem_block) : Prop :=
   match b, b' with
   | Val v, Val v' => v' = erase_val v
   | Block t ls, Block t' ls' => t' = t ∧ ls' = ls
-  | Kont k, Kont k' => ∀ o, erase_comp (k o) (k' (erase_outcome o))
+  | Kont k, Kont k' => ∀ o, erase_microvx (k o) (k' (erase_outcome o))
   | Shot, Shot => True
   | _, _ => False
   end.
@@ -824,7 +824,7 @@ Definition erase_store : store → store → Prop :=
   map_relation (λ _, erase_mem_block) (λ _ _, False) (λ _ _, False).
 
 Definition erase_thpool : thpool → thpool → Prop :=
-  map_relation (λ _, erase_comp) (λ _ _, False) (λ _ _, False).
+  map_relation (λ _, erase_microvx) (λ _ _, False) (λ _ _, False).
 
 (* A program starts in the empty store, which is its own erasure. *)
 

@@ -48,7 +48,7 @@ Open Scope Z.
 (* [osiris.stdlib.proofs.array] binds [map] to the OCaml [Array.map]
    expression, which would shadow the list [map] that the invariant is
    phrased with. *)
-Local Notation map := Corelib.Lists.ListDef.map.
+Local Abbreviation map := Corelib.Lists.ListDef.map.
 
 (* The logical models of the two record shapes this module allocates, so that
    [imp_record] can be used at their allocation sites. *)
@@ -67,10 +67,10 @@ Instance queue_fields_repr : RecordRepr queue_fields τ[array; loc; Z] Mut :=
       {| queue_items := a; queue_proph := p; queue_back := b |};
     repr_id := λ '(a, (p, b)), eq_refl }.
 
-Notation v_field := 0%Z (only parsing).
-Notation items_field := 0%Z (only parsing).
-Notation proph_field := 1%Z (only parsing).
-Notation back_field := 2%Z (only parsing).
+Abbreviation v_field := 0%Z (only parsing).
+Abbreviation items_field := 0%Z (only parsing).
+Abbreviation proph_field := 1%Z (only parsing).
+Abbreviation back_field := 2%Z (only parsing).
 
 (* ------------------------------------------------------------------------ *)
 (** ** Pattern matching on a slot's contents
@@ -366,7 +366,7 @@ Proof.
           - rewrite (lookup_insert_ne _ _ _ _ Hne). apply Hstate. }
         assert (Hpref' : ∀ k, k ∈ pref →
           was_committed <$> <[back:=(x, Done, false)]> slots !! k = Some true
-          ∧ k ∉ deqs ∧ k ≠ i1).
+          ∧ (k ∉ deqs) ∧ k ≠ i1).
         { intros k Hk. destruct (decide (back = k)) as [->|Hne].
           - exfalso. specialize (Hpref k Hk) as (HH & _).
             rewrite Hi_free in HH. by inversion HH.
@@ -454,7 +454,7 @@ Proof.
             - rewrite (lookup_insert_ne _ _ _ _ Hne). apply Hstate. }
           assert (Hpref' : ∀ k, k ∈ pref →
             was_committed <$> <[back:=(x, Done, false)]> slots !! k = Some true
-            ∧ k ∉ deqs ∧ True).
+            ∧ (k ∉ deqs) ∧ True).
           { intros k Hk. destruct (decide (back = k)) as [->|Hne].
             - exfalso. specialize (Hpref k Hk) as (HH & _).
               rewrite Hi_free in HH. by inversion HH.
@@ -687,7 +687,7 @@ Proof.
           assert (Hpref' : ∀ k, k ∈ pref →
             was_committed <$> <[back:=(x, Pend g, false)]> slots !! k
               = Some true
-            ∧ k ∉ deqs ∧ True).
+            ∧ (k ∉ deqs) ∧ True).
           { intros k Hk. assert (Hne : back ≠ k) by (intros ->; by apply Hnb).
             rewrite (lookup_insert_ne _ _ _ _ Hne).
             specialize (Hpref k Hk) as (H1 & H2 & _). by split_and!. }
@@ -844,7 +844,7 @@ Proof.
           - rewrite (update_slot_lookup_ne _ _ _ _ Hne). apply Hstate. }
         assert (Hpref' : ∀ k, k ∈ pref →
           was_committed <$> update_slot i set_written slots !! k = Some true
-          ∧ k ∉ deqs
+          ∧ (k ∉ deqs)
           ∧ match cont with WithCont i1 _ => k ≠ i1 | NoCont _ => True end).
         { intros k Hk. destruct (decide (i = k)) as [->|Hne].
           - rewrite update_slot_lookup Hsi /=.
@@ -973,7 +973,7 @@ Proof.
           iPureIntro. rewrite /hwq_pure.
           assert (Hpref' : ∀ k, k ∈ pref →
             was_committed <$> update_slot i set_written_and_done slots !! k
-              = Some true ∧ k ∉ deqs ∧ k ≠ i1).
+              = Some true ∧ (k ∉ deqs) ∧ k ≠ i1).
           { intros k Hk. assert (Hne : i ≠ k).
             { intros ->. specialize (Hpref k Hk) as (HH & _).
               rewrite Hsi /= in HH. by inversion HH. }
@@ -1003,7 +1003,7 @@ Proof.
           iPureIntro. rewrite /hwq_pure.
           assert (Hpref' : ∀ k, k ∈ pref →
             was_committed <$> update_slot i set_written_and_done slots !! k
-              = Some true ∧ k ∉ deqs ∧ True).
+              = Some true ∧ (k ∉ deqs) ∧ True).
           { intros k Hk. assert (Hne : i ≠ k).
             { intros ->. specialize (Hpref k Hk) as (HH & _).
               rewrite Hsi /= in HH. by inversion HH. }
@@ -1044,7 +1044,7 @@ Proof.
         iPureIntro. rewrite /hwq_pure.
         assert (Hpref' : ∀ k, k ∈ pref →
           was_committed <$> update_slot i set_written_and_done slots !! k
-            = Some true ∧ k ∉ deqs ∧ k ≠ i).
+            = Some true ∧ (k ∉ deqs) ∧ k ≠ i).
         { intros k Hk. assert (Hne : i ≠ k).
           { intros ->. specialize (Hpref k Hk) as (HH & _).
             rewrite Hsi /= in HH. by inversion HH. }
@@ -1109,7 +1109,7 @@ Proof.
           - rewrite (update_slot_lookup_ne _ _ _ _ Hne). apply Hstate. }
         assert (Hpref' : ∀ k, k ∈ pref →
           was_committed <$> update_slot i set_written_and_done slots !! k
-            = Some true ∧ k ∉ deqs
+            = Some true ∧ (k ∉ deqs)
           ∧ match cont with WithCont i1 _ => k ≠ i1 | NoCont _ => True end).
         { intros k Hk. destruct (decide (i = k)) as [->|Hne].
           - rewrite update_slot_lookup Hsi /=.
