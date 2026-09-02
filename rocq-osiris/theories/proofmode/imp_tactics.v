@@ -445,12 +445,6 @@ with imp_arith_tac (selpat : constr option) (reading : constr option) :=
 with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : constr option) :=
   let e := get_expr () in
   let e := (eval hnf in $e) in
-  (* A thunk, not a value: elaborating the lemma creates evars for its
-     implicit [{η E Ψ ζ}] and [Φs], and those are shelved as soon as they
-     exist. Binding it eagerly therefore leaves five dangling shelved
-     goals behind whenever the [_as] branch below is taken and this
-     lemma is never applied — which is what surfaces as "remaining
-     shelved goals" at [Qed]. *)
   let specialized_lemma () :=
     (* [a_opt], when given, pins the [RecordRepr]'s logical model type [A]
        explicitly (via [imp_record $! A]), instead of leaving both [A] and
@@ -488,12 +482,10 @@ with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : con
     Control.enter (fun () => try (imp_step0 reading))
   in
   (* When the goal's postcondition is at a type other than [record], the
-     expression is building a value of a *variant* type whose constructor
-     carries this inline record — the [Root]/[Link] situation. The plain
-     rule cannot apply there (its conclusion is [record]-typed), so fall
-     back to [imp_inline_record_as], recovering the constructor from the
-     [Inline] class keyed on [c]. Callers used to have to apply that rule
-     by hand. *)
+     expression builds a value of a *variant* type whose constructor
+     carries this inline record (the [Root]/[Link] situation). The plain
+     rule is [record]-typed, so fall back to [imp_inline_record_as], which
+     recovers the constructor from the [Inline] class keyed on [c]. *)
   let apply_record_as () :=
     lazy_match! e with
     | EInline ?c _ ?es =>
@@ -515,18 +507,15 @@ with imp_record0 (selpat : constr option) (reading : constr option) (a_opt : con
              (Some (fprintf "[imp_record] doesn't know how to handle expression %t" e)))
     end
   in
-  (* Which of the two rules applies is decided by the postcondition's
-     domain type, NOT by trying the plain rule and falling back: a failed
-     [iApply] still elaborates its lemma first, and the evars it creates
-     for the implicit [{η E Ψ ζ}] stay on the shelf even after
-     backtracking undoes the application — surfacing as "remaining
-     shelved goals" at [Qed].
+  (* Which rule applies is decided by the postcondition's domain type,
+     rather than by trying the plain rule and falling back: a failed
+     [iApply] still elaborates its lemma, and the evars it creates for the
+     implicit [{η E Ψ ζ}] stay on the shelf even after backtracking,
+     surfacing as "remaining shelved goals" at [Qed].
 
-     The test is exact rather than heuristic: both plain rules conclude
-     with a [record]-typed postcondition, so a domain that is neither
-     [record] nor still an evar is precisely the case they cannot
-     handle. Leaving an evar domain to the plain rule preserves the
-     pre-existing behaviour for every other caller. *)
+     The test is exact: both plain rules conclude with a [record]-typed
+     postcondition, so a domain that is neither [record] nor an evar is
+     precisely what they cannot handle. *)
   let use_record_as () :=
     lazy_match! get_iris_goal () with
     | impure _ _ _ _ ?phi =>
@@ -867,15 +856,6 @@ Tactic Notation "imp_if" "with" constr(sel) :=
   tac sel.
 Tactic Notation "imp_if" := ltac2:(imp_if_tac None).
 
-(* [imp_constant_tac bopt sel] applies [imp_EConstant]/[imp_EConstant']
-   (choosing based on whether resources were passed via [sel]), whose
-   logical value is found by [Constant] instance resolution.  The
-   constant's type is read off the goal's postcondition, unless it is
-   given explicitly via [bopt] — needed when the goal leaves it
-   undetermined (e.g. a constant tuple/data-constructor component whose
-   type nothing constrains yet; see [pure_const] for the analogous
-   pure-side case). *)
-
 Ltac2 imp_constant_tac (bopt : constr option) (sel : constr option) :=
   let lem := specialized_imp_EConstant (is_Some sel) bopt in
   match sel with
@@ -893,46 +873,6 @@ Tactic Notation "imp_constant" constr(b) :=
   let tac := ltac2:(b |- imp_constant_tac (Ltac1.to_constr b) None) in
   tac b.
 Tactic Notation "imp_constant" := ltac2:(imp_constant_tac None None).
-
-(* [imp_let] applies [imp_ELet_var] (one [PVar] binding, [let x = e' in
-   e]) or [imp_ELet_var2] (two bindings evaluated in parallel, [let x =
-   e1 and y = e2 in e]) to the current goal, resolving the bindings'
-   [Encode] plumbing automatically instead of it having to be spelled out
-   by hand at every call site (as the TODO note just below, above
-   [example_proof], used to require).
-
-   The bound variables' types are deferred via [evar] (as
-   [imp_match_tac] does for its scrutinee's type [imp_match_A'] — see the
-   comment there) ONLY when no explicit postcondition is given for that
-   binding: a bare typeclass hole [(_ : Encode B)] would eagerly run
-   instance search and pin [B] to an arbitrary existing instance, so the
-   evar is created with plain [evar] instead, leaving [B] (and, for the
-   two-binding case, [C]) to be pinned by whichever proof the caller
-   supplies for [e1]/[e2] — left as the leading open subgoals, exactly as
-   with [imp_app]/[imp_match].
-
-   [phi1]/[phi2], when given (via [$!], mirroring [imp_store' l $! Φ]
-   and [imp_match a' $! phi]), fix [e1]'s/[e2]'s postcondition up front
-   instead of leaving it as an evar: needed whenever that binding's own
-   proof picks its own witnesses for an existential postcondition (e.g.
-   [iExists] after allocating a fresh record) — [iExists] cannot
-   introspect a goal that is still an unresolved evar application. In
-   that case [B]/[C] are already pinned by [phi1]/[phi2]'s own type, so
-   the [evar] deferral is skipped entirely and [Encode B]/[Encode C] are
-   resolved by ordinary instance search instead — routing them through
-   an [imp_let_HB]/[imp_let_HC] evar in that case would leave it
-   unconnected to anything and never get resolved, breaking [Qed] at the
-   very end with an oblique "incomplete proof" error. For the
-   two-binding case both must be given together (or neither): there is
-   no way to fix [Φ2] alone without also fixing [Φ1], since
-   [imp_ELet_var2]'s [Φ1]/[Φ2] are positional explicit arguments.
-
-   [enc2], when given (via [enc2], only meaningful alongside two [$!]
-   clauses), fixes [e2]'s [Encode] instance explicitly — needed when
-   [C]'s type has several OCaml-variant tags sharing the same Rocq type
-   (e.g. a record type with more than one constructor), so that ordinary
-   instance search — which would otherwise run as soon as [Φ2]'s type
-   pins [C] — cannot pick the right one on its own. *)
 
 Ltac2 imp_let_tac (phi1 : constr option) (phi2 : constr option) (enc2 : constr option) :=
   let e := get_expr () in

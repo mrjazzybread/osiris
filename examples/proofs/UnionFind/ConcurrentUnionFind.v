@@ -64,7 +64,7 @@ Qed.
    it happens, the answer is the record [linked] names.
 
    This is the structural half of [eq]'s [false] case. That case has to
-   know, while it is still inside [findc y], how the LATER [x.content]
+   know, while it is still inside [findc y], how the later [x.content]
    read will turn out; if [x] was seen linked at any earlier instant, this
    settles it outright, and only otherwise does the prophecy have to
    speak. *)
@@ -87,10 +87,10 @@ Proof.
   iIntros "!>" (c) "%Hc #Hinfo". by iFrame "Hinfo".
 Qed.
 
-(* The same read again, for a caller that holds the [linked] witness
-   inside a disjunction rather than outright. What comes back is the same
+(* The same read, for a caller holding the [linked] witness inside a
+   disjunction rather than outright. What comes back is the same
    disjunction with the right branch weakened to a pure statement about
-   the value just loaded — see [uf_vertex_content_acc_or_linked]. *)
+   the value just loaded. See [uf_vertex_content_acc_or_linked]. *)
 
 Lemma read_vertex_or_linked {ζ : exn → iProp Σ} {Ψ η} γ z j (P Q : iProp Σ) e :
   is_uf γ -∗
@@ -978,11 +978,6 @@ Definition update_spec (γ : uf_names) (x : elem) (f : val)
       m @ ↑ufN
     <<{ ∃∃ w : val, Φf (V x) w ∗ UF γ D R V.[x -/R/> w] | RET tt }>>.
 
-(* The specification as a client sees it. The witness [w] is existential
-   because it is [f]'s result on a value only known at the linearization
-   point — and [Φf (V x) w] ties the two together against the state at
-   that instant. *)
-
 Lemma update_atomic_spec γ x f m :
   update_aux_spec γ x f m -∗ update_spec γ x f m.
 Proof.
@@ -1207,10 +1202,7 @@ Proof.
     iDestruct (UF_agree with "Hst Hcl") as %(<- & <- & <-).
     iMod ("Hcommit" $! None with "[$Hcl]") as "HΦ"; first done.
     by iFrame "Hst HΦ".
-  - (* [Some]: both halves move together — and this is the one instant at
-       which they are both in hand, so it is where the new equivalence is
-       recorded. *)
-    iIntros (D R V b c) "%Hdir %Hne #Hdeth' Hst".
+  - iIntros (D R V b c) "%Hdir %Hne #Hdeth' Hst".
     iMod "AU" as (D' R' V') "[Hcl [_ Hcommit]]".
     iDestruct (UF_agree with "Hst Hcl") as %(<- & <- & <-).
     iDestruct (UF_val_congr with "Hst") as %Hcongr.
@@ -1894,12 +1886,6 @@ Proof.
   iIntros "#HAtomic".
   iApply imp_module.
 
-  (* Every premise below is an [in_env] / [path_spec] over a specification
-     that some hypothesis already states about the value itself, so the
-     whole of each is discharged by [iFrame "#"] — which instantiates the
-     lookup's existential — followed by [auto] for the residual pure
-     lookup. *)
-
   (* [let cas = Atomic.Loc.compare_and_set] *)
   iApply (imp_sitems_let
             (λ cas : val,
@@ -1922,9 +1908,6 @@ Proof.
     iApply imp_sitems_nil. done. }
   iIntros (δS) "_".
 
-  (* [module G]: the admitted item. Its [in_env] is taken apart at once,
-     so that what stays in context is the specification of the VALUE —
-     the shape [make_proof]'s [path_spec] premise is framed against. *)
   iApply (imp_sitems_module
             (λ δ : env,
                in_env "fresh" (λ fresh, □ iSpec τ[unit] fresh (fresh_spec γ)) δ)%I).
@@ -1937,11 +1920,6 @@ Proof.
   { iApply make_proof. iFrame "#". auto. }
   iIntros (make) "#Hmake".
 
-  (* [let rec find x = ...]: the Löb induction happens inside
-     [imp_sitems_letrec_iSpec]; all we owe is the body, under the
-     assumption that "find" is bound (one step later) to a value
-     satisfying [find_aux_spec] — which is exactly what [iFrame] finds.
-     Every [let rec] below follows this shape. *)
   iApply (imp_sitems_letrec_iSpec τ[elem] (find_aux_spec γ)).
   { iIntros "!> #IH".
     iApply bi.intuitionistically_elim.
@@ -1994,8 +1972,8 @@ Proof.
   iIntros (unionr) "#Hunionr".
 
   (* The wrapper is stated against the atomic triple, so the recursive
-     [union] is weakened to it first — again, so that a hypothesis of the
-     premise's shape is in context. *)
+     [union] is weakened to it first, putting a hypothesis of the
+     premise's shape in context. *)
   iAssert (□ iSpec τ[elem; elem] unionr (union_spec γ))%I as "#Hunionr'".
   { iModIntro. by iApply union_atomic_iSpec. }
 
@@ -2034,7 +2012,7 @@ Proof.
 
   (* Conclude: frame every exported specification out of the context.
      The hypothesis is named at each conjunct because [find] and [findc]
-     satisfy the SAME specification, so [iFrame "#"] alone would pick
+     satisfy the same specification, so [iFrame "#"] alone would pick
      whichever it met first and leave an impossible lookup behind. *)
   iApply imp_sitems_nil.
   rewrite /context /ConcurrentUnionFind_names /=.

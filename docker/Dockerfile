@@ -14,8 +14,7 @@ USER opam
 
 # Install the project's opam dependencies into the base image's existing
 # switch (which already has OCaml 5.4 compiled). Skipping `make init` avoids
-# a ~5–10 min OCaml recompile. We only need the Makefile for this — copying
-# the full source would bust the dependency-install cache on every change.
+# a ~5–10 min OCaml recompile.
 WORKDIR /tmp/osiris-deps
 COPY --chown=opam:opam Makefile ./Makefile
 RUN opam repo set-url default https://opam.ocaml.org --yes \

@@ -87,18 +87,14 @@ Inductive lcontent :=
    a single finite map [M : gmap elem vcell]. *)
 Local Abbreviation vcell := (record * lcontent)%type.
 
-(* The predicate [Mem ...] relates the mathematical graph encoded by [D/F/V]
-   and the memory encoded by the finite map [M]. In short,
-    1. [M]'s domain is exactly [D] (in particular, no entries outside [D] —
-       this is what lets us derive that a freshly-allocated vertex is not in
-       [D] from the fact that it cannot already have an [M] entry);
+(* [Mem ...] relates the mathematical graph encoded by [D/F/V] to the memory
+   encoded by the finite map [M]:
+    1. [M]'s domain is exactly [D], which is what lets us derive that a
+       freshly-allocated vertex is not in [D];
     2. the links in [M] coincide with the links in [F];
-    3. the data stored at a root in [M] agrees with [V]. (We don't track the
-       rank's value at all, having dropped the complexity analysis it was
-       for; the actual rank field stored in memory is existentially
-       quantified away in [rec_repr] below.)
-   [Mem] never inspects the record-location component of a [vcell]: where a
-   vertex's record block lives is a purely heap-level matter. *)
+    3. the data stored at a root in [M] agrees with [V]. The rank is not
+       tracked, having dropped the complexity analysis it was for.
+   [Mem] never inspects the record-location component of a [vcell]. *)
 
 Definition Mem D F V (M : gmap elem vcell) : Prop :=
   dom M = D ∧
@@ -134,14 +130,12 @@ Definition vertex x (lr : record) (lc : lcontent) : iProp Σ :=
   (x ↦ content_of lr lc ∗ rec_repr lr lc)%I.
 
 (* [pointsto_M M] asserts ownership of the whole two-level heap: [vertex x
-   lr lc] for each entry [x ↦ (lr, lc)] of [M]. Crucially the record
-   locations are part of [M] rather than existentially hidden per entry:
-   since [find] only ever mutates record *fields* (never a content cell,
-   and never reallocating a record), the record-location skeleton [skel M]
-   below is an invariant of [find], so [x]'s own record is recoverable by
-   name after the recursive call. This is what lets [find] recurse on the
-   *whole* structure — no framing of [x]'s resources out of the recursion,
-   and no reachable-set restriction. *)
+   lr lc] for each entry [x ↦ (lr, lc)] of [M]. The record locations are
+   part of [M] rather than existentially hidden per entry: since [find]
+   only mutates record *fields*, the location skeleton [skel M] below is an
+   invariant of [find], so [x]'s own record is recoverable by name after
+   the recursive call. That is what lets [find] recurse on the *whole*
+   structure, with no framing and no reachable-set restriction. *)
 
 Definition pointsto_M (M : gmap elem vcell) : iProp Σ :=
   ([∗ map] x ↦ c ∈ M, vertex x c.1 c.2)%I.
@@ -842,12 +836,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* The body of [find], specified against [find_spec'], assuming that the
-   name "find" is bound in [η] to a value already satisfying [find_spec'].
-   This is stated as a [predicate_over_function_body] — the premise shape
-   demanded both by [imp_EAnon_pers] and by the [ILetRec] Löb rule
-   [imp_sitems_letrec_iSpec], which is what ties the knot below. *)
-
 Lemma find_spec_inductive η :
   ▷ in_env "find" (λ find, □ iSpec τ[elem] find find_spec') η -∗
   (* [fun_spec.] disambiguates the program-logic (iProp-valued) predicate
@@ -888,9 +876,8 @@ Proof.
     - assert (F' = F) as -> by (eapply bw_ipc_at_root; eauto).
       assumption. }
 
-  { (* [Link ({ parent = y } as link) -> ...]: Recurse on [e]'s parent
-       [y] — bound by the pattern itself, which reads the [parent]
-       field — then compress [e]'s record in place. *)
+  { (* [Link ({ parent = y } as link) -> ...]: recurse on [e]'s parent [y],
+       bound by the pattern itself, then compress [e]'s record in place. *)
     next_branch.
     (* The Root branch is refuted; matching the [Link] record pattern
        reads the [parent] field, so expose the record ownership before
@@ -1308,31 +1295,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (* Module-level specification. *)
-
-(* [__main] is the whole [UnionFindBasic] structure. Walking down its items
-   with the [imp_sitems_*] rules turns the per-function lemmas above into a
-   single statement about the module: evaluating it produces an environment
-   in which every exported name is bound to a value satisfying its
-   specification.
-
-   The [let rec find] item is where [imp_sitems_letrec_iSpec] earns its keep.
-   The plain [imp_sitems_letrec] rule would ask us to establish [find]'s
-   specification for the recursive closure out of thin air; the Löb variant
-   instead hands [find_spec_inductive] the very hypothesis it needs — that
-   the closure being defined already satisfies [find_spec']. *)
-
-(* [eq] and [merge] are evaluated and bound, but are given no specification
-   here — they still have to be walked over, since the items after them
-   extend the same environment.
-
-   [merge] takes a user function as an argument and has no proof yet.
-   [eq]'s body is [x == y || find x == find y]: the two [find] calls sit on
-   either side of a [==], which [eval] compiles to an *unordered* [par], and
-   the only [par] rules available in the impure logic ([imp_bind_par],
-   [imp_bind_par_frac]) split the resources between the two operands. An
-   exclusive [UF D R V] cannot be split that way, so specifying [eq] first
-   needs a sequential (or both-orders) rule for [par] in the program logic,
-   analogous to [pure_par_seq] in the pure logic. *)
 
 Definition UnionFind_names : gset var :=
   {["make"; "find"; "is_representative"; "eq"; "get"; "set"; "union"; "merge"]}.

@@ -4,28 +4,22 @@ From Stdlib Require Import FunctionalExtensionality.
 (* ------------------------------------------------------------------------ *)
 (* Updating a function on a whole equivalence class. *)
 
-(* This file is shared between the SEQUENTIAL development (UnionFind.v) and
-   the CONCURRENT one (UnionFind12GhostInv.v, ConcurrentUnionFind.v). Both
-   expose the same abstract state — a representative function [R], and a
-   value function [V] constrained by [V u = V (R u)] — and both therefore
-   face the same problem: no client-visible update to [V], or to [R]
-   itself, can be a point update, because every member of a class must
-   keep the same image. Every such update is an update to a whole class,
-   and this is the algebra of that one operation.
+(* Shared between the sequential development (UnionFind.v) and the
+   concurrent one (UnionFind12GhostInv.v, ConcurrentUnionFind.v). Both
+   expose the same abstract state, a representative function [R] and a
+   value function [V] constrained by [V u = V (R u)], so both face the same
+   problem: no client-visible update to [V] or [R] can be a point update,
+   since every member of a class must keep the same image. Every such
+   update is an update to a whole class, and this is its algebra.
 
-   Every abstract transition either structure ever makes is an instance:
+   Every abstract transition either structure makes is an instance:
 
      make    V.[x  -/R/> v]        (the fresh vertex's class is [x] alone)
      set     V.[x  -/R/> v]
      union   R.[x  -/R/> z]  and  V.[x  -/R/> V z]
 
-   — the last being the only one that moves [R], and the reason the
-   operation is stated for an arbitrary [f] rather than for a value
-   function specifically. *)
-
-(* [f] is idempotent. For a representative function this is what makes its
-   fibres a partition — i.e. what makes "same class" mean anything — and
-   it is what the lemmas below about [R x] rest on. *)
+   The last is the only one that moves [R], and the reason the operation is
+   stated for an arbitrary [f] rather than for a value function. *)
 
 Class Idempotent {A : Type} (f : A → A) :=
   { idempotent : ∀ x, f (f x) = f x }.
@@ -124,7 +118,7 @@ Proof.
   extensionality a. case_decide; eauto.
 Qed.
 
-(* Redirecting a class only ever MERGES classes: whatever was equivalent
+(* Redirecting a class only ever merges classes: whatever was equivalent
    before still is. This is the obligation the linking CAS discharges, and
    it is the reason recorded equivalences may be kept forever. *)
 

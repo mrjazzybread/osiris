@@ -485,10 +485,6 @@ Section pure_rules.
          [pure_wp_rtc_may_forward], yielding [φ a1 ?] – not what we want).
          Instead, reuse [Hφ'] directly: since [♯ a2 = ♯ a2'], we observe
          that the witness inside [returns] is morally the same [a2]. *)
-      (* Avoid relying on [Observe] injectivity: change the witness to
-         [a2'] in the outer [exists] earlier — but it's already fixed.  We
-         instead repeat the inner branch with the new [a1'] to re-derive
-         the relevant [φ a1' a2]. *)
       pose proof (pure_wp_rtc_may_forward _ _ _ _ Hv2 R1) as Hret.
       apply invert_pure_wp_ret in Hret.
       destruct Hret as (a1'' & ? & a2'' & Eq2 & Hφ''). subst.

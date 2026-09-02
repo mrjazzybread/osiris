@@ -318,8 +318,8 @@ Section handle_rules.
       iApply ("IH" with "He Hsh"). }
 
     { (* [StepHandleResolve]. Floating the resolution out of the handler
-         changed only its continuation, which none of the three rules
-         inspects, so each of them transfers — observation and all. *)
+         changes only its continuation, which none of the three rules
+         inspects, so each transfers, observation included. *)
       ewp_mask_intro "Hmod". iModIntro. iMod "Hmod". iModIntro. iFrame.
       clear κs.
       ewp_unfold_all. intro_state. spec_state. iModIntro.
@@ -637,13 +637,6 @@ Section handler_proof.
     - iDestruct "Hmono" as "[_ Hmono]".
       iIntros ([]). iApply "Hmono".
   Qed.
-
-  (* The Iris-level analogue of [deep_handle_cons]: the pattern premise
-     is the Iris judgement [icpattern] instead of the pure [cpattern],
-     so that matching the branch pattern may own heap resources — this
-     is required for record patterns, which read memory blocks. The
-     success and failure continuations receive iProps instead of pure
-     facts. *)
 
   Lemma deep_handle_cons_iris η o cp e bs (Φ : A → iProp Σ)
       (Hη : env → iProp Σ) (φ : iProp Σ) :

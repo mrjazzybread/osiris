@@ -8,13 +8,13 @@ Abbreviation elem := record.
 (* The ghost names of one union-find structure. *)
 
 (* Five pieces of ghost state, bundled so that every predicate and every
-   specification in the development takes ONE [γ]. They are:
+   specification in the development takes one [γ]. They are:
 
    - [uf_vert]: [ghost_map elem Z], the vertices with their identifiers.
      Its fragments are persistent, and they are the membership tokens
      ([vertex], [in_uf]) every accessor uses to pull a vertex out of the
      invariant's big [∗ map].
-   - [uf_link]: [ghost_map elem (option record)], a one-shot per vertex —
+   - [uf_link]: [ghost_map elem (option record)], a one-shot per vertex.
      [None] exclusively while the vertex is a root, [Some rc] persistently
      once it has been linked away ([linked]).
    - [uf_ids]: [ghost_map Z unit], one exclusive token per identifier in
@@ -31,23 +31,6 @@ Record uf_names : Type := UfNames {
   uf_class : gname;
   uf_abs : gname;
 }.
-
-(* There used to be a [cinfo] here: a static description of each content
-   record — the payload of a [Root], the bound and holder of a [Link] —
-   kept in a registry mapping every content value ever installed to its
-   description, so that a reader of a content cell could still say, much
-   later, what the value it loaded was.
-
-   Both halves of that are now had for less. A [Root] record's [value]
-   field is never written after allocation (that is what its [mutable]
-   annotation is for: forcing heap allocation, so that the physical
-   equality test in [cas] is a pointer comparison), so the invariant
-   hands out a *persistent* points-to for it and a reader needs no ghost
-   state at all. A [Link] record is born in one vertex's cell and stays
-   there forever — every CAS in the code swings a [Root] value out, never
-   a [Link] — so the fact worth making permanent is about that vertex,
-   not about the record: see [linked] in UnionFind10ReprPred.v. The bound
-   went with it, being always the holder's own identifier. *)
 
 Section content.
 

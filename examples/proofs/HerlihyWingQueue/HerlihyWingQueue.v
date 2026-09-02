@@ -241,7 +241,7 @@ Definition enqueue_spec (q : queue) (x : val) (m : microvx) : iProp Σ :=
    fate is decided. Either the prediction says this call's element comes out
    before every element still in flight, in which case the call commits right
    there and keeps its postcondition; or it does not, in which case the call
-   registers itself as PENDING: it hands its atomic update to the invariant,
+   registers itself as pending: it hands its atomic update to the invariant,
    for a dequeuer to run on its behalf, and keeps only the name of the saved
    proposition standing for its postcondition.
 
@@ -638,7 +638,7 @@ Proof.
 
       { (* Our slot does not head the next block. The prediction says some
            other element comes out first, so this call cannot commit yet: it
-           joins the block ahead of it as a PENDING enqueue, handing its
+           joins the block ahead of it as a pending enqueue, handing its
            atomic update to the invariant for a dequeuer to run. *)
         iMod (saved_prop_alloc (Φ ()) DfracDiscarded) as (g) "#Hsaved"; first done.
         iMod (alloc_pend_slot γ.(hwq_sl) slots back x g Hi_free with "Hsl●")
@@ -737,7 +737,7 @@ Proof.
      The write. Whether this is also the linearization point depends on what
      the fetch-and-add decided: if the call is still pending, its atomic
      update is run here, and -- because the prediction said this element would
-     NOT come out first -- the invariant enters a contradiction state. *)
+     not come out first -- the invariant enters a contradiction state. *)
   imp_match (option val) $! (λ _ : option val, ▷ Φ ())%I with "[Hst]".
   { iApply (imp_exchange_atomic (⊤ ∖ ↑hwqN) ⊤ _ _ _
               (λ l' : loc, ⌜l' = l⌝)%I (λ o : option val, ⌜o = Some x⌝)%I
@@ -894,7 +894,7 @@ Proof.
     all: injection Hname as ->.
 
     { (* Still pending. This is the linearization point: the call runs its own
-         atomic update, and its element goes at the END of the queue -- which
+         atomic update, and its element goes at the end of the queue -- which
          contradicts the prediction, if the prediction still claims some other
          slot comes out next. *)
       iDestruct "Hslot" as "(Hpend & %Q & #Hsaved' & AU)".
@@ -1153,7 +1153,7 @@ Qed.
 (* ---------------------------------------------------------------------- *)
 (** ** [scan] and [dequeue] *)
 
-(* [dequeue q] removes and returns the element at the FRONT of the queue. *)
+(* [dequeue q] removes and returns the element at the front of the queue. *)
 Definition dequeue_spec (q : queue) (m : microvx) : iProp Σ :=
   ∀ γ (cap : Z),
   is_queue γ cap q -∗
@@ -1176,11 +1176,11 @@ Definition dequeue_AU γ (Φ : val → iProp Σ) : iProp Σ :=
    rule that out. There are two ways it can know, and it carries whichever
    applies:
 
-   - LEFT: no contradiction has been recorded since the scan read [back], and
+   - Left: no contradiction has been recorded since the scan read [back], and
      any that is recorded from now on has [i2 ≥ n]. Since the scan only takes
      below [n], such a contradiction cannot be about the slot it takes.
 
-   - RIGHT: a contradiction was already on record when the scan started, and
+   - Right: a contradiction was already on record when the scan started, and
      the scan has not yet reached the slot [i1] that caused it. Since a
      contradiction has [i1 < i2], and the scan is at [i ≤ i1], the slot it
      takes is below [i2].
@@ -1319,7 +1319,7 @@ Proof.
      This is the linearization point of the whole specification, and the one
      place the prophecy is read. The exchange empties slot [i] and reports
      what was there, in one step, and resolves the queue's prophecy with that
-     pair. If it found [Some y], then [y] is the FRONT of the queue: the
+     pair. If it found [Some y], then [y] is the front of the queue: the
      prediction said slot [i] would be handed out next, and the invariant
      keeps the commit prefix in exactly that order, so [y] is the head of the
      logical contents. *)
@@ -1703,7 +1703,7 @@ End HerlihyWingQueue.
 
     From it the commit order follows: an enqueue joins the queue in the order
     its element will be handed out, as early as it can. Both halves of the
-    argument then fall out: a dequeue takes the head because the head IS the
+    argument then fall out: a dequeue takes the head because the head is the
     next element of the prediction; and an enqueue joins at the tail because
     everything ahead of it in the prediction has already joined.
 
@@ -1711,16 +1711,16 @@ End HerlihyWingQueue.
 
     Two ingredients, neither of them obvious:
 
-    - the decoding of the trace TRUNCATES (see [take_data] in [Blocks.v]).
+    - the decoding of the trace truncates (see [take_data] in [Blocks.v]).
       [pvs] is universally quantified when the prophecy is created, so nothing
       whatsoever may be assumed about it. A decoding that stops at the first
       entry which could not possibly be a real observation -- an index outside
       the array, a take of a slot already emptied, a value of the wrong shape
-      -- satisfies the invariant's properties for an ARBITRARY trace, so no
+      -- satisfies the invariant's properties for an arbitrary trace, so no
       property has to be established at creation time and then maintained.
 
     - when the prediction turns out to be wrong, the invariant does not try to
-      repair it. It moves, once and for all, to a CONTRADICTION state
+      repair it. It moves, once and for all, to a contradiction state
       [WithCont i1 i2] recording the two indices whose order was mispredicted,
       and stops claiming anything about the future; an enqueue may then commit
       into the unordered tail [rest]. That contradiction is never resolved into

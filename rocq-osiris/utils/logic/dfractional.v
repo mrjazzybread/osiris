@@ -7,8 +7,8 @@ From iris.proofmode Require Import proofmode.
     Iris's [Fractional] describes resources that split along [Qp]
     addition: [Φ (p + q) ⊣⊢ Φ p ∗ Φ q]. That is enough for a resource
     that is always held at a genuine fraction, but it cannot describe the
-    *discarded* fraction [DfracDiscarded] — the one that makes a resource
-    persistent — because [DfracDiscarded] is not a [Qp]. A predicate
+    *discarded* fraction [DfracDiscarded], the one that makes a resource
+    persistent, because [DfracDiscarded] is not a [Qp]. A predicate
     indexed by [Qp] therefore has to be dropped for a lower-level, hand-
     rolled one as soon as any of its ownership becomes persistent.
 
@@ -58,10 +58,6 @@ Section dfractional.
     Fractional (λ q, Φ (DfracOwn q)).
   Proof. intros p q. by rewrite -dfrac_op_own dfractional. Qed.
 
-  (* The discarded form is freely duplicable — the point of the whole
-     exercise. Note this does *not* make it persistent on its own: that
-     additionally requires each conjunct of [Φ DfracDiscarded] to be
-     persistent, which has to be established per resource. *)
   Lemma dfractional_discarded_dup Φ `{!DFractional Φ} :
     Φ DfracDiscarded ⊣⊢ Φ DfracDiscarded ∗ Φ DfracDiscarded.
   Proof. by rewrite -dfractional dfrac_op_discarded. Qed.
@@ -82,9 +78,9 @@ End dfractional.
     Iris's proofmode splits an abstract fractional resource by halving:
     [Φ q] becomes [Φ (q/2) ∗ Φ (q/2)]. To do the same for a [dfrac]-
     indexed resource we need a division that also makes sense for a
-    *discarded* share, where "half" is not a fraction at all — a
-    discarded share splits by duplication. [dfrac_half] is that
-    operation, defined by cases so that it computes. *)
+    *discarded* share, where "half" is not a fraction at all: a discarded
+    share splits by duplication. [dfrac_half] is that operation, defined
+    by cases so that it computes. *)
 
 Definition dfrac_half (dq : dfrac) : dfrac :=
   match dq with

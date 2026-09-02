@@ -146,9 +146,9 @@ Section imp_atomic_rules.
   Qed.
 
   (* [ELoad e]. The evaluation of [e] is not part of the atomic step, so
-     the mask-changing update is only entered once the location is known
-     — unlike [imp_store_atomic], where the two subexpressions are
-     evaluated in parallel and a [▷] is available before the update. *)
+     the mask-changing update is only entered once the location is known.
+     Unlike [imp_store_atomic], where the two subexpressions are evaluated
+     in parallel and a [▷] is available before the update. *)
   Lemma imp_load_atomic `{Encode A} (E2 E1 : coPset) η e (Φ1 : loc → _) (Φ : A → _) :
     impure E1 (eval η e) Ψ ζ Φ1 -∗
     (∀ l, Φ1 l -∗
@@ -165,7 +165,7 @@ Section imp_atomic_rules.
     iApply (imp_load' with "Hl Hload").
   Qed.
 
-  (* [EExchange e1 e2] — the mirror image of [imp_store_atomic], with the
+  (* [EExchange e1 e2], the mirror image of [imp_store_atomic], with the
      exchanged-out value handed to the closing wand. *)
   Lemma imp_exchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
       (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
@@ -230,14 +230,6 @@ Section imp_atomic_rules.
     iApply (imp_cas with "Hl Hcas").
   Qed.
 
-  (* A RESOLVING compare-and-set. The resolution happens at the CAS's own
-     step, so the whole thing is still one thread step and an invariant may
-     be opened across it — which is the point: at the linearization point
-     the proof holds both the state the invariant describes AND the head of
-     the prophecy, i.e. a value the execution has not produced yet.
-
-     Compare [imp_cas_atomic]: the only difference is that the closing wand
-     also hands over the prediction. *)
   Lemma imp_EResolve_ECAS_atomic `{PhysEqDec A} (E2 E1 : coPset) η e1 e2 e3
       (ep : path) (ev : proph_arg)
       (p : loc) (v : val) (pvs : list (val * val))
@@ -279,13 +271,6 @@ Section imp_atomic_rules.
     iApply ("Hcas" with "[//] Hp2 Hl").
   Qed.
 
-  (* A RESOLVING exchange, with the prophecy taken from inside the
-     mask-changing update rather than from the caller's context. That is
-     the shape a SHARED prophecy needs: when several threads resolve the
-     same prophecy, [proph p pvs] lives in the invariant that governs
-     them, so it only becomes available once the invariant is open —
-     unlike [imp_EResolve_ECAS_atomic], where the prophecy is the
-     caller's own. *)
   Lemma imp_EResolve_EExchange_atomic `{Encode A} (E2 E1 : coPset) η e1 e2
       (ep : path) (ev : proph_arg)
       (p : loc) (v : val) (Φ1 : loc → _) (Φ2 : A → _) (Φ : A → _) :
@@ -380,23 +365,12 @@ Section imp_atomic_rules.
     iApply (imp_load' with "Hl Hload").
   Qed.
 
-  (* Atomically writing a record field — the mirror image of
-     [imp_ERecordAccess_atomic]. As there, the evaluation performs a ghost
-     block lookup (through the persistent [isBlockLocs]) and then a single
-     atomic store, so ownership of the field's location is only needed
-     inside the atomic step and may come from an invariant. This is what
-     [imp_ERecordSet]/[imp_ERecordSet2] cannot do: both demand a full
-     [ownBlock], which a record shared through an invariant never has. *)
   Lemma imp_ERecordSet_atomic `{Encode A} (E2 E1 : coPset) η e1 e2 f ls (r : record)
       (Φ2 : A → _) (Φ : unit → _) :
     valid f ls →
     ▷ isBlockLocs r ls -∗
     impure E1 (eval η e1) Ψ ζ (λ r' : record, ⌜r' = r⌝) -∗
     impure E1 (eval η e2) Ψ ζ Φ2 -∗
-    (* The value's postcondition is consumed *outside* the mask-changing
-       update, so a client can introduce the stored value first and only
-       then open its invariant — which is what an accessor phrased as
-       "here is the field, give it back holding [#a]" needs. *)
     ▷ (∀ a, Φ2 a -∗
             |={E1,E2}=> ∃ v, ▷ (ls !!! f) ↦ v ∗
                              ▷ ((ls !!! f) ↦ #a -∗ |={E2,E1}=> Φ ())) -∗

@@ -15,7 +15,7 @@ Import ewp_rules_tactics.
 (** * Reasoning rules for prophecy variables. *)
 
 (* A prophecy variable is a name to which the logic can attach a claim
-   about the FUTURE of the execution. [proph p pvs] says that the
+   about the future of the execution. [proph p pvs] says that the
    remaining resolutions of [p], in order, will be [pvs]. That is a claim
    about what has not happened yet, and the only thing that makes it
    sound is the observation trace threaded through [state_interp]: the
@@ -36,17 +36,6 @@ Section proph.
 
   (* ------------------------------------------------------------------------ *)
   (** ** Allocation. *)
-
-  (* Allocating a prophecy hands out a [proph p pvs] for a [pvs] the
-     PROVER does not choose: it is the projection of the actual future
-     trace onto [p]. A proof learns the prediction and must then live with
-     it — which is exactly what makes it useful, since the prediction is
-     correct by construction.
-
-     The two freshness conditions meet here. [StepNewProph] offers a
-     location fresh for the store; [proph_map_new_proph] wants an
-     identifier outside the allocated set. [osiris_proph_interp] pins the
-     latter inside the former, so the store's freshness delivers both. *)
 
   Lemma ewp_new_proph `{Observe A V} E Ψ (ζ : X → iProp Σ) (Φ : A → _) u
     (k : outcome2 loc exn → micro V X) :
@@ -80,20 +69,14 @@ Section proph.
   (** ** Resolution. *)
 
   (* [Stop (CResolve c) (x, p, v) k] performs the system call [c x] and
-     resolves [p] with the pair of its result and [v], in ONE step. The rule is
-     HeapLang's [wp_resolve] in Osiris's terms: run the call, and at the
-     moment it produces a result [w], learn that the prediction's head was
-     [(w, v)].
+     resolves [p] with the pair of its result and [v], in one step. This is
+     HeapLang's [wp_resolve] in Osiris's terms.
 
      The first premise is atomicity, and it is not a technicality: a call
      that steps to a whole computation rather than to a result has no
      result for the resolution to record. It holds for exactly the four
-     operations [eval] admits under a resolution — load, exchange,
+     operations [eval] admits under a resolution: load, exchange,
      compare-and-set, fetch-and-add. *)
-
-  (* The call must be able to step at all — which rules out the codes whose
-     rule lives in [subjective_step], and [CPerf], whose does not exist — AND
-     every step it can take must land on an outcome. *)
 
   Definition call_is_atomic {Y} (c : code Y val exn) (x : Y) : Prop :=
     (match c with CPerf | CResolve _ => False | _ => True end
@@ -113,10 +96,6 @@ Section proph.
     -∗ EWP (Stop (CResolve c) (x, p, v) k) @ E <| Ψ |> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
   Proof.
     iIntros ([[Hprog Hconc] Hat]) "Hp Hwp".
-    (* The call is an ordinary stepping computation, so its weakest
-       precondition unfolds to a step case — which we do here, while the
-       mask is still [E], because that is what pairs with the resolution's
-       own step below. *)
     assert (is_ewp_case (stop c x) = WPStep) as Hcase.
     { destruct c; simpl; try done; try (exfalso; by apply Hconc). }
     iEval (rewrite /impure (ewp_unfold (stop c x)) /ewp_pre Hcase) in "Hwp".
@@ -180,8 +159,8 @@ Section proph.
 
   (* [CReturn] is the trivial call that returns its argument, which is what
      [eval] resolves on when the annotated expression is not a single
-     operation. It is atomic in the sense above — trivially so, since its
-     only step returns. *)
+     operation. Atomic in the sense above, trivially: its only step
+     returns. *)
 
   Lemma call_is_atomic_return (w : val) : call_is_atomic CReturn w.
   Proof.
@@ -189,8 +168,8 @@ Section proph.
     intros σ σ' m' Hstep. dependent destruction Hstep. eauto.
   Qed.
 
-  (* The four operations that [eval] resolves AT their own step. Each takes
-     exactly one step, and that step lands on an outcome — which is what
+  (* The four operations that [eval] resolves at their own step. Each takes
+     exactly one step, and that step lands on an outcome, which is what
      makes the fused form available for them and no one else. *)
 
   Local Ltac solve_call_is_atomic :=
@@ -210,13 +189,6 @@ Section proph.
 
   Lemma call_is_atomic_faa x : call_is_atomic CFAA x.
   Proof. solve_call_is_atomic. Qed.
-
-  (* A resolution written by [resolve] is ATOMIC in the sense of
-     [subjective_step.Atomic], whatever it wraps: its continuation is
-     [inject2], so each of the three rules lands on an outcome. This is
-     what lets an invariant be opened across a resolving operation — and
-     hence what puts a prophecy's head in hand at a linearization
-     point. *)
 
   Global Instance resolve_atomic {Y} (c : code Y val exn) x p v :
     Atomic (resolve c x p v).

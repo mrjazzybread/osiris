@@ -28,19 +28,17 @@ Section record_resources.
 
      The fraction is a [dfrac] rather than a [Qp] so that a block whose
      contents will never change again can be shared persistently, at
-     [DfracDiscarded]. With a [Qp] the only way to express that was to
-     abandon [ownBlock] and reason at the level of the individual field
-     points-tos, which is what concurrent clients used to have to do.
+     [DfracDiscarded].
 
-     The mutability tag is held *persistently*, at [isBlockP], rather
-     than at [dq]: [dq] governs the fields only. Tying the two together
-     would make [ownBlock] unusable for any block that is compared
-     physically or CASed on, since [compare_and_set_spec] needs a tag
-     witness that outlives the atomic step it was read at — and
+     The mutability tag is held *persistently*, at [isBlockP], rather than
+     at [dq], which governs the fields only. Tying the two together would
+     make [ownBlock] unusable for any block compared physically or CASed
+     on, since [compare_and_set_spec] needs a tag witness that outlives the
+     atomic step it was read at, and
      [isBlock r DfracDiscarded t ∗ isBlock r (DfracOwn 1) t] is
      [isBlock r (DfracBoth 1) t], which is invalid. Clients that need to
-     *change* a tag (i.e. to freeze) must hold the exclusive [isBlock]
-     themselves; [imp_ERecord] hands it back for exactly that reason. *)
+     *change* a tag must hold the exclusive [isBlock] themselves;
+     [imp_ERecord] hands it back for that reason. *)
 
   Definition ownBlock {τ : types} (r : record) dq (t : mut_tag) (xs : τ) : iProp Σ :=
     ∃ ls, isBlockLocs r ls ∗ isBlock r DfracDiscarded t ∗
@@ -53,7 +51,7 @@ Section record_resources_frac.
   Context `{!osirisGS Σ}.
 
   (* [gen_heap] exports the joining direction ([pointsto_combine]) but no
-     splitting law for a general [dfrac] — only the [Qp]-indexed
+     splitting law for a general [dfrac], only the [Qp]-indexed
      [Fractional] instance. We derive it once here; this is the only
      place that has to look through [gen_heap]'s sealing. *)
 
@@ -127,7 +125,7 @@ Section record_resources_frac.
 
   (* The [Qp]-indexed instances Iris's proofmode uses ([iSplitL],
      [iCombine], [iDestruct "H" as "[H1 H2]"]) are now consequences of the
-     [dfrac] ones. [Φ] has to be supplied explicitly — see the comment on
+     [dfrac] ones. [Φ] has to be supplied explicitly; see the comment on
      [dfractional_fractional]. *)
 
   Global Instance isBlock_fractional (b : locations.loc) t :
@@ -298,14 +296,6 @@ Section records_reasoning.
     rewrite (list_lookup_lookup_total_valid ls f Hvalid).
     iApply (imp_ret with "HΦ"). encode.
   Qed.
-
-  (* [ERecordAccess e f], read through a single field's points-to at an
-     arbitrary (possibly discardable) fraction — unlike [imp_ERecordAccess]
-     / [imp_ERecordAccess2], no [ownBlock] of the *whole* record is
-     required. This is what makes it usable for immutable fields (e.g. a
-     vertex's [id]) whose points-to is persisted ([DfracDiscarded]) at
-     allocation time and shared freely, rather than tracked as an
-     exclusive/fractional resource. *)
 
   Lemma imp_ERecordAccess_pers {ζ} `{Encode A} f {Φ : A → iProp Σ} r ls dq (v : A) e :
     valid f ls →

@@ -60,10 +60,10 @@ Section array_resources.
     ownArray a dq xs -∗ isSlice a dq 0 xs.
   Proof. iIntros "(%ls & #Ha & _ & $ & %Hlen)". Qed.
 
-  (* Making a slice read-only. An array that is written once, at
-     creation, and then only read — the [items] array of a concurrent
-     data structure, say — can have its points-to discarded here and
-     shared freely afterwards, so that a reader needs no invariant. *)
+  (* Making a slice read-only. An array written once at creation and then
+     only read (the [items] array of a concurrent data structure, say) can
+     have its points-to discarded here and shared freely afterwards, so
+     that a reader needs no invariant. *)
   Lemma isSlice_persist `{Encode A} (E : coPset) a i (xs : list A) :
     isSlice a (DfracOwn 1) i xs ={E}=∗ isSlice a DfracDiscarded i xs.
   Proof.

@@ -319,19 +319,6 @@ Section lemmas.
     rewrite ->!tele_app_bind. iApply "HΦ". done.
   Qed.
 
-  (** An atomic update may be weakened in its continuation. Iris seals
-      [atomic_update] and keeps its introduction rule local, so this goes
-      through [iAuIntro] rather than through the fixpoint directly: reintroduce
-      the update with the old one as the coinductive invariant, unfold that one
-      into an accessor ([aupd_aacc]), and weaken the accessor
-      ([atomic_acc_wand]).
-
-      The wand must be persistent: an atomic update may be accessed any number
-      of times before it commits, and each access needs it again.
-
-      This is what lets an intermediate caller hand its client's update to a
-      callee whose private postcondition it wants to keep — see [findc] in
-      examples/proofs/UnionFind. *)
   Lemma atomic_update_mono Eo Ei α β (Φ1 Φ2 : TA → TB → iProp) :
     □ (∀.. x y, Φ1 x y -∗ Φ2 x y) -∗
     atomic_update Eo Ei α β Φ1 -∗
@@ -387,14 +374,13 @@ Section proph_lemmas.
 
   (* A resolution may be attached to an operation that already satisfies a
      logically atomic triple, provided the operation is a single call. The
-     triple is unchanged — same atomic pre- and postcondition, same return
-     value — except that the caller additionally learns the prediction.
+     triple is unchanged (same atomic pre- and postcondition, same return
+     value), except that the caller additionally learns the prediction.
 
      The observation is emitted at the call's own step, which is the
      linearization point, so the prediction is available exactly where the
-     atomic update commits. That is the whole point of fusing: a
-     resolution one step later could be separated from the commit by
-     another thread. *)
+     atomic update commits. That is the point of fusing: a resolution one
+     step later could be separated from the commit by another thread. *)
 
   Lemma atomic_ewp_resolve {Y} (c : code Y val exn) (y : Y)
       (p : locations.loc) (v : val) (pvs : list (val * val)) E α β POST f :
@@ -434,13 +420,6 @@ Section proph_lemmas.
       iIntros (a) "HΦ0". iExists (♯a). by iSplit.
     - iIntros (e) "[]".
   Qed.
-
-  (* The same, for an operation that is not a single call. [eval] compiles
-     such an annotation to "run it, then resolve on the value it produced"
-     (see [CReturn]), so the observation lands one step after the triple's
-     linearization point rather than at it. The triple itself is again
-     unchanged: what the caller learns is what the operation RETURNED, not
-     when it returned it — which is all a non-atomic operation can offer. *)
 
   Lemma atomic_ewp_resolve_return (m : micro val exn)
       (p : locations.loc) (v : val) (pvs : list (val * val)) E α β POST f :

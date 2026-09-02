@@ -262,7 +262,7 @@ Section LargeConstruction.
     intros x y. unfold equivalent'. tauto.
   Qed.
 
-  (* [equivalent'] is in general NOT transitive. E.g., if we have three elements
+  (* [equivalent'] is in general not transitive. E.g., if we have three elements
      [a], [b], [c] with [a < b] and no other strict ordering relation [<]
      between them, then we get [a ≡ c] and [c ≡ b] but not [a ≡ b]. *)
 

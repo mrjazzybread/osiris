@@ -8,7 +8,7 @@
    the definition below is never the one that gets verified. A program that
    uses prophecies must therefore depend on this library.
 
-   A resolution is deliberately NOT a function of this module. It is written
+   A resolution is deliberately not a function of this module. It is written
    as an attribute on the operation whose result is being predicted,
 
      Atomic.compare_and_set r seen v [@resolve p tag]

@@ -258,7 +258,7 @@ Section satisfiability_weakest_pre.
       iMod "Hwp" as "(% & [] & Hwp)".
     - (* Case: [e] takes a subjective_step. Being able to progress is exactly
          the first conjunct of the weakest precondition, so we read it out
-         and never take the step — which is what lets a RESOLUTION, whose
+         and never take the step. That is what lets a resolution, whose
          step carries a label we do not know here, go through like any
          other. This is Iris's [wp_not_stuck]. *)
       iAssert (|={E,∅}=> ⌜can_progress σ (dom πp) e⌝)%I with "[Hsi Hwp]" as "Hcp".
@@ -318,7 +318,7 @@ Section satisfiability_weakest_pre.
           π2 = <[ι:=m]>π1)
     ∨
     (* Or that step can be emulated by a [subjective_step] with the same
-       label — which is where a resolution's observation comes from. *)
+       label, which is where a resolution's observation comes from. *)
     ∃ (ι : thread) (m m' : microvx) μ,
       π1 !! ι = Some m ∧
       π2 !! ι = Some m' ∧
@@ -649,7 +649,7 @@ Proof.
     iModIntro. iFrame. }
 Qed.
 
-(* The prophecy map starts EMPTY: no identifier has been allocated yet, so
+(* The prophecy map starts empty: no identifier has been allocated yet, so
    no resolution in [κs] can concern one, and [proph_map_init] is happy
    with any trace. Freshness for the store then keeps the two in step, as
    [osiris_proph_interp] records. *)

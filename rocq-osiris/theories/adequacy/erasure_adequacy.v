@@ -103,10 +103,6 @@ Qed.
    to step: the erasure of a resolution attached to a value is that value,
    so the annotated program can be one [CReturn] behind. *)
 
-(* The two calls erasure removes — a resolution attached to a value, and the
-   [CReturn] it compiles to — each cost the annotated program one step before
-   it shows the result the erased program already has. *)
-
 Local Ltac erase_result_step :=
   match goal with
   | Hsafe : safe ?σ ?π,
@@ -338,8 +334,8 @@ Proof.
   - rewrite !lookup_insert_ne //; try apply Hσ.
 Qed.
 
-(* Physical equality inspects locations, continuations and constant
-   constructors, and the tag of a block — never a value that erasure
+(* Physical equality inspects locations, continuations, constant
+   constructors and the tag of a block, never a value that erasure
    rewrites. So the two programs compare alike, with no side condition;
    HeapLang needs [vals_compare_safe] here. *)
 
@@ -370,10 +366,6 @@ Lemma erase_phys_eq_val_store σ σe v1 v2 :
   = phys_eq_val_store v1 v2 σ.
 Proof.
   intros Hσ. destruct v1, v2;
-    (* A constant constructor is one whose argument list is empty, and
-       erasure maps a list pointwise, so one list is empty exactly when the
-       other is — but only a case analysis makes that visible, and it has to
-       happen before [simpl] hides the constructor. *)
     repeat (match goal with
             | |- context [ VData ?c ?l ] => is_var l; destruct l
             end);
@@ -386,12 +378,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** ** The store operations. *)
-
-(* One lemma per [step_*] function of the semantics, and named after it:
-   the [_1] of an operation writes to the store, which stays related, and
-   the [_2] returns a computation, which is the erasure of the annotated
-   one. Each is the same proof — the two stores agree at the location, so
-   the two [match]es take the same branch. *)
 
 Local Ltac erase_op l :=
   let H1 := fresh "H1" in
@@ -760,10 +746,6 @@ Proof.
   intros Hs. eapply (tsteps_frame (λ m2, Par m1 m2 k)); [ | exact Hs ].
   intros. by apply tstep_par_r.
 Qed.
-
-(* A stuck thread stays stuck under a context: a crash propagates, and a
-   resolution floats out to the top of the thread — the two premises below,
-   the second shared with [tstep_frame]. *)
 
 Lemma mstuck_frame {A E B F} (C : micro A E → micro B F) σ m :
   step (σ, C Crash) (σ, Crash) →
@@ -1202,8 +1184,6 @@ Proof.
   - (* Return *)
     rename IHHm into IHm.
     eapply matched_prepend; [ apply tstep_return | by apply IHm ].
-  (* [Par]: the same argument as [Handle], twice over — the erased step
-     happens in one of the two branches, or reads their results. *)
   - (* Par *)
     rename H into Hk, IHHm1 into IHm1, IHHm2 into IHm2.
     destruct_step.
@@ -1507,9 +1487,7 @@ Proof.
       by eapply (Hsafe σ π (rtc_refl _ _)).
     + right; left. apply subjective_step.can_step_can_progress, can_step_stop;
         split; [ done | by intros [] ].
-    + (* A fused resolution erases to the call it wraps, and safety says
-         that call reduces to an outcome — so it steps. *)
-      apply not_stuck_call. eapply not_stuck_resolve_code; [ done | ].
+    + apply not_stuck_call. eapply not_stuck_resolve_code; [ done | ].
       by eapply (Hsafe σ π (rtc_refl _ _)).
     + (* the two calls erasure removes: the annotated program steps first *)
       erase_result_step; erase_not_stuck_finish.
@@ -1631,15 +1609,10 @@ Qed.
 Theorem erasure (e : expr) ι (Φ : outcome2 val exn → Prop) σ σe :
   (* Let [σe] be an erasure of the initial store [σ]. *)
   erase_store σ σe →
-  (* If the annotated program is safe from [σ], and each of its results
-     satisfies [Φ] — this is the conclusion of [osiris_adequacy]: *)
   (∀ k κs σ2 π,
      proph_steps k (σ, {[ ι := eval [] e ]}) κs (σ2, π) →
      (∀ ι' m, π !! ι' = Some m → not_stuck m σ2 (dom π)) ∧
      (∀ o, π !! ι = Some (inject2 o) → Φ o)) →
-  (* then the program with its annotations removed is safe from [σe] in the
-     SEMANTIC model — the one that knows nothing of prophecies — and returns
-     the erasure of a result of the annotated one. *)
   (∀ k σ2 π,
      threadpool_steps k (σe, {[ ι := eval [] (erase_expr e) ]}) (σ2, π) →
      (∀ ι' m, π !! ι' = Some m → not_stuck m σ2 (dom π)) ∧

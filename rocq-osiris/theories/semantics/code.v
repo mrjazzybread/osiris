@@ -194,10 +194,6 @@ Definition resume (l : cont) (o : outcome2 val exn) :=
 Definition handle {A E} (m : micro C.val C.exn) (h : _ -> micro A E) :=
   Handle m h.
 
-(* [load_block l] loads the locations stored in the block at location [l].
-   [load_block] only crashes on a bad heap state — it never throws — so its
-   error type is left polymorphic. *)
-
 Definition load_block {E} (l : loc) : micro (mut_tag * list loc) E :=
   Stop CLoadBlock l (λ o,
     match o with
@@ -272,10 +268,6 @@ Notation "' x ← y ; z" :=
   format "'[v' ' x  '←'  y ';' '/' z ']'").
 
 (* ------------------------------------------------------------------------ *)
-
-(* [load l] loads the value stored at location [l].
-   [load] only crashes on a bad heap state — it never throws — so its
-   error type is left polymorphic. *)
 
 Definition load {E} (l : loc) : micro val E :=
   Stop CLoad l (λ o,

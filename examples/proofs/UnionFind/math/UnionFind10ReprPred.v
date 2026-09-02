@@ -29,11 +29,9 @@ Proof. apply _. Qed.
 (* The two shapes of content record. *)
 
 (* A [Root] record, entirely persistently: its single [value] field holds
-   [v] and always will. The field is never written after allocation, so
-   rather than keeping it in the invariant and lending it out for each
-   read, the invariant discards its fraction once and hands the result to
-   anyone who loads the record. A reader of [root.value] therefore needs
-   no accessor and no open at all — an ordinary persistent field read. *)
+   [v] and always will. Never written after allocation, so the invariant
+   discards its fraction once and hands the result to anyone who loads the
+   record. Reading [root.value] then needs no accessor and no open. *)
 
 Definition root_val (rc : record) (v : val) : iProp Σ :=
   ∃ lv : locations.loc,
@@ -60,15 +58,14 @@ Proof.
   iModIntro. iExists lv. by iFrame "Hlocs HP Hlv".
 Qed.
 
-(* A [Link] record held by vertex [h], whose identifier is [i]. Its
-   [parent] field IS written — that is what path compression does — so
-   this one stays in the invariant, owned by [h]'s own entry.
+(* A [Link] record held by vertex [h], of identifier [i]. Its [parent]
+   field *is* written (that is path compression), so it stays in the
+   invariant, owned by [h]'s own entry.
 
-   All it says about the vertex [y] the field currently holds is that [y]
-   is a registered vertex of a strictly smaller identifier, and that
-   following the pointer stays inside [h]'s class. Nothing says it is an
-   edge of anything: compression reroutes it freely, and this is exactly
-   the property compression preserves. *)
+   All it says of the vertex [y] the field holds: [y] is registered, has a
+   strictly smaller identifier, and stays inside [h]'s class. Nothing says
+   it is an edge; compression reroutes it freely, and that is exactly the
+   property compression preserves. *)
 
 Definition link_field (γ : uf_names) (rc : record) (lp : locations.loc)
     (h : elem) (i : Z) : iProp Σ :=
@@ -137,26 +134,19 @@ Definition cell_own (γ : uf_names) (R : elem → elem) (V : elem → val)
       ∃ lp, ⌜R x ≠ x⌝ ∗ linked γ x rc lp ∗ link_field γ rc lp x i
   end.
 
-(* Root-ness is ANTI-monotone, and this is where that is recorded.
-
-   Every CAS in the implementation swings a [Root] value OUT of a cell, so
-   a vertex that has been linked away never becomes a root again. [linked]
-   is the persistent witness of having been linked; a root's cell owns the
+(* Root-ness is anti-monotone. Every CAS swings a [Root] value out of a
+   cell, so a vertex linked away never becomes a root again. [linked] is
+   the persistent witness of having been linked; a root's cell owns the
    [x ↪[γ.(uf_link)] None] that contradicts it. So a [linked] obtained at
-   ONE instant refutes root-ness at EVERY LATER one — the fact holds
-   against whatever [cell_own] the invariant happens to hold now, not just
-   against the one it was minted from.
+   one instant refutes root-ness at every later one, against whatever
+   [cell_own] the invariant holds now.
 
-   This is what the [false] case of [eq] turns on. That case has to know,
-   while it is still inside [findc y], how a LATER read of [x.content]
-   will turn out; being able to rule out [Root] from a [linked] observed
-   earlier is exactly the half of that argument which is about the
-   structure rather than about prophecy.
+   This is what the [false] case of [eq] turns on: it must know, while
+   still inside [findc y], how a later read of [x.content] will turn out.
 
-   Note the shape: [linked]'s negation is a RESOURCE living in the
-   invariant, not a proposition a reader can carry away, so the refutation
-   has to be stated against a [cell_own] and cannot be a fact about
-   [content_info] alone. *)
+   [linked]'s negation is a resource in the invariant, not a proposition a
+   reader can carry away, so the refutation is stated against a [cell_own]
+   rather than [content_info]. *)
 
 Lemma cell_own_linked γ R V x i c rc lp :
   linked γ x rc lp -∗ cell_own γ R V x i c -∗
@@ -171,17 +161,14 @@ Proof.
     iSplitR; first done. iExists lp. by iFrame "Hlk' Hlf".
 Qed.
 
-(* [vertex_own γ R V x i] is the invariant-owned footprint of the
-   vertex [x]: its content cell, together with whatever that cell's
-   current content owns.
+(* The invariant-owned footprint of vertex [x]: its content cell, plus
+   whatever that cell's current content owns.
 
-   What is deliberately NOT here is the identifier registry token. It used
-   to be, so that its exclusivity would make identifiers injective — but
-   no step on a vertex's cell ever reads or moves it, so keeping it in the
-   per-vertex footprint meant every accessor had to carry it in and out
-   for nothing. It now sits in [uf_inv] as one [id_tokens] conjunct
-   (below), which is also the shape the argument actually wants: a single
-   map from which injectivity is read off. *)
+   The identifier registry token is deliberately not here. No step on a
+   vertex's cell reads or moves it, so keeping it per-vertex made every
+   accessor carry it in and out for nothing. It sits in [uf_inv] as one
+   [id_tokens] conjunct instead: a single map from which injectivity is
+   read off. *)
 
 Definition vertex_own (γ : uf_names) (R : elem → elem) (V : elem → val)
     x i : iProp Σ :=
@@ -201,13 +188,11 @@ Context `{!osirisGS Σ,
           !ghost_mapG Σ Z unit,
           !inG Σ (authR (gsetUR (elem * elem)%type))}.
 
-(* [content_info γ x c] is everything a reader of vertex [x]'s content
-   cell learns about the loaded value [c], and it is entirely persistent:
-   the record is a mutable single-field block, and — this is the part that
-   has to outlive the read — a [Root]'s payload is pinned by a persistent
-   points-to, while a [Link] is pinned to [x] by [linked]. Either way the
-   reader may come back to the record later, when [x]'s cell may well hold
-   something else. *)
+(* Everything a reader of [x]'s content cell learns about the loaded value
+   [c], all of it persistent: a [Root]'s payload is pinned by a persistent
+   points-to, a [Link] is pinned to [x] by [linked]. Either way the reader
+   may come back to the record later, when [x]'s cell may hold something
+   else. *)
 
 Definition content_info (γ : uf_names) (x : elem) (c : content) : iProp Σ :=
   isBlock (content_loc c) DfracDiscarded Mut ∗
@@ -219,14 +204,11 @@ Definition content_info (γ : uf_names) (x : elem) (c : content) : iProp Σ :=
 Global Instance content_info_persistent γ x c : Persistent (content_info γ x c).
 Proof. destruct c; apply _. Qed.
 
-(* The one thing a reader of a content cell learns that [content_info]
-   cannot state on its own, because it mentions the abstract state: if the
-   loaded value is a [Root], its payload is [x]'s value *in the state at
-   the instant of the read*. It is therefore available only where that
-   state is — at a linearization point — but, being persistent, it outlives
-   the open, which is exactly what [get] needs: [get] commits at the
-   content read and only afterwards performs the field access that
-   actually produces the value. *)
+(* What [content_info] cannot state, since it mentions the abstract state:
+   if the loaded value is a [Root], its payload is [x]'s value *at the
+   instant of the read*. Available only at a linearization point, but
+   persistent, so it outlives the open, which is what [get] needs: [get]
+   commits at the content read and only then reads the field. *)
 
 Definition content_val (V : elem → val) (x : elem) (c : content) : iProp Σ :=
   match c with
@@ -237,11 +219,10 @@ Definition content_val (V : elem → val) (x : elem) (c : content) : iProp Σ :=
 Global Instance content_val_persistent V x c : Persistent (content_val V x c).
 Proof. destruct c; apply _. Qed.
 
-(* Reading it all off the cell's own resources, which are handed straight
-   back: everything [content_info] and [content_val] hold is persistent.
-   The reader also learns the tag's meaning — a cell holds a [Root]
-   exactly when its vertex is its own representative — which is the fact
-   that makes an atomic read of a content cell a linearization point. *)
+(* Read off the cell's own resources, handed straight back: all of
+   [content_info] and [content_val] is persistent. A cell holds a [Root]
+   exactly when its vertex is its own representative, which is what makes
+   an atomic content read a linearization point. *)
 
 Lemma cell_own_info γ R V x i c :
   cell_own γ R V x i c -∗
@@ -268,11 +249,6 @@ Proof.
     iExists lp. iSplit; first done. iFrame "Hlk".
     iExists y, jy. by iFrame "HP Hlp Hy Hsc".
 Qed.
-
-(* Building a link field out of a freshly allocated record: this is what a
-   successful linking CAS installs. The obligations are the field's own —
-   the new parent is a registered vertex, of a strictly smaller
-   identifier, inside the holder's class. *)
 
 (* A freshly allocated link record, taken apart into the pieces its two
    consumers need: [linked] wants the field's location, [link_field] wants
@@ -304,12 +280,6 @@ Proof.
   iExists y, j. by iFrame "HP Hlp Hy Hsc".
 Qed.
 
-(* Its dual, for the ABA argument at the CAS: a link record's field is
-   owned exclusively by its holder, so a persistent points-to for the same
-   record — which is what a [Root] record hands out — cannot exist. This
-   is what rules out a [Link] value having reused the block of the [Root]
-   value a CAS is comparing against. *)
-
 Lemma link_field_root_val_excl γ rc lp h i v :
   isBlockLocs rc [lp] -∗ link_field γ rc lp h i -∗ root_val rc v -∗ False.
 Proof.
@@ -320,8 +290,8 @@ Proof.
 Qed.
 
 (* A registered vertex owns its own [content] cell, so a caller still
-   holding that cell — as [make] does for the record it has just
-   allocated — knows the vertex is not registered yet. *)
+   holding that cell (as [make] does for a freshly allocated record) knows
+   the vertex is not registered yet. *)
 
 Lemma vertex_own_fresh_ne γ R V x i li lc w :
   isBlockLocs x [li; lc] -∗ lc ↦ w -∗ vertex_own γ R V x i -∗ False.
@@ -335,18 +305,6 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* The identifier registry. *)
-
-(* One exclusive token per registered vertex, held for that vertex's
-   identifier. Its only purpose is the lemma below — identifiers are
-   injective — and the only operation that touches it is [make], which
-   spends the token [G.fresh] hands it to extend the map.
-
-   That injectivity is not a decoration: it is what makes [union]'s
-   [x.id > y.id] test a total order on the two roots. When the test fails,
-   what the proof needs is [ib < ia] STRICTLY, since [uf_cas_link_fupd]
-   rests on the absorbed root's identifier being strictly above the one it
-   is linked into ([repr_id_le] only gives [≤]). Without injectivity a
-   tie would let two domains link each vertex into the other. *)
 
 Definition id_tokens (γ : uf_names) (M : gmap elem Z) : iProp Σ :=
   [∗ map] x ↦ i ∈ M, i ↪[γ.(uf_ids)] ().
@@ -368,15 +326,11 @@ Proof.
   exfalso. by eapply dfrac_full_exclusive.
 Qed.
 
-(* [uf_inv]'s big [∗ map] of [vertex_own]s is indexed by the abstract
-   state, but all it reads off it is which vertices are their own
-   representative, and what value each of THOSE holds. So an operation
-   that moves the state — [union] is the only one that moves [R] — may
-   re-close the untouched vertices as soon as it has shown that it
-   changed nobody else's root-status, and changed no surviving root's
-   value. (It hasn't: linking [a] away unseats [a] alone, and the vertices
-   whose value moves with it are exactly the ones [a] represented, none of
-   which is a root.) *)
+(* [uf_inv]'s big [∗ map] of [vertex_own]s reads off the state only which
+   vertices are roots and what value each root holds. So [union], the only
+   operation that moves [R], may re-close the untouched vertices once it
+   has shown it changed no other vertex's root-status and no surviving
+   root's value. *)
 
 Lemma vertex_own_reindex γ (R R' : elem → elem) (V V' : elem → val)
     (M' : gmap elem Z) :
@@ -399,9 +353,8 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* The vertex-level API: the function proofs speak of [vertex], [is_uf],
-   [content_info] and [linked] — never of block locations or of the
-   invariant's internals. *)
+(* The vertex-level API: [vertex], [is_uf], [content_info], [linked]; never
+   block locations or the invariant's internals. *)
 
 Lemma vertex_frag γ x i : vertex γ x i -∗ x ↪[γ.(uf_vert)]□ i.
 Proof. iIntros "(% & % & $ & _)". Qed.

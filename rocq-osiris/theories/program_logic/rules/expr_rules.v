@@ -1368,7 +1368,7 @@ Section imp_rules_expr.
          iApply imp_ret; [ encode | by iApply ("Hcont" with "[//] Hp2 HΦe") ].
   Qed.
 
-  (* The four fused cases. Here the resolution happens AT the operation's
+  (* The four fused cases. Here the resolution happens at the operation's
      own step, so the prediction's head is available at the linearization
      point rather than one step after it. Each mirrors the corresponding
      unannotated rule, with the operation's postcondition extended by the

@@ -82,25 +82,6 @@ Section encoded_fields.
     iApply "Hr".
   Qed.
 
-  (* [imp_inline_record] hands the allocated block back as a [record]
-     observed at [encode_record c] — one [Encode record] instance per
-     constructor tag. That is fine as long as a client only ever handles
-     one tag at a time, but it breaks down as soon as two differently
-     tagged values must share a single [Encode A]: the canonical case is
-     [Atomic.Loc.compare_and_set], whose "seen" and "new" arguments are
-     typed by one [Encode A], and which is exactly how one swings a
-     [Root]-tagged record for a [Link]-tagged one.
-
-     The fix is to let the caller name the type: given the OCaml variant
-     type [A] that the constructor belongs to, together with its
-     constructor [mk] and the (definitional) fact that [mk] encodes as
-     the inline record, allocation can hand the value back at [A]
-     directly. Clients then never have to see the [val] level.
-
-     This is the only place [imp_wand_observe] should be needed: it is
-     the general "reinterpret the result at another [Observe] view"
-     combinator, and packaging it here keeps it out of client proofs. *)
-
   Lemma imp_inline_record_as `{RecordRepr B τ t} `{Encode A} {η E Ψ ζ}
       c (mk : record → A) es (Φs : τ → iProp Σ) :
     (∀ r : record, (#(mk r) : val) = VInline c r) →

@@ -324,8 +324,8 @@ Section imp_eval.
 
      To establish [iSpec τ clo P] for the closure [clo] built by
      [let rec f = fun x -> e], it suffices to establish the specification
-     over the function body — that is [predicate_over_function_body], the
-     same premise that [imp_EAnon_pers] asks for — in the environment
+     over the function body, that is [predicate_over_function_body] (the
+     same premise [imp_EAnon_pers] asks for), in the environment
      [(f, clo) :: η], while *assuming* [iSpec τ clo P] one step later.
 
      The later is not a restriction in practice: entering the body of [f]

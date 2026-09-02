@@ -177,13 +177,6 @@ Module ewp_rules_tactics.
     ⌜P⌝ -∗ Q -∗ ⌜P⌝ ∗ Q.
   Proof. apply combine_seps. Qed.
 
-  (* The state interpretation now carries the trace of observations the
-     execution has yet to produce, split as [κ ++ κs]: [κ] for the step
-     about to be taken, [κs] for the rest. Almost every rule takes a step
-     that emits nothing, so [κ] is [[]] and the split is invisible; the
-     first clause below is for the callers — [ewp_step], and through it
-     adequacy — that need it to be arbitrary. *)
-
   Ltac spec_state :=
     lazymatch goal with
     | |- context

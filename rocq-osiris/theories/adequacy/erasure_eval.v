@@ -286,13 +286,6 @@ Qed.
 
 (** ** Comparisons. *)
 
-(* The group where the erasure could have been unsound: [erase_expr] is not
-   injective, so a comparison that looked inside a closure could equate
-   values the annotated program distinguishes. Neither does — [phys_eq_val]
-   accepts locations, blocks and constant constructors, [eq_val] integers,
-   characters, strings, tuples and data, both error on the rest — so these
-   hold with no side condition, where HeapLang needs [vals_compare_safe]. *)
-
 Lemma erase_phys_eq_val v1 v2 :
   erase_micro id erase_val
     (phys_eq_val v1 v2) (phys_eq_val (erase_val v1) (erase_val v2)).
@@ -437,11 +430,6 @@ Proof.
   - exact (EM_Throw erase_val erase_val ex).
 Qed.
 
-(* A resolution attached to a non-atomic expression compiles to a [CReturn]
-   call on the value that expression produced. Erasure drops the call, so
-   what is left is the erasure of the expression itself — whatever it does
-   first. *)
-
 Lemma erase_resolve_return w p v :
   erase_microvx (resolve CReturn w p v) (ret (erase_val w)).
 Proof. apply EM_ResolveReturn. apply EM_Ret. Qed.
@@ -475,11 +463,6 @@ Proof. no_throw. Qed.
 
 Lemma code_no_throw_faa x : code_no_throw CFAA x.
 Proof. no_throw. Qed.
-
-(* A resolution fused with an atomic operation erases to that operation.
-   Exchange, compare-and-set and fetch-and-add even share a continuation;
-   [load]'s differs, since its polymorphic error type forces it to crash on
-   an exception it cannot carry — what [code_no_throw] excuses. *)
 
 Lemma erase_resolve_load l p v :
   erase_microvx (resolve CLoad l p v) (load l).
@@ -624,11 +607,6 @@ Qed.
 
 (** ** Module coercions and type extensions. *)
 
-(* A coercion keeps a chosen set of a structure's fields and drops the rest.
-   It inspects only field names, so it commutes with erasure — as an
-   equation between options, since it is a function. [coerces] mirrors the
-   local [fix] of [coerce], so that the list case has a statement. *)
-
 Section Coerces.
 
 (* The bind below is the option monad's, as in [pre_coerces]. *)
@@ -683,7 +661,7 @@ Qed.
 
 (* [simpl_eval*] unseals and simplifies, which for a list evaluator goes one
    step too far: it inlines the head's evaluator too, and the induction
-   hypothesis — stated with the sealed name — stops matching. These expose
+   hypothesis, stated with the sealed name, stops matching. These expose
    exactly one layer. They belong in eval.v next to [fold_pre_*]; they live
    here to avoid rebuilding the world. *)
 
@@ -715,13 +693,6 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** ** The computation under a resolution. *)
-
-(* [eval] reaches an expression by two doors: on its own, and under a
-   resolution, where the four atomic operations compile to a fused [resolve]
-   and everything else to a [CReturn]. This mirrors the second door so the
-   induction can carry a statement about it — needed by the fused cases,
-   which want the hypothesis for the operation's *argument*. Definitionally
-   the body of [eval]'s [EResolve] clause. *)
 
 Definition eval_resolved (η : env) (e : expr) (p : loc) (v : val) : microvx :=
   match e with
@@ -778,12 +749,6 @@ Ltac destruct_pairs x :=
    line up again. *)
 Local Ltac ee_pair :=
   cbn beta iota zeta delta [ id prod_map fst snd ].
-
-(* A list evaluator applied to a cons. [ee_cons_eqs] exposes exactly one
-   layer, keeping the head abstract and the evaluators sealed — which is how
-   the induction hypotheses are stated. [ee_expose_cons] first reduces the
-   erasure functions, since the erased side may still show the list as
-   [erase_sitems (i :: items)] rather than as a cons. *)
 
 Local Ltac ee_cons_eqs :=
   rewrite ?evals_cons, ?evalfs_cons, ?eval_bindings_cons, ?eval_sitems_cons.
@@ -975,8 +940,6 @@ Proof.
     (* Pmexpr *)
     (λ me, ∀ η, erase_microvx (eval_mexpr η me)
                   (eval_mexpr (erase_env η) (erase_mexpr me)))
-    (* Psitem — stated with the two environments apart, so that [eval_sitem]
-       can reduce; it matches on the pair. *)
     (λ i, ∀ η δ, erase_micro erase_envs erase_val
                    (eval_sitem (η, δ) i)
                    (eval_sitem (erase_env η, erase_env δ) (erase_sitem i)))
@@ -1698,7 +1661,7 @@ Qed.
 
 
 (* [StepLoop] replaces the [CLoop] call by the loop's own definition, so the
-   metatheory needs the erasure of that too, not only of the call —
+   metatheory needs the erasure of that too, not only of the call.
    [erase_loop] above relates the calls. *)
 
 Lemma erase_loop_body η x i1 i2 e :

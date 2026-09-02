@@ -552,9 +552,9 @@ Proof.
 Qed.
 
 (* If a vertex [r] lies outside the domain, then its set of descendants is
-   reduced to itself. (Stated with [≡] rather than [=] — comparing
-   [propset]s by Leibniz equality would need an extensionality axiom we're
-   avoiding for now; [≡] is the pointwise-iff equivalence and needs none.) *)
+   reduced to itself. Stated with [≡] rather than [=]: comparing [propset]s
+   by Leibniz equality would need an extensionality axiom we are avoiding
+   for now, whereas [≡] is the pointwise-iff equivalence and needs none. *)
 
 Lemma descendants_outside:
   forall r,

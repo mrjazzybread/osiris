@@ -32,13 +32,12 @@ type 'a slot = { mutable v : 'a option [@atomic] }
 
    [proph] is a ghost field: a single prophecy variable, created with the
    queue and resolved by every one of [scan]'s exchanges. It has no
-   run-time meaning — [Proph.create ()] is a [unit ref] and the [@resolve]
-   annotation is erased by the compiler — but it is what makes the FIFO
-   specification provable. See the discussion in the proof file: the order
-   in which two concurrent enqueues linearize is not determined by the
-   past, and the one thing that does determine it is the sequence of
-   elements the queue will hand out in the future. Resolving [proph] at
-   every exchange makes that sequence readable at any point. *)
+   run-time meaning ([Proph.create ()] is a [unit ref], and the [@resolve]
+   annotation is erased by the compiler), but it is what makes the FIFO
+   specification provable. See the proof file: the order in which two
+   concurrent enqueues linearize is not determined by the past, only by
+   the sequence of elements the queue will hand out in the future.
+   Resolving [proph] at every exchange makes that sequence readable. *)
 
 type 'a t = {
   items : 'a slot array;
@@ -92,8 +91,8 @@ let enqueue (q : 'a t) (x : 'a) : unit =
 
 let rec scan (q : 'a t) (n : int) (i : int) : 'a =
   if i >= n then
-    (* This pass found nothing. Read [back] again — it may have grown — and
-       start over from the beginning of the array. *)
+    (* This pass found nothing. Read [back] again, since it may have grown,
+       and start over from the beginning of the array. *)
     let n = Atomic.Loc.get [%atomic.loc q.back] in
     scan q n 0
   else

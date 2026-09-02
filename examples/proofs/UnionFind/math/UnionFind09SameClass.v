@@ -87,7 +87,7 @@ Lemma same_class_sym γ u w : same_class γ u w -∗ same_class γ w u.
 Proof. iIntros "(%n & Hn)". iApply (same_class_chain_sym with "Hn"). Qed.
 
 (* The invariant's coupling between the recorded pairs and the abstract
-   state: every pair ever recorded is, in the CURRENT state, a pair of
+   state: every pair ever recorded is, in the current state, a pair of
    equivalent vertices. *)
 
 Definition same_class_sound (S : gset (elem * elem)) (R : elem → elem) : Prop :=
@@ -114,10 +114,6 @@ Proof.
   rewrite Huc. iApply ("IH" with "HS Hrest").
 Qed.
 
-(* Recording a new pair. This is the ONLY operation that mints anything,
-   and it needs the full authority — so it can only happen where the two
-   halves meet, namely at the linking CAS. *)
-
 Lemma same_class_update γ S R u w :
   same_class_sound S R →
   R u = R w →
@@ -139,11 +135,6 @@ Proof.
   apply elem_of_union in Hab as [Hab | Hab]; first by apply HSsound.
   apply elem_of_singleton in Hab. by simplify_eq.
 Qed.
-
-(* Soundness survives any COARSENING of the state — which is the only kind
-   of change the structure ever makes to it. This is the obligation the
-   linking CAS discharges, and it is the reason recorded pairs may be kept
-   forever. *)
 
 Lemma same_class_sound_coarsen S R R' :
   same_class_sound S R →

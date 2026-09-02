@@ -238,10 +238,6 @@ Section ipattern.
       iFrame.
   Qed.
 
-  (* Reading the fields of a block that a record pattern selects — and
-     only those. The values come back in the order [fps] selects them,
-     which is what [fvals] describes. *)
-
   Lemma imp_loadfs {X} (ζ : X → iProp Σ) (dq : dfrac) ls (vs : list val) fps :
     Forall (λ fp, valid fp.1 ls) fps →
     ([∗ listZ] l;v ∈ ls; vs, l ↦{dq} v) -∗

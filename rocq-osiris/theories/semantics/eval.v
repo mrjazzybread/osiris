@@ -1729,12 +1729,6 @@ Ltac simpl_eval_branches :=
    fold_evaluators)
   || fail "Unable to simplify application of eval_branches".
 
-(* [pre_wrap_eval_branches] is a plain definition whose unfolding exposes no
-   [match], and both [simpl] and [cbn] decline to unfold such a constant — so
-   here the unfolding has to be asked for by name. What is then worth
-   reducing is [wrap_outcome], which does match on the outcome; the tactic
-   used to run a bare [simpl] over the whole goal to get at it. *)
-
 Ltac simpl_wrap_eval_branches :=
   (unfold wrap_eval_branches;
    rewrite seal_eq;

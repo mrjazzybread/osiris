@@ -180,7 +180,6 @@ Proof.
   iIntros (x0 y0) "((-> & ?) & (-> & ?))". by iFrame.
 Qed.
 
-(* [!x :: []] — a data constructor; resources are split via [imp_data with]. *)
 Lemma example_data_resources η x lx (n : Z) :
   lookup_name η x = Some #lx ->
   lx ↦ #n -∗

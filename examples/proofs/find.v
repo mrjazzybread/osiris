@@ -188,7 +188,7 @@ Proof.
             (* We give [find_elem] the specification [find_spec]. *)
             (λ (find : val), □ iSpec τ[list A; val] find find_spec)%I).
 
-  { (* START OF THE PROOF FROM THE PAPER *)
+  { (* Start of the proof from the paper *)
     (* Subgoal: Prove that [find_elem] satisfies its specification. *)
     (* Step into the function's body *)
     iApply (imp_EAnon_pers τ[list A; val]).

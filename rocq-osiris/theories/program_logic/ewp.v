@@ -247,12 +247,12 @@ Section state_interp.
   Definition osiris_state_interp (σ : store) : iProp Σ :=
     @gen_heap_interp locations.loc _ _ mem_block Σ _ σ ∗ array_interp σ.
 
-  (* The prophecy interpretation. Unlike every other component of the
-     state interpretation, [proph_map_interp] does not describe the
-     PRESENT: [κs] is the list of observations the execution has yet to
-     produce, and [proph_map_interp κs ps] ties the [proph p vs]
-     assertions to it. That is what makes a prediction meaningful, and it
-     is why the trace must reach adequacy — see [ewp_adequacy.v].
+  (* The prophecy interpretation. Unlike every other component of the state
+     interpretation, [proph_map_interp] does not describe the present: [κs]
+     is the list of observations the execution has yet to produce, and
+     [proph_map_interp κs ps] ties the [proph p vs] assertions to it. That
+     is what makes a prediction meaningful, and why the trace must reach
+     adequacy; see [ewp_adequacy.v].
 
      [ps] is the set of prophecy identifiers allocated so far; it is
      existentially quantified here because no rule needs to name it. *)
@@ -263,7 +263,7 @@ Section state_interp.
      rule [StepNewProph] only offers one fresh for the store. Tying the
      two is what lets the two freshness conditions meet. Nothing ever
      removes a location from the store, so the inclusion is easy to
-     maintain — see [osiris_proph_interp_mono]. *)
+     maintain; see [osiris_proph_interp_mono]. *)
 
   Definition osiris_proph_interp (σ : store) (κs : list observation) : iProp Σ :=
     ∃ ps, ⌜ps ⊆ dom σ⌝ ∗ proph_map_interp κs ps.
@@ -533,13 +533,6 @@ Section ewp_def.
           satisfy the [ewp] when continued with the continuation [k]. *)
        | WPPerform e k =>
            |={E}=> Ψ allows perform e << λ o, ▷ ewp E (k o) Ψ φ >>
-       (* [EWP4]: [m] is a computation that can take a step.
-
-          The trace is split as [κ ++ κs]: [κ] is what THIS step emits and
-          [κs] is the rest of the future. Every step but a prophecy
-          resolution has [κ = []], so in practice the split is trivial —
-          but it is what lets the resolution rule learn that the head of
-          its [proph] assertion is the value it just observed. *)
        | WPStep =>
            ∀ σ κ κs π,
              state_interp (σ, κ ++ κs, π) ={E, ∅}=∗
@@ -665,7 +658,7 @@ Global Instance bottom_fun {Σ} {A : Type} : Bottom (A → iProp Σ) := λ _, Fa
 (* Notation for [impure] *)
 
 (* Notations with explicit exceptional postcondition.
-   The exception postcondition comes BEFORE the return postcondition
+   The exception postcondition comes before the return postcondition
    so the parser can distinguish from the short form. *)
 
 Notation "'EWP' e ⟨⟨ ζ ⟩⟩ {{ Φ } }" :=
@@ -845,7 +838,7 @@ Notation "'EWP' e @ E <| Ψ '|>' {{ v , Q } }" :=
 
 (* Both binders are parsed [as pattern], so either postcondition may destructure
    its result directly: [{{ (x, y), Q }}], [⟨⟨ (i, j), R ⟩⟩]. Write the pattern
-   without a leading ['] — a quoted [{{ '(x, y), Q }}] would send the parser into
+   without a leading [']: a quoted [{{ '(x, y), Q }}] would send the parser into
    stdpp's ["' x ← y ; z"] (monadic bind) rule and fail asking for [←]. This is
    also the form Rocq prints back, so the notation round-trips. *)
 

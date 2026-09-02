@@ -294,14 +294,11 @@ Local Ltac2 collect_evars (c : constr) : constr list :=
   collect c;
   Ref.get acc.
 
-(* When the current branch has just been shown impossible (a constructor
-   clash), every failure-postcondition evar that the pattern lemmas created for
-   it becomes irrelevant — but, since the goal is about to be discharged by
-   contradiction, those evars would otherwise be left dangling (shelved).
-   [pin_failure_postconds] pins each of them to [False].  Failure postconditions
-   have type [Prop] or [T -> Prop] over the *matched* value type [T]; the
-   success postcondition has type [env -> Prop] and is deliberately excluded
-   (it is discharged elsewhere, e.g. by [iIntros (? [])] in the Iris handler). *)
+(* When the current branch has been shown impossible (a constructor clash),
+   the failure-postcondition evars the pattern lemmas created for it become
+   irrelevant, and would be left dangling (shelved) by the discharge.
+   [pin_failure_postconds] pins each to [False]. The success postcondition,
+   of type [env -> Prop], is excluded: it is discharged elsewhere. *)
 Local Ltac2 pin_failure_postconds () :=
   List.iter
     (fun e =>
@@ -313,22 +310,6 @@ Local Ltac2 pin_failure_postconds () :=
        | _ => ()
        end)
     (collect_evars (Control.goal ())).
-
-(* [subst] eliminates, for an equation [x = y] between two variables, the
-   left-hand variable [x].  During pattern matching this can be exactly the
-   wrong direction: a constructor pattern's guard reads
-   [scrutinee = Ctor <binders>], so after the [inversion] in [destruct_hyp]
-   the component equations relate the scrutinee's *pre-existing* variables
-   (left) to the *just-introduced* pattern binders (right), and plain
-   [subst] then eliminates the pre-existing variable.  The ambient Iris
-   context still mentions that variable, but this pure subgoal can no
-   longer name it: [close_success] (handler_tactics.v) has to close the
-   branch environment over the surviving pattern binder existentially,
-   leaving the branch environment unconstrained — and the branch body
-   unprovable.  [subst_keeping_older] instead eliminates, for every
-   variable-variable equation, the variable bound *later* in the local
-   context — the pattern binder — and only then lets [subst] deal with the
-   remaining (variable-term) equations. *)
 
 Local Ltac2 ctx_index (id : ident) : int :=
   let rec go i hs :=
@@ -434,9 +415,9 @@ Local Ltac2 rec destruct_hyp (h : ident) : unit :=
       if Constr.equal a b then clear h else
         ((* A clash of head constructors makes this branch impossible, and the
             discharge below ([inversion] / [congruence]) closes the goal by
-            contradiction.  If the current goal is a [pattern] whose failure
+            contradiction. If the current goal is a [pattern] whose failure
             postcondition is still an evar, that discharge would leave it
-            dangling (shelved) — so pin it to [False] first. *)
+            dangling (shelved), so pin it to [False] first. *)
          (match get_constructor a, get_constructor b with
           | Some c1, Some c2 =>
               if Bool.neg (Constr.equal c1 c2) then pin_failure_postconds ()
@@ -1034,13 +1015,11 @@ Ltac2 pure_const0 (bopt : constr option) :=
   match! e with
   | EConstant ?c =>
       (* Specialize [pure_eval_const] to the constant [c] and the
-         postcondition's domain type, so that the [Constant] instance
-         is resolved at elaboration time (see
-         [specialized_imp_EConstant] in imp_tactics.v).  The type is
-         read off the postcondition, unless it is given explicitly —
-         which is needed when the goal leaves it undetermined (e.g. a
-         constant tuple component whose type nothing constrains
-         yet). *)
+         postcondition's domain type, so that the [Constant] instance is
+         resolved at elaboration time (see [specialized_imp_EConstant] in
+         imp_tactics.v). The type is read off the postcondition, unless
+         given explicitly, which is needed when the goal leaves it
+         undetermined. *)
       let b :=
         match bopt with
         | Some b => b

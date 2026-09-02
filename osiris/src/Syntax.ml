@@ -339,7 +339,7 @@ type expr =
      value of the auxiliary argument [a], at the very step at which [e]
      produces that result.
 
-     In OCaml this is written as an ATTRIBUTE on the resolved expression,
+     In OCaml this is written as an attribute on the resolved expression,
      [e [@resolve p v]], rather than as a function call: the resolution is
      a ghost annotation with no runtime meaning, and an attribute is
      erased by the OCaml compiler, so the program still runs unchanged.

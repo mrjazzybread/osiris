@@ -179,10 +179,7 @@ Section ewp_rules.
         iModIntro.
         iApply ("IH" with "Hwp"). }
       destruct Hstep as [ Hstep | Hstep ].
-      { (* Case: [m1] is a resolution. [try2] pushes into its
-           continuation, which none of the three rules inspects, so each
-           of them transfers — observation and all. *)
-        destruct Hstep as (Y & c & y & k & ->).
+      { destruct Hstep as (Y & c & y & k & ->).
         iSplitR; [ iPureIntro; by apply can_progress_try2 | ].
         simpl try2. cbn match.
         iIntros (σ' m' μ) "%Hstep2".
@@ -336,10 +333,7 @@ Section ewp_rules.
         ewp_mask_elim. iMod "H1" as "(H1 & $)".
         iApply ("IH" with "H1 H2 Hjoin").
 
-      - (* Step then one of the three [Resolve] rules. Floating out of the
-           [Par] changed only the continuation, which none of them looks
-           at, so each transfers — observation and all. *)
-        ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
+      - ewp_mask_intro "Hmod"; ewp_mask_elim; iFrame.
         rewrite (ewp_unfold (Stop (CResolve c) x _)) /ewp_pre /=.
         clear κs.
         ewp_unfold_head. intro_state. spec_state. iModIntro.

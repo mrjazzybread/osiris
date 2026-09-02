@@ -138,7 +138,7 @@ Qed.
    arguments quantified before the nested calls. *)
 
 (* [aSpec] is used when we want to do induction over all arguments at
-   once. The user is NOT exposed to it, we only use it in our
+   once. The user is not exposed to it, we only use it in our
    intermediary lemma [prove_aSpec_rec]. *)
 
 Equations aSpec (τ : types)

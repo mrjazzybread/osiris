@@ -22,8 +22,8 @@ Section verification.
 
   (* [imp_arith reading] splits the resource in two, and the proofmode
      does that through [AsFractional]; hence the [DfracOwn]. Reading at a
-     discarded share does not need [imp_arith]'s splitting at all — the
-     resource is duplicable there ([ownBlock_discarded_dup]). *)
+     discarded share needs no splitting: the resource is duplicable there
+     ([ownBlock_discarded_dup]). *)
   Definition length_spec r (m : microvx) : iProp Σ :=
     ∀ qp t (x y : Z),
       ▷ ownBlock (τ:=τ[Z; Z]) r (DfracOwn qp) t (x, y) -∗
@@ -93,9 +93,6 @@ Section verification.
     { imp_arith. }
     iIntros (i) "->". by iFrame.
   Qed.
-
-  (* The same, on an inline record, through an alias pattern — the shape
-     generated for [match v with Root ({ x = a; y = b } as w) -> ...]. *)
 
   Lemma match_inline_record_fields η r qp t (x y : Z) :
     ownBlock (τ:=τ[Z;Z]) r qp t (x, y) -∗

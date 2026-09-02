@@ -37,21 +37,6 @@ Proof.
       lia.
 Qed.
 
-(* The generalized edge-addition lemma the linking CAS actually needs:
-   unlike [UnionFind03Link.is_dsf_link], this does NOT require the new
-   edge's target [y'] to currently be a root — only that [y']'s id is
-   strictly below [a]'s (exactly the [x.id > y.id] branch guard). This
-   matters because [y'] is a STALE [findc]-time snapshot: nothing
-   re-checks its root-status right before the CAS that installs the edge,
-   so a concurrent [union] could in principle have already merged [y']
-   away by then. Soundness (no cycle, [Defined Repr] still holds) comes
-   from [id_bounded] instead: if [y']'s current representative [ry] were
-   ever equal to [a], the (necessarily nonempty, since [y' ≠ a]) path
-   [y' ->* a] would force [id a < id y'] via [path_id_decrease],
-   contradicting the branch guard [id y' < id a] directly — so [ry ≠ a],
-   and [w]'s new representative (for any [w] that used to route to [a])
-   is simply [ry] itself, reached via [w ->* a -> y' ->* ry]. *)
-
 Lemma dsf_link_general (M : gmap elem Z) (F : elem -> elem -> Prop) (a y' : elem) (ia iy : Z) :
   DSF F (dom M) ->
   id_bounded M F ->

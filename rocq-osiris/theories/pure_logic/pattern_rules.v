@@ -474,10 +474,10 @@ Section pattern_rules.
 
   (* [vs] is in one-to-one correspondence with [fps]: its head is the
      value of the field that the head pattern selects. The field index
-     [f] therefore plays no role here — the selection happened in
-     [loadfs], at the point where the field was read. The head is still
-     named by an equation rather than by a [v :: vs'] pattern, so that
-     the automation can normalize it (see [fpats] in [pure_tactics]). *)
+     [f] plays no role here; the selection happened in [loadfs], where the
+     field was read. The head is named by an equation rather than by a
+     [v :: vs'] pattern, so that the automation can normalize it (see
+     [fpats] in [pure_tactics]). *)
 
   Lemma fpats_cons_unary η δ f p fps vs vs' v φ ψ1 ψ2 :
     vs = v :: vs' →

@@ -310,7 +310,7 @@ Section can_progress.
     { apply invert_step_try2 in H; last assumption.
       destruct H as (? & Hstep' & ->).
       eexists; split; [ reflexivity | apply BaseS; assumption ]. }
-    (* In the remaining cases — [Fork], [Join] and the three [Resolve]s —
+    (* In the remaining cases ([Fork], [Join] and the three [Resolve]s)
        [try2] pushes into the continuation, so [m] is itself the offending
        [Stop], which cannot step, contradicting [can_step (σ, m)]. *)
     all: symmetry in x;

@@ -219,7 +219,7 @@ Proof.
   iIntros "!>" (w j) "#Hw %Hne".
   rewrite /update_class /fcupdate in Hne.
   case_decide as Hcase.
-  - (* [w] is in [b]'s old class. If it was a root it IS [b]. *)
+  - (* [w] is in [b]'s old class. If it was a root it is [b]. *)
     destruct (decide (R w = w)) as [Hrw | Hrw].
     + rewrite -Hrw Hcase Hb. iExists rc, lp. iExact "Hlk".
     + iApply ("Hdeth" with "Hw"). iPureIntro. exact Hrw.
@@ -475,21 +475,7 @@ Proof.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
-(* Accessing the invariant with the right to MOVE the abstract state. *)
-
-(* [uf_inv_acc] hands the cell back exactly as it took it. The linking
-   CAS does not: it writes a new content, it turns a root into a link in
-   the registry, and it moves [R] and [V]. [uf_close] is the closing half
-   that admits all of that, and it is where the whole burden of
-   re-establishing [uf_inv] is discharged — the caller is left with pure
-   side conditions and nothing else.
-
-   The vertex registry [M] itself never moves here: no step that writes a
-   content cell registers or unregisters a vertex (that is [make]'s job,
-   [register_vertex]). So [M] is a parameter of the closer, and the two
-   facts about the new state are stated against it. The two conditions
-   after them are exactly [vertex_own_reindex]'s: no vertex OTHER than
-   [z] changes root-status, and no surviving root changes value. *)
+(* Accessing the invariant with the right to move the abstract state. *)
 
 Definition uf_close (γ : uf_names) (z : elem) (j : Z) (lzc : locations.loc)
     (M : gmap elem Z) (R : elem → elem) (V : elem → val) : iProp Σ :=
@@ -539,18 +525,18 @@ Qed.
    piece of ghost bookkeeping the caller would otherwise have to do with
    the invariant's authorities in hand:
 
-   - the registry [M] itself, with [z]'s entry AND the entry of one other
+   - the registry [M] itself, with [z]'s entry and the entry of one other
      vertex [y] the caller names up front. The linking CAS has to compare
      the two identifiers, so it needs [y]'s; and it cannot look it up
      itself, since the authority stays inside the closer.
 
    - the state facts [uf_repr M R] and the value coherence.
 
-   - the right to link [z] away: the second branch consumes [z]'s
-     root token, registers a fresh link record, and hands back the
-     persistent [linked] witness — the ghost step that dethrones [z].
-     A caller that only reads, or whose CAS failed, takes the first
-     branch and closes unchanged. *)
+   - the right to link [z] away: the second branch consumes [z]'s root
+     token, registers a fresh link record, and hands back the persistent
+     [linked] witness, the ghost step that dethrones [z]. A caller that
+     only reads, or whose CAS failed, takes the first branch and closes
+     unchanged. *)
 
 Lemma uf_inv_acc_update γ z j lzi lzc (y : elem) (k : Z) :
   z ↪[γ.(uf_vert)]□ j -∗
@@ -611,7 +597,7 @@ Proof.
   - intros w _ _ _. reflexivity.
 Qed.
 
-(* Closing on the LINKING transition: [z], a root, is linked into [y],
+(* Closing on the linking transition: [z], a root, is linked into [y],
    whose identifier is strictly below [z]'s, and its cell now holds the
    fresh link record [rc].
 
@@ -659,13 +645,13 @@ Proof.
     rewrite lookup_update_class. exact Hne.
 Qed.
 
-(* Closing on the VALUE transition: [z], a root, keeps its root-status
+(* Closing on the value transition: [z], a root, keeps its root-status
    and its class, and its cell swings to a freshly allocated [Root]
    record carrying [v].
 
    [R] does not move at all, so no vertex changes root-status and the two
    reindexing conditions are almost vacuous: the only one with content is
-   that no OTHER root's value moved, which holds because [z] is the sole
+   that no other root's value moved, which holds because [z] is the sole
    root of the class the update touches ([lookup_update_class_ne], read
    at a root [w ≠ z]). Value coherence is [lookup_class_root]: assigning
    a whole class at once is exactly what keeps [V u = V (R u)]. *)
@@ -963,7 +949,7 @@ Qed.
 
 (* This is [uf_vertex_content_acc] with the abstract state added: the
    continuation receives the invariant's half of [UF] with the fact
-   that if the cell holds a root, then [z] IS its own representative.
+   that if the cell holds a root, then [z] is its own representative.
 
    The state is handed over read-only. *)
 
@@ -1073,7 +1059,7 @@ Proof.
   iInv "Hinv" as "H" "Hclose".
   iMod (uf_inv_acc with "Hhfrag Hhlocs H") as (c D Rp Vp)
     "(_ & Hcont & Hlc & Hcell & Hframe)".
-  (* [h] is linked, so its cell holds a [Link] — and the record is [rc],
+  (* [h] is linked, so its cell holds a [Link], and the record is [rc],
      since a vertex's link record is fixed once and for all. *)
   destruct c as [rc'|rc'].
   { (* A root's cell owns [h ↪[γ.(uf_link)] None], which [linked] refutes. *)
@@ -1081,7 +1067,7 @@ Proof.
     iNext. iDestruct "Hcell" as "(_ & Htok & _)".
     iApply (linked_not_root with "Hlk Htok"). }
   iDestruct "Hcell" as "(%lp' & >%Hnr & >#Hlk' & Hlf)".
-  (* [linked] settles the record AND its field's location in one step. *)
+  (* [linked] settles the record and its field's location in one step. *)
   iDestruct (linked_agree with "Hlk' Hlk") as %[-> ->].
   iDestruct "Hlf" as (y jy) "(#HP & Hlp & #Hy & >%Hjy & >#Hsc)".
   iModIntro. iExists y, jy.
@@ -1323,7 +1309,7 @@ Proof.
     iModIntro. iApply ("HΦ" $! false with "[$HP $Hrcn]"). }
 
   (* CAS success. As in the linking case, the cell's content sits at the
-     very record the expected [Root] describes, so it IS that [Root]. *)
+     very record the expected [Root] describes, so it is that [Root]. *)
   destruct c as [rc0|rc0]; simpl in Heq; subst rc0; last first.
   { iDestruct "Hcell" as "(%lp0 & _ & Hlk0 & Hlf)".
     iDestruct (linked_locs with "Hlk0") as "#Hlocs0".
@@ -1343,8 +1329,7 @@ Proof.
   iMod (root_val_alloc with "Hrcn") as "#Hrvn".
 
   (* Re-close under the new value function: [uf_close_set] carries the
-     state argument. [x] keeps its root token — it was a root and stays
-     one. *)
+     state argument. [x] keeps its root token. *)
   iDestruct "Hframe" as "[Hframe _]".
   iMod ("Hclose" with "[- HΨ HΦ]") as "_".
   { iNext. iApply (uf_close_set with "Hframe Hcont Hlc' Htokl Hrvn"); done. }

@@ -12,10 +12,10 @@
       which slot it looked at), so the resolution trace records, in order, the
       elements the queue is going to hand out. [take_data] decodes that trace.
 
-      The decoding is TRUNCATED: it stops at the first entry that could not
+      The decoding is truncated: it stops at the first entry that could not
       possibly be a real observation. This is essential. The trace [pvs] is
       universally quantified when the prophecy is created, so nothing may be
-      assumed about it -- but every property below holds for an ARBITRARY
+      assumed about it -- but every property below holds for an arbitrary
       [pvs], because a trace that would break the property is cut short before
       it does.
 
@@ -70,7 +70,7 @@ Fixpoint take_data (cap : Z) (deqs : gset Z) (pvs : list (val * val))
 
 Notation take_slots cap deqs pvs := ((take_data cap deqs pvs).*1).
 
-(* The three properties the invariant needs, for an ARBITRARY trace. *)
+(* The three properties the invariant needs, for an arbitrary trace. *)
 
 Lemma take_data_deqs cap deqs pvs j :
   j ∈ deqs → j ∉ take_slots cap deqs pvs.
