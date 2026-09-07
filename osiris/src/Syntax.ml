@@ -280,12 +280,6 @@ type expr =
   (* Recursive local definition: [let rbs in e]. *)
   | ELetRec of rec_bindings * expr
 
-  (* Local module definition: [let module M = me in e]. *)
-  | ELetModule of name * mexpr * expr
-
-  (* Local [open] directive: [let open me in e]. *)
-  | ELetOpen of mexpr * expr
-
   (* Sequence: [e1; e2]. *)
   | ESeq of expr * expr
 
@@ -318,6 +312,8 @@ type expr =
 
   (* Runtime assertion: [assert(e)]. *)
   | EAssert of expr
+
+  | ELetSitem of sitem * expr
 
   (* Reference allocation: [ref e]. *)
   | ERef of expr

@@ -68,7 +68,7 @@ Fixpoint take_data (cap : Z) (deqs : gset Z) (pvs : list (val * val))
   | _ => []
   end.
 
-Notation take_slots cap deqs pvs := ((take_data cap deqs pvs).*1).
+Abbreviation take_slots cap deqs pvs := ((take_data cap deqs pvs).*1).
 
 (* The three properties the invariant needs, for an arbitrary trace. *)
 

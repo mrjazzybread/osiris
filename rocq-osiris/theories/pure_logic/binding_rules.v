@@ -1,6 +1,6 @@
 From Stdlib.Logic Require Import FunctionalExtensionality.
 From osiris Require Import base.
-From osiris.lang Require Import lang ind.
+From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics.
 
 Require Import wp pure_rules judgements pattern_rules.
@@ -92,42 +92,71 @@ Section eval_pat_app.
   Local Ltac rew := repeat (unfold orelse, try, glue2, continue || rewrite ?bind_as_try, ?try2_try2; simpl).
   Local Ltac ext x := let o := fresh "o" in f_equal; extensionality o; destruct o as [ x | ]; auto.
 
+  Lemma eval_pat_app_aux η ps :
+  list_all@{Prop; Set Set} pat
+      (λ p : pat,
+         ∀ (v : val) (δ : env), eval_pat η δ p v = 'δ' ← eval_pat η [] p v;
+                                                   ret (δ' ++ δ))
+      ps →
+  ∀ (vs : list val) (δ : env),
+  eval_pats η δ ps vs = 'δ' ← eval_pats η [] ps vs;
+                        ret (δ' ++ δ).
+  Proof.
+   induction ps; intros Hinv vs δ.
+   - destruct vs; simpl_eval_pats; try reflexivity.
+   - simpl_eval_pats. destruct vs; first done.
+     inversion Hinv as [ | ? Hpat ? Hpats ]; subst.
+     rewrite Hpat. rewrite !bind_bind. f_equal. extensionality δ'.
+     rewrite bind_ret, bind_bind.
+     rewrite IHps; last assumption. rewrite (IHps Hpats vs δ').
+     rewrite !bind_bind.
+     f_equal. extensionality δ''.
+     rewrite !bind_ret. by rewrite app_assoc.
+  Qed.
+
   Lemma eval_pat_app p v η δ : eval_pat η δ p v = 'δ' ← eval_pat η [] p v; ret (δ' ++ δ).
   Proof.
     revert p v δ.
-    apply (pat_ind
-             (λ p, ∀ v δ, eval_pat η δ p v = bind (eval_pat η [] p v) (λ δ', ret (δ' ++ δ)))
-             (λ ps, ∀ vs δ, eval_pats η δ ps vs = bind (eval_pats η [] ps vs) (λ δ', ret (δ' ++ δ)))
-             (λ fps, ∀ vs δ, eval_fpats η δ fps vs = bind (eval_fpats η [] fps vs) (λ δ', ret (δ' ++ δ)))
-          ); intros ? ?; intros; simpl_eval_pat || simpl_eval_pats || idtac; simpl; auto.
+    induction p; intros ? ?; intros; simpl_eval_pat || simpl_eval_pats || idtac; simpl; auto.
     - rewrite IHp. rewrite !bind_bind. reflexivity.
     - rewrite IHp1, IHp2. rew. ext δ'.
-    - destruct v; auto.
+    - destruct v; auto. apply eval_pat_app_aux; assumption.
     - destruct v; auto. destruct (_ =? _)%string; auto.
-    - destruct v; auto. rewrite IHps. rew. ext l'. destruct (locations.eqb _ _); auto.
+      apply eval_pat_app_aux; assumption.
+    - destruct v; auto. destruct (lookup_path η π); last by unfold bind.
+      unfold as_loc; simpl; rewrite bind_ret.
+      destruct v0; simpl; try by rewrite !bind_crash.
+      rewrite !bind_ret.
+      destruct (locations.eqb _ _); auto.
+      apply eval_pat_app_aux; assumption.
     - destruct v; auto.
       rew. f_equal. ext o. simpl; unfold continue; simpl.
-      destruct o. rew. f_equal. ext o. rewrite IHfps.
-      rewrite bind_as_try2. auto.
+      destruct o. rew. f_equal. ext vs.
+      clear m l0. revert vs. generalize dependent δ.
+      induction fps.
+      + simpl_eval_fpats. reflexivity.
+      + simpl_eval_fpats. intros δ vs.
+        inversion H as [ | ? Hfpat ? Hpats ]; subst.
+        specialize (IHfps Hpats). clear Hpats.
+        destruct a.
+        destruct vs; first reflexivity.
+        inversion Hfpat as [ ? ? ? Hpat ]; subst.
+        rewrite Hpat. rewrite bind_bind.
+        rew. f_equal. extensionality o. destruct o; last reflexivity.
+        rewrite bind_ret, !bind_ret_right.
+        rewrite IHfps.
+        rewrite (IHfps a). rewrite try2_try2.
+        f_equal. extensionality o; destruct o; last done.
+        simpl; unfold continue. by rewrite app_assoc.
     - destruct v; auto. destruct (_ =? _)%string; auto.
     - destruct v; auto.
       rew. f_equal. ext o. rew.
-      destruct o. rew. f_equal. ext o. rewrite IHps.
-      rewrite bind_as_try2. by case_decide.
+      destruct o. rew. f_equal. ext o. case_decide; last done.
+      rewrite eval_pat_app_aux; last assumption.
+      by rewrite bind_as_try2.
     - destruct v; auto. destruct (int.eq _ _); auto.
     - destruct v; auto. destruct (_ =? _)%char; auto.
     - destruct v; auto. destruct (_ =? _)%string; auto.
-    - destruct vs; auto.
-    - destruct vs; auto. rewrite IHp. rew. ext δ1. rew.
-      rewrite (IHps _ δ1), (IHps _ (δ1 ++ _)).
-      rew. ext δ2. rewrite app_assoc. auto.
-    - simpl_eval_fpats. by rew.
-    - destruct vs; simpl_eval_fpats.
-      + by rew.
-      + rewrite IHp. rewrite !bind_bind. f_equal. extensionality δ'.
-        rewrite bind_ret. rewrite !bind_ret_right. rewrite IHfps.
-        rewrite (IHfps vs δ'). rewrite bind_bind. f_equal. extensionality δ''.
-        rew. by rewrite app_assoc.
   Qed.
 End eval_pat_app.
 

@@ -1,5 +1,5 @@
 From osiris.utils Require Import base list_z.
-From osiris.lang Require Import lang ind.
+From osiris.lang Require Import lang.
 From osiris.semantics Require Import semantics strategy.
 Require Import erasure.
 
@@ -324,26 +324,36 @@ Fixpoint eq_vals (vs1 vs2 : list val) : micro bool exn :=
       structural_equality_error "tuple length mismatch"
   end.
 
+Lemma erase_eq_vals vs1 :
+  list_all@{Prop; Set Set} val
+    (λ v1 : val, ∀ v2 : val, erase_micro id erase_val (eq_val v1 v2) (eq_val (erase_val v1) (erase_val v2)))
+      vs1 →
+  ∀ vs2,
+  erase_micro id erase_val
+    (eq_vals vs1 vs2) (eq_vals (erase_vals vs1) (erase_vals vs2)).
+Proof.
+  intros Hinv.
+  induction vs1 as [ | v1 vs1 IHvs ].
+  - intros vs2. destruct vs2; constructor.
+  - intros [ | v2 vs2 ]; first constructor.
+    simpl.
+    eapply erase_bind; [ by inversion Hinv | ]. intros b.
+    eapply erase_bind; [ by apply IHvs; inversion Hinv | ]. intros b'.
+    apply (EM_Ret id erase_val (b && b')).
+Qed.
+
 Lemma erase_eq_val v1 :
   ∀ v2, erase_micro id erase_val
           (eq_val v1 v2) (eq_val (erase_val v1) (erase_val v2)).
 Proof.
-  apply (val_ind
-    (λ v1, ∀ v2, erase_micro id erase_val
-                   (eq_val v1 v2) (eq_val (erase_val v1) (erase_val v2)))
-    (λ vs1, ∀ vs2, erase_micro id erase_val
-                     (eq_vals vs1 vs2) (eq_vals (erase_vals vs1)
-                                                (erase_vals vs2))));
+  induction v1;
     intros; try (destruct v2; simpl; first [ apply EM_Crash
                                            | exact (EM_Ret id erase_val _) ]).
-  - destruct v2; simpl; try apply EM_Crash. by apply IHvs.
-  - destruct v2; simpl; try apply EM_Crash.
-    case_match; last exact (EM_Ret id erase_val false). by apply IHvs.
-  - destruct vs2; simpl; [ exact (EM_Ret id erase_val true) | apply EM_Crash ].
-  - destruct vs2 as [| v2 vs2 ]; simpl; first apply EM_Crash.
-    eapply erase_bind; [ apply IHv | ]. intros b.
-    eapply erase_bind; [ apply IHvs | ]. intros b'.
-    exact (EM_Ret id erase_val (b && b')).
+  - destruct v2; simpl; try apply EM_Crash. fold eq_vals. fold erase_vals.
+    apply erase_eq_vals. apply H.
+  - destruct v2; simpl; try apply EM_Crash. fold eq_vals. fold erase_vals.
+    case_match; try by constructor.
+    apply erase_eq_vals. apply H.
 Qed.
 
 Lemma erase_ne_val v1 v2 :
@@ -624,23 +634,36 @@ Fixpoint coerces (xcs : list fcoercion) (xvs : env) : option env :=
 
 End Coerces.
 
+Lemma erase_coerces xcs :
+  list_all@{Type ; Set Set} (var * coercion)
+    (prod_all@{Type Prop ; Set Set Set Set} string (λ _, unit) coercion
+      (λ c, ∀ v, coerce c (erase_val v) = erase_val <$> coerce c v))
+    xcs →
+  ∀ η,
+    coerces xcs (erase_env η) = erase_env <$> coerces xcs η.
+Proof.
+  induction xcs as [ | (x, c) xcs IHs ]; intros Hinv.
+  - done.
+  - inversion Hinv as [ | ? Hxc ? Hxcs ]; subst.
+    inversion Hxc as [ ??? Hcoerce ]; subst.
+    intros η. simpl. rewrite erase_lookup_name.
+    destruct (lookup_name η x); last done.
+    simpl. rewrite Hcoerce.
+    destruct (coerce c v); last done.
+    rewrite IHs. by destruct (coerces xcs η). assumption.
+Qed.
+
 Lemma erase_coerce c :
   ∀ v, coerce c (erase_val v) = erase_val <$> coerce c v.
 Proof.
-  apply (coercion_ind
-    (λ c, ∀ v, coerce c (erase_val v) = erase_val <$> coerce c v)
-    (λ xcs, ∀ xvs, coerces xcs (erase_env xvs) = erase_env <$> coerces xcs xvs));
+  induction c;
     (* [coerce]'s body carries the local [fix]; [coerces] is the same term *)
     intros; simpl; change (pre_coerces coerce) with coerces.
   - done.
   - rewrite erase_val_as_struct_opt.
     destruct (val_as_struct_opt v) as [ xvs | ]; simpl; last done.
-    rewrite IHxcs. by destruct (coerces xcs xvs).
-  - done.
-  - rewrite erase_lookup_name.
-    destruct (lookup_name xvs x) as [ v | ]; simpl; last done.
-    rewrite IHc. destruct (coerce c0 v) as [ v' | ]; simpl; last done.
-    rewrite IHxcs. by destruct (coerces xcs xvs).
+    rewrite erase_coerces; last apply H.
+    by destruct (coerces xcs xvs).
 Qed.
 
 Lemma erase_eval_type_extensions cs :
@@ -759,23 +782,58 @@ Local Ltac ee_expose_cons :=
       erase_rec_bindings erase_sitems ];
   ee_cons_eqs.
 
+Lemma erase_evals_pats ps :
+  list_all@{Prop; Set Set} pat
+      (λ p : pat,
+         ∀ (η δ : env) (v : val),
+           erase_micro erase_env id (eval_pat η δ p v)
+             (eval_pat (erase_env η) (erase_env δ) p (erase_val v)))
+      ps →
+  ∀ (η δ : env) (vs : list val),
+    erase_micro erase_env id (eval_pats η δ ps vs)
+    (eval_pats (erase_env η) (erase_env δ) ps (erase_vals vs)).
+Proof.
+  induction ps as [ | p ps IHps ].
+  - intros. destruct vs; simpl_eval_pats.
+    + ee_ret.
+    + constructor.
+  - intros Hinv.
+    inversion Hinv as [ | ? Hpat ? Hpats ]; subst.
+    intros η δ vs.
+    simpl_eval_pats. case_match; first constructor.
+    subst. simpl.
+    eapply erase_bind. apply Hpat. intro b.
+    eapply erase_bind. apply IHps. apply Hpats. intro η'.
+    ee_ret.
+Qed.
+
+Lemma erase_eval_fpats fps :
+  list_all@{Type ; Set Set} (field * pat)
+    (prod_all@{Type Prop ; Set Set Set Set} Z (λ _ : Z, ()%type) pat
+       (λ p : pat,
+          ∀ (η δ : env) (v : val),
+            erase_micro erase_env id (eval_pat η δ p v) (eval_pat (erase_env η) (erase_env δ) p (erase_val v))))
+    fps →
+  ∀ (η δ : env) (vs : list val),
+  erase_micro erase_env id (eval_fpats η δ fps vs) (eval_fpats (erase_env η) (erase_env δ) fps (erase_vals vs)).
+Proof.
+  induction fps as [ | (f, p) ps IHps ]; intros Hinv η δ vs.
+  - destruct vs; simpl_eval_fpats; ee_ret.
+  - inversion Hinv as [ | ? Hprod ? Hpats ]; subst.
+    inversion Hprod as [ ??? Hpat ]; subst.
+    simpl_eval_fpats. destruct vs; first constructor.
+    simpl.
+    eapply erase_bind; [ apply Hpat | ]. intros η'.
+    eapply erase_bind; [ apply IHps; assumption | ]. intros η''.
+    ee_ret.
+Qed.
+
 Lemma erase_eval_pat p :
   ∀ η δ v, erase_micro erase_env id
              (eval_pat η δ p v)
              (eval_pat (erase_env η) (erase_env δ) p (erase_val v)).
 Proof.
-  apply (pat_ind
-    (λ p, ∀ η δ v, erase_micro erase_env id
-                     (eval_pat η δ p v)
-                     (eval_pat (erase_env η) (erase_env δ) p (erase_val v)))
-    (λ ps, ∀ η δ vs, erase_micro erase_env id
-                       (eval_pats η δ ps vs)
-                       (eval_pats (erase_env η) (erase_env δ) ps
-                                  (erase_vals vs)))
-    (λ fps, ∀ η δ vs, erase_micro erase_env id
-                        (eval_fpats η δ fps vs)
-                        (eval_fpats (erase_env η) (erase_env δ) fps
-                                    (erase_vals vs)))).
+  induction p.
   (* A pattern holds no expressions, so both sides run the *same* pattern
      against a value and its erasure, and every test they make is one
      erasure preserves. *)
@@ -784,74 +842,61 @@ Proof.
   - (* PAny *)
     intros η δ v; simpl_eval_pat; ee_ret.
   - (* PVar *)
-    intros x η δ v; simpl_eval_pat; ee_ret.
+    intros η δ v; simpl_eval_pat; ee_ret.
   - (* PAlias *)
-    intros q x IHq η δ v; simpl_eval_pat;
-    eapply erase_bind; [ apply IHq | ]; intros δ'; ee_pair; ee_ret.
+    intros η δ v; simpl_eval_pat;
+    eapply erase_bind; [ apply IHp | ]; intros δ'; ee_pair; ee_ret.
   - (* POr *)
-    intros q1 q2 IHq1 IHq2 η δ v; simpl_eval_pat;
-    eapply erase_orelse; [ apply IHq1 | apply IHq2 ].
+    intros η δ v; simpl_eval_pat;
+    eapply erase_orelse; [ apply IHp1 | apply IHp2 ].
   - (* PTuple *)
-    intros ps IHps η δ v;
-    destruct v; simpl_eval_pat; try apply EM_Crash; apply IHps.
+    intros η δ v;
+    destruct v; simpl_eval_pat; try apply EM_Crash.
+    fold erase_vals.
+    apply erase_evals_pats; assumption.
   - (* PData *)
-    intros d ps IHps η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
-    case_match; [ apply IHps | ee_ret ].
+    case_match; [ | ee_ret ]. fold erase_vals.
+    apply erase_evals_pats; assumption.
   - (* PXData *)
-    intros π ps IHps η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
     rewrite erase_lookup_path;
     eapply erase_bind; [ apply erase_as_loc, erase_of_option | ]; intros l';
     ee_pair;
-    case_match; [ apply IHps | ee_ret ].
+    case_match; [ | ee_ret ].
+    fold erase_vals.
+    apply erase_evals_pats; assumption.
   - (* PRecord *)
-    intros fps IHfps η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
-    eapply erase_bind; [ apply erase_loadfs | ]; intros vs; ee_pair;
-    apply IHfps.
+    eapply erase_bind; [ apply erase_loadfs | ]; intros vs; ee_pair.
+    apply erase_eval_fpats; assumption.
   - (* PInline *)
-    intros d q IHq η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash; try ee_ret;
-    case_match; [ apply IHq | ee_ret ].
+    case_match; [ apply IHp | ee_ret ].
   - (* PArray *)
-    intros ps IHps η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     eapply erase_bind; [ apply erase_loadn | ]; intros vs; ee_pair;
     rewrite erase_vals_length;
-    case_decide; [ apply IHps | ee_ret ].
+    case_decide; [ apply erase_evals_pats; assumption | ee_ret ].
   - (* PInt *)
-    intros z η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash;
     case_match; ee_ret.
   - (* PChar *)
-    intros c η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash;
     case_match; ee_ret.
   - (* PString *)
-    intros s η δ v;
+    intros η δ v;
     destruct v; simpl_eval_pat; try apply EM_Crash;
     case_match; ee_ret.
-  - (* no pattern *)
-    intros η δ vs;
-    destruct vs; cbn beta iota delta [ erase_vals ]; simpl_eval_pats;
-      [ ee_ret | apply EM_Crash ].
-  - (* a pattern and the rest *)
-    intros q ps IHq IHps η δ vs;
-    destruct vs; cbn beta iota delta [ erase_vals ]; simpl_eval_pats;
-      [ apply EM_Crash | ];
-    eapply erase_bind; [ apply IHq | ]; intros δ'; ee_pair;
-    eapply erase_bind; [ apply IHps | ]; intros δ''; ee_pair; ee_ret.
-  - (* no field pattern *)
-    intros η δ vs; simpl_eval_fpats; ee_ret.
-  - (* a field pattern and the rest *)
-    intros f q fps IHq IHfps η δ vs;
-    destruct vs; cbn beta iota delta [ erase_vals ]; simpl_eval_fpats;
-      [ apply EM_Crash | ];
-    eapply erase_bind; [ apply IHq | ]; intros δ'; ee_pair;
-    eapply erase_bind; [ apply IHfps | ]; intros δ''; ee_pair; ee_ret.
 Qed.
 
 Lemma erase_eval_cpat cp :
@@ -880,125 +925,161 @@ Proof.
   intros []. apply EM_Crash.
 Qed.
 
-
-Lemma erase_eval η e :
-  erase_microvx (eval η e) (eval (erase_env η) (erase_expr e)).
+Lemma erase_evals es :
+  list_all@{Type ; Set Set} expr (λ e, ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) es →
+  ∀ η,
+    erase_micro erase_vals erase_val (evals η es) (evals (erase_env η) (erase_exprs es)).
 Proof.
-  revert η.
-  apply (expr_ind
-    (* Pexpr: the expression on its own, and under a resolution. *)
-    (λ e, (∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e)))
-        ∧ (∀ η p v, erase_microvx (eval_resolved η e p v)
-                      (eval (erase_env η) (erase_expr e))))
-    (* Pexprs *)
-    (λ es, ∀ η, erase_micro erase_vals erase_val
-                  (evals η es) (evals (erase_env η) (erase_exprs es)))
-    (* Pfexpr *)
-    (λ fe, match fe with
-           | Fexpr _ e =>
-               ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
-           end)
-    (* Pfexprs *)
-    (λ fes, ∀ η, erase_micro erase_fvals erase_val
-                   (evalfs η fes) (evalfs (erase_env η) (erase_fexprs fes)))
-    (* Pbranch *)
-    (λ b, match b with
-          | Branch _ e =>
-              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
-          end)
-    (* Pbranches: the list as a deep handler, and as a shallow one. *)
-    (λ bs, (∀ η o, erase_microvx (eval_branches η o bs)
-                     (eval_branches (erase_env η) (erase_out3 o)
-                                    (erase_branches bs)))
-         ∧ (∀ η all_bs o,
-              erase_microvx (shallow_eval_branches η bs all_bs o)
-                (shallow_eval_branches (erase_env η) (erase_branches bs)
-                                       (erase_branches all_bs)
-                                       (erase_out3 o))))
-    (* Pbinding *)
-    (λ b, match b with
-          | Binding _ e =>
-              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
-          end)
-    (* Pbindings *)
-    (λ bs, ∀ η, erase_micro erase_env erase_val
-                  (eval_bindings η bs) (eval_bindings (erase_env η)
-                                                      (erase_bindings bs)))
-    (* Prec_binding *)
-    (λ rb, match rb with
-           | RecBinding _ (AnonFun _ e) =>
-               ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
-           end)
-    (* Prec_bindings *)
-    (λ rbs, ∀ η, eval_rec_bindings (erase_env η) (erase_rec_bindings rbs) =
-                 erase_env (eval_rec_bindings η rbs))
-    (* Panonfun *)
-    (λ a, match a with
-          | AnonFun _ e =>
-              ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))
-          end)
-    (* Pmexpr *)
-    (λ me, ∀ η, erase_microvx (eval_mexpr η me)
-                  (eval_mexpr (erase_env η) (erase_mexpr me)))
-    (λ i, ∀ η δ, erase_micro erase_envs erase_val
-                   (eval_sitem (η, δ) i)
-                   (eval_sitem (erase_env η, erase_env δ) (erase_sitem i)))
-    (* Psitems *)
-    (λ items, ∀ η δ, erase_micro erase_envs erase_val
-                       (eval_sitems (η, δ) items)
-                       (eval_sitems (erase_env η, erase_env δ)
-                                    (erase_sitems items)))).
+  induction es as [ | e es IHes ]; intros Hinv η.
+  - simpl_evals. constructor.
+  - simpl_evals.
+    inversion Hinv as [ | ? He ? Hes ]; subst.
+    eapply erase_bind;
+      [ apply erase_par; [ apply He | apply IHes, Hes ] | ].
+    intros (v, vs).
+    ee_ret.
+Qed.
+
+Fixpoint erase_unzip (fvs : list (field * val)) :=
+  match fvs with
+  | [] => []
+  | (f, v) :: fvs => (f, erase_val v) :: erase_unzip fvs
+  end.
+
+Lemma erase_evalfs fes :
+  list_all fexpr (λ '(Fexpr f e), ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) fes →
+  ∀ η,
+    erase_micro erase_unzip erase_val (evalfs η fes) (evalfs (erase_env η) (erase_fexprs fes)).
+Proof.
+  induction fes as [ | (f, e) fes IHfes ]; intros Hinv η.
+  - simpl_evalfs. ee_ret.
+  - simpl_evalfs.
+    inversion Hinv as [ | (? & ?) He ? Hfes ].
+    eapply erase_bind.
+    eapply erase_par; [ apply He | apply IHfes, Hfes ].
+    intros (v, fvs).
+    simpl. ee_ret.
+Qed.
+
+Lemma erase_eval_bindings bs :
+  list_all binding (λ '(Binding p e), ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) bs →
+  ∀ η,
+    erase_micro erase_env erase_val (eval_bindings η bs) (eval_bindings (erase_env η) (erase_bindings bs)).
+Proof.
+  induction bs as [ | (p, e) bs IHbs ]; intros Hinv η.
+  - simpl_eval_bindings. ee_ret.
+  - simpl_eval_bindings.
+    inversion Hinv as [ | (? & ?) He ? Hbs ]; subst.
+    eapply erase_bind.
+    eapply erase_par; [ apply He | apply IHbs, Hbs ].
+    intros (v, η').
+    simpl. apply erase_irrefutably_extend.
+Qed.
+
+Lemma erase_eval_branches_aux bs :
+  list_all branch (λ '(Branch cpat e), ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) bs →
+  ∀ η o,
+  erase_microvx (eval_branches η o bs) (eval_branches (erase_env η) (erase_out3 o) (erase_handler bs)).
+Proof.
+  induction bs as [ | (p, e) bs IHbs ]; intros Hinv η o.
+  - simpl_eval_branches. destruct o; constructor. constructor.
+    intros o. rewrite !try2_inject2. simpl. apply erase_resume.
+  - simpl_eval_branches.
+    inversion Hinv as [ | (? & ?) He ? Hbs ]; subst.
+    eapply erase_try2. apply erase_eval_cpat. intros [|()].
+    + simpl. apply He.
+    + simpl. apply IHbs, Hbs.
+Qed.
+
+Lemma erase_shallow_eval_branches_aux bs :
+  list_all branch (λ '(Branch cpat e), ∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e))) bs →
+  ∀ η all_bs o,
+    erase_micro erase_val erase_val (shallow_eval_branches η bs all_bs o)
+      (shallow_eval_branches (erase_env η) (erase_branches bs) (erase_branches all_bs) (erase_out3 o)).
+Proof.
+  induction bs as [ | (p, e) bs IHbs ]; intros Hinv η all_bs o.
+  - simpl_shallow_eval_branches. destruct o; constructor. constructor.
+    intros o. fold (@bind loc val exn). simpl. destruct o; constructor. constructor.
+    intros o. rewrite !try2_inject2. apply erase_resume.
+  - simpl_shallow_eval_branches.
+    inversion Hinv as [ | (? & ?) He ? Hbs ]; subst.
+    eapply erase_try. apply erase_eval_cpat. apply He.
+    intros (). apply IHbs, Hbs.
+Qed.
+
+Lemma erase_eval_sitems items :
+  list_all sitem
+    (λ struct : sitem,
+       ∀ (l : list (var * val)) (η : env),
+         erase_micro (λ '(η0, δ), (erase_env η0, erase_env δ)) erase_val (eval_sitem (η, l) struct)
+           (eval_sitem (erase_env η, erase_env l) (erase_sitem struct)))
+    items →
+  ∀ (η : env) (δ : env),
+    erase_micro erase_envs erase_val (eval_sitems (η, δ) items) (eval_sitems (erase_env η, erase_env δ) (erase_sitems items)).
+Proof.
+  induction items as [ | s items IHs]; intros Hinv η δ.
+  - simpl_eval_sitems. ee_ret.
+  - simpl. unfold eval_sitems. rewrite seal_eq. cbn [pre_eval_sitems].
+    rewrite fold_pre_eval_sitem, fold_pre_eval_sitems.
+    inversion Hinv as [ | ? Hitem ? Hitems ]; subst.
+    eapply erase_bind. apply Hitem. intros (? & ?).
+    apply IHs, Hitems.
+Qed.
+
+Lemma list_all_proj_1 {A : Type} P1 P2 l :
+  list_all A (λ a, P1 a ∧ P2 a) l →
+  list_all A P1 l.
+Proof.
+  induction l as [ | a l IH ].
+  - constructor.
+  - inversion 1; subst.
+    constructor. apply H0. by apply IH.
+Qed.
+
+Lemma erase_eval e :
+  (∀ η, erase_microvx (eval η e) (eval (erase_env η) (erase_expr e)))
+  ∧ (∀ η p v, erase_microvx (eval_resolved η e p v)
+       (eval (erase_env η) (erase_expr e))).
+Proof.
+  einduction e using expr_fexpr_rec;
+  try (apply and_dup; [ apply erase_resolved_of_eval; done | intros η ]).
   (* One case per clause of [eval], each following the shape of the
      computation that clause builds. *)
   - (* EUnsupported *)
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; apply EM_Crash.
   - (* EPath *)
-    intros π;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     rewrite erase_lookup_path; apply erase_of_option.
   - (* EAnonFun *)
-    intros a IHa;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EApp *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair; apply erase_call.
   - (* ETuple *)
-    intros es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair; ee_ret.
+    eapply erase_bind; [ | intros vs; ee_pair; ee_ret ].
+    fold erase_exprs. apply erase_evals. eapply list_all_proj_1, H.
   - (* EData *)
-    intros c es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair; ee_ret.
+    eapply erase_bind; [ apply erase_evals; eapply list_all_proj_1, H | ].
+    intros vs; ee_pair; ee_ret.
   - (* EXData *)
-    intros π es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     rewrite erase_lookup_path;
     eapply erase_bind; [ apply erase_as_loc, erase_of_option | ]; intros l;
     ee_pair;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair; ee_ret.
+    eapply erase_bind; [ apply erase_evals; eapply list_all_proj_1, H | ]; intros vs; ee_pair; ee_ret.
   - (* ERecord *)
-    intros t es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair;
+    eapply erase_bind; [ apply erase_evals; eapply list_all_proj_1, H | ]; intros vs; ee_pair;
     eapply erase_bind; [ apply erase_allocn | ]; intros ls; ee_pair;
     eapply erase_bind; [ apply erase_alloc_block | ]; intros l; ee_pair; ee_ret.
   - (* ERecordUpdate *)
-    intros e0 fes [ IHe0 _ ] IHfes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_record, IHe0 | apply IHfes ] | ];
+      [ apply erase_par; [ apply erase_as_record, IHe0 | ] | ].
+    fold erase_fexprs. apply erase_evalfs. apply H.
     intros [ r fvs ]; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     eapply erase_bind; [ apply erase_loadn | ]; intros vs; ee_pair;
@@ -1006,584 +1087,419 @@ Proof.
     eapply erase_bind; [ apply erase_update | ]; intros []; ee_pair;
     eapply erase_bind; [ apply erase_alloc_block | ]; intros l; ee_pair; ee_ret.
   - (* ERecordAccess *)
-    intros e0 f [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_record, IHe0 | ]; intros r; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     destruct (ls !! f); [ apply erase_load | apply EM_Crash ].
   - (* ERecordSet *)
-    intros e1 f e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_record, IHe1 | apply IHe2 ] | ];
+      [ apply erase_par; [ apply erase_as_record, IHe0_1 | apply IHe0_2 ] | ];
     intros [ r v ]; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     destruct (ls !! f); [ apply erase_store_op | apply EM_Crash ].
   - (* EAtomicLoc *)
-    intros e0 f [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_record, IHe0 | ]; intros r; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     destruct (ls !! f); [ ee_ret | apply EM_Crash ].
   - (* EInline *)
-    intros c t es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair;
+    eapply erase_bind; [ apply erase_evals; eapply list_all_proj_1, H | ]; intros vs; ee_pair;
     eapply erase_bind; [ apply erase_allocn | ]; intros ls; ee_pair;
     eapply erase_bind; [ apply erase_alloc_block | ]; intros l; ee_pair; ee_ret.
   - (* EArrayLit *)
-    intros es IHes;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHes | ]; intros vs; ee_pair;
+    eapply erase_bind; [ eapply erase_evals, list_all_proj_1, H | ]; intros vs; ee_pair;
     eapply erase_bind; [ apply erase_allocn | ]; intros ls; ee_pair;
     eapply erase_bind; [ apply erase_alloc_block | ]; intros l; ee_pair; ee_ret.
   - (* EArrayLength *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_array, IHe0 | ]; intros a; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     ee_ret.
   - (* EArrayGet *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_array, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_array, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ a i ]; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     destruct (ls !! signed i); [ apply erase_load | apply EM_Crash ].
   - (* EArraySet *)
-    intros e1 e2 e3 [ IHe1 _ ] [ IHe2 _ ] [ IHe3 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_array, IHe1 | apply erase_par;
-              [ apply erase_as_int, IHe2 | apply IHe3 ] ] | ];
+          [ apply erase_as_array, IHe0_1 | apply erase_par;
+              [ apply erase_as_int, IHe0_2 | apply IHe0_3 ] ] | ];
     intros [ a [ i v ] ]; ee_pair;
     eapply erase_bind; [ apply erase_load_block | ]; intros [ t ls ]; ee_pair;
     destruct (ls !! signed i); [ apply erase_store_op | apply EM_Crash ].
   - (* EArrayMake *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_int, IHe1 | apply IHe2 ] | ];
+      [ apply erase_par; [ apply erase_as_int, IHe0_1 | apply IHe0_2 ] | ];
     intros [ n v ]; ee_pair;
     case_decide; [ | apply EM_Crash ];
     rewrite <- erase_vals_replicate;
     eapply erase_bind; [ apply erase_allocn | ]; intros ls; ee_pair;
     eapply erase_bind; [ apply erase_alloc_block | ]; intros l; ee_pair; ee_ret.
   - (* EFreeze *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_array, IHe0 | ]; intros a; ee_pair;
     eapply erase_bind; [ apply erase_set_tag | ]; intros []; ee_pair; ee_ret.
   - (* EUnfreeze *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_array, IHe0 | ]; intros a; ee_pair;
     eapply erase_bind; [ apply erase_set_tag | ]; intros []; ee_pair; ee_ret.
   - (* EBoolConj *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_as_bool, IHe1 | ]; intros b; ee_pair;
-    destruct b; [ apply IHe2 | ee_ret ].
+    eapply erase_bind; [ apply erase_as_bool, IHe0_1 | ]; intros b; ee_pair;
+    destruct b; [ apply IHe0_2 | ee_ret ].
   - (* EBoolDisj *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_as_bool, IHe1 | ]; intros b; ee_pair;
-    destruct b; [ ee_ret | apply IHe2 ].
+    eapply erase_bind; [ apply erase_as_bool, IHe0_1 | ]; intros b; ee_pair;
+    destruct b; [ ee_ret | apply IHe0_2 ].
   - (* EBoolNeg *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_bool, IHe0 | ]; intros b; ee_pair;
     ee_ret.
   - (* EInt *)
-    intros i;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EMaxInt *)
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EMinInt *)
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EIntNeg *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_int, IHe0 | ]; intros i; ee_pair;
     ee_ret.
   - (* EIntAdd *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntSub *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntMul *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntDiv *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair;
     eapply erase_bind; [ apply erase_check_div_by_zero | ]; intros []; ee_pair;
     ee_ret.
   - (* EIntMod *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair;
     eapply erase_bind; [ apply erase_check_div_by_zero | ]; intros []; ee_pair;
     ee_ret.
   - (* EIntLand *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntLor *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntLxor *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; ee_ret.
   - (* EIntLnot *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_int, IHe0 | ]; intros i; ee_pair;
     ee_ret.
   - (* EIntLsl *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; apply erase_if_in_shift_range; ee_ret.
   - (* EIntLsr *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; apply erase_if_in_shift_range; ee_ret.
   - (* EIntAsr *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; apply erase_if_in_shift_range; ee_ret.
   - (* EFloat *)
-    intros f;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EChar *)
-    intros c;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EString *)
-    intros s;
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; ee_ret.
   - (* EOpPhysEq *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_phys_eq_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpEq *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_eq_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpNe *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_ne_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpLt *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_lt_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpLe *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_le_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpGt *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_gt_val | ]; intros b; ee_pair; ee_ret.
   - (* EOpGe *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ v1 v2 ]; ee_pair;
     eapply erase_bind; [ apply erase_ge_val | ]; intros b; ee_pair; ee_ret.
   - (* ELet *)
-    intros bs e0 IHbs [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHbs | ]; intros δ; ee_pair;
+    eapply erase_bind; [ apply erase_eval_bindings, H | ];
+    intros δ; ee_pair;
     rewrite <- erase_env_app; apply IHe0.
   - (* ELetRec *)
-    intros rbs e0 IHrbs [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
-    simpl_eval;
-    rewrite IHrbs, <- erase_env_app; apply IHe0.
-  - (* ELetModule *)
-    intros M me e0 IHme [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
-    simpl_eval;
-    eapply erase_bind; [ apply IHme | ]; intros v; ee_pair; apply IHe0.
-  - (* ELetOpen *)
-    intros me e0 IHme [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
-    simpl_eval;
-    eapply erase_bind; [ apply erase_as_struct, IHme | ]; intros δ; ee_pair;
-    rewrite <- erase_env_app; apply IHe0.
+    simpl_eval. rewrite !bind_ret. rewrite erase_eval_rec_bindings.
+    rewrite <- erase_env_app. apply IHe0.
   - (* ESeq *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply IHe1 | ]; intros w; ee_pair; apply IHe2.
+    eapply erase_bind; [ apply IHe0_1 | ]; intros w; ee_pair; apply IHe0_2.
   - (* EIfThen *)
-    intros e0 e1 [ IHe0 _ ] [ IHe1 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_as_bool, IHe0 | ]; intros b; ee_pair;
-    destruct b; [ apply IHe1 | ee_ret ].
+    eapply erase_bind; [ apply erase_as_bool, IHe0_1 | ]; intros b; ee_pair;
+    destruct b; [ apply IHe0_2 | ee_ret ].
   - (* EIfThenElse *)
-    intros e0 e1 e2 [ IHe0 _ ] [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_as_bool, IHe0 | ]; intros b; ee_pair;
-    destruct b; [ apply IHe1 | apply IHe2 ].
+    eapply erase_bind; [ apply erase_as_bool, IHe0_1 | ]; intros b; ee_pair;
+    destruct b; [ apply IHe0_2 | apply IHe0_3 ].
   - (* EMatch *)
-    intros e0 bs [ IHe0 _ ] [ IHbs _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     apply EM_Handle; [ apply IHe0 | ]; intros o; simpl_wrap_eval_branches;
-    eapply erase_bind; [ apply erase_wrap_outcome | ]; intros o'; ee_pair;
-    apply IHbs.
+    eapply erase_bind; [ apply erase_wrap_outcome | ]; intros o'; ee_pair.
+    fold erase_branches. apply erase_eval_branches_aux. apply H.
   - (* EShallowMatch *)
-    intros e0 bs [ IHe0 _ ] [ _ IHbs ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    apply EM_Handle; [ apply IHe0 | ]; intros o; apply IHbs.
+    apply EM_Handle; [ apply IHe0 | ]; intros o. fold erase_branches.
+    apply erase_shallow_eval_branches_aux; assumption.
   - (* ERaise *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply IHe0 | ]; intros w; ee_pair; ee_ret.
   - (* EPerform *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply IHe0 | ]; intros w; ee_pair; apply erase_perform.
   - (* EContinue *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_cont, IHe1 | apply IHe2 ] | ];
+      [ apply erase_par; [ apply erase_as_cont, IHe0_1 | apply IHe0_2 ] | ];
     intros [ l w ]; ee_pair; apply erase_resume.
   - (* EDiscontinue *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_cont, IHe1 | apply IHe2 ] | ];
+      [ apply erase_par; [ apply erase_as_cont, IHe0_1 | apply IHe0_2 ] | ];
     intros [ l w ]; ee_pair; apply erase_resume.
   - (* EWhile *)
-    intros e0 body [ IHe0 _ ] [ IHbody _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_as_bool, IHe0 | ]; intros b; ee_pair;
+    eapply erase_bind; [ apply erase_as_bool, IHe0_1 | ]; intros b; ee_pair;
     destruct b; [ | ee_ret ];
-    eapply erase_bind; [ apply IHbody | ]; intros w; ee_pair;
+    eapply erase_bind; [ apply IHe0_2 | ]; intros w; ee_pair;
     apply erase_please_eval.
   - (* EFor *)
-    intros x e1 e2 e0 [ IHe1 _ ] [ IHe2 _ ] [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
       [ apply erase_par;
-          [ apply erase_as_int, IHe1 | apply erase_as_int, IHe2 ] | ];
+          [ apply erase_as_int, IHe0_1 | apply erase_as_int, IHe0_2 ] | ];
     intros [ i1 i2 ]; ee_pair; apply erase_loop.
   - (* EAssertFalse *)
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; apply EM_Crash.
   - (* EAssert *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     apply erase_choose; [ ee_ret | ];
     eapply erase_bind; [ apply erase_as_bool, IHe0 | ]; intros b; ee_pair;
     destruct b; [ ee_ret | apply EM_Crash ].
+  - (* ELetSitem *)
+    simpl.
+    unfold eval. rewrite !seal_eq. cbn [pre_eval].
+    rewrite fold_pre_eval.
+    rewrite fold_pre_eval_bindings.
+    rewrite fold_pre_eval_mexpr. rewrite fold_pre_eval_sitem.
+    eapply erase_bind.
+    (* Here, we need to state exactly the inductive premise of [erase_eval_sitems]. *)
+    revert η. change [] with (erase_env []) at 2. generalize (nil : env).
+    apply IHe0. simpl in IHe0.
+    intros (η' & δ). instantiate (1:= λ '(η, δ), (erase_env η, erase_env δ)). simpl.
+    apply IHe1.
   - (* ERef *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply IHe0 | ]; intros w; ee_pair;
     eapply erase_bind; [ apply erase_alloc | ]; intros l; ee_pair; ee_ret.
   - (* ELoad *)
-    intros e0 [ IHe0 _ ]. split.
-    + intros η. simpl_eval.
+    simpl_eval.
+    split.
+    + intros η.
       eapply erase_bind; [ apply erase_as_loc, IHe0 | ]. intros l. ee_pair.
       apply erase_load.
-    + intros η p v. cbn beta iota delta [ eval_resolved ]. simpl_eval.
+    + intros η p v. cbn beta iota delta [ eval_resolved ].
       eapply erase_bind; [ apply erase_as_loc, IHe0 | ]. intros l. ee_pair.
       apply erase_resolve_load.
   - (* EStore *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind;
-      [ apply erase_par; [ apply erase_as_loc, IHe1 | apply IHe2 ] | ];
+      [ apply erase_par; [ apply erase_as_loc, IHe0_1 | apply IHe0_2 ] | ];
     intros [ l w ]; ee_pair; apply erase_store_op.
   - (* EExchange *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ]. split.
-    + intros η. simpl_eval.
+    simpl_eval.
+    split.
+    + intros η.
       eapply erase_bind;
-        [ apply erase_par; [ apply erase_as_loc, IHe1 | apply IHe2 ] | ].
+        [ apply erase_par; [ apply erase_as_loc, IHe0_1 | apply IHe0_2 ] | ].
       intros [ l w ]. ee_pair. apply erase_exchange.
-    + intros η p v. cbn beta iota delta [ eval_resolved ]. simpl_eval.
+    + intros η p v. cbn beta iota delta [ eval_resolved ].
       eapply erase_bind;
-        [ apply erase_pair_op; [ apply erase_as_loc, IHe1 | apply IHe2 ] | ].
+        [ apply erase_pair_op; [ apply erase_as_loc, IHe0_1 | apply IHe0_2 ] | ].
       intros [ l w ]. ee_pair. apply erase_resolve_exchange.
   - (* ECAS *)
-    intros e1 e2 e3 [ IHe1 _ ] [ IHe2 _ ] [ IHe3 _ ]. split.
-    + intros η. simpl_eval.
+    simpl_eval.
+    split.
+    + intros η.
       eapply erase_bind;
         [ apply erase_par;
-            [ apply erase_par; [ apply erase_as_loc, IHe1 | apply IHe2 ]
-            | apply IHe3 ] | ].
+            [ apply erase_par; [ apply erase_as_loc, IHe0_1 | apply IHe0_2 ]
+            | apply IHe0_3 ] | ].
       intros [ [ l seen ] w ]. ee_pair. apply erase_cas.
-    + intros η p v. cbn beta iota delta [ eval_resolved ]. simpl_eval.
+    + intros η p v. cbn beta iota delta [ eval_resolved ].
       eapply erase_bind;
         [ apply erase_par;
-            [ apply erase_par; [ apply erase_as_loc, IHe1 | apply IHe2 ]
-            | apply IHe3 ] | ].
+            [ apply erase_par; [ apply erase_as_loc, IHe0_1 | apply IHe0_2 ]
+            | apply IHe0_3 ] | ].
       intros [ [ l seen ] w ]. ee_pair. apply erase_resolve_cas.
   - (* EFAA *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ]. split.
-    + intros η. simpl_eval.
+    simpl_eval.
+    split.
+    + intros η.
       eapply erase_bind;
         [ apply erase_par;
-            [ apply erase_as_loc, IHe1 | apply erase_as_int, IHe2 ] | ].
+            [ apply erase_as_loc, IHe0_1 | apply erase_as_int, IHe0_2 ] | ].
       intros [ l i ]. ee_pair. apply erase_faa.
-    + intros η p v. cbn beta iota delta [ eval_resolved ]. simpl_eval.
+    + intros η p v. cbn beta iota delta [ eval_resolved ].
       eapply erase_bind;
         [ apply erase_par;
-            [ apply erase_as_loc, IHe1 | apply erase_as_int, IHe2 ] | ].
+            [ apply erase_as_loc, IHe0_1 | apply erase_as_int, IHe0_2 ] | ].
       intros [ l i ]. ee_pair. apply erase_resolve_faa.
   - (* ENewProph *)
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval; apply erase_new_proph.
   - (* EResolve *)
-    intros e0 π a [ _ IHres ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
-    simpl_eval;
+    simpl_eval.
     destruct (lookup_path η π) as [ [ ] | ]; try unfold as_loc; simpl;
-    try apply EM_CrashL;
-    destruct (eval_proph_arg η a) as [ w | ]; simpl; try apply EM_CrashL;
-    apply IHres.
+    try apply EM_CrashL.
+    destruct (eval_proph_arg η a) as [ w | ]; simpl; try apply EM_CrashL.
+    rewrite bind_ret. simpl. rewrite !bind_ret.
+    apply IHe0.
   - (* EIgnore *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply IHe0 | ]; intros w; ee_pair; ee_ret.
   - (* EFork *)
-    intros e1 e2 [ IHe1 _ ] [ IHe2 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
-    eapply erase_bind; [ apply erase_par; [ apply IHe1 | apply IHe2 ] | ];
+    eapply erase_bind; [ apply erase_par; [ apply IHe0_1 | apply IHe0_2 ] | ];
     intros [ f w ]; ee_pair; apply erase_fork.
   - (* EJoin *)
-    intros e0 [ IHe0 _ ];
-    apply and_dup; [ apply erase_resolved_of_eval; done | ]; intros η;
     simpl_eval;
     eapply erase_bind; [ apply erase_as_thread, IHe0 | ]; intros t; ee_pair;
     apply erase_join.
   - (* Fexpr *)
-    intros f e0 [ IHe0 _ ]; exact IHe0.
+    simpl.
+    apply IHe0.
   - (* Branch *)
-    intros cp e0 [ IHe0 _ ]; exact IHe0.
+    simpl.
+    apply IHe0.
   - (* Binding *)
-    intros p e0 [ IHe0 _ ]; exact IHe0.
-  - (* RecBinding *)
-    intros f a IHa; exact IHa.
-  - (* AnonFun *)
-    intros x e0 [ IHe0 _ ]; exact IHe0.
+    simpl.
+    apply IHe0.
+  - (* ILet *)
+    intros δ η; simpl_eval_sitem;
+    eapply erase_bind; [ apply erase_eval_bindings; assumption |  intros δ'; ee_pair ].
+    rewrite <- !erase_env_app.
+    ee_ret.
+  - (* ILetRec *)
+    simpl. fold erase_rec_bindings. simpl_eval_sitem.
+    intros δ η. rewrite erase_eval_rec_bindings, <- !erase_env_app.
+    ee_ret.
+  - (* IModule *)
+    simpl. intros δ η.
+    simpl_eval_sitem. eapply erase_bind. { revert η. apply IHe0. }
+    intros v. ee_ret.
+  - (* IOpen *)
+    simpl. intros δ η.
+    simpl_eval_sitem.
+    eapply erase_bind.
+    { apply erase_as_struct. apply IHe0. }
+    intros η'. rewrite <- erase_env_app.
+    ee_ret.
+  - (* IInclude *)
+    simpl. intros δ η.
+    simpl_eval_sitem. eapply erase_bind. { apply erase_as_struct. apply IHe0. }
+    intros η'. rewrite <- !erase_env_app.
+    ee_ret.
+  - (* IExternal *)
+    simpl. intros δ η.
+    simpl_eval_sitem. eapply erase_bind. { apply IHe0. }
+    intros v. ee_ret.
+  - (* IExtend *)
+    simpl. intros δ η.
+    simpl_eval_sitem. eapply erase_bind. { apply erase_eval_type_extensions. }
+    intros η'. rewrite <- !erase_env_app. ee_ret.
   - (* MUnsupported *)
     intros η; simpl_eval_mexpr; apply EM_Crash.
   - (* MPath *)
-    intros π η; simpl_eval_mexpr;
+    intros η; simpl_eval_mexpr;
     rewrite erase_lookup_path; apply erase_of_option.
   - (* MStruct *)
-    intros items IHitems η; simpl_eval_mexpr;
-    eapply erase_bind; [ apply (IHitems η []) | ]; intros [ η' δ ]; ee_pair;
-    ee_ret.
+    intros η; simpl_eval_mexpr;
+    eapply erase_bind. fold erase_sitems. apply erase_eval_sitems; assumption.
+    intros (? & ?); ee_pair; ee_ret.
   - (* MFunctor *)
-    intros x items IHitems η; simpl_eval_mexpr; ee_ret.
+    intros η; simpl_eval_mexpr; ee_ret.
   - (* MCoercion *)
-    intros me c IHme η; simpl_eval_mexpr;
-    eapply erase_bind; [ apply IHme | ]; intros v; ee_pair;
+    intros η; simpl_eval_mexpr;
+    eapply erase_bind.
+    { apply IHe0. }
+    intros v; ee_pair;
     rewrite erase_coerce; apply erase_of_option.
-  - (* ILet *)
-    intros bs IHbs η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply IHbs | ]; intros δ'; ee_pair;
-    rewrite <- !erase_env_app; ee_ret.
-  - (* ILetRec *)
-    intros rbs IHrbs η δ; simpl_eval_sitem;
-    rewrite IHrbs, <- !erase_env_app; ee_ret.
-  - (* IModule *)
-    intros m me IHme η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply IHme | ]; intros v; ee_pair; ee_ret.
-  - (* IOpen *)
-    intros me IHme η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply erase_as_struct, IHme | ]; intros δ'; ee_pair;
-    rewrite <- erase_env_app; ee_ret.
-  - (* IInclude *)
-    intros me IHme η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply erase_as_struct, IHme | ]; intros δ'; ee_pair;
-    rewrite <- !erase_env_app; ee_ret.
-  - (* IExternal *)
-    intros x e0 [ IHe0 _ ] η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply (IHe0 []) | ]; intros v; ee_pair; ee_ret.
-  - (* IExtend *)
-    intros cs η δ; simpl_eval_sitem;
-    eapply erase_bind; [ apply erase_eval_type_extensions | ]; intros δ';
-    ee_pair;
-    rewrite <- !erase_env_app; ee_ret.
-  - (* no expression *)
-    intros η; ee_expose_cons; simpl_evals; ee_ret.
-  - (* an expression and the rest *)
-    intros e0 es [ IHe0 _ ] IHes η; ee_expose_cons;
-    eapply erase_bind; [ apply erase_pair_op; [ apply IHe0 | apply IHes ] | ];
-    intros [ v vs ]; ee_pair; ee_ret.
-  - (* no field *)
-    intros η; ee_expose_cons; simpl_evalfs; ee_ret.
-  - (* a field and the rest *)
-    intros [ f e0 ] fes IHfe IHfes η; ee_expose_cons;
-    eapply erase_bind; [ apply erase_par; [ apply IHfe | apply IHfes ] | ];
-    intros [ v fvs ]; ee_pair; ee_ret.
-  - (* no branch: the outcome is propagated *)
-    split.
-    + intros η o. ee_expose_cons. unfold eval_branches; rewrite seal_eq.
-      destruct o; cbn beta iota delta [ pre_eval_branches erase_out3 ].
-      * apply EM_Crash.
-      * ee_ret.
-      * eapply erase_try2; [ apply erase_perform | ]. intros o'.
-        apply erase_resume.
-    + intros η all_bs o. ee_expose_cons.
-      unfold shallow_eval_branches; rewrite seal_eq.
-      destruct o; cbn beta iota delta [ pre_shallow_eval_branches erase_out3 ].
-      * apply EM_Crash.
-      * ee_ret.
-      * eapply erase_bind; [ apply erase_shallow_wrap | ]. intros l. ee_pair.
-        eapply erase_try2; [ apply erase_perform | ]. intros o'.
-        apply erase_resume.
-  - (* a branch and the rest *)
-    intros [ cp e0 ] bs IHb [ IHbs IHsbs ]. split.
-    + intros η o. ee_expose_cons. unfold eval_branches; rewrite seal_eq.
-      cbn beta iota delta [ pre_eval_branches ].
-      rewrite ?fold_pre_eval_branches.
-      eapply erase_try2; [ apply erase_eval_cpat | ].
-      intros [ δ | [] ]; cbn beta iota delta [ erase_out2 ].
-      * apply IHb.
-      * apply IHbs.
-    + intros η all_bs o. ee_expose_cons.
-      unfold shallow_eval_branches; rewrite seal_eq.
-      cbn beta iota delta [ pre_shallow_eval_branches ].
-      rewrite ?fold_pre_shallow_eval_branches.
-      eapply erase_try.
-      * apply erase_eval_cpat.
-      * intros δ. apply IHb.
-      * intros []. apply IHsbs.
-  - (* no binding *)
-    intros η; ee_expose_cons; simpl_eval_bindings; ee_ret.
-  - (* a binding and the rest *)
-    intros [ p e0 ] bs IHb IHbs η; ee_expose_cons;
-    eapply erase_bind; [ apply erase_pair_op; [ apply IHb | apply IHbs ] | ];
-    intros [ v δ ]; ee_pair; apply erase_irrefutably_extend.
-  - (* no recursive binding *)
-    intros η; apply erase_eval_rec_bindings.
-  - (* a recursive binding and the rest *)
-    intros rb rbs IHrb IHrbs η; apply erase_eval_rec_bindings.
-  - (* no structure item *)
-    intros η δ; ee_expose_cons; simpl_eval_sitems; ee_ret.
-  - (* a structure item and the rest *)
-    intros i items IHi IHitems η δ; ee_expose_cons;
-    eapply erase_bind; [ apply IHi | ]; intros [ η' δ' ]; ee_pair;
-    apply IHitems.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
@@ -1600,24 +1516,11 @@ Lemma erase_eval_branches bs :
   ∀ η o, erase_microvx (eval_branches η o bs)
            (eval_branches (erase_env η) (erase_out3 o) (erase_branches bs)).
 Proof.
-  induction bs as [| [ cp e0 ] bs IH ]; intros η o.
-  - (* no branch left: the outcome is propagated *)
-    unfold eval_branches; rewrite seal_eq.
-    destruct o;
-      cbn beta iota delta [ pre_eval_branches erase_out3 erase_branches ].
-    + apply EM_Crash.
-    + ee_ret.
-    + eapply erase_try2; [ apply erase_perform | ]. intros o'.
-      apply erase_resume.
-  - (* a branch: its body on a match, the remaining branches otherwise *)
-    cbn beta iota delta [ erase_branches ].
-    unfold eval_branches; rewrite seal_eq.
-    cbn beta iota delta [ pre_eval_branches ].
-    rewrite ?fold_pre_eval_branches.
-    eapply erase_try2; [ apply erase_eval_cpat | ].
-    intros [ δ | [] ]; cbn beta iota delta [ erase_out2 ].
-    + apply erase_eval.
-    + apply IH.
+  apply erase_eval_branches_aux.
+  induction bs as [| [ cp e0 ] bs IH ].
+  constructor.
+  constructor; last apply IH.
+  apply erase_eval.
 Qed.
 
 Lemma erase_shallow_eval_branches bs :
@@ -1626,28 +1529,12 @@ Lemma erase_shallow_eval_branches bs :
       (shallow_eval_branches (erase_env η) (erase_branches bs)
                              (erase_branches all_bs) (erase_out3 o)).
 Proof.
-  induction bs as [| [ cp e0 ] bs IH ]; intros η all_bs o.
-  - (* no branch left: an unhandled effect reinstalls the handler *)
-    unfold shallow_eval_branches; rewrite seal_eq.
-    destruct o;
-      cbn beta iota delta
-        [ pre_shallow_eval_branches erase_out3 erase_branches ].
-    + apply EM_Crash.
-    + ee_ret.
-    + eapply erase_bind; [ apply erase_shallow_wrap | ]. intros l. ee_pair.
-      eapply erase_try2; [ apply erase_perform | ]. intros o'.
-      apply erase_resume.
-  - (* a branch: its body on a match, the remaining branches otherwise *)
-    cbn beta iota delta [ erase_branches ].
-    unfold shallow_eval_branches; rewrite seal_eq.
-    cbn beta iota delta [ pre_shallow_eval_branches ].
-    rewrite ?fold_pre_shallow_eval_branches.
-    eapply erase_try.
-    + apply erase_eval_cpat.
-    + intros δ. apply erase_eval.
-    + intros []. apply IH.
+  apply erase_shallow_eval_branches_aux.
+  induction bs as [| [ cp e0 ] bs IH ].
+  constructor.
+  constructor; last apply IH.
+  apply erase_eval.
 Qed.
-
 
 
 Lemma erase_wrap_eval_branches η bs o :

@@ -157,10 +157,6 @@ Fixpoint erase_expr (e : expr) : expr :=
       ELet (erase_bindings bs) (erase_expr e)
   | ELetRec rbs e =>
       ELetRec (erase_rec_bindings rbs) (erase_expr e)
-  | ELetModule M me e =>
-      ELetModule M (erase_mexpr me) (erase_expr e)
-  | ELetOpen me e =>
-      ELetOpen (erase_mexpr me) (erase_expr e)
   | ESeq e1 e2 =>
       ESeq (erase_expr e1) (erase_expr e2)
   | EIfThen e e1 =>
@@ -187,6 +183,8 @@ Fixpoint erase_expr (e : expr) : expr :=
       EAssertFalse
   | EAssert e =>
       EAssert (erase_expr e)
+  | ELetSitem s e =>
+      ELetSitem (erase_sitem s) (erase_expr e)
   | ERef e =>
       ERef (erase_expr e)
   | ELoad e =>

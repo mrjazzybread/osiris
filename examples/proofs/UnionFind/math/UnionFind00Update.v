@@ -40,7 +40,7 @@ Definition update_class {A B : Type} `{EqDecision A}
 
 Notation "f .[ x -/ R /> b ]" :=
     (update_class R x f b)
-      (at level 2, left associativity, format "f .[ x  -/ R />  b ]").
+      (at level 1, left associativity, format "f .[ x  -/ R />  b ]").
 
 Lemma lookup_update_class {A B : Type} `{EqDecision A}
     (f : A → B) x R (b : B) :

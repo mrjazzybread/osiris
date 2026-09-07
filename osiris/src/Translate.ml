@@ -599,16 +599,6 @@ and translate_expr_desc (e: expression) : expr =
   | Texp_override _ ->
       eunsupported loc "objects"
 
-  | Texp_letmodule (Some id, _, _, me, e) ->
-      let m = Ident.name id in
-      ELetModule (m, translate_mod_expr me, translate_expr e)
-
-  | Texp_letmodule (None, _, _, _, _) ->
-      eunsupported loc "let module _"
-
-  | Texp_letexception _ ->
-      eunsupported loc "let exception"
-
   | Texp_assert (e, _) ->
       if is_false e then
         EAssertFalse
@@ -634,8 +624,10 @@ and translate_expr_desc (e: expression) : expr =
   | Texp_extension_constructor _ ->
       eunsupported loc "extension constructors"
 
-  | Texp_open ({ open_expr = me; _ }, e) ->
-      ELetOpen (translate_mod_expr me, translate_expr e)
+  | Texp_struct_item (s, e) ->
+      match translate_structure_item s with
+      | None -> translate_expr e
+      | Some s -> ELetSitem (s, translate_expr e)
 
 and translate_exprs es : exprs =
   map translate_expr es
