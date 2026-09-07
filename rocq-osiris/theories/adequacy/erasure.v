@@ -696,26 +696,18 @@ Lemma erase_try2 {A E B F} (fA : A → A) (fE : E → E) (fB : B → B) (fF : F 
   erase_micro fB fF (try2 m g) (try2 m' g').
 Proof.
   intros Hm. revert g g'.
-  induction Hm as
-    [ ????? | ????? | ?????
-    | ???? m m' h h' Hm IHm Hh IHh
-    | ?????? c x k k' Hc Hk IHk
-    | ????? k k' Hk IHk
-    | ?????? x p v k k' Hc Hnt Hk IHk
-    | ???? w p v k m' Hm IHm
-    | ???? w k m' Hm IHm
-    | ?????????? m1 m1' m2 m2' k k' Hm1 IHm1 Hm2 IHm2 Hk IHk ];
+  induction Hm;
     intros g g' Hg; simpl.
   - exact (Hg (O2Ret _)).
   - exact (Hg (O2Throw _)).
   - apply EM_CrashL.
-  - apply EM_Handle; [ done | ]. intros o. by apply IHh.
-  - apply EM_Stop; [ done | ]. intros o. by apply IHk.
-  - apply EM_NewProph. intros o. by apply IHk.
-  - apply EM_Resolve; [ done | done | ]. intros w. by apply IHk.
-  - apply EM_ResolveReturn. by apply IHm.
-  - apply EM_Return. by apply IHm.
-  - eapply EM_Par; [ done | done | ]. intros o. by apply IHk.
+  - apply EM_Handle; [ done | ]. intros o. by apply H0.
+  - apply EM_Stop; [ done | ]. intros o. by apply H1.
+  - apply EM_NewProph. intros o. by apply H0.
+  - apply EM_Resolve; [ done | done | ]. intros w. by apply H2.
+  - apply EM_ResolveReturn. by apply IHHm.
+  - apply EM_Return. by apply IHHm.
+  - eapply EM_Par; [ done | done | ]. intros o. by apply H0.
 Qed.
 
 Lemma erase_bind {A B E} (fA : A → A) (fE : E → E) (fB : B → B) m m' f f' :

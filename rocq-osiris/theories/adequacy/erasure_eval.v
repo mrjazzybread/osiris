@@ -7,7 +7,12 @@ Require Import erasure.
 
 (** * The erasure commutes with the interpreter. *)
 
-(* [erase_eval] ties the erasure of computations to the erasure of
+(* This file proves
+   [erase_eval : (∀ η, erase_microvx
+                         (eval η e)
+                         (eval (erase_env η) (erase_expr e)))]
+
+   [erase_eval] ties the erasure of computations to the erasure of
    syntax. Running the erasure of a program is running the erased
    program. *)
 
