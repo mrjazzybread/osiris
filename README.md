@@ -83,13 +83,13 @@ It is known to compile with the following versions of the packages:
 
 | Package         | Version | Repo                                         |
 |-----------------|:-------:|:--------------------------------------------:|
-| `ocaml`         | 5.4.0   | -                                            |
+| `ocaml`         | 5.5.0   | -                                            |
 | `pprint`        | -       | -                                            |
 | `ocaml-compiler-libs` | - | -                                            |
 | `dune`          | 3.21.0  | -                                            |
 | `rocq`          | 9.2.0   | https://rocq-prover.org/opam/released        |
 | `rocq-iris`     | 4.5.0   | git+https://gitlab.mpi-sws.org/iris/opam.git |
-| `rocq-stdpp`    | dev     | git+https://gitlab.mpi-sws.org/iris/opam.git |
+| `rocq-stdpp`    | dev     |                                              |
 | `rocq-equations`| 1.3.2+9.2 | -                                         |
 | `ppx_sexp_conv` | v0.17.1 | -                                        |
 | `ppx_deriving`  | 6.1.1   | -                                           |

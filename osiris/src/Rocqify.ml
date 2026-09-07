@@ -16,8 +16,8 @@ open Rocq
 (* Naming cuts after the source code. *)
 
 (* [prefix] is the qualified name of the innermost enclosing binding (or
-   module). It is used as a base name for the Rocq toplevel definitions
    created by cuts, so that these definitions carry stable, meaningful
+   module). It is used as a base name for the Rocq toplevel definitions
    names. *)
 
 let prefix =
@@ -377,12 +377,6 @@ let rec expr (e : expr) =
   | ELetRec (rbs, e) ->
       c "ELetRec" [ rec_bindings rbs; cut_expr e ]
 
-  | ELetModule (m, me, e) ->
-      c "ELetModule" [ var m; named m (fun () -> mexpr me); cut_expr e ]
-
-  | ELetOpen (me, e) ->
-      c "ELetOpen" [ mexpr me; cut_expr e ]
-
   | ESeq (e1, e2) ->
       c "ESeq" [ expr e1; cut_expr e2 ]
 
@@ -421,6 +415,9 @@ let rec expr (e : expr) =
 
   | EAssert e ->
       c "EAssert" [ expr e ]
+
+  | ELetSitem (s, e) ->
+      c "ELetSitem" [ structure_item s; cut_expr e ]
 
   | ERef e ->
       c "ERef" [ expr e ]

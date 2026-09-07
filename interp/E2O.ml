@@ -139,8 +139,6 @@ let rec expr : E.expr -> O.expr = function
   | EOpGe (e1, e2) -> EOpGe (expr e1, expr e2)
   | ELet (bs, e) -> ELet (bindings bs, expr e)
   | ELetRec (rbs, e) -> ELetRec (rec_bindings rbs, expr e)
-  | ELetModule (n, me, e) -> ELetModule (name n, mexpr me, expr e)
-  | ELetOpen (me, e) -> ELetOpen (mexpr me, expr e)
   | ESeq (e1, e2) -> ESeq (expr e1, expr e2)
   | EIfThen (e1, e2) -> EIfThen (expr e1, expr e2)
   | EIfThenElse (e1, e2, e3) -> EIfThenElse (expr e1, expr e2, expr e3)
@@ -154,6 +152,7 @@ let rec expr : E.expr -> O.expr = function
   | EFor (v, e1, e2, e3) -> EFor (var v, expr e1, expr e2, expr e3)
   | EAssertFalse -> EAssertFalse
   | EAssert e -> EAssert (expr e)
+  | ELetSitem (s, e) -> ELetSitem (sitem s, expr e)
   | ERef e -> ERef (expr e)
   | ELoad e -> ELoad (expr e)
   | EStore (e1, e2) -> EStore (expr e1, expr e2)

@@ -39,7 +39,7 @@ Qed.
 
 (* Here, we write just [sorted]. *)
 
-Notation sorted xs :=
+Abbreviation sorted xs :=
   (Sorted lt xs).
 
 (* -------------------------------------------------------------------------- *)
@@ -90,7 +90,7 @@ Qed.
 (* [pairwise] interacts with list concatenation in a simple way. *)
 
 Lemma pairwise_app_left_iff xs ys zs :
-  xs ++ ys ≺ zs ↔ xs ≺ zs ∧ ys ≺ zs.
+  xs ++ ys ≺ zs ↔ (xs ≺ zs) ∧ ys ≺ zs.
 Proof.
   unfold pairwise. split; intros H.
   { split; intros x y ? ?; specialize (H x y);
@@ -99,7 +99,7 @@ Proof.
 Qed.
 
 Lemma pairwise_app_right_iff xs ys zs :
-  xs ≺ ys ++ zs ↔ xs ≺ ys ∧ xs ≺ zs.
+  xs ≺ ys ++ zs ↔ (xs ≺ ys) ∧ xs ≺ zs.
 Proof.
   unfold pairwise. split; intros H.
   { split; intros x y ? ?; specialize (H x y);
@@ -363,11 +363,11 @@ Context {Ple : PreOrder le}.
 Local Set Warnings "-notation-overridden".
 Notation "x '≤' y" := (le x y).
 
-Notation lt := (strict le).
+Abbreviation lt := (strict le).
 Notation "x '<' y" := (lt x y).
 Notation "xs '≺' ys" := (pairwise lt xs ys) (at level 80).
 
-Notation eq := (equivalent le).
+Abbreviation eq := (equivalent le).
 Notation "x '≡' y" := (eq x y).
 
 Implicit Types x y z : A.

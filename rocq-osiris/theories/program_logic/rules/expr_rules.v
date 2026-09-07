@@ -862,20 +862,6 @@ Section imp_rules_expr.
     simpl_eval; auto.
   Qed.
 
-  (** * ELetModule : module → mexpr → expr → expr *)
-
-  (** * ELetOpen : mexpr → expr → expr *)
-  Lemma imp_ELetOpen `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ' : env → iProp Σ) η me e :
-    EWP eval_mexpr η me @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
-    (∀ δ, Φ' δ -∗ EWP eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
-    EWP eval η (ELetOpen me e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
-  Proof.
-    iIntros "Hme He". simpl_eval.
-    iApply (imp_bind _ _ (λ δ, eval (δ ++ η) e) with "[Hme]").
-    { iApply (imp_as_struct with "Hme"). }
-    iApply "He".
-  Qed.
-
   (** * ESeq : expr → expr → expr *)
 
   Lemma imp_ESeq `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ1 : unit → iProp Σ) η e1 e2 :
@@ -1080,6 +1066,19 @@ Section imp_rules_expr.
       iIntros (?) "[-> HR]".
       simpl.
       iApply (imp_ret VUnit ()); auto.
+  Qed.
+
+  (** * ELetSitem : mexpr → expr → expr *)
+
+  Lemma imp_ELetOpen `{Encode A} {Φ : A → iProp Σ} {ζ} (Φ' : env → iProp Σ) η me e :
+    EWP eval_mexpr η me @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ' }} -∗
+    (∀ δ, Φ' δ -∗ EWP eval (δ ++ η) e @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}) -∗
+    EWP eval η (ELetSitem (IOpen me) e) @ E <|Ψ|> ⟨⟨ ζ ⟩⟩ {{ Φ }}.
+  Proof.
+    iIntros "Hme He". simpl_eval. rewrite bind_bind.
+    iApply (imp_bind _ _ (λ δ, eval (δ ++ η) e) with "[Hme]").
+    { iApply (imp_as_struct with "Hme"). }
+    iApply "He".
   Qed.
 
   (** * ERef : expr → expr *)

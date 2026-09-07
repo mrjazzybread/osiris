@@ -1243,6 +1243,7 @@ Fixpoint pre_eval η e {struct e} : microvx :=
   let shallow_eval_branches := pre_shallow_eval_branches eval in
   let eval_bindings := pre_eval_bindings eval in
   let eval_mexpr := pre_eval_mexpr eval_bindings eval in
+  let eval_sitem := pre_eval_sitem eval_bindings eval eval_mexpr in
   match e with
   | EUnsupported =>
       unsupported_construct
@@ -1461,15 +1462,6 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       let δ := eval_rec_bindings η rbs in
       η ← ret (δ ++ η);
       eval η e
-  | ELetModule M me e =>
-      v ← eval_mexpr η me ;
-      let δ := [(M, v)] in
-      η ← ret (δ ++ η);
-      eval η e
-  | ELetOpen me e =>
-      δ ← as_struct (eval_mexpr η me) ;
-      η ← ret (δ ++ η);
-      eval η e
   | ESeq e1 e2 =>
       _ ← eval η e1 ;
       eval η e2
@@ -1525,6 +1517,9 @@ Fixpoint pre_eval η e {struct e} : microvx :=
       | Yes => run_test
       | Unspecified => choose ok run_test
       end
+  | ELetSitem s e =>
+      '(η,_) ← eval_sitem (η,[]) s ;
+      eval η e
   | ERef e =>
       v ← eval η e ;
       l ← alloc v ;

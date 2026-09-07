@@ -296,12 +296,6 @@ Inductive expr :=
   (* Recursive local definition: [let rbs in e]. *)
   | ELetRec (rbs : list rec_binding) (e : expr)
 
-  (* Local module definition: [let module M = me in e]. *)
-  | ELetModule (M : module) (me : mexpr) (e : expr)
-
-  (* Local [open] directive: [let open me in e]. *)
-  | ELetOpen (me : mexpr) (e : expr)
-
   (* Sequence: [e1; e2]. *)
   | ESeq (e1 e2 : expr)
 
@@ -335,6 +329,12 @@ Inductive expr :=
 
   (* Runtime assertion: [assert(e)]. *)
   | EAssert (e : expr)
+
+  (* Bringing a structure item into scope:
+     [let exception E in e]
+     [let external add_int : int -> int -> int = "%addint" in e]
+     [let open M in e]. *)
+  | ELetSitem (struct : sitem) (e : expr)
 
   (* Reference allocation: [ref e]. *)
   | ERef (e : expr)
@@ -441,6 +441,13 @@ with sitem :=
   | IExtend (cs : list name)
 
 .
+
+Scheme expr_fexpr_rec := Induction for expr Sort Set
+  with fexprs_expr_rec := Induction for fexpr Sort Set
+  with bindings_expr_rec := Induction for binding Sort Set
+  with branches_expr_rec := Induction for branch Sort Set
+  with sitem_expr_rec := Induction for sitem Sort Set
+  with mexpr_expr_rec := Induction for mexpr Sort Set.
 
 (* ------------------------------------------------------------------------ *)
 
