@@ -1,4 +1,4 @@
-FROM ocaml/opam:debian-ocaml-5.4
+FROM ocaml/opam:debian-ocaml-5.5
 
 # System dependencies pulled in by the opam packages we install below.
 # The base image ships opam 2.0, which cannot auto-install depexts, so we
