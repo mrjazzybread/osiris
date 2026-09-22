@@ -36,6 +36,9 @@ Section boilerplate.
       types_to_repr := λ c n, {| content := c; next := n |};
       repr_id := λ '(c, n), eq_refl }.
 
+  Global Instance cons_inline : Inline "Cons" cell := {| inline_apply := Cons;
+                                                        inline_encode := λ _, eq_refl |}.
+
   Global Instance t_repr : RecordRepr t τ[Z; cell; cell] Mut :=
     { repr_to_types t := (t.(length), (t.(first), t.(last)));
       types_to_repr := λ l fst lst, {| length := l; first := fst; last := lst |};
@@ -43,100 +46,42 @@ Section boilerplate.
 
 End boilerplate.
 
-(* The [Cell], [Cell_Seg], and [Queue] resources.
-
-   I have tried to keep them faithful to the CFML definitions, but I have replaced the [IF] with a match.
-   Feel free to use [if decide (l = []) then ...] instead if you prefer. *)
+(* The [Cell], [Cell_Seg], and [Queue] resources.  *)
 
 Section queue_resources.
 
   Context `{!osirisGS Σ}.
 
-  Definition Cell `{Encode A} (v : A) (n c : cell) : iProp Σ :=
+  Definition Cell `{Encode A} (c n : cell) (v : A) : iProp Σ :=
     ∃ r,
       ⌜c = Cons r⌝ ∗ r ⤇ {| content := v; next := n |}.
 
-  Fixpoint Cell_Seg `{Encode A} (l : list A) (to from : cell) : iProp Σ :=
+  Fixpoint Cell_Seg `{Encode A} (from to : cell) (l : list A) : iProp Σ :=
     match l with
     | [] => ⌜to = from⌝
-    | x :: l' => ∃ n, Cell x n from ∗ Cell_Seg l' to n
+    | x :: l' => ∃ n, Cell from n x ∗ Cell_Seg n to l'
     end.
 
-  Definition Queue `{Encode A} (l : list A) (q : record) : iProp Σ :=
+  Definition Queue `{Encode A} (q : record) (l : list A) : iProp Σ :=
     ∃ (cf cl : cell),
       q ⤇ {| length := list_z.length l; first := cf; last := cl |} ∗
-      match l with
-      | [] => ⌜cf = Nil⌝ ∗ ⌜cl = Nil⌝
-      | x :: l' => Cell_Seg l' cl cf ∗ Cell_Seg [x] Nil cl
-      end.
+      if decide (l = nil) then
+        ⌜cf = Nil⌝ ∗ ⌜cl = Nil⌝
+      else
+        ∃ x l',
+          ⌜ l = l' ++ [x] ⌝ ∗
+          Cell_Seg cf cl l' ∗ Cell_Seg cl Nil [x].
 
-  Lemma Cell_Seg_nil `{Encode A} (to from : cell) :
-    Cell_Seg (@nil A) to from ∗-∗ ⌜to = from⌝.
-  Proof. auto. Qed.
-
-  Lemma Cell_Seg_Nil `{Encode A} :
-    ⊢ Cell_Seg (@nil A) Nil Nil.
-  Proof. auto. Qed.
-
-  Lemma Cell_Seg_cons `{Encode A} (x : A) (l : list A) (to from : cell) :
-    Cell_Seg (x :: l) to from -∗
-    ∃ n, Cell x n from ∗ Cell_Seg l to n.
-  Proof. auto. Qed.
-
-  Lemma Cell_Seg_Nil2 `{Encode A} (c : cell) (l : list A) :
-    Cell_Seg l c Nil -∗ ⌜l = []⌝ ∗ ⌜c = Nil⌝.
+  Lemma Cell_Seg_app A `{Encode A} r (x' : A) c cf l:
+      r ⤇ {| content := x'; next := c |} -∗
+      Cell_Seg cf (Cons r) l -∗
+      Cell_Seg cf c (l ++ [x']).
   Proof.
-    iIntros "HSeg".
-    destruct l as [|x l']; first auto.
-    iPoseProof (Cell_Seg_cons with "HSeg") as "(%n & HCell & _)".
-    iDestruct "HCell" as "(%r & %Hcontra & _)".
-    discriminate Hcontra.
-  Qed.
-
-  (* I have written [Queue_if] and [Queue_if_first] with a [match] and
-     an [if decide] respectively. Feel free to pick whichever style
-     you prefer. *)
-
-  Lemma Queue_if `{Encode A} (l : list A) (q : loc) :
-    Queue l q -∗
-    ∃ cf cl,
-      q ⤇ {| length := list_z.length l; first := cf; last := cl |} ∗
-      match cl with
-      | Nil => ⌜l = []⌝ ∗ ⌜cf = Nil⌝
-      | _ => ∃ x l', ⌜l = x :: l'⌝ ∗ Cell_Seg l' cl cf ∗ Cell_Seg [x] Nil cl
-      end.
-  Proof.
-    iIntros "(%cf & %cl & $ & Hl)".
-    destruct l as [|x l'].
-    { by iDestruct "Hl" as "(-> & ->)". }
-    simpl Cell_Seg.
-    iDestruct "Hl" as "(HSeg1 & (%n & HCell & <-))".
-    iDestruct "HCell" as "(%r & -> & Hr)".
-    by iFrame.
-  Qed.
-
-  Lemma Queue_if_first `{Encode A} (l : list A) (q : loc) :
-    Queue l q -∗
-    ∃ cf cl,
-      q ⤇ {| length := list_z.length l; first := cf; last := cl |} ∗
-      if decide (cf = Nil) then ⌜l = []⌝ ∗ ⌜cl = Nil⌝ else
-      ∃ x l', ⌜l = x :: l'⌝ ∗ Cell_Seg l' cl cf ∗ Cell_Seg [x] Nil cl.
-  Proof.
-    iIntros "(%cf & %cl & $ & Hl)".
-    destruct l as [|x l'].
-    { iDestruct "Hl" as "(-> & ->)". by case_decide. }
-    iDestruct "Hl" as "(HSeg1 & (%n & HCell & <-))".
-    iDestruct "HCell" as "(%r & -> & Hr)".
-    destruct l' as [|y l'']; simpl Cell_Seg.
-    { iDestruct "HSeg1" as "<-".
-      case_decide; first discriminate.
-      iExists x, []. iFrame.
-      equality. (* Osiris helper tactic to prove equalities. *) }
-    { iDestruct "HSeg1" as "(%n & HCell & HCell_Seg)".
-      iDestruct "HCell" as "(%r' & -> & Hr')".
-      case_decide; first discriminate.
-      iExists x, (y :: l''). iFrame.
-      equality. }
+    iIntros "C S".
+    iInduction l as [|h t Ih] forall (cf c).
+    - simpl. iDestruct "S" as "<-". by iFrame.
+    - simpl. iDestruct "S" as "(% & ? & S)".
+      iFrame. iApply ("Ih" with "[$] [$]").
   Qed.
 
 End queue_resources.
@@ -166,7 +111,7 @@ Section proofs.
      elements of that type. *)
 
   Definition create_spec (u : unit) (m : microvx) : iProp Σ :=
-    ∀ A (HencA : Encode A), EWP m {{ q, Queue (@nil A) q }}.
+    ∀ A (HencA : Encode A), EWP m {{ q, Queue q (@nil A) }}.
 
   Definition create := (EAnonFun __create).
 
@@ -192,6 +137,91 @@ Section proofs.
     simpl.
     iIntros (v) "(%l & %cf & %cl & Hv & -> & -> & ->)".
     unfold Queue. by iFrame.
+  Qed.
+
+  Definition add_spec {A} `{Encode A} (x : A) (_q : record) (m : microvx) : iProp Σ :=
+    ∀ (q : list A),
+      ▷ Queue _q q -∗
+      EWP m {{ (), Queue _q (q ++ [x]) }}.
+
+  Definition add := (EAnonFun __add).
+
+  Lemma imp_add η A `(Encode A) :
+    ⊢ EWP (eval η add) {{ f, □ iSpec τ[A;record] f add_spec }}.
+  Proof.
+    iApply imp_EAnon_pers. unfold add_spec.
+    iIntros "!> /= %x %q %l Hq".
+    iApply imp_please; iNext.
+    imp_let $! (λ (c : cell), Cell c Nil x).
+    { imp_record $! (cons (A:=A)). simpl.
+        iIntros "% (% & -> & (% & % & ? & -> & ->))".
+        by iFrame. }
+    iIntros "%c C".
+    iDestruct "Hq" as "(%cf & %cl& Ql & Q)".
+    imp_match cell with "[Ql]".
+    iIntros "(-> & Ql)". simpl.
+    destruct l as [|h t].
+    - iDestruct "Q" as "[-> ->]".
+      next_branch.
+      iApply (imp_ESeq with "[Ql]").
+      iApply (imp_record_update with "Ql").
+      { split; simpl; lia. }
+      { imp_path. }
+      { imp_int. }
+      { rewrite -encode_encode'.
+        simpl. iIntros "(%_ & -> & Ql)".
+        iApply (imp_ESeq with "[Ql]").
+        iApply (imp_record_update with "Ql");
+          try imp_path.
+        { split; simpl; lia. }
+        simpl. iIntros "(%_ & -> & Ql)".
+        iApply (imp_wand with "[-]").
+        iApply (imp_record_update with "Ql").
+        { split; simpl; lia. }
+        { imp_path. }
+        { set_postcondition
+            (λ c', Cell c' Nil x ∗ ⌜ c = c'⌝)%I.
+          imp_path.
+          by iFrame. }
+        simpl. iIntros "% (% & (? & <-) & ?)".
+        destruct v. iUnfold Queue.
+        iFrame. by iExists []. }
+    -
+      iDestruct "Q" as "(%x' & %l & -> & S & % & Cl & <-)".
+      iDestruct "Cl" as "(%r & -> & Cl)".
+      rewrite !(encode_encode' (A:=cell)).
+      rewrite <- (encode_encode' (A:=cell)).
+      next_branch.
+      next_branch.
+      iApply (imp_ESeq with "[Ql]").
+      {  set_postcondition (λ _, q ⤇ _)%I.
+         iApply (imp_record_update' with "[] [Ql]").
+      { split; simpl; lia. }
+      { imp_path. }
+      { imp_arith reading "Ql". iFrame "Ql".
+        imp_int. }
+      { simpl. iIntros "% (-> & $)".
+        iIntros "!>$". } }
+      simpl. iIntros "Ql".
+      iApply (imp_ESeq with "[Cl]").
+      iApply (imp_record_update with "Cl").
+      { split; simpl; lia. }
+      { imp_path. }
+      { imp_path. }
+      simpl. iIntros "(% & [-> Cl])".
+      iApply (imp_wand with "[Ql]").
+      iApply (imp_record_update with "Ql").
+      { split; simpl; lia. }
+      { imp_path. }
+      { imp_path. }
+      simpl. iIntros ([]) "(% & [-> Ql])".
+      iUnfold Queue.
+      list_z.length. iFrame "Ql".
+      rewrite decide_False.
+      2: { destruct l; discriminate. }
+      iExists x, (l ++ [x']).
+      iFrame. repeat iSplit; try done.
+      iApply (Cell_Seg_app with "[$] [$]").
   Qed.
 
 End proofs.
