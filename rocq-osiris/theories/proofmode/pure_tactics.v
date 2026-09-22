@@ -636,8 +636,10 @@ Local Ltac2 rec pattern_match_aux () :=
       | PData "::" _ =>
           Control.plus
             (fun _ => eapply pat_PData_neq > [ ltac1:(congruence) ])
-            (fun _ => eapply pat_pCons > [ solve [ ltac1:(encode) ]
-                                         | continue_matching () ])
+            (fun _ => Control.plus
+              (fun _ => eapply pat_PData_neq_inline > [ ltac1:(congruence) ])
+              (fun _ => eapply pat_pCons > [ solve [ ltac1:(encode) ]
+                                           | continue_matching () ]))
       | PXData _ _ =>
           Control.plus
             (fun _ => eapply pat_PXData_eq > [ solve_lookup_path () | pattern_match_aux () ])
@@ -646,12 +648,17 @@ Local Ltac2 rec pattern_match_aux () :=
           Control.plus
             (fun _ => eapply pat_PInline_eq > [ solve [ ltac1:(encode) ]
                                               | pattern_match_aux () ])
-            (fun _ => eapply pat_PInline_neq > [ solve [ ltac1:(encode) ]
-                                               | ltac1:(congruence) ])
+            (fun _ => Control.plus
+              (fun _ => eapply pat_PInline_neq > [ solve [ ltac1:(encode) ]
+                                                 | ltac1:(congruence) ])
+              (fun _ => eapply pat_PInline_neq_data > [ solve [ ltac1:(encode) ]
+                                               | ltac1:(congruence) ]))
       | PConstant _ =>
           Control.plus
             (fun _ => eapply pat_PConst_eq; continue_matching ())
-            (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
+            (fun _ => Control.plus
+              (fun _ => eapply pat_PConst_neq > [ ltac1:(congruence) | try ltac1:(tauto) ])
+              (fun _ => eapply pat_PConst_neq_inline > [ ltac1:(congruence) | try ltac1:(tauto) ]))
       | POr _ _ =>
           apply pat_POr > [ pattern_match_aux () | pattern_match_aux () ]
       | PTuple _ =>

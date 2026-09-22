@@ -280,6 +280,18 @@ Section pattern_rules.
     destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
   Qed.
 
+  Lemma pat_PData_neq_inline η δ c ps c' v l φ :
+    v = VInline c' l ->
+    c ≠ c' →
+    pattern η δ (PData c ps) v φ True.
+      (* This form is useful when [c ≠ c'] is statically known. See
+         [pat_PData_eq] for why the [v = VData c' vs] equation is
+         explicit. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    eauto using pure_throw.
+  Qed.
+
   Lemma pat_PData η δ c ps c' v vs φ :
     v = VData c' vs ->
     (c = c' -> patterns η δ ps vs φ True) ->
@@ -325,6 +337,16 @@ Section pattern_rules.
   Proof.
     unfold pattern; intros -> ?. simpl_eval_pat.
     destruct_string_eqb; solve [ eauto using pure_throw | tauto ].
+  Qed.
+
+  Lemma pat_PInline_neq_data η δ c p c' v vs φ :
+    v = VData c' vs ->
+    c ≠ c' →
+    pattern η δ (PInline c p) v φ True.
+      (* This form is useful when [c ≠ c'] is statically known. *)
+  Proof.
+    unfold pattern; intros -> ?. simpl_eval_pat.
+    eauto using pure_throw.
   Qed.
 
   Lemma pat_PInline η δ c p c' v l φ :
@@ -541,6 +563,16 @@ Section pattern_rules.
     intros Hneq Hψ.
     unfold pattern. simpl_eval_pat.
     apply String.eqb_neq in Hneq as ->.
+    eapply pure_throw. encode. tauto.
+  Qed.
+
+  Lemma pat_PConst_neq_inline η δ c c' l ψ :
+    c <> c' ->
+    ψ ->
+    pattern η δ (PConstant c) (VInline c' l) (λ _, False) ψ.
+  Proof.
+    intros Hneq Hψ.
+    unfold pattern. simpl_eval_pat.
     eapply pure_throw. encode. tauto.
   Qed.
 
