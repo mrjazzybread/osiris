@@ -478,7 +478,28 @@ Section encoded_fields.
      our semantics allow updating records with "immutable" fields as
      long as we have full ownership. *)
 
-  Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ ζ} (r : record) f (a : A) e1 e2 Φ :
+  Lemma imp_record_update' `{RecordRepr A τ t} {η E Ψ} {ζ : exn → iProp Σ} (r : record) f e1 e2
+  (Φ2 : τ !!! f → iProp Σ) (Φ : unit → iProp Σ) :
+    valid_field f τ →
+    impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
+    impure E (eval η e2) Ψ ζ Φ2 -∗
+    (∀ (x : τ !!! f), Φ2 x -∗
+      ∃ (a : A), ▷ ownRecord r (DfracOwn 1) a ∗
+      ▷ (ownRecord r (DfracOwn 1) (types_to_repr (<[ f τ= x ]> (repr_to_types a))) -∗ Φ ())) -∗
+    impure E (eval η (ERecordSet e1 f e2)) Ψ ζ Φ.
+  Proof.
+    iIntros (Hvf) "He1 He2 HΦ".
+    iApply (imp_ERecordSet2 with "He1 He2").
+    iIntros (? x) "-> HΦ2".
+    iDestruct ("HΦ" $! x with "HΦ2") as (a) "(Hown & HΦ)".
+    iExists t, (repr_to_types a).
+    iSplitL "Hown"; iNext.
+    - iFrame "%". iApply "Hown".
+    - unfold ownRecord. pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
+      iApply "HΦ".
+  Qed.
+
+  Lemma imp_record_update `{RecordRepr A τ t} {η E Ψ} {ζ : exn → iProp Σ} (r : record) f (a : A) e1 e2 Φ :
     valid_field f τ →
     ▷ ownRecord r (DfracOwn 1) a -∗
     impure E (eval η e1) Ψ ζ (λ r', ⌜r' = r⌝) -∗
@@ -488,13 +509,9 @@ Section encoded_fields.
          ownRecord r (DfracOwn 1) (types_to_repr (<[ f τ= x]> (repr_to_types a)))).
   Proof.
     iIntros (Hvf) "Hown He1 He2".
-    iApply (imp_wand with "[-]").
-    { iApply (imp_ERecordSet with "Hown He1 He2"). exact Hvf. }
-    iIntros (_) "(%x & HΦ & Hrecord)".
-    iExists x. iFrame "HΦ".
-    unfold ownRecord.
-    pose proof repr_id as Hid. simpl in Hid. rewrite Hid.
-    iApply "Hrecord".
+    iApply (imp_record_update' with "He1 He2"). assumption.
+    iIntros (x) "HΦ". iFrame "Hown".
+    iIntros "!> $". iApply "HΦ".
   Qed.
 
 End encoded_fields.
